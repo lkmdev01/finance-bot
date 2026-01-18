@@ -1,0 +1,102 @@
+<?php
+
+namespace App\Services;
+
+class PhoneNumberService
+{
+    /**
+     * Normaliza um número de telefone removendo caracteres especiais
+     */
+    public function normalize(string $phone): string
+    {
+        // Remove caracteres não numéricos, exceto +
+        return preg_replace('/[^0-9+]/', '', $phone);
+    }
+
+    /**
+     * Limpa um número de telefone removendo todos os caracteres não numéricos
+     */
+    public function clean(string $phone): string
+    {
+        return preg_replace('/[^0-9]/', '', $phone);
+    }
+
+    /**
+     * Formata um número de telefone para exibição
+     */
+    public function format(string $phone, string $format = 'BR'): string
+    {
+        $clean = $this->clean($phone);
+        
+        if ($format === 'BR') {
+            // Formato: (11) 99999-9999 ou (11) 9999-9999
+            if (strlen($clean) === 11) {
+                return sprintf('(%s) %s-%s', 
+                    substr($clean, 0, 2),
+                    substr($clean, 2, 5),
+                    substr($clean, 7)
+                );
+            } elseif (strlen($clean) === 10) {
+                return sprintf('(%s) %s-%s', 
+                    substr($clean, 0, 2),
+                    substr($clean, 2, 4),
+                    substr($clean, 6)
+                );
+            }
+        }
+        
+        return $clean;
+    }
+
+    /**
+     * Valida se um número de telefone é válido
+     */
+    public function isValid(string $phone): bool
+    {
+        $clean = $this->clean($phone);
+        
+        // Número brasileiro: 10 ou 11 dígitos (com/sem DDD)
+        // Ou número internacional: 10-15 dígitos
+        $length = strlen($clean);
+        
+        return $length >= 10 && $length <= 15;
+    }
+
+    /**
+     * Gera variações de um número de telefone para busca
+     */
+    public function getVariations(string $phone): array
+    {
+        $clean = $this->normalize($phone);
+        $variations = [
+            $clean,
+            ltrim($clean, '+'),
+            '+'.$clean,
+        ];
+
+        // Remove código do país se tiver 13+ dígitos (assumindo formato +5511999999999)
+        if (strlen($clean) >= 13) {
+            $variations[] = substr($clean, -11); // Últimos 11 dígitos (DDD + número)
+            $variations[] = substr($clean, -10); // Últimos 10 dígitos (sem DDD)
+        }
+
+        return array_unique($variations);
+    }
+
+    /**
+     * Remove sufixos do WhatsApp (@s.whatsapp.net, @lid, etc)
+     */
+    public function removeWhatsAppSuffixes(string $phone): string
+    {
+        return str_replace(['@s.whatsapp.net', '@lid', '@g.us', '@c.us'], '', $phone);
+    }
+
+    /**
+     * Converte um número para JID do WhatsApp
+     */
+    public function toWhatsAppJid(string $phone): string
+    {
+        $clean = $this->clean($phone);
+        return $clean.'@s.whatsapp.net';
+    }
+}

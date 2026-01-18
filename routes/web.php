@@ -1,0 +1,159 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use Laravel\Fortify\Features;
+use Livewire\Volt\Volt;
+
+Route::get('/', function () {
+    return view('welcome');
+})->name('home');
+
+Route::view('dashboard', 'pages.dashboard')
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
+
+Route::middleware(['auth'])->group(function () {
+    // Transações
+    Route::get('transactions', function () {
+        return view('pages.transactions.index');
+    })->name('transactions.index');
+    
+    Route::get('transactions/create', function () {
+        return view('pages.transactions.create');
+    })->name('transactions.create');
+    
+    Route::get('transactions/{transaction}/edit', function (App\Models\Transaction $transaction) {
+        return view('pages.transactions.edit', ['transaction' => $transaction]);
+    })->name('transactions.edit');
+    
+    Route::get('transactions/import', function () {
+        return view('pages.transactions.import');
+    })->name('transactions.import');
+    
+    Route::get('transactions/duplicates', function () {
+        return view('pages.transactions.duplicates');
+    })->name('transactions.duplicates');
+
+    // Categorias
+    Route::get('categories', function () {
+        return view('pages.categories.index');
+    })->name('categories.index');
+    
+    Route::get('categories/create', function () {
+        return view('pages.categories.create');
+    })->name('categories.create');
+    
+    Route::get('categories/{category}/edit', function (App\Models\Category $category) {
+        return view('pages.categories.edit', ['category' => $category]);
+    })->name('categories.edit');
+
+    // Orçamentos
+    Route::get('budgets', function () {
+        return view('pages.budgets.index');
+    })->name('budgets.index');
+    
+    Route::get('budgets/create', function () {
+        return view('pages.budgets.create');
+    })->name('budgets.create');
+    
+    Route::get('budgets/{budget}/edit', function (App\Models\Budget $budget) {
+        return view('pages.budgets.edit', ['budget' => $budget]);
+    })->name('budgets.edit');
+
+    // Relatórios
+    Route::get('reports', function () {
+        return view('pages.reports.index');
+    })->name('reports.index');
+
+    // Projeções Financeiras
+    Volt::route('financial-projections', 'financial-projections.index')->name('financial-projections.index');
+
+    // Tags
+    Volt::route('tags', 'tags.index')->name('tags.index');
+    
+    Route::get('reports/export/pdf', [App\Http\Controllers\ReportsExportController::class, 'exportPdf'])->name('reports.export.pdf');
+    Route::get('reports/export/excel', [App\Http\Controllers\ReportsExportController::class, 'exportExcel'])->name('reports.export.excel');
+    
+    // Exportação de Transações
+    Route::get('transactions/export/csv', [App\Http\Controllers\TransactionExportController::class, 'exportCsv'])->name('transactions.export.csv');
+    Route::get('transactions/export/excel', [App\Http\Controllers\TransactionExportController::class, 'exportExcel'])->name('transactions.export.excel');
+    Route::get('transactions/export/pdf', [App\Http\Controllers\TransactionExportController::class, 'exportPdf'])->name('transactions.export.pdf');
+    Route::get('transactions/export/json', [App\Http\Controllers\TransactionExportController::class, 'exportJson'])->name('transactions.export.json');
+
+    // Metas de Economia
+    Route::get('savings-goals', function () {
+        return view('pages.savings-goals.index');
+    })->name('savings-goals.index');
+    
+    Route::get('savings-goals/create', function () {
+        return view('pages.savings-goals.create');
+    })->name('savings-goals.create');
+    
+    Route::get('savings-goals/{savingsGoal}/edit', function (App\Models\SavingsGoal $savingsGoal) {
+        return view('pages.savings-goals.edit', ['savingsGoal' => $savingsGoal]);
+    })->name('savings-goals.edit');
+    
+    Route::get('savings-goals/{savingsGoal}/deposit', function (App\Models\SavingsGoal $savingsGoal) {
+        return view('pages.savings-goals.deposit', ['savingsGoal' => $savingsGoal]);
+    })->name('savings-goals.deposit');
+
+    // Transações Recorrentes
+    Route::get('recurring-transactions', function () {
+        return view('pages.recurring-transactions.index');
+    })->name('recurring-transactions.index');
+    
+    Route::get('recurring-transactions/create', function () {
+        return view('pages.recurring-transactions.create');
+    })->name('recurring-transactions.create');
+    
+    Route::get('recurring-transactions/{recurringTransaction}/edit', function (App\Models\RecurringTransaction $recurringTransaction) {
+        return view('pages.recurring-transactions.edit', ['recurringTransaction' => $recurringTransaction]);
+    })->name('recurring-transactions.edit');
+
+    // Planejamento de Gastos
+    Volt::route('expense-plans', 'expense-plans.index')->name('expense-plans.index');
+    Volt::route('expense-plans/create', 'expense-plans.create')->name('expense-plans.create');
+    Volt::route('expense-plans/{expensePlan}/edit', 'expense-plans.edit')->name('expense-plans.edit');
+
+    // Alertas de Metas
+    Volt::route('savings-goals/{savingsGoal}/alerts', 'savings-goals.alerts')->name('savings-goals.alerts');
+
+    // Webhooks
+    Volt::route('webhooks', 'webhooks.index')->name('webhooks.index');
+    Volt::route('webhooks/create', 'webhooks.create')->name('webhooks.create');
+    Volt::route('webhooks/{webhook}/edit', 'webhooks.edit')->name('webhooks.edit');
+
+    // Monitoramento
+    Route::get('monitoring', function () {
+        return view('pages.monitoring.index');
+    })->name('monitoring.index');
+
+    // Gerenciamento WhatsApp
+    Route::get('whatsapp', function () {
+        return view('pages.whatsapp.index');
+    })->name('whatsapp.index');
+
+    // Configurações
+    Route::redirect('settings', 'settings/profile');
+
+    Volt::route('settings/profile', 'settings.profile')->name('profile.edit');
+    Volt::route('settings/password', 'settings.password')->name('user-password.edit');
+    Volt::route('settings/appearance', 'settings.appearance')->name('appearance.edit');
+    Volt::route('settings/whatsapp', 'settings.whatsapp')->name('whatsapp.settings');
+
+    Volt::route('settings/two-factor', 'settings.two-factor')
+        ->middleware(
+            when(
+                Features::canManageTwoFactorAuthentication()
+                    && Features::optionEnabled(Features::twoFactorAuthentication(), 'confirmPassword'),
+                ['password.confirm'],
+                [],
+            ),
+        )
+        ->name('two-factor.show');
+});
+
+// Webhook da Evolution API (sem autenticação)
+Route::post('/webhook/whatsapp', [App\Http\Controllers\WhatsAppWebhookController::class, 'handle'])
+    ->middleware('throttle:60,1') // 60 requisições por minuto
+    ->name('webhook.whatsapp');

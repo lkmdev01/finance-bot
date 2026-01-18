@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "herd": {
+      "command": "php",
+      "args": [
+        "C:/Users/lkmde/.config/herd/bin/herd-mcp.phar"
+      ],
+      "env": {
+        "SITE_PATH": "C:\\Users\\lkmde\\Herd\\FinanciIA\\financi-app"
+      }
+    }
+  }
+}
