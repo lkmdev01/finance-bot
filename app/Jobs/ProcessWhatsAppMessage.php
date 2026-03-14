@@ -531,21 +531,15 @@ class ProcessWhatsAppMessage implements ShouldQueue
      */
     private function getRecipientJid(PhoneNumberService $phoneNumberService): string
     {
-        // Se o remoteJid contém @lid, usa o número real do usuário
-        if ($this->remoteJid && str_contains($this->remoteJid, '@lid')) {
-            $cleanNumber = $phoneNumberService->clean($this->phoneNumber);
-
-            return $phoneNumberService->toWhatsAppJid($cleanNumber);
+        // Prioridade 1: JID original (garante entrega para @lid ou @s.whatsapp.net exato)
+        if ($this->remoteJid) {
+            return $this->remoteJid;
         }
 
-        // Se não tiver remoteJid, constrói o JID a partir do número real
-        if (! $this->remoteJid) {
-            $cleanNumber = $phoneNumberService->clean($this->phoneNumber);
+        // Prioridade 2: Número real do usuário (convertido para JID com prefixo 55 se necessário)
+        $cleanNumber = $phoneNumberService->clean($this->phoneNumber);
 
-            return $phoneNumberService->toWhatsAppJid($cleanNumber);
-        }
-
-        return $this->remoteJid;
+        return $phoneNumberService->toWhatsAppJid($cleanNumber);
     }
 
     /**

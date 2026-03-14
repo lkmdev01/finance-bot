@@ -97,6 +97,13 @@ class PhoneNumberService
     public function toWhatsAppJid(string $phone): string
     {
         $clean = $this->clean($phone);
+        
+        // Se for um número brasileiro (10 ou 11 dígitos) e não começar com 55, adiciona 55
+        // Isso evita enviar para JIDs inválidos como 13991290256@s.whatsapp.net
+        if ((strlen($clean) === 10 || strlen($clean) === 11) && !str_starts_with($clean, '55')) {
+            $clean = '55' . $clean;
+        }
+        
         return $clean.'@s.whatsapp.net';
     }
 }
