@@ -331,54 +331,12 @@ new class extends Component
 
 <div class="p-6 space-y-6">
         <!-- Header com Filtros -->
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <button 
-                    type="button"
-                    x-data
-                    x-on:click="() => {
-                        // Tenta encontrar o botão de collapse do Flux UI primeiro
-                        const trigger = document.querySelector('[data-flux-sidebar-collapse-trigger]');
-                        if (trigger) {
-                            const collapseBtn = trigger.querySelector('button, [role=\'button\']');
-                            if (collapseBtn) {
-                                collapseBtn.click();
-                                return;
-                            }
-                        }
-                        
-                        // Fallback: implementação manual
-                        const sidebar = document.querySelector('[data-flux-sidebar]');
-                        if (!sidebar) return;
-                        
-                        const isCollapsed = sidebar.hasAttribute('data-flux-sidebar-collapsed-desktop');
-                        
-                        if (isCollapsed) {
-                            sidebar.removeAttribute('data-flux-sidebar-collapsed-desktop');
-                            localStorage.removeItem('flux-sidebar-collapsed-desktop');
-                        } else {
-                            sidebar.setAttribute('data-flux-sidebar-collapsed-desktop', '');
-                            localStorage.setItem('flux-sidebar-collapsed-desktop', 'true');
-                        }
-                        
-                        // Dispara evento para atualizar o estado
-                        const event = new CustomEvent('flux-sidebar:toggle', {
-                            bubbles: true,
-                            detail: { collapsed: !isCollapsed }
-                        });
-                        sidebar.dispatchEvent(event);
-                        document.dispatchEvent(event);
-                    }"
-                    class="flex-shrink-0 p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                    aria-label="Toggle sidebar"
-                >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                    </svg>
-                </button>
-                <h1 class="text-2xl font-bold">Planejamento de {{ auth()->user()->name }}</h1>
-            </div>
-            <div class="flex items-center gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
+            <h1 class="text-2xl font-bold leading-tight">
+                Planejamento de {{ auth()->user()->name }}
+            </h1>
+            
+            <div class="flex flex-wrap items-center gap-4">
                 <div class="flex items-center gap-2">
                     <flux:button 
                         variant="{{ $period === 'monthly' ? 'primary' : 'ghost' }}" 
