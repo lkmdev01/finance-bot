@@ -11,13 +11,14 @@ Agora o projeto está configurado para rodar tudo em um único serviço usando D
 
 Crie apenas **1 serviço**:
 
-1. `financi-app` (Serviço Privado de Repositório ou Público)
+1. `financi-app` (Selecione seu repositório GitHub Privado)
 
-## 3. Configurar serviço `financi-app`
+## 3. Configurar serviço `financi-app` no Coolify
 
-1. **Fonte**: Seu repositório Git.
-2. **Build Pack**: Selecione `Dockerfile`.
-3. **Porta**: O container expõe a porta `8000`. Configure o Coolify para mapear sua URL pública para a porta `8000`.
+1. **Build Pack**: Selecione `Nixpacks` (ou deixe o padrão que ele detectar).
+2. **Build Command**: Deixe o padrão (ele vai rodar composer install e npm build automaticamente).
+3. **Start Command**: Digite exatamente isso:
+   `bash start-all.sh`
 
 ## 4. Variáveis de Ambiente
 
