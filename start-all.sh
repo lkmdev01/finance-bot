@@ -4,6 +4,7 @@
 set -e
 
 echo "--- 1. Preparando Ambiente ---"
+mkdir -p storage/logs
 php artisan migrate --force
 php artisan storage:link --quiet
 php artisan config:cache
