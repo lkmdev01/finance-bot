@@ -1,44 +1,29 @@
 #!/bin/bash
 
-# Script para rodar múltiplos processos em um único serviço no Coolify (sem Dockerfile)
+# Script para rodar múltiplos processos em um único serviço no Coolify
+set -e
 
-echo "--- Iniciando Setup do Ambiente ---"
-
-# 1. Rodar Migrations
-echo "Rodando php artisan migrate --force..."
+echo "--- 1. Preparando Ambiente ---"
 php artisan migrate --force
-
-# 2. Linkar Storage
-echo "Rodando php artisan storage:link..."
 php artisan storage:link --quiet
-
-# 3. Limpar e gerar caches
-echo "Limpando caches..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# --- Iniciar Processos ---
-
-echo "--- Iniciando Processos Background ---"
-
-# Iniciar o Worker da Fila
-echo "Iniciando Laravel Worker..."
+echo "--- 2. Iniciando Worker e Scheduler ---"
+# Rodar worker e scheduler em background
 php artisan queue:work --tries=3 --timeout=120 > storage/logs/worker.log 2>&1 &
-
-# Iniciar o Agendador (Scheduler)
-echo "Iniciando Laravel Scheduler..."
 php artisan schedule:work > storage/logs/scheduler.log 2>&1 &
 
-# Iniciar o WhatsApp Service (Node.js)
-echo "Iniciando WhatsApp Service..."
+echo "--- 3. Iniciando WhatsApp Service ---"
+# Entrar na pasta do WhatsApp, garantir dependências e iniciar
 cd whatsapp-service
-npm install --quiet
+# Garante que o Node rode na porta correta internally se necessário
 npm start > ../storage/logs/whatsapp.log 2>&1 &
 cd ..
 
-echo "--- Iniciando Servidor Web Principal ---"
-
-# Iniciar o Servidor Web (Este deve ser o processo principal, sem o & no final)
-# O Coolify usa a variável $PORT automaticamente
+echo "--- 4. Iniciando Servidor Web Principal ---"
+# O Nixpacks exige que o processo principal rode na porta definida pela variável $PORT
+# Se a porta original no painel foi 3000, o $PORT será 3000. Se mudamos para 8000, será 8000.
+echo "Rodando na porta: $PORT"
 php artisan serve --host=0.0.0.0 --port=$PORT
