@@ -12,7 +12,7 @@ import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import express from 'express';
 import axios from 'axios';
-import { rm } from 'fs/promises';
+import { rm, readdir } from 'fs/promises';
 import { join } from 'path';
 
 const app = express();
@@ -86,22 +86,33 @@ async function startWhatsApp() {
 
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const errorMsg = lastDisconnect?.error?.message || 'Erro desconhecido';
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
+            console.log(`❌ Conexão fechada. Motivo: ${errorMsg} (Status: ${statusCode})`);
+
             if (statusCode === DisconnectReason.loggedOut) {
-                console.log('❌ Desconectado - Credenciais inválidas. Limpando e reconectando...');
+                console.log('❌ Sessão encerrada (Logged Out). Limpando dados e tentando novo login...');
                 isConnected = false;
+                
+                // Em vez de remover a pasta (que pode ser um volume mount), remove apenas o conteúdo
                 const authPath = join(process.cwd(), 'auth_info');
-                rm(authPath, { recursive: true, force: true }).then(() => {
-                    setTimeout(() => startWhatsApp(), 2000);
-                }).catch(() => {
-                    setTimeout(() => startWhatsApp(), 2000);
-                });
+                readdir(authPath)
+                    .then(files => Promise.all(files.map(file => rm(join(authPath, file), { recursive: true, force: true }))))
+                    .then(() => {
+                        console.log('🧹 Conteúdo de auth_info limpo com sucesso.');
+                        setTimeout(() => startWhatsApp(), 3000);
+                    })
+                    .catch((err) => {
+                        console.error('⚠️ Erro ao limpar conteúdo de auth_info:', err.message);
+                        // Tenta reconectar mesmo se falhar a limpeza
+                        setTimeout(() => startWhatsApp(), 3000);
+                    });
             } else if (shouldReconnect) {
-                console.log('🔄 Reconectando...');
-                setTimeout(() => startWhatsApp(), 2000);
+                console.log('🔄 Reconectando automaticamente...');
+                setTimeout(() => startWhatsApp(), 3000);
             } else {
-                console.log('❌ Desconectado. Faça login novamente.');
+                console.log('❌ Desconectado definitivamente. Requer intervenção manual.');
                 isConnected = false;
             }
         } else if (connection === 'open') {
