@@ -4,17 +4,20 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\User;
+use App\Services\BaileysService;
 use App\Services\OCRService;
 use App\Services\PhoneNumberService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 
 class WhatsAppWebhookController extends Controller
 {
     public function __construct(
         private readonly PhoneNumberService $phoneNumberService,
-        private readonly OCRService $ocrService
+        private readonly OCRService $ocrService,
+        private readonly BaileysService $baileysService
     ) {}
 
     /**
@@ -174,13 +177,29 @@ class WhatsAppWebhookController extends Controller
                     'phone_number' => $phoneNumber,
                     'remoteJid_original' => $key['remoteJid'] ?? null,
                     'pushName' => $data['pushName'] ?? null,
-                    'message_preview' => substr($text, 0, 50),
                 ]);
 
-                // Retorna erro informando que o número não está cadastrado
+                // Envia mensagem de convite para registro
+                $appUrl = config('app.url');
+                $registerUrl = $appUrl . '/register';
+                $whatsappUrl = $appUrl . '/settings/whatsapp';
+
+                $unregisteredMessage = "Olá! 👋 Identificamos que seu número ainda não está vinculado a uma conta no *InovaFinanci*.\n\n".
+                    "Para que eu possa gerenciar suas finanças, siga estes passos:\n\n".
+                    "1️⃣ Crie sua conta em: $registerUrl\n".
+                    "2️⃣ Nas configurações, vincule este número em: $whatsappUrl\n\n".
+                    "Depois disso, basta me enviar seus gastos ou ganhos! 🚀";
+
+                try {
+                    $recipientJid = $key['remoteJid'] ?? $this->phoneNumberService->toWhatsAppJid($phoneNumber);
+                    $this->baileysService->sendTextMessage($recipientJid, $unregisteredMessage);
+                } catch (\Exception $e) {
+                    Log::error('Erro ao enviar mensagem de convite', ['error' => $e->getMessage()]);
+                }
+
                 return response()->json([
                     'status' => 'no_user',
-                    'message' => 'Número não cadastrado. Cadastre seu número em Configurações > WhatsApp',
+                    'message' => 'Convite enviado via WhatsApp.',
                 ]);
             }
 

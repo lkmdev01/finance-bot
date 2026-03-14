@@ -105,7 +105,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             }
 
             // Envia feedback visual imediato (processando)
-            $this->sendResponse($baileysService, $phoneNumberService, '⏳ Processando sua mensagem...', $user);
+            // $this->sendResponse($baileysService, $phoneNumberService, '⏳ Processando sua mensagem...', $user);
 
             // Processa a mensagem usando o processador (separação de responsabilidades)
             $startTime = microtime(true);
