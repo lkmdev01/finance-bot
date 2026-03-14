@@ -19,6 +19,8 @@ php artisan schedule:work > storage/logs/scheduler.log 2>&1 &
 echo "--- 3. Iniciando WhatsApp Service ---"
 # Entrar na pasta do WhatsApp, garantir dependências e iniciar
 cd whatsapp-service
+echo "Instalando dependências do WhatsApp..."
+npm install --quiet
 # Garante que o Node rode na porta correta internally se necessário
 npm start > ../storage/logs/whatsapp.log 2>&1 &
 cd ..
