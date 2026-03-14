@@ -22,7 +22,8 @@ cd whatsapp-service
 echo "Instalando dependências do WhatsApp..."
 npm install --quiet
 # Garante que o Node rode na porta correta internally se necessário
-npm start > ../storage/logs/whatsapp.log 2>&1 &
+# Exibe os logs do WhatsApp diretamente no console para facilitar ver o QR Code
+npm start &
 cd ..
 
 echo "--- 4. Iniciando Servidor Web Principal ---"
