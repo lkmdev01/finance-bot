@@ -227,13 +227,18 @@ async function startWhatsApp() {
             text = mediaMessage?.caption || '';
         }
         
-        // Se não houver texto e o messageType for undefined, pode ser uma mensagem ainda sendo processada
-        // ou um tipo de mensagem que não suportamos (ex: sticker, location, etc)
+        // Se não houver texto, verifica se é uma mensagem de mídia ou outro tipo suportado
         if (!text) {
-            if (messageType && messageType !== 'protocolMessage') {
+            const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage'];
+            if (mediaTypes.includes(messageType)) {
+                text = `[Mídia: ${messageType}]`;
+                console.log(`   🖼️  Mensagem de mídia recebida: ${messageType}`);
+            } else if (messageType && messageType !== 'protocolMessage') {
                 console.log(`   ⚠️  Mensagem do tipo '${messageType}' sem texto, ignorando\n`);
+                return;
+            } else {
+                return;
             }
-            return;
         }
 
         // Remove sufixos para exibição
