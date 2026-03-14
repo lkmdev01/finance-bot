@@ -1,57 +1,162 @@
-# Deploy Laravel + Node.js no Railway
+# Deploy Laravel + WhatsApp no Coolify (VPS)
 
-## 1. Pré-requisitos
+Este projeto roda com Laravel (web), fila, scheduler e um servico Node separado (`whatsapp-service`).
 
-- Conta Railway.app (https://railway.app)
-- Projeto Laravel pronto (sem .env no repositório)
-- whatsapp-service separado (Node.js)
+## 1. Arquitetura recomendada no Coolify
 
-## 2. Checklist de preparação
+Crie 4 servicos usando o mesmo repositorio (exceto quando indicado):
 
-- [ ] Crie um arquivo `.env.example` com todas as variáveis necessárias
-- [ ] Gere sua APP_KEY localmente: `php artisan key:generate --show`
-- [ ] Teste localmente com `APP_ENV=production` e `APP_DEBUG=false`
-- [ ] Adicione scripts de build no `package.json` e `composer.json` se necessário
+1. `financi-web` (Laravel HTTP)
+2. `financi-worker` (queue worker)
+3. `financi-scheduler` (scheduler)
+4. `financi-whatsapp` (Node.js, pasta `whatsapp-service`)
 
-## 3. Subindo o Laravel no Railway
+Sem os servicos `worker` e `scheduler`, o sistema fica incompleto em producao.
 
-1. Faça login no Railway e clique em "New Project" > "Deploy from GitHub repo"
-2. Escolha seu repositório Laravel
-3. No painel do projeto, vá em **Variables** e adicione as variáveis do `.env` (APP*KEY, DB*\*, QUEUE_CONNECTION, etc)
-4. Crie um plugin de banco de dados (PostgreSQL ou MySQL) e copie as credenciais para as variáveis DB\_\*
-5. Em **Deployments > Settings**:
-    - Build command: `composer install --no-dev --optimize-autoloader && php artisan migrate --force && npm install && npm run build`
-    - Start command: `php artisan serve --host=0.0.0.0 --port $PORT`
-6. Rode `php artisan storage:link` após o deploy (pode ser via shell do Railway)
-7. APP_URL deve ser a URL do Railway
+## 2. Build e start commands
 
-## 4. Worker (Queue)
+### 2.1 Servico `financi-web`
 
-- Adicione um novo serviço no Railway ("New Service > Start from Repo" ou "Start from Dockerfile")
-- Use o mesmo repositório, mas altere o start command para:
-  `php artisan queue:work --tries=3`
-- Use as mesmas variáveis de ambiente do web
+Build command:
 
-## 5. whatsapp-service (Node.js)
+```bash
+composer install --no-dev --optimize-autoloader
+npm ci
+npm run build
+php artisan migrate --force
+php artisan storage:link
+php artisan config:cache
+php artisan route:cache
+```
 
-- Suba como serviço separado no Railway
-- Configure as variáveis de ambiente necessárias (endpoints, tokens, etc)
-- Start command: `npm start` ou `node index.js`
+Start command:
 
-## 6. Observações
+```bash
+php artisan serve --host=0.0.0.0 --port=$PORT
+```
 
-- Pastas `storage` e `bootstrap/cache` precisam ser graváveis
-- Se usar uploads, configure storage (local, S3, etc)
-- Configure webhooks e endpoints externos para a URL do Railway
-- Para e-mails, configure SMTP nas variáveis
-- Para jobs agendados, use Railway Cron ou um serviço externo
+### 2.2 Servico `financi-worker`
 
-## 7. Segurança
+Build command:
 
-- Nunca suba `.env` para o repositório
-- APP_DEBUG deve ser `false` em produção
-- Use HTTPS sempre que possível
+```bash
+composer install --no-dev --optimize-autoloader
+```
 
----
+Start command:
 
-Dúvidas? Consulte a documentação do Railway ou peça ajuda aqui!
+```bash
+php artisan queue:work --tries=3 --timeout=120
+```
+
+### 2.3 Servico `financi-scheduler`
+
+Build command:
+
+```bash
+composer install --no-dev --optimize-autoloader
+```
+
+Start command:
+
+```bash
+php artisan schedule:work
+```
+
+### 2.4 Servico `financi-whatsapp`
+
+Root/pasta do servico: `whatsapp-service`
+
+Build command:
+
+```bash
+npm ci
+```
+
+Start command:
+
+```bash
+npm start
+```
+
+## 3. Variaveis de ambiente
+
+## 3.1 Laravel (web/worker/scheduler)
+
+Obrigatorias (minimo):
+
+```env
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://SEU_DOMINIO
+APP_KEY=base64:...
+
+DB_CONNECTION=mysql
+DB_HOST=...
+DB_PORT=3306
+DB_DATABASE=...
+DB_USERNAME=...
+DB_PASSWORD=...
+
+QUEUE_CONNECTION=database
+
+BAILEYS_SERVICE_URL=http://financi-whatsapp:3001
+BAILEYS_WEBHOOK_SECRET=troque-por-um-secret-forte
+
+AI_PROVIDER=groq
+AI_API_KEY=...
+GROQ_MODEL=llama-3.1-8b-instant
+```
+
+Notas:
+- `BAILEYS_WEBHOOK_SECRET` deve ser igual ao `WEBHOOK_SECRET` do servico Node.
+- Se usar Redis, ajuste `QUEUE_CONNECTION=redis` e variaveis `REDIS_*`.
+
+## 3.2 WhatsApp service (Node)
+
+```env
+WHATSAPP_SERVICE_PORT=3001
+LARAVEL_URL=https://SEU_DOMINIO
+WEBHOOK_SECRET=troque-por-um-secret-forte
+```
+
+Notas:
+- `LARAVEL_URL` precisa apontar para a URL do Laravel acessivel pelo servico Node.
+- O endpoint usado e `/webhook/whatsapp`.
+
+## 4. Persistencia da sessao WhatsApp
+
+Configure um volume persistente no servico `financi-whatsapp` para manter a pasta:
+
+- `auth_info/`
+
+Sem isso, cada restart pede novo QR Code.
+
+## 5. Checklist de validacao apos deploy
+
+1. Verificar health:
+   - `GET /up`
+   - `GET /health`
+2. Verificar rotas:
+   - `POST /webhook/whatsapp`
+3. Verificar fila:
+   - jobs saindo da tabela `jobs`
+4. Verificar logs:
+   - `storage/logs/laravel.log`
+5. Verificar status WhatsApp:
+   - `GET /status` no servico Node
+
+## 6. Problemas comuns
+
+- `401 no webhook`: segredo diferente entre Laravel e Node.
+- `mensagens chegam e nao processam`: `queue:work` nao esta rodando.
+- `tarefas diarias nao executam`: `schedule:work` nao esta rodando.
+- `QR sempre reaparece`: sem volume persistente em `auth_info/`.
+- `arquivos nao abrem`: faltou `php artisan storage:link`.
+
+## 7. Seguranca minima
+
+- Nunca versionar `.env`.
+- Manter `APP_DEBUG=false` em producao.
+- Usar HTTPS no dominio publico.
+- Usar segredo forte para webhook.

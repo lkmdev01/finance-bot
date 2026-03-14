@@ -7,7 +7,11 @@ use Illuminate\Support\Facades\Queue;
 test('webhook recebe mensagem do whatsapp e enfileira job', function () {
     Queue::fake();
 
-    $user = User::factory()->create();
+    config(['whatsapp.baileys.webhook_secret' => 'test-secret']);
+
+    $user = User::factory()->create([
+        'phone_number' => '5511999999999',
+    ]);
 
     $webhookData = [
         'event' => 'messages.upsert',
@@ -21,6 +25,7 @@ test('webhook recebe mensagem do whatsapp e enfileira job', function () {
                 'conversation' => 'Gastei R$ 50 no supermercado',
             ],
         ],
+        'secret' => 'test-secret',
     ];
 
     $response = $this->postJson(route('webhook.whatsapp'), $webhookData);
@@ -35,37 +40,43 @@ test('webhook recebe mensagem do whatsapp e enfileira job', function () {
     });
 });
 
-test('webhook ignora mensagens próprias', function () {
+test('webhook ignora mensagens do bot', function () {
     Queue::fake();
+
+    config(['whatsapp.baileys.webhook_secret' => 'test-secret']);
 
     $webhookData = [
         'event' => 'messages.upsert',
         'data' => [
             'key' => [
                 'remoteJid' => '5511999999999@s.whatsapp.net',
-                'fromMe' => true, // Mensagem enviada por nós
+                'fromMe' => true,
             ],
             'message' => [
                 'messageType' => 'conversation',
                 'conversation' => 'Mensagem enviada',
             ],
         ],
+        'secret' => 'test-secret',
     ];
 
     $response = $this->postJson(route('webhook.whatsapp'), $webhookData);
 
     $response->assertSuccessful();
-    $response->assertJson(['status' => 'own_message']);
+    $response->assertJson(['status' => 'bot_message_ignored']);
 
     Queue::assertNothingPushed();
 });
 
-test('webhook ignora eventos que não são mensagens', function () {
+test('webhook ignora eventos que nao sao mensagens', function () {
     Queue::fake();
+
+    config(['whatsapp.baileys.webhook_secret' => 'test-secret']);
 
     $webhookData = [
         'event' => 'connection.update',
         'data' => [],
+        'secret' => 'test-secret',
     ];
 
     $response = $this->postJson(route('webhook.whatsapp'), $webhookData);
