@@ -22,17 +22,30 @@ new class extends Component
      */
     public function updatePhoneNumber(): void
     {
-        $validated = $this->validate([
-            'phone_number' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
+        // Remove caracteres não numéricos para validação e salvamento
+        $phoneNumber = preg_replace('/[^0-9+]/', '', $this->phone_number ?? '');
+        if (empty($phoneNumber)) $phoneNumber = null;
+
+        $this->validate([
+            'phone_number' => [
+                'nullable', 
+                'string', 
+                'max:20', 
+                'regex:/^[0-9+\-\s()]+$/',
+                function ($attribute, $value, $fail) use ($phoneNumber) {
+                    if ($phoneNumber) {
+                        $exists = DB::table('users')
+                            ->where('phone_number', $phoneNumber)
+                            ->where('id', '!=', Auth::id())
+                            ->exists();
+                        
+                        if ($exists) {
+                            $fail('Este número de telefone já está sendo usado por outra conta.');
+                        }
+                    }
+                }
+            ],
         ]);
-
-        // Remove caracteres não numéricos, exceto +
-        $phoneNumber = preg_replace('/[^0-9+]/', '', $validated['phone_number'] ?? '');
-
-        // Se o número estiver vazio após limpeza, define como null
-        if (empty($phoneNumber)) {
-            $phoneNumber = null;
-        }
 
         // Atualiza o número do usuário
         $user = Auth::user();
