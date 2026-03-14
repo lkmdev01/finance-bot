@@ -268,10 +268,11 @@ class WhatsAppWebhookController extends Controller
         // Normaliza o número
         $normalized = $this->phoneNumberService->normalize($phoneNumber);
 
-        // Tenta encontrar usuário pelo número exato
+        // Tenta encontrar usuário pelo número exato (ou LID)
         $user = User::where('phone_number', $normalized)->first();
 
         if ($user) {
+            Log::debug('Usuário encontrado pelo número exato', ['user_id' => $user->id]);
             return $user;
         }
 
@@ -311,6 +312,9 @@ class WhatsAppWebhookController extends Controller
     private function identifyUserByPushName(string $pushName): ?User
     {
         // Tenta encontrar usuário pelo nome (case-insensitive, parcial)
+        // Adiciona proteção contra nomes vazios ou muito curtos
+        if (strlen($pushName) < 3) return null;
+
         $user = User::whereRaw('LOWER(name) LIKE ?', ['%'.strtolower($pushName).'%'])->first();
 
         if ($user) {
