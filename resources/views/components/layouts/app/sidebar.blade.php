@@ -226,61 +226,39 @@
                 --flux-sidebar-width: 16rem;
             }
 
-            html, body {
-                height: 100%;
-                overflow-x: hidden !important;
-            }
-            
-            [data-flux-sidebar] {
-                position: fixed !important;
-                top: 0;
-                left: 0;
-                height: 100vh !important;
-                max-height: 100vh !important;
-                overflow: hidden !important;
-                width: var(--flux-sidebar-width) !important;
-                z-index: 40;
-                display: flex;
-                flex-direction: column;
-                transition: width 0.3s ease;
-            }
-            
-            [data-flux-sidebar] > *:not([data-flux-sidebar-nav]):not(nav) {
-                flex-shrink: 0;
-            }
-            
-            [data-flux-sidebar] > nav,
-            [data-flux-sidebar] [data-flux-sidebar-nav] {
-                flex: 1 1 auto;
-                overflow-y: auto;
-                overflow-x: hidden;
-                min-height: 0;
-                -webkit-overflow-scrolling: touch;
-            }
-            
-            [data-flux-sidebar-collapsed-desktop] {
+            /* Quando colapsado, o Flux usa 4rem por padrão, vamos garantir que o Grid acompanhe */
+            html.sidebar-collapsed {
                 --flux-sidebar-width: 4rem;
-                overflow-x: hidden !important;
-                overflow-y: hidden !important;
             }
-            
-            [data-flux-sidebar-collapsed-desktop] > nav,
-            [data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-nav] {
-                overflow-y: auto;
-                overflow-x: hidden;
-                padding: 0.5rem 0;
+
+            /* Garante que o Grid do Body use a variável correta */
+            body {
+                display: grid !important;
+                grid-template-columns: var(--flux-sidebar-width) 1fr !important;
+                grid-template-areas: "sidebar main" !important;
+                min-height: 100vh;
+                margin: 0;
+            }
+
+            [data-flux-sidebar] {
+                grid-area: sidebar;
+                position: sticky !important;
+                top: 0;
+                height: 100vh !important;
+                width: var(--flux-sidebar-width) !important;
+                transition: width 0.2s ease-in-out;
             }
             
             [data-flux-main] {
-                margin-left: var(--flux-sidebar-width);
-                overflow-x: hidden;
+                grid-area: main;
+                width: 100% !important;
+                margin-left: 0 !important; /* REMOVE o erro do espaçamento duplo */
                 min-height: 100vh;
-                transition: margin-left 0.3s ease;
             }
             
             @media (max-width: 1024px) {
-                :root {
-                    --flux-sidebar-width: 0rem;
+                body {
+                    display: block !important;
                 }
 
                 [data-flux-sidebar] {
@@ -290,70 +268,46 @@
                 }
                 
                 [data-flux-main] {
+                    width: 100% !important;
                     margin-left: 0 !important;
                 }
             }
             
-            [data-flux-sidebar-header] {
-                display: flex;
-                gap: 0.5rem;
-                min-width: 0;
-                width: 100%;
-                flex-shrink: 0;
-            }
-            
-            [data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-header] a {
-                display: flex;
+            /* Ajustes visuais para o modo colapsado */
+            html.sidebar-collapsed [data-flux-sidebar] [data-flux-sidebar-header] a {
                 justify-content: center;
-                width: 100%;
             }
             
-            [data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-header] {
-                justify-content: center;
-                padding: 0.5rem;
-            }
-            
-            [data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-header] .ms-1 {
-                display: none;
-            }
-            
-            [data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-header] a > div:last-child {
+            html.sidebar-collapsed [data-flux-sidebar] [data-flux-sidebar-header] .ms-1,
+            html.sidebar-collapsed [data-flux-sidebar] [data-flux-sidebar-header] a > div:last-child {
                 display: none;
             }
         </style>
         
         <script>
             (function() {
-                // Tenta recuperar o estado do localStorage, default para true (collapsed)
-                const savedState = localStorage.getItem('flux-sidebar-collapsed-desktop');
-                const shouldCollapse = savedState === null ? true : savedState === 'true';
-                
-                function updateLayout(collapsed) {
-                    const sidebar = document.querySelector('[data-flux-sidebar]');
-                    const main = document.querySelector('[data-flux-main]');
+                function applyLayoutState() {
+                    const savedState = localStorage.getItem('flux-sidebar-collapsed-desktop');
+                    const isCollapsed = savedState === null ? true : savedState === 'true';
                     
-                    if (sidebar) {
-                        if (collapsed) {
-                            sidebar.setAttribute('data-flux-sidebar-collapsed-desktop', '');
-                            document.documentElement.style.setProperty('--flux-sidebar-width', '4rem');
-                        } else {
-                            sidebar.removeAttribute('data-flux-sidebar-collapsed-desktop');
-                            document.documentElement.style.setProperty('--flux-sidebar-width', '16rem');
-                        }
+                    if (isCollapsed) {
+                        document.documentElement.classList.add('sidebar-collapsed');
+                    } else {
+                        document.documentElement.classList.remove('sidebar-collapsed');
                     }
                 }
-                
-                // Aplica imediatamente se possível
-                updateLayout(shouldCollapse);
-                
-                // Garante aplicação após load
-                document.addEventListener('DOMContentLoaded', () => updateLayout(shouldCollapse));
-                
-                // Listener para eventos de toggle do sidebar (Flux)
+
+                applyLayoutState();
+
+                // Listener para o botão de toggle do Flux
                 document.addEventListener('flux-sidebar:toggle', function(event) {
                     if (event.detail && event.detail.collapsed !== undefined) {
                         localStorage.setItem('flux-sidebar-collapsed-desktop', event.detail.collapsed);
-                        updateLayout(event.detail.collapsed);
+                        if (event.detail.collapsed) {
+                            document.documentElement.classList.add('sidebar-collapsed');
+                        } else {
+                            document.documentElement.classList.remove('sidebar-collapsed');
+                        }
                     }
                 });
             })();
