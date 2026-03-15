@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Log;
+
 class AIResponseParser
 {
     /**
@@ -21,27 +23,42 @@ class AIResponseParser
             $json = json_decode($sanitizedJson, true);
 
             if (json_last_error() === JSON_ERROR_NONE) {
-                // Se o campo 'reply' ainda parecer ser um JSON (devido a nesting ou escaping da IA), tenta unwrap
+                // ... (existing nested JSON logic)
                 if (isset($json['reply']) && is_string($json['reply']) && str_starts_with(trim($json['reply']), '{')) {
                     $innerJson = json_decode($json['reply'], true);
                     if (json_last_error() === JSON_ERROR_NONE) {
                         return array_merge($json, $innerJson);
                     }
                 }
-                // Corrige transaction_id se vier como string tipo 'ID 10'
-                if (isset($json['transaction_id']) && is_string($json['transaction_id'])) {
-                    if (preg_match('/(\d+)/', $json['transaction_id'], $matches)) {
-                        $json['transaction_id'] = (int)$matches[1];
-                    }
-                }
-                // Fallback: se não houver reply, mas houver action conhecida, gera resposta amigável
-                if (!isset($json['reply'])) {
-                    if (($json['action'] ?? null) === 'delete_transaction') {
-                        $json['reply'] = 'Transação apagada com sucesso!';
-                    }
-                    // Outros fallbacks podem ser adicionados aqui
-                }
+                // ...
                 return $json;
+            }
+
+            // --- NOVO: Fallback via Regex se o JSON for malformado ---
+            Log::debug('JSON malformado detectado, tentando extração via regex', ['response' => $potentialJson]);
+            
+            $extracted = [];
+            
+            // Tenta extrair o 'reply' usando um regex que busca o valor entre aspas
+            if (preg_match('/"reply"\s*:\s*"(.*?)(?:"\s*,\s*"action"|"\s*,\s*"transaction_data"|"\s*})/s', $potentialJson, $matches)) {
+                $extracted['reply'] = $matches[1];
+            } elseif (preg_match('/"reply"\s*:\s*"(.*)/s', $potentialJson, $matches)) {
+                // Fallback extremo: pega tudo após "reply":" até o fim ou próxima chave
+                $val = rtrim($matches[1], ' \t\n\r\0\x0B}');
+                $extracted['reply'] = rtrim($val, '", ');
+            }
+
+            if (preg_match('/"action"\s*:\s*(?:"(.*?)"|null)/', $potentialJson, $matches)) {
+                $extracted['action'] = $matches[1] ?? null;
+            }
+
+            if (!empty($extracted['reply'])) {
+                // Tira escapes de barra pra exibir texto limpo
+                $extracted['reply'] = stripslashes($extracted['reply']);
+                return array_merge([
+                    'action' => null,
+                    'transaction_data' => null,
+                ], $extracted);
             }
         }
 
