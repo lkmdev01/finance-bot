@@ -140,23 +140,33 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 $validation = $this->validateTransactionData($result['transaction_data'], $user);
 
                 if ($validation->fails()) {
-                    // Registra métrica de erro
-                    $metricsService->recordError('validation', 'Dados de transação inválidos');
-                    $metricsService->recordTransactionSuccess(false, 'whatsapp');
+                    $errors = $validation->errors();
 
-                    Log::warning('Dados de transação inválidos da IA', [
-                        'user_id' => $user->id,
-                        'phone' => $this->phoneNumber,
-                        'errors' => $validation->errors()->all(),
-                        'data' => $result['transaction_data'],
-                    ]);
+                    // Se o único erro for a categoria, removemos o category_id e tentamos prosseguir
+                    if ($errors->has('category_id') && $errors->count() === 1) {
+                        Log::info('Ignorando erro de categoria da IA e prosseguindo sem categoria', [
+                            'user_id' => $user->id,
+                            'invalid_category_id' => $result['transaction_data']['category_id'] ?? null,
+                        ]);
+                        $result['transaction_data']['category_id'] = null;
+                    } else {
+                        // Se houver outros erros (valor, tipo, data), cancelamos
+                        $metricsService->recordError('validation', 'Dados de transação inválidos');
+                        $metricsService->recordTransactionSuccess(false, 'whatsapp');
 
-                    // Envia mensagem de erro ao usuário
-                    $errorMessage = '❌ Não consegui criar a transação. '.
-                                   implode(' ', $validation->errors()->all());
-                    $this->sendErrorMessage($baileysService, $phoneNumberService, $errorMessage);
+                        Log::warning('Dados de transação inválidos da IA', [
+                            'user_id' => $user->id,
+                            'phone' => $this->phoneNumber,
+                            'errors' => $errors->all(),
+                            'data' => $result['transaction_data'],
+                        ]);
 
-                    return;
+                        $errorMessage = '❌ Não consegui criar a transação. '.
+                                       implode(' ', $errors->all());
+                        $this->sendErrorMessage($baileysService, $phoneNumberService, $errorMessage);
+
+                        return;
+                    }
                 }
 
                 $this->createTransaction($user, $contact, $result['transaction_data']);
