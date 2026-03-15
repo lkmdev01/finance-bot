@@ -36,7 +36,7 @@ new class extends Component {
     }
 }; ?>
 
-<section class="w-full">
+<section class="w-full p-6 lg:p-8">
     @include('partials.settings-heading')
 
     <x-settings.layout :heading="__('Update password')" :subheading="__('Ensure your account is using a long, random password to stay secure')">

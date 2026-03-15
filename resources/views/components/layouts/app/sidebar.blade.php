@@ -222,6 +222,10 @@
         @fluxScripts
         
         <style>
+            :root {
+                --flux-sidebar-width: 16rem;
+            }
+
             html, body {
                 height: 100%;
                 overflow-x: hidden !important;
@@ -234,10 +238,11 @@
                 height: 100vh !important;
                 max-height: 100vh !important;
                 overflow: hidden !important;
-                max-width: 100%;
+                width: var(--flux-sidebar-width) !important;
                 z-index: 40;
                 display: flex;
                 flex-direction: column;
+                transition: width 0.3s ease;
             }
             
             [data-flux-sidebar] > *:not([data-flux-sidebar-nav]):not(nav) {
@@ -254,10 +259,9 @@
             }
             
             [data-flux-sidebar-collapsed-desktop] {
+                --flux-sidebar-width: 4rem;
                 overflow-x: hidden !important;
                 overflow-y: hidden !important;
-                width: 4rem !important;
-                max-width: 4rem !important;
             }
             
             [data-flux-sidebar-collapsed-desktop] > nav,
@@ -267,22 +271,22 @@
                 padding: 0.5rem 0;
             }
             
-            
             [data-flux-main] {
-                margin-left: var(--flux-sidebar-width, 16rem);
+                margin-left: var(--flux-sidebar-width);
                 overflow-x: hidden;
                 min-height: 100vh;
                 transition: margin-left 0.3s ease;
             }
             
-            [data-flux-sidebar-collapsed-desktop] ~ [data-flux-main] {
-                margin-left: 4rem;
-            }
-            
             @media (max-width: 1024px) {
+                :root {
+                    --flux-sidebar-width: 0rem;
+                }
+
                 [data-flux-sidebar] {
                     position: relative !important;
                     height: auto !important;
+                    width: 100% !important;
                 }
                 
                 [data-flux-main] {
@@ -296,13 +300,6 @@
                 min-width: 0;
                 width: 100%;
                 flex-shrink: 0;
-            }
-            
-            [data-flux-sidebar] > nav,
-            [data-flux-sidebar] > [data-flux-sidebar-nav] {
-                flex: 0 1 auto;
-                overflow-y: auto;
-                overflow-x: hidden;
             }
             
             [data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-header] a {
@@ -327,44 +324,36 @@
         
         <script>
             (function() {
-                localStorage.setItem('flux-sidebar-collapsed-desktop', 'true');
+                // Tenta recuperar o estado do localStorage, default para true (collapsed)
+                const savedState = localStorage.getItem('flux-sidebar-collapsed-desktop');
+                const shouldCollapse = savedState === null ? true : savedState === 'true';
                 
-                function collapseSidebar() {
+                function updateLayout(collapsed) {
                     const sidebar = document.querySelector('[data-flux-sidebar]');
+                    const main = document.querySelector('[data-flux-main]');
+                    
                     if (sidebar) {
-                        sidebar.setAttribute('data-flux-sidebar-collapsed-desktop', '');
-                        return true;
+                        if (collapsed) {
+                            sidebar.setAttribute('data-flux-sidebar-collapsed-desktop', '');
+                            document.documentElement.style.setProperty('--flux-sidebar-width', '4rem');
+                        } else {
+                            sidebar.removeAttribute('data-flux-sidebar-collapsed-desktop');
+                            document.documentElement.style.setProperty('--flux-sidebar-width', '16rem');
+                        }
                     }
-                    return false;
                 }
                 
-                if (!collapseSidebar()) {
-                    document.addEventListener('DOMContentLoaded', collapseSidebar);
-                    window.addEventListener('load', collapseSidebar);
-                    
-                    const observer = new MutationObserver(function() {
-                        if (collapseSidebar()) {
-                            observer.disconnect();
-                        }
-                    });
-                    
-                    observer.observe(document.body, { childList: true, subtree: true });
-                }
+                // Aplica imediatamente se possível
+                updateLayout(shouldCollapse);
                 
-                // Listener para eventos de toggle do sidebar
+                // Garante aplicação após load
+                document.addEventListener('DOMContentLoaded', () => updateLayout(shouldCollapse));
+                
+                // Listener para eventos de toggle do sidebar (Flux)
                 document.addEventListener('flux-sidebar:toggle', function(event) {
-                    const sidebar = document.querySelector('[data-flux-sidebar]');
-                    if (sidebar) {
-                        const isCollapsed = sidebar.hasAttribute('data-flux-sidebar-collapsed-desktop');
-                        if (event.detail && event.detail.collapsed !== undefined) {
-                            if (event.detail.collapsed && !isCollapsed) {
-                                sidebar.setAttribute('data-flux-sidebar-collapsed-desktop', '');
-                                localStorage.setItem('flux-sidebar-collapsed-desktop', 'true');
-                            } else if (!event.detail.collapsed && isCollapsed) {
-                                sidebar.removeAttribute('data-flux-sidebar-collapsed-desktop');
-                                localStorage.removeItem('flux-sidebar-collapsed-desktop');
-                            }
-                        }
+                    if (event.detail && event.detail.collapsed !== undefined) {
+                        localStorage.setItem('flux-sidebar-collapsed-desktop', event.detail.collapsed);
+                        updateLayout(event.detail.collapsed);
                     }
                 });
             })();

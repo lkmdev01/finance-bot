@@ -6,7 +6,7 @@ new class extends Component {
     //
 }; ?>
 
-<section class="w-full">
+<section class="w-full p-6 lg:p-8">
     @include('partials.settings-heading')
 
     <x-settings.layout :heading="__('Appearance')" :subheading="__('Update the appearance settings for your account')">

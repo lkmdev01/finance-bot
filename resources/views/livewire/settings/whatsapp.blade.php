@@ -68,7 +68,7 @@ new class extends Component
     }
 }; ?>
 
-<section class="w-full">
+<section class="w-full p-6 lg:p-8">
     @include('partials.settings-heading')
 
     <x-settings.layout :heading="__('WhatsApp')" :subheading="__('Vincule seu número de telefone para usar o WhatsApp')">
