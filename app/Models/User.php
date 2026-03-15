@@ -19,7 +19,8 @@ class User extends Authenticatable
 
         static::saving(function ($user) {
             if ($user->phone_number) {
-                $user->phone_number = preg_replace('/[^0-9+]/', '', $user->phone_number);
+                $service = app(\App\Services\PhoneNumberService::class);
+                $user->phone_number = $service->formatForStorage($user->phone_number);
             }
         });
     }

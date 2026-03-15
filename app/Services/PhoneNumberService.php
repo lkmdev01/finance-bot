@@ -22,6 +22,26 @@ class PhoneNumberService
     }
 
     /**
+     * Prepara o número para armazenamento no banco de dados.
+     * Remove tudo que não é número e garante o prefixo 55 para BR.
+     */
+    public function formatForStorage(string $phone): string
+    {
+        $clean = $this->clean($phone);
+
+        if (empty($clean)) {
+            return '';
+        }
+
+        // Se o número tem 10 ou 11 dígitos, assumimos que é Brasil sem o 55
+        if (strlen($clean) === 10 || strlen($clean) === 11) {
+            $clean = '55' . $clean;
+        }
+
+        return $clean;
+    }
+
+    /**
      * Formata um número de telefone para exibição
      */
     public function format(string $phone, string $format = 'BR'): string

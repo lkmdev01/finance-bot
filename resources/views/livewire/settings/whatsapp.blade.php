@@ -22,8 +22,10 @@ new class extends Component
      */
     public function updatePhoneNumber(): void
     {
-        // Remove caracteres não numéricos para validação e salvamento
-        $phoneNumber = preg_replace('/[^0-9+]/', '', $this->phone_number ?? '');
+        // Usa o serviço para limpar e formatar
+        $service = app(\App\Services\PhoneNumberService::class);
+        $phoneNumber = $service->formatForStorage($this->phone_number ?? '');
+
         if (empty($phoneNumber)) $phoneNumber = null;
 
         $this->validate([
@@ -78,13 +80,20 @@ new class extends Component
                     Vincule seu número de telefone para que o sistema identifique suas mensagens do WhatsApp.
                 </flux:text>
 
-                <form wire:submit="updatePhoneNumber" class="space-y-4">
+                <form wire:submit="updatePhoneNumber" class="space-y-4" x-data="{
+                    mask(value) {
+                        let x = value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
+                        if (!x[2]) return x[1];
+                        return '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+                    }
+                }">
                     <flux:input
                         wire:model="phone_number"
+                        x-on:input="$el.value = mask($event.target.value)"
                         label="Número de Telefone"
                         type="tel"
-                        placeholder="+5511999999999"
-                        hint="Digite seu número com código do país (ex: +5511999999999)"
+                        placeholder="(11) 99999-9999"
+                        hint="Apenas DDD e número. O +55 será adicionado automaticamente."
                     />
 
                     <div class="flex items-center gap-4">
@@ -99,9 +108,12 @@ new class extends Component
                     </div>
 
                     @if($phone_number)
-                        <flux:text class="text-sm text-green-600 dark:text-green-400">
-                            Número atual: {{ $phone_number }}
-                        </flux:text>
+                        <div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <flux:text class="text-xs text-gray-500 uppercase font-semibold">Como será salvo:</flux:text>
+                            <flux:text class="text-sm font-mono text-green-600 dark:text-green-400">
+                                +55 {{ preg_replace('/\D/', '', $phone_number) }}
+                            </flux:text>
+                        </div>
                     @endif
                 </form>
             </div>
