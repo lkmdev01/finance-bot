@@ -74,6 +74,16 @@ class PhoneNumberService
             '+'.$clean,
         ];
 
+        // Se for um número brasileiro (10 ou 11 dígitos) e não começar com 55, adiciona 55 como variação
+        if ((strlen($clean) === 10 || strlen($clean) === 11) && !str_starts_with($clean, '55')) {
+            $variations[] = '55' . $clean;
+        }
+
+        // Se tiver 12 ou 13 dígitos e começar com 55, tenta a versão sem o 55
+        if (str_starts_with($clean, '55') && (strlen($clean) === 12 || strlen($clean) === 13)) {
+            $variations[] = substr($clean, 2);
+        }
+
         // Remove código do país se tiver 13+ dígitos (assumindo formato +5511999999999)
         if (strlen($clean) >= 13) {
             $variations[] = substr($clean, -11); // Últimos 11 dígitos (DDD + número)
