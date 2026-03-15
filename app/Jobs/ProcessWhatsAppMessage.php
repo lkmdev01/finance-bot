@@ -302,8 +302,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
         ];
 
         // Valida se a categoria pertence ao usuário
-        if (isset($data['category_id'])) {
+        if (isset($data['category_id']) && $data['category_id'] !== null) {
             $rules['category_id'][] = function ($attribute, $value, $fail) use ($user) {
+                if (empty($value)) return;
+
                 $category = Category::where('id', $value)
                     ->where('user_id', $user->id)
                     ->first();

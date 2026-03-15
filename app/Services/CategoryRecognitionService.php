@@ -50,7 +50,7 @@ class CategoryRecognitionService
 
     public function findOrCreateCategory(User $user, string $name, string $type): Category
     {
-        $categoryName = ucfirst(mb_strtolower($name));
+        $categoryName = trim(ucfirst(mb_strtolower($name)));
         
         return $user->categories()->firstOrCreate(
             [
