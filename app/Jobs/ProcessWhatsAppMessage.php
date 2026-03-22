@@ -359,13 +359,19 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
 
         // 3. Fallback: Reconhecimento Inteligente (Keywords/Histórico)
+        // Se a descrição for nula, usamos a mensagem original para tentar reconhecer a categoria
         if (!$category) {
+            $recognitionText = !empty($data['description']) ? $data['description'] : $this->message;
             $category = $categoryRecognition->recognizeCategory(
                 $user,
-                $data['description'] ?? '',
+                $recognitionText,
                 (float) ($data['amount'] ?? 0)
             );
         }
+
+        // Descrição padrão baseada no tipo se não houver descrição específica
+        $defaultDescription = ($data['type'] ?? 'expense') === 'income' ? 'Receita' : 'Gasto';
+        $finalDescription = !empty($data['description']) ? $data['description'] : $defaultDescription;
 
         $transaction = Transaction::create([
             'user_id' => $user->id,
@@ -373,7 +379,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             'category_id' => $category?->id,
             'type' => $data['type'] ?? 'expense',
             'amount' => (float) $data['amount'],
-            'description' => $data['description'] ?? 'Transação via WhatsApp',
+            'description' => $finalDescription,
             'date' => $data['date'] ?? now()->format('Y-m-d'),
             'metadata' => [
                 'source' => 'whatsapp',

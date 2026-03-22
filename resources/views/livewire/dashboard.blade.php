@@ -239,13 +239,11 @@ new class extends Component
         $currentDate = $startDate->copy();
         while ($currentDate <= $endDate) {
             $dayIncome = $transactions
-                ->where('type', 'income')
-                ->where('date', $currentDate->format('Y-m-d'))
+                ->filter(fn($t) => $t->type === 'income' && $t->date->isSameDay($currentDate))
                 ->sum('amount');
             
             $dayExpense = $transactions
-                ->where('type', 'expense')
-                ->where('date', $currentDate->format('Y-m-d'))
+                ->filter(fn($t) => $t->type === 'expense' && $t->date->isSameDay($currentDate))
                 ->sum('amount');
 
             $days[] = [
@@ -253,6 +251,7 @@ new class extends Component
                 'day' => $currentDate->day,
                 'income' => (float) $dayIncome,
                 'expense' => (float) $dayExpense,
+                'isToday' => $currentDate->isToday(),
             ];
 
             $currentDate->addDay();
@@ -290,6 +289,7 @@ new class extends Component
                 'income' => $income,
                 'expense' => $expense,
                 'balance' => $income - $expense,
+                'isCurrent' => $date->isCurrentMonth() && $date->isCurrentYear(),
             ];
         }
         
@@ -329,7 +329,7 @@ new class extends Component
     }
 }; ?>
 
-<div class="p-6 space-y-6">
+<div class="px-4 py-6 sm:p-6 space-y-6">
         <!-- Header com Filtros -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
             <h1 class="text-2xl font-bold leading-tight">
@@ -597,9 +597,15 @@ new class extends Component
                     ) ?: 1;
                 @endphp
                 <div class="bg-gradient-to-t from-zinc-100 to-zinc-50 dark:from-zinc-800 dark:to-zinc-900 rounded-lg p-4 border-2 border-zinc-200 dark:border-zinc-700">
-                    <div class="h-80 flex items-end gap-1 overflow-x-auto pb-2">
-                        @foreach(array_slice($dailyData, 0, 30) as $index => $day)
-                            <div class="flex flex-col items-center gap-2 group shrink-0" style="width: {{ 100 / min(30, count($dailyData)) }}%; min-width: 24px;">
+                    <div 
+                        class="h-80 flex items-end gap-1 overflow-x-auto pb-2 scroll-smooth"
+                        x-init="setTimeout(() => { 
+                            const today = $el.querySelector('.is-today');
+                            if (today) today.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                        }, 500)"
+                    >
+                        @foreach($dailyData as $index => $day)
+                            <div class="flex flex-col items-center gap-2 group shrink-0 {{ $day['isToday'] ? 'is-today' : '' }}" style="width: {{ 100 / min(30, count($dailyData)) }}%; min-width: 24px;">
                                 <div class="w-full flex flex-col justify-end gap-1 bg-transparent relative" style="height: 280px; min-height: 280px;">
                                     @if($day['income'] > 0)
                                         @php
@@ -658,9 +664,15 @@ new class extends Component
                     ) ?: 1;
                 @endphp
                 <div class="bg-gradient-to-t from-zinc-100 to-zinc-50 dark:from-zinc-800 dark:to-zinc-900 rounded-lg p-4 border-2 border-zinc-200 dark:border-zinc-700">
-                    <div class="h-80 flex items-end gap-2 overflow-x-auto pb-2">
+                    <div 
+                        class="h-80 flex items-end gap-2 overflow-x-auto pb-2 scroll-smooth"
+                        x-init="setTimeout(() => { 
+                            const current = $el.querySelector('.is-current');
+                            if (current) current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                        }, 600)"
+                    >
                         @foreach($monthlyData as $month)
-                            <div class="flex flex-col items-center gap-2 group shrink-0" style="width: {{ 100 / count($monthlyData) }}%; min-width: 60px;">
+                            <div class="flex flex-col items-center gap-2 group shrink-0 {{ $month['isCurrent'] ? 'is-current' : '' }}" style="width: {{ 100 / count($monthlyData) }}%; min-width: 60px;">
                                 <div class="w-full flex flex-col justify-end gap-1 bg-transparent relative" style="height: 280px; min-height: 280px;">
                                     @if($month['income'] > 0)
                                         @php
