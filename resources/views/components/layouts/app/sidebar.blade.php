@@ -3,11 +3,30 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-white dark:bg-zinc-800 overflow-x-hidden">
-        <flux:sidebar sticky collapsible class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-            <flux:sidebar.header>
-                <a href="{{ route('dashboard') }}" class="flex items-center space-x-2 rtl:space-x-reverse shrink-0 min-w-0 justify-center" wire:navigate>
-                    <x-app-logo />
+    <style>
+        .blur-gradient {
+            background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.12) 0%, rgba(7, 11, 20, 0) 70%);
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+    <body class="min-h-screen bg-space-950 text-slate-100 antialiased overflow-x-hidden pt-0">
+        {{-- Background Effects --}}
+        <div class="fixed inset-0 z-0 pointer-events-none">
+            <div class="absolute top-[-10%] left-[-10%] w-[100%] h-[100%] blur-gradient opacity-40"></div>
+            <div class="absolute bottom-[-10%] right-[-10%] w-[100%] h-[100%] blur-gradient opacity-30"></div>
+        </div>
+
+        <flux:sidebar sticky collapsible class="z-50 border-e border-white/5 bg-black/40 backdrop-blur-xl">
+            <flux:sidebar.header class="py-6 border-b border-white/5 mb-4">
+                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 shrink-0 min-w-0 group" wire:navigate>
+                   <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.4)] transition-transform group-hover:scale-110">
+                        <span class="text-xl">🚀</span>
+                    </div>
+                    <span class="text-xl font-bold tracking-tight text-white group-data-[sidebar-collapsed]:hidden">InovaFinance</span>
                 </a>
             </flux:sidebar.header>
             

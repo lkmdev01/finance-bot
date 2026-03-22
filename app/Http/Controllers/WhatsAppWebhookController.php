@@ -184,7 +184,7 @@ class WhatsAppWebhookController extends Controller
                 $registerUrl = $appUrl . '/register';
                 $whatsappUrl = $appUrl . '/settings/whatsapp';
 
-                $unregisteredMessage = "Olá! 👋 Identificamos que seu número ainda não está vinculado a uma conta no *InovaFinanci*.\n\n".
+                $unregisteredMessage = "Olá! 👋 Identificamos que seu número ainda não está vinculado a uma conta no *InovaFinance*.\n\n".
                     "Para que eu possa gerenciar suas finanças, siga estes passos:\n\n".
                     "1️⃣ Crie sua conta em: $registerUrl\n".
                     "2️⃣ Nas configurações, vincule este número em: $whatsappUrl\n\n".
