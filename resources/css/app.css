@@ -31,13 +31,19 @@
 }
 
 @layer base {
+    html,
+    body {
+        background-color: #070b14;
+        color: #f1f5f9;
+        color-scheme: dark;
+    }
 
     *,
     ::after,
     ::before,
     ::backdrop,
     ::file-selector-button {
-        border-color: var(--color-gray-200, currentColor);
+        border-color: rgba(255, 255, 255, 0.1);
     }
 }
 

@@ -2,17 +2,88 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
-    </head>
     <style>
-        .blur-gradient {
-            background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.12) 0%, rgba(7, 11, 20, 0) 70%);
-        }
-        .glass {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-    </style>
+            .blur-gradient {
+                background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.12) 0%, rgba(7, 11, 20, 0) 70%);
+            }
+            /* Fix Dropdown Menus visuals */
+            [data-flux-menu], [data-flux-popover] {
+                background-color: #1e293b !important;
+                border: 1px solid rgba(99, 102, 241, 0.3) !important;
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+                backdrop-filter: blur(8px);
+                z-index: 9999 !important;
+            }
+            [data-flux-menu-item]:hover {
+                background-color: rgba(99, 102, 241, 0.1) !important;
+            }
+            
+            /* Melhoria do Sidebar Fixo para evitar pulos */
+            [data-flux-sidebar] {
+                position: fixed !important;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                height: 100vh !important;
+                transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            /* Compensação para o conteúdo principal */
+            [data-flux-main] {
+                margin-left: 16rem;
+                transition: margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            /* Quando colapsado (Atributo oficial do Flux) */
+            [data-flux-sidebar][data-flux-sidebar-collapsed-desktop] {
+                width: 4rem !important;
+            }
+
+            [data-flux-sidebar][data-flux-sidebar-collapsed-desktop] + [data-flux-main],
+            [data-flux-sidebar][data-flux-sidebar-collapsed-desktop] ~ [data-flux-main] {
+                margin-left: 4rem !important;
+            }
+
+            /* Ocultar texto InovaFinance no modo colapsado */
+            [data-flux-sidebar][data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-header] a > div:last-child {
+                display: none !important;
+            }
+
+            [data-flux-sidebar][data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-header] {
+                flex-direction: column;
+                gap: 1rem;
+                justify-content: center;
+                padding: 1.5rem 0;
+            }
+
+            /* Posicionamento do Toggle no modo colapsado */
+            [data-flux-sidebar][data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-header] [data-flux-sidebar-toggle] {
+                position: static !important;
+                inset: auto !important;
+                align-self: center;
+                margin-top: 0.5rem;
+            }
+
+            @media (max-width: 1024px) {
+                [data-flux-sidebar] {
+                    position: relative !important;
+                    height: auto !important;
+                    width: 100% !important;
+                }
+                [data-flux-main] {
+                    margin-left: 0 !important;
+                }
+            }
+
+            /* Troca de ícones do Toggle */
+            [data-flux-sidebar-collapsed-desktop] .toggle-collapse {
+                display: none !important;
+            }
+            [data-flux-sidebar-collapsed-desktop] .toggle-expand {
+                display: block !important;
+            }
+        </style>
+    </head>
     <body class="min-h-screen bg-space-950 text-slate-100 antialiased overflow-x-hidden pt-0">
         {{-- Background Effects --}}
         <div class="fixed inset-0 z-0 pointer-events-none">
@@ -20,17 +91,14 @@
             <div class="absolute bottom-[-10%] right-[-10%] w-[100%] h-[100%] blur-gradient opacity-30"></div>
         </div>
 
-        <flux:sidebar sticky collapsible class="z-50 border-e border-white/5 bg-black/40 backdrop-blur-xl">
-            <flux:sidebar.header class="py-6 border-b border-white/5 mb-4 flex justify-center">
-                <a href="{{ route('dashboard') }}" class="flex items-center shrink-0 min-w-0 group" wire:navigate>
+        <flux:sidebar collapsible class="z-50 border-e border-white/5 bg-black/40 backdrop-blur-xl">
+            <flux:sidebar.header class="relative py-6 border-b border-white/5 mb-4 px-4 flex items-center justify-between min-h-[80px] transition-all duration-300">
+                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 shrink-0 min-w-0 group" wire:navigate title="Dashboard">
                    <x-app-logo />
                 </a>
+                
+                <flux:sidebar.collapse class="hidden lg:flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer group" />
             </flux:sidebar.header>
-            
-            <!-- Botão de collapse escondido para ser acionado pelo botão customizado -->
-            <div class="hidden" data-flux-sidebar-collapse-trigger>
-                <flux:sidebar.collapse />
-            </div>
 
             <flux:sidebar.nav>
                 <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
@@ -62,7 +130,7 @@
             <flux:sidebar.spacer />
 
             <!-- Desktop User Menu -->
-            <flux:dropdown class="hidden lg:block" position="bottom" align="start">
+            <flux:dropdown class="hidden lg:block" position="top" align="start">
                 <flux:sidebar.profile
                     :name="auth()->user()->name"
                     :initials="auth()->user()->initials()"
@@ -91,7 +159,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('Settings') }}</flux:menu.item>
+                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('Configurações') }}</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -99,7 +167,7 @@
                     <form method="POST" action="{{ route('logout') }}" class="w-full">
                         @csrf
                         <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" class="w-full" data-test="logout-button">
-                            {{ __('Log Out') }}
+                            {{ __('Sair') }}
                         </flux:menu.item>
                     </form>
                 </flux:menu>
@@ -141,7 +209,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('Settings') }}</flux:menu.item>
+                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('Configurações') }}</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -149,7 +217,7 @@
                     <form method="POST" action="{{ route('logout') }}" class="w-full">
                         @csrf
                         <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" class="w-full" data-test="logout-button">
-                            {{ __('Log Out') }}
+                            {{ __('Sair') }}
                         </flux:menu.item>
                     </form>
                 </flux:menu>
@@ -236,97 +304,5 @@
         </flux:main>
 
         @fluxScripts
-        
-        <style>
-            :root {
-                --flux-sidebar-width: 16rem;
-            }
-
-            /* Quando colapsado, o Flux usa 4rem por padrão, vamos garantir que o Grid acompanhe */
-            html.sidebar-collapsed {
-                --flux-sidebar-width: 4rem;
-            }
-
-            /* Garante que o Grid do Body use a variável correta */
-            body {
-                display: grid !important;
-                grid-template-columns: var(--flux-sidebar-width) 1fr !important;
-                grid-template-areas: "sidebar main" !important;
-                min-height: 100vh;
-                margin: 0;
-            }
-
-            [data-flux-sidebar] {
-                grid-area: sidebar;
-                position: sticky !important;
-                top: 0;
-                height: 100vh !important;
-                width: var(--flux-sidebar-width) !important;
-                transition: width 0.2s ease-in-out;
-            }
-            
-            [data-flux-main] {
-                grid-area: main;
-                width: 100% !important;
-                margin-left: 0 !important; /* REMOVE o erro do espaçamento duplo */
-                min-height: 100vh;
-            }
-            
-            @media (max-width: 1024px) {
-                body {
-                    display: block !important;
-                }
-
-                [data-flux-sidebar] {
-                    position: relative !important;
-                    height: auto !important;
-                    width: 100% !important;
-                }
-                
-                [data-flux-main] {
-                    width: 100% !important;
-                    margin-left: 0 !important;
-                }
-            }
-            
-            /* Ajustes visuais para o modo colapsado */
-            html.sidebar-collapsed [data-flux-sidebar] [data-flux-sidebar-header] a {
-                justify-content: center;
-            }
-            
-            html.sidebar-collapsed [data-flux-sidebar] [data-flux-sidebar-header] .ms-1,
-            html.sidebar-collapsed [data-flux-sidebar] [data-flux-sidebar-header] a > div:last-child {
-                display: none;
-            }
-        </style>
-        
-        <script>
-            (function() {
-                function applyLayoutState() {
-                    const savedState = localStorage.getItem('flux-sidebar-collapsed-desktop');
-                    const isCollapsed = savedState === null ? true : savedState === 'true';
-                    
-                    if (isCollapsed) {
-                        document.documentElement.classList.add('sidebar-collapsed');
-                    } else {
-                        document.documentElement.classList.remove('sidebar-collapsed');
-                    }
-                }
-
-                applyLayoutState();
-
-                // Listener para o botão de toggle do Flux
-                document.addEventListener('flux-sidebar:toggle', function(event) {
-                    if (event.detail && event.detail.collapsed !== undefined) {
-                        localStorage.setItem('flux-sidebar-collapsed-desktop', event.detail.collapsed);
-                        if (event.detail.collapsed) {
-                            document.documentElement.classList.add('sidebar-collapsed');
-                        } else {
-                            document.documentElement.classList.remove('sidebar-collapsed');
-                        }
-                    }
-                });
-            })();
-        </script>
     </body>
 </html>

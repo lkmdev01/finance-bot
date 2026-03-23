@@ -28,7 +28,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])
-@fluxAppearance
+    <script>
+        // Force Dark Mode
+        if (localStorage.getItem('flux.appearance') !== 'dark') {
+            localStorage.setItem('flux.appearance', 'dark');
+        }
+        document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-appearance', 'dark');
+    </script>
+    @fluxAppearance
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
