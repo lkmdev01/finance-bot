@@ -21,12 +21,9 @@
         </div>
 
         <flux:sidebar sticky collapsible class="z-50 border-e border-white/5 bg-black/40 backdrop-blur-xl">
-            <flux:sidebar.header class="py-6 border-b border-white/5 mb-4">
-                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 shrink-0 min-w-0 group" wire:navigate>
-                   <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.4)] transition-transform group-hover:scale-110">
-                        <span class="text-xl">🚀</span>
-                    </div>
-                    <span class="text-xl font-bold tracking-tight text-white group-data-[sidebar-collapsed]:hidden">InovaFinance</span>
+            <flux:sidebar.header class="py-6 border-b border-white/5 mb-4 flex justify-center">
+                <a href="{{ route('dashboard') }}" class="flex items-center shrink-0 min-w-0 group" wire:navigate>
+                   <x-app-logo />
                 </a>
             </flux:sidebar.header>
             

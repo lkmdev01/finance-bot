@@ -329,7 +329,7 @@ new class extends Component
     }
 }; ?>
 
-<div class="px-4 py-6 sm:p-6 space-y-6">
+<div class="px-2 py-4 sm:p-6 space-y-6">
         <!-- Header com Filtros -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
             <h1 class="text-2xl font-bold leading-tight">

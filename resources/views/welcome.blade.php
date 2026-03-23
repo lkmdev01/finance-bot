@@ -129,7 +129,7 @@
                 </div>
             </div>
             <div class="relative rocket-float">
-                <img src="/mockup.png" alt="InovaFinance Mockup" class="w-full max-w-[600px] mx-auto scale-110 lg:scale-125 translate-x-4 mix-screen">
+                <img src="/hero.png" alt="InovaFinance Mockup" class="w-full max-w-[600px] mx-auto scale-110 lg:scale-125 translate-x-4 mix-screen">
                 {{-- Decorative blobs --}}
                 <div class="absolute -top-10 -right-10 w-40 h-40 bg-primary/10 rounded-full blur-3xl"></div>
                 <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-cyan-400/10 rounded-full blur-3xl"></div>
