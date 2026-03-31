@@ -28,7 +28,7 @@ new class extends Component {
             'opening_balance' => $this->opening_balance ?: 0,
         ]);
 
-        session()->flash('message', 'Conta bancaria criada com sucesso.');
+        session()->flash('message', 'Conta bancária criada com sucesso.');
         $this->redirect(route('bank-accounts.index'), navigate: true);
     }
 }; ?>
@@ -36,21 +36,21 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Nova Conta Bancaria</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Cadastre uma conta para organizar saldos e transacoes.</p>
+            <h1 class="text-2xl font-bold">Nova Conta Bancária</h1>
+            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Cadastre uma conta para organizar saldos e transações.</p>
         </div>
         <flux:button href="{{ route('bank-accounts.index') }}" wire:navigate variant="ghost">Voltar</flux:button>
     </div>
 
-    <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
+    <div class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
         <form wire:submit="save" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <flux:input wire:model="name" label="Nome" placeholder="Ex: Nubank principal" />
-                <flux:input wire:model="institution" label="Instituicao" placeholder="Ex: Nubank" />
+                <flux:input wire:model="institution" label="Instituição" placeholder="Ex: Nubank" />
 
                 <flux:select wire:model="type" label="Tipo">
                     <option value="checking">Conta corrente</option>
-                    <option value="savings">Poupanca</option>
+                    <option value="savings">Poupança</option>
                     <option value="wallet">Carteira</option>
                     <option value="investment">Investimentos</option>
                 </flux:select>

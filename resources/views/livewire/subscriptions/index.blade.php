@@ -9,7 +9,7 @@ new class extends Component {
         $subscription = Auth::user()->subscriptions()->findOrFail($subscriptionId);
         $subscription->delete();
 
-        session()->flash('message', 'Assinatura excluida com sucesso.');
+        session()->flash('message', 'Assinatura excluída com sucesso.');
     }
 
     public function toggleActive(int $subscriptionId): void
@@ -25,7 +25,7 @@ new class extends Component {
         $subscription = Auth::user()->subscriptions()->findOrFail($subscriptionId);
         $subscription->markAsPaid();
 
-        session()->flash('message', 'Assinatura marcada como paga e transacao registrada.');
+        session()->flash('message', 'Assinatura marcada como paga e transação registrada.');
     }
 
     public function with(): array
@@ -44,7 +44,7 @@ new class extends Component {
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold">Assinaturas e Contas Recorrentes</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie vencimentos, fonte de pagamento e registro automatico.</p>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie vencimentos, fonte de pagamento e registro automático.</p>
         </div>
         <flux:button href="{{ route('subscriptions.create') }}" wire:navigate variant="primary">
             Nova Assinatura
@@ -82,10 +82,10 @@ new class extends Component {
                             </div>
                             <div>
                                 <p class="text-xs text-zinc-500">Vencimento</p>
-                                <p class="font-medium">{{ $subscription->next_due_date?->format('d/m/Y') ?: 'Nao definido' }}</p>
+                                <p class="font-medium">{{ $subscription->next_due_date?->format('d/m/Y') ?: 'Não definido' }}</p>
                             </div>
                             <div>
-                                <p class="text-xs text-zinc-500">Ultimo pagamento</p>
+                                <p class="text-xs text-zinc-500">Último pagamento</p>
                                 <p class="font-medium">{{ $subscription->last_paid_at?->format('d/m/Y') ?: 'Nunca' }}</p>
                             </div>
                             <div>

@@ -28,10 +28,14 @@
                 transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
 
-            /* CompensaÃ§Ã£o para o conteÃºdo principal */
+            /* Compensacao para o conteudo principal */
             [data-flux-main] {
+                display: block !important;
+                width: calc(100% - 16rem);
+                max-width: none !important;
+                min-width: 0;
                 margin-left: 16rem;
-                transition: margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                transition: margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1), width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
 
             /* Quando colapsado (Atributo oficial do Flux) */
@@ -41,6 +45,7 @@
 
             [data-flux-sidebar][data-flux-sidebar-collapsed-desktop] + [data-flux-main],
             [data-flux-sidebar][data-flux-sidebar-collapsed-desktop] ~ [data-flux-main] {
+                width: calc(100% - 4rem);
                 margin-left: 4rem !important;
             }
 
@@ -75,7 +80,7 @@
                 }
             }
 
-            /* Troca de Ã­cones do Toggle */
+            /* Troca de icones do toggle */
             [data-flux-sidebar-collapsed-desktop] .toggle-collapse {
                 display: none !important;
             }
@@ -100,36 +105,41 @@
                 <flux:sidebar.collapse class="hidden lg:flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer group" />
             </flux:sidebar.header>
 
+
+
             <flux:sidebar.nav>
                 <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="currency-dollar" :href="route('transactions.index')" :current="request()->routeIs('transactions.*')" wire:navigate>
-                    TransaÃ§Ãµes
+                    Transa&ccedil;&otilde;es
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="tag" :href="route('categories.index')" :current="request()->routeIs('categories.*')" wire:navigate>
                     Categorias
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="chart-bar" :href="route('budgets.index')" :current="request()->routeIs('budgets.*')" wire:navigate>
-                    OrÃ§amentos
+                    Or&ccedil;amentos
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="document-text" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
-                    RelatÃ³rios
+                    Relat&oacute;rios
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="chart-bar" :href="route('financial-projections.index')" :current="request()->routeIs('financial-projections.*')" wire:navigate>
-                    ProjeÃ§Ãµes
+                    Proje&ccedil;&otilde;es
+                </flux:sidebar.item>
+                <flux:sidebar.item icon="sparkles" :href="route('finny.index')" :current="request()->routeIs('finny.*')" wire:navigate>
+                    Finny
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="trophy" :href="route('savings-goals.index')" :current="request()->routeIs('savings-goals.*')" wire:navigate>
                     Metas de Economia
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="building-library" :href="route('bank-accounts.index')" :current="request()->routeIs('bank-accounts.*')" wire:navigate>
-                    Contas Bancarias
+                    Contas Banc&aacute;rias
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="credit-card" :href="route('credit-cards.index')" :current="request()->routeIs('credit-cards.*')" wire:navigate>
-                    Cartoes de Credito
+                    Cart&otilde;es de Cr&eacute;dito
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="arrow-path" :href="route('recurring-transactions.index')" :current="request()->routeIs('recurring-transactions.*')" wire:navigate>
-                    TransaÃ§Ãµes Recorrentes
+                    Transa&ccedil;&otilde;es Recorrentes
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="calendar-days" :href="route('subscriptions.index')" :current="request()->routeIs('subscriptions.*')" wire:navigate>
                     Assinaturas
@@ -168,7 +178,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('ConfiguraÃ§Ãµes') }}</flux:menu.item>
+                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configura&ccedil;&otilde;es</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -218,7 +228,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('ConfiguraÃ§Ãµes') }}</flux:menu.item>
+                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configura&ccedil;&otilde;es</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -292,10 +302,10 @@
                                     'text-blue-600 dark:text-blue-400': notification.type === 'info'
                                 }"
                             >
-                                <template x-if="notification.type === 'success'">âœ“</template>
-                                <template x-if="notification.type === 'error'">âœ—</template>
-                                <template x-if="notification.type === 'warning'">âš </template>
-                                <template x-if="notification.type === 'info'">â„¹</template>
+                                <template x-if="notification.type === 'success'">&#10003;</template>
+                                <template x-if="notification.type === 'error'">&#10005;</template>
+                                <template x-if="notification.type === 'warning'">&#9888;</template>
+                                <template x-if="notification.type === 'info'">&#8505;</template>
                             </span>
                         </div>
                         <p class="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-100" x-text="notification.message"></p>

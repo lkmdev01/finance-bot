@@ -9,7 +9,7 @@ new class extends Component {
         $account = Auth::user()->bankAccounts()->findOrFail($accountId);
         $account->delete();
 
-        session()->flash('message', 'Conta bancaria excluida com sucesso.');
+        session()->flash('message', 'Conta bancária excluída com sucesso.');
     }
 
     public function toggleActive(int $accountId): void
@@ -35,8 +35,8 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Contas Bancarias</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie contas correntes, poupancas e carteiras.</p>
+            <h1 class="text-2xl font-bold">Contas Bancárias</h1>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie contas correntes, poupanças e carteiras.</p>
         </div>
         <flux:button href="{{ route('bank-accounts.create') }}" wire:navigate variant="primary">
             Nova Conta
@@ -60,8 +60,8 @@ new class extends Component {
 
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
-                                <p class="text-xs text-zinc-500">Instituicao</p>
-                                <p class="font-medium">{{ $account->institution ?: 'Nao informada' }}</p>
+                                <p class="text-xs text-zinc-500">Instituição</p>
+                                <p class="font-medium">{{ $account->institution ?: 'Não informada' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-zinc-500">Saldo inicial</p>
@@ -74,7 +74,7 @@ new class extends Component {
                                 </p>
                             </div>
                             <div>
-                                <p class="text-xs text-zinc-500">Transacoes</p>
+                                <p class="text-xs text-zinc-500">Transações</p>
                                 <p class="font-medium">{{ $account->transactions->count() }}</p>
                             </div>
                         </div>
@@ -89,7 +89,7 @@ new class extends Component {
             </div>
         @empty
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
-                <p class="text-zinc-500 dark:text-zinc-400 mb-4">Nenhuma conta bancaria cadastrada.</p>
+                <p class="text-zinc-500 dark:text-zinc-400 mb-4">Nenhuma conta bancária cadastrada.</p>
                 <flux:button href="{{ route('bank-accounts.create') }}" wire:navigate variant="primary">
                     Criar primeira conta
                 </flux:button>

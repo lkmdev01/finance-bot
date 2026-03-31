@@ -66,7 +66,13 @@ Route::middleware(['auth'])->group(function () {
     })->name('reports.index');
 
     // Projeções Financeiras
-    Volt::route('financial-projections', 'financial-projections.index')->name('financial-projections.index');
+    Route::get('financial-projections', function () {
+        return view('pages.financial-projections.index');
+    })->name('financial-projections.index');
+
+    Route::get('finny', function () {
+        return view('pages.finny.index');
+    })->name('finny.index');
 
     // Tags
     Volt::route('tags', 'tags.index')->name('tags.index');
@@ -110,20 +116,38 @@ Route::middleware(['auth'])->group(function () {
         return view('pages.recurring-transactions.edit', ['recurringTransaction' => $recurringTransaction]);
     })->name('recurring-transactions.edit');
 
-    // Contas bancarias
-    Volt::route('bank-accounts', 'bank-accounts.index')->name('bank-accounts.index');
-    Volt::route('bank-accounts/create', 'bank-accounts.create')->name('bank-accounts.create');
-    Volt::route('bank-accounts/{bankAccount}/edit', 'bank-accounts.edit')->name('bank-accounts.edit');
+    // Contas bancárias
+    Route::get('bank-accounts', function () {
+        return view('pages.bank-accounts.index');
+    })->name('bank-accounts.index');
+    Route::get('bank-accounts/create', function () {
+        return view('pages.bank-accounts.create');
+    })->name('bank-accounts.create');
+    Route::get('bank-accounts/{bankAccount}/edit', function (App\Models\BankAccount $bankAccount) {
+        return view('pages.bank-accounts.edit', ['bankAccount' => $bankAccount]);
+    })->name('bank-accounts.edit');
 
-    // Cartoes de credito
-    Volt::route('credit-cards', 'credit-cards.index')->name('credit-cards.index');
-    Volt::route('credit-cards/create', 'credit-cards.create')->name('credit-cards.create');
-    Volt::route('credit-cards/{creditCard}/edit', 'credit-cards.edit')->name('credit-cards.edit');
+    // Cartões de crédito
+    Route::get('credit-cards', function () {
+        return view('pages.credit-cards.index');
+    })->name('credit-cards.index');
+    Route::get('credit-cards/create', function () {
+        return view('pages.credit-cards.create');
+    })->name('credit-cards.create');
+    Route::get('credit-cards/{creditCard}/edit', function (App\Models\CreditCard $creditCard) {
+        return view('pages.credit-cards.edit', ['creditCard' => $creditCard]);
+    })->name('credit-cards.edit');
 
     // Assinaturas e contas recorrentes
-    Volt::route('subscriptions', 'subscriptions.index')->name('subscriptions.index');
-    Volt::route('subscriptions/create', 'subscriptions.create')->name('subscriptions.create');
-    Volt::route('subscriptions/{subscription}/edit', 'subscriptions.edit')->name('subscriptions.edit');
+    Route::get('subscriptions', function () {
+        return view('pages.subscriptions.index');
+    })->name('subscriptions.index');
+    Route::get('subscriptions/create', function () {
+        return view('pages.subscriptions.create');
+    })->name('subscriptions.create');
+    Route::get('subscriptions/{subscription}/edit', function (App\Models\Subscription $subscription) {
+        return view('pages.subscriptions.edit', ['subscription' => $subscription]);
+    })->name('subscriptions.edit');
 
     // Planejamento de Gastos
     Volt::route('expense-plans', 'expense-plans.index')->name('expense-plans.index');

@@ -49,7 +49,7 @@ new class extends Component {
             'opening_balance' => $this->opening_balance ?: 0,
         ]);
 
-        session()->flash('message', 'Cartao atualizado com sucesso.');
+        session()->flash('message', 'Cartão atualizado com sucesso.');
         $this->redirect(route('credit-cards.index'), navigate: true);
     }
 }; ?>
@@ -57,15 +57,15 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Editar Cartao de Credito</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Atualize os dados do cartao.</p>
+            <h1 class="text-2xl font-bold">Editar Cartão de Crédito</h1>
+            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Atualize os dados do cartão.</p>
         </div>
         <flux:button href="{{ route('credit-cards.index') }}" wire:navigate variant="ghost">Voltar</flux:button>
     </div>
 
-    <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
+    <div class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
         <form wire:submit="save" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <flux:input wire:model="name" label="Nome" />
                 <flux:input wire:model="issuer" label="Emissor" />
                 <flux:input wire:model="brand" label="Bandeira" />
@@ -75,11 +75,11 @@ new class extends Component {
                 <flux:input wire:model="due_day" type="number" min="1" max="31" label="Dia de vencimento" />
             </div>
 
-            <flux:checkbox wire:model="is_active" label="Cartao ativo" />
+            <flux:checkbox wire:model="is_active" label="Cartão ativo" />
 
             <div class="flex justify-end gap-3">
                 <flux:button href="{{ route('credit-cards.index') }}" wire:navigate variant="ghost">Cancelar</flux:button>
-                <flux:button type="submit" variant="primary">Salvar Alteracoes</flux:button>
+                <flux:button type="submit" variant="primary">Salvar Alterações</flux:button>
             </div>
         </form>
     </div>

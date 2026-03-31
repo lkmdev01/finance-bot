@@ -60,7 +60,8 @@ new class extends Component
 
         $expensesWithoutSavings = $allExpenses->filter(function ($transaction) {
             $metadata = $transaction->metadata ?? [];
-            return !isset($metadata['savings_goal_deposit_id']);
+
+            return ! isset($metadata['savings_goal_deposit_id']);
         });
 
         $totalExpenses = (float) $expensesWithoutSavings->sum('amount');
@@ -74,77 +75,78 @@ new class extends Component
 }; ?>
 
 <div class="p-6 space-y-6">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Projeções Financeiras</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                Visualize projeções de saldo futuro baseadas em suas transações históricas e recorrentes
+            <h1 class="text-2xl font-bold">Proje&ccedil;&otilde;es Financeiras</h1>
+            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                Visualize proje&ccedil;&otilde;es de saldo futuro baseadas em suas transa&ccedil;&otilde;es hist&oacute;ricas e recorrentes
             </p>
         </div>
+
         <div class="flex items-end gap-3">
             <flux:field>
-                <flux:label>Período (meses)</flux:label>
+                <flux:label>Per&iacute;odo (meses)</flux:label>
                 <flux:input type="number" wire:model.live="months" min="3" max="24" class="w-24" />
             </flux:field>
+
             <flux:button wire:click="generateProjections" variant="primary">
-                Atualizar Projeções
+                Atualizar Proje&ccedil;&otilde;es
             </flux:button>
         </div>
     </div>
 
-    <!-- Explicação sobre como funciona -->
-    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
         <div class="flex items-start gap-3">
-            <div class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mt-0.5">
-                <span class="text-blue-600 dark:text-blue-400 text-sm">ℹ</span>
+            <div class="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
+                <span class="text-sm text-blue-600 dark:text-blue-400">&#8505;</span>
             </div>
+
             <div class="flex-1">
-                <h3 class="font-semibold text-blue-900 dark:text-blue-200 mb-2">Como funcionam as projeções?</h3>
-                <ul class="text-sm text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
-                    <li><strong>Receitas projetadas:</strong> Soma das transações recorrentes ativas + 30% da média mensal dos últimos 6 meses</li>
-                    <li><strong>Despesas projetadas:</strong> Soma das transações recorrentes ativas + 70% da média mensal dos últimos 6 meses</li>
-                    <li><strong>Saldo projetado:</strong> Calculado mês a mês, considerando o saldo anterior + receitas - despesas</li>
+                <h3 class="mb-2 font-semibold text-blue-900 dark:text-blue-200">Como funcionam as proje&ccedil;&otilde;es?</h3>
+                <ul class="list-inside list-disc space-y-1 text-sm text-blue-800 dark:text-blue-300">
+                    <li><strong>Receitas projetadas:</strong> Soma das transa&ccedil;&otilde;es recorrentes ativas + 30% da m&eacute;dia mensal dos &uacute;ltimos 6 meses</li>
+                    <li><strong>Despesas projetadas:</strong> Soma das transa&ccedil;&otilde;es recorrentes ativas + 70% da m&eacute;dia mensal dos &uacute;ltimos 6 meses</li>
+                    <li><strong>Saldo projetado:</strong> Calculado m&ecirc;s a m&ecirc;s, considerando o saldo anterior + receitas - despesas</li>
                 </ul>
-                <p class="text-xs text-blue-700 dark:text-blue-400 mt-2">
-                    As projeções são estimativas baseadas em padrões históricos e podem variar conforme suas transações reais.
+                <p class="mt-2 text-xs text-blue-700 dark:text-blue-400">
+                    As proje&ccedil;&otilde;es s&atilde;o estimativas baseadas em padr&otilde;es hist&oacute;ricos e podem variar conforme suas transa&ccedil;&otilde;es reais.
                 </p>
             </div>
         </div>
     </div>
 
-    <!-- Saldo Atual -->
-    <div class="bg-gradient-to-br from-zinc-900 to-zinc-950 dark:from-zinc-800 dark:to-zinc-900 rounded-xl border border-zinc-700 p-6">
-        <p class="text-sm text-zinc-400 mb-2">Saldo Atual</p>
+    <div class="rounded-xl border border-zinc-700 bg-gradient-to-br from-zinc-900 to-zinc-950 p-6 dark:from-zinc-800 dark:to-zinc-900">
+        <p class="mb-2 text-sm text-zinc-400">Saldo Atual</p>
         <p class="text-3xl font-bold {{ $currentBalance >= 0 ? 'text-green-400' : 'text-red-400' }}">
             R$ {{ number_format($currentBalance, 2, ',', '.') }}
         </p>
-        <p class="text-xs text-zinc-500 mt-2">Este é o ponto de partida para as projeções futuras</p>
+        <p class="mt-2 text-xs text-zinc-500">Este &eacute; o ponto de partida para as proje&ccedil;&otilde;es futuras</p>
     </div>
 
     @if($projections->count() > 0)
-        <!-- Gráfico de Projeções -->
-        <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold">Evolução Projetada do Saldo</h2>
+        <div class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold">Evolu&ccedil;&atilde;o Projetada do Saldo</h2>
                 <div class="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
                     <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <div class="h-3 w-3 rounded-full bg-blue-500"></div>
                         <span>Saldo</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                        <div class="h-3 w-3 rounded-full bg-green-500"></div>
                         <span>Receitas</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                        <div class="h-3 w-3 rounded-full bg-red-500"></div>
                         <span>Despesas</span>
                     </div>
                 </div>
             </div>
+
             <div class="h-80" x-data="{
                 init() {
                     const ctx = this.$el.getContext('2d');
-                    const chart = new Chart(ctx, {
+                    new Chart(ctx, {
                         type: 'line',
                         data: {
                             labels: {{ json_encode($chartData->pluck('date')) }},
@@ -207,32 +209,31 @@ new class extends Component
             </div>
         </div>
 
-        <!-- Tabela de Projeções -->
-        <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-            <h2 class="text-lg font-semibold mb-4">Detalhes das Projeções</h2>
+        <div class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+            <h2 class="mb-4 text-lg font-semibold">Detalhes das Proje&ccedil;&otilde;es</h2>
             <div class="overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+                    <thead class="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Mês</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Receitas Projetadas</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Despesas Projetadas</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Saldo Projetado</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">M&ecirc;s</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Receitas Projetadas</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Despesas Projetadas</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Saldo Projetado</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
                         @foreach($projections as $projection)
                             <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <td class="whitespace-nowrap px-6 py-4 text-sm font-medium">
                                     {{ \Carbon\Carbon::parse($projection->projection_date)->locale('pt_BR')->translatedFormat('F \d\e Y') }}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-green-600 dark:text-green-400">
+                                <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-green-600 dark:text-green-400">
                                     R$ {{ number_format($projection->projected_income, 2, ',', '.') }}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-red-600 dark:text-red-400">
+                                <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-red-600 dark:text-red-400">
                                     R$ {{ number_format($projection->projected_expenses, 2, ',', '.') }}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-semibold {{ $projection->projected_balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
+                                <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold {{ $projection->projected_balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
                                     R$ {{ number_format($projection->projected_balance, 2, ',', '.') }}
                                 </td>
                             </tr>
@@ -242,10 +243,10 @@ new class extends Component
             </div>
         </div>
     @else
-        <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
-            <p class="text-zinc-500 dark:text-zinc-400 mb-4">Nenhuma projeção disponível. Clique em "Atualizar Projeções" para gerar.</p>
+        <div class="rounded-xl border border-zinc-200 bg-white p-12 text-center dark:border-zinc-700 dark:bg-zinc-900">
+            <p class="mb-4 text-zinc-500 dark:text-zinc-400">Nenhuma proje&ccedil;&atilde;o dispon&iacute;vel. Clique em "Atualizar Proje&ccedil;&otilde;es" para gerar.</p>
             <flux:button wire:click="generateProjections" variant="primary">
-                Gerar Projeções
+                Gerar Proje&ccedil;&otilde;es
             </flux:button>
         </div>
     @endif

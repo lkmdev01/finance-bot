@@ -49,8 +49,8 @@ new class extends Component {
     {
         if (! $this->bank_account_id && ! $this->credit_card_id) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'bank_account_id' => 'Selecione uma conta bancaria ou cartao de credito.',
-                'credit_card_id' => 'Selecione uma conta bancaria ou cartao de credito.',
+                'bank_account_id' => 'Selecione uma conta bancária ou cartão de crédito.',
+                'credit_card_id' => 'Selecione uma conta bancária ou cartão de crédito.',
             ]);
         }
 
@@ -76,16 +76,16 @@ new class extends Component {
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold">Nova Assinatura</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Cadastre contas recorrentes e fontes de pagamento.</p>
+            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Cadastre contas recorrentes e fontes de pagamento.</p>
         </div>
         <flux:button href="{{ route('subscriptions.index') }}" wire:navigate variant="ghost">Voltar</flux:button>
     </div>
 
-    <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
+    <div class="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
         <form wire:submit="save" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <flux:input wire:model="name" label="Nome" placeholder="Ex: Spotify" />
-                <flux:input wire:model="description" label="Descricao" placeholder="Ex: Plano familia" />
+                <flux:input wire:model="description" label="Descrição" placeholder="Ex: Plano família" />
                 <flux:input wire:model="amount" type="number" step="0.01" label="Valor" placeholder="0.00" />
 
                 <flux:select wire:model="billing_cycle" label="Ciclo">
@@ -103,14 +103,14 @@ new class extends Component {
                     @endforeach
                 </flux:select>
 
-                <flux:select wire:model="bank_account_id" label="Conta bancaria">
+                <flux:select wire:model="bank_account_id" label="Conta bancária">
                     <option value="">Nenhuma</option>
                     @foreach($bankAccounts as $account)
                         <option value="{{ $account->id }}">{{ $account->name }}</option>
                     @endforeach
                 </flux:select>
 
-                <flux:select wire:model="credit_card_id" label="Cartao de credito">
+                <flux:select wire:model="credit_card_id" label="Cartão de crédito">
                     <option value="">Nenhum</option>
                     @foreach($creditCards as $card)
                         <option value="{{ $card->id }}">{{ $card->name }}</option>
@@ -118,7 +118,7 @@ new class extends Component {
                 </flux:select>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <flux:checkbox wire:model="auto_record" label="Registrar automaticamente quando vencer" />
                 <flux:checkbox wire:model="is_active" label="Assinatura ativa" />
             </div>
@@ -130,4 +130,3 @@ new class extends Component {
         </form>
     </div>
 </div>
-

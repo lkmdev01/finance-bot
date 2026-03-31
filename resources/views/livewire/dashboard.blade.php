@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\FinancialScoreService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Volt\Component;
@@ -25,6 +26,7 @@ new class extends Component
         return [
             'title' => 'Planejamento de '.auth()->user()->name,
             'exceededBudgets' => $this->getExceededBudgets(),
+            'finnySummary' => app(FinancialScoreService::class)->sync(Auth::user()),
         ];
     }
 
@@ -86,12 +88,12 @@ new class extends Component
 
     public function getTotalExpensesAllTime(): float
     {
-        // Excluir transaÃ§Ãµes de depÃ³sito em metas (jÃ¡ sÃ£o contadas separadamente)
+        // Excluir transacoes de deposito em metas (ja sao contadas separadamente)
         $allExpenses = Auth::user()->transactions()
             ->where('type', 'expense')
             ->get();
         
-        // Filtrar transaÃ§Ãµes que nÃ£o sÃ£o depÃ³sitos em metas
+        // Filtrar transacoes que nao sao depositos em metas
         $expensesWithoutSavings = $allExpenses->filter(function ($transaction) {
             $metadata = $transaction->metadata ?? [];
             return !isset($metadata['savings_goal_deposit_id']);
@@ -102,8 +104,8 @@ new class extends Component
 
     public function getAvailableBalance(): float
     {
-        // Saldo disponÃ­vel considera TODAS as transaÃ§Ãµes, nÃ£o apenas do perÃ­odo
-        // DepÃ³sitos em metas sÃ£o deduzidos separadamente (nÃ£o contam como despesas normais)
+        // Saldo disponivel considera todas as transacoes, nao apenas do periodo
+        // Depositos em metas sao deduzidos separadamente (nao contam como despesas normais)
         return $this->getTotalIncomeAllTime() - $this->getTotalExpensesAllTime() - $this->getTotalSavingsDeposits();
     }
 
@@ -131,7 +133,7 @@ new class extends Component
         return $expenses->map(function ($expense) use ($total) {
             return [
                 'category' => $expense->category->name,
-                'icon' => $expense->category->icon ?? 'ðŸ“¦',
+                'icon' => $this->normalizeCategoryIcon($expense->category->icon ?? null),
                 'color' => $expense->category->color ?? '#95A5A6',
                 'amount' => (float) $expense->total,
                 'percentage' => $total > 0 ? round(($expense->total / $total) * 100, 1) : 0,
@@ -157,7 +159,19 @@ new class extends Component
 
         return $query->get();
     }
+    protected function normalizeCategoryIcon(?string $icon): string
+    {
+        $icon = trim((string) $icon);
+        if ($icon === '') {
+            return html_entity_decode('&#128230;', ENT_QUOTES, 'UTF-8');
+        }
 
+        if (str_contains($icon, 'ð') || str_contains($icon, 'Ã')) {
+            return html_entity_decode('&#128230;', ENT_QUOTES, 'UTF-8');
+        }
+
+        return $icon;
+    }
     public function getPreviousMonthIncome(): float
     {
         if ($this->period !== 'monthly') {
@@ -265,7 +279,7 @@ new class extends Component
         $user = Auth::user();
         $months = [];
         
-        // Ãšltimos 12 meses
+        // Ultimos 12 meses
         for ($i = 11; $i >= 0; $i--) {
             $date = now()->subMonths($i);
             $monthStart = $date->copy()->startOfMonth();
@@ -301,7 +315,7 @@ new class extends Component
         $user = Auth::user();
         $years = [];
         
-        // Ãšltimos 5 anos
+        // Ultimos 5 anos
         for ($i = 4; $i >= 0; $i--) {
             $year = now()->year - $i;
             $yearStart = \Carbon\Carbon::create($year, 1, 1)->startOfYear();
@@ -473,6 +487,75 @@ new class extends Component
             </div>
         </aside>
 
+        @php
+            $finnyTone = $finnySummary['mood']['tone'] ?? 'sky';
+            $finnyPanelClass = match ($finnyTone) {
+                'emerald' => 'from-emerald-400/15 via-emerald-300/10 to-transparent border-emerald-300/15',
+                'amber' => 'from-amber-400/15 via-orange-300/10 to-transparent border-amber-300/15',
+                'rose' => 'from-rose-400/15 via-pink-300/10 to-transparent border-rose-300/15',
+                'violet' => 'from-violet-400/15 via-fuchsia-300/10 to-transparent border-violet-300/15',
+                default => 'from-sky-400/15 via-cyan-300/10 to-transparent border-sky-300/15',
+            };
+            $finnyBadgeClass = match ($finnyTone) {
+                'emerald' => 'border-emerald-300/20 bg-emerald-300/10 text-emerald-200',
+                'amber' => 'border-amber-300/20 bg-amber-300/10 text-amber-100',
+                'rose' => 'border-rose-300/20 bg-rose-300/10 text-rose-100',
+                'violet' => 'border-violet-300/20 bg-violet-300/10 text-violet-100',
+                default => 'border-sky-300/20 bg-sky-300/10 text-sky-100',
+            };
+        @endphp
+
+        <div class="rounded-[2rem] border bg-gradient-to-br {{ $finnyPanelClass }} p-6 shadow-[0_24px_80px_rgba(2,6,23,0.34)]">
+            <div class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                <div class="flex items-start gap-4">
+                    <div class="inline-flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/10 bg-white/10 text-5xl">
+                        &#128054;
+                    </div>
+                    <div class="space-y-3">
+                        <div class="inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] {{ $finnyBadgeClass }}">
+                            {{ $finnySummary['mood']['label'] }}
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-black text-white">Finny</h2>
+                            <p class="mt-2 max-w-2xl text-sm leading-7 text-slate-300">{{ $finnySummary['mood']['message'] }}</p>
+                        </div>
+                        <div class="flex flex-wrap gap-3 pt-1">
+                            <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
+                                Score {{ $finnySummary['score'] }}/100
+                            </span>
+                            <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
+                                Nivel {{ $finnySummary['level'] }}
+                            </span>
+                            <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
+                                Sequencia {{ $finnySummary['current_streak'] }} dias
+                            </span>
+                            <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
+                                Medalhas {{ $finnySummary['badges_unlocked'] }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                    <div class="rounded-3xl border border-white/10 bg-slate-950/60 p-5">
+                        <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Proximo foco</p>
+                        <h3 class="mt-3 text-lg font-bold text-white">{{ $finnySummary['focus_area']['title'] }}</h3>
+                        <p class="mt-2 text-sm leading-6 text-slate-300">{{ $finnySummary['focus_area']['description'] }}</p>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-950/60 p-5">
+                        <div>
+                            <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Pagina completa</p>
+                            <p class="mt-3 text-lg font-bold text-white">Medalhas, XP e humor do Finny</p>
+                        </div>
+                        <flux:button href="{{ route('finny.index') }}" wire:navigate variant="primary">
+                            Abrir Finny
+                        </flux:button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Cards de Resumo -->
         <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <!-- Total de Ganhos -->
@@ -486,7 +569,7 @@ new class extends Component
                         $variation = $this->getIncomeVariation();
                     @endphp
                     <p class="text-xs mt-2 {{ $variation >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                        {{ $variation >= 0 ? 'â†‘' : 'â†“' }} {{ number_format(abs($variation), 1) }}% vs mÃªs anterior
+                        {{ $variation >= 0 ? '+' : '-' }} {{ number_format(abs($variation), 1) }}% vs mes anterior
                     </p>
                 @endif
             </div>
@@ -502,14 +585,14 @@ new class extends Component
                         $variation = $this->getExpensesVariation();
                     @endphp
                     <p class="text-xs mt-2 {{ $variation <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                        {{ $variation >= 0 ? 'â†‘' : 'â†“' }} {{ number_format(abs($variation), 1) }}% vs mÃªs anterior
+                        {{ $variation >= 0 ? '+' : '-' }} {{ number_format(abs($variation), 1) }}% vs mes anterior
                     </p>
                 @endif
             </div>
 
-            <!-- Total de DÃ­vidas -->
+            <!-- Total de dividas -->
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Total de dÃ­vidas</p>
+                <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Total de dividas</p>
                 <p class="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                     R$ 0,00
                 </p>
@@ -523,16 +606,16 @@ new class extends Component
                 </p>
             </div>
 
-            <!-- Saldo DisponÃ­vel -->
+            <!-- Saldo disponivel -->
             <div class="bg-zinc-900 dark:bg-zinc-950 rounded-xl border border-zinc-700 p-6">
-                <p class="text-sm text-zinc-400 mb-2">Saldo disponÃ­vel</p>
+                <p class="text-sm text-zinc-400 mb-2">Saldo disponivel</p>
                 <p class="text-2xl font-bold text-white">
                     R$ {{ number_format($this->getAvailableBalance(), 2, ',', '.') }}
                 </p>
             </div>
         </div>
 
-        <!-- GrÃ¡fico e Lista de Categorias -->
+        <!-- Grafico e lista de categorias -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Despesas por Categoria -->
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
@@ -548,7 +631,7 @@ new class extends Component
 
                 @if(count($expensesByCategory) > 0)
                     <div class="flex flex-col md:flex-row items-start md:items-center gap-6">
-                        <!-- GrÃ¡fico de Pizza Simples (usando SVG) -->
+                        <!-- Grafico de pizza simples (usando SVG) -->
                         <div class="w-40 h-40 flex-shrink-0 mx-auto md:mx-0">
                             <svg viewBox="0 0 100 100" class="w-full h-full transform -rotate-90">
                                 <defs>
@@ -615,15 +698,15 @@ new class extends Component
                     </div>
                 @else
                     <div class="text-center py-8 text-zinc-500">
-                        <p>Nenhuma despesa registrada neste perÃ­odo</p>
+                        <p>Nenhuma despesa registrada neste periodo</p>
                     </div>
                 @endif
             </div>
 
-            <!-- TransaÃ§Ãµes Recentes -->
+            <!-- Transacoes recentes -->
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
                 <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-lg font-semibold">TransaÃ§Ãµes Recentes</h2>
+                    <h2 class="text-lg font-semibold">Transacoes Recentes</h2>
                     <flux:button href="{{ route('transactions.index') }}" wire:navigate variant="ghost" size="sm">
                         Ver todas
                     </flux:button>
@@ -633,13 +716,13 @@ new class extends Component
                     @forelse($this->getRecentTransactions() as $transaction)
                         <div class="flex items-center justify-between p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors">
                             <div class="flex items-center gap-3">
-                                <span class="text-xl">{{ $transaction->category?->icon ?? 'ðŸ“¦' }}</span>
+                                <span class="text-xl">{{ $this->normalizeCategoryIcon($transaction->category?->icon) }}</span>
                                 <div>
-                                    <p class="font-medium">{{ $transaction->description ?? 'Sem descriÃ§Ã£o' }}</p>
+                                    <p class="font-medium">{{ $transaction->description ?? 'Sem descricao' }}</p>
                                     <p class="text-sm text-zinc-600 dark:text-zinc-400">
                                         {{ $transaction->date->format('d/m/Y') }}
                                         @if($transaction->category)
-                                            â€¢ {{ $transaction->category->name }}
+                                            - {{ $transaction->category->name }}
                                         @endif
                                     </p>
                                 </div>
@@ -652,9 +735,9 @@ new class extends Component
                         </div>
                     @empty
                         <div class="text-center py-8 text-zinc-500">
-                            <p>Nenhuma transaÃ§Ã£o registrada</p>
+                            <p>Nenhuma transacao registrada</p>
                             <flux:button href="{{ route('transactions.create') }}" wire:navigate variant="ghost" size="sm" class="mt-4">
-                                Criar primeira transaÃ§Ã£o
+                                Criar primeira transacao
                             </flux:button>
                         </div>
                     @endforelse
@@ -662,10 +745,10 @@ new class extends Component
             </div>
         </div>
 
-        <!-- GrÃ¡fico de EvoluÃ§Ã£o -->
+        <!-- Grafico de evolucao -->
         @if($period === 'monthly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">EvoluÃ§Ã£o DiÃ¡ria</h2>
+                <h2 class="text-lg font-semibold mb-6">Evolucao Diaria</h2>
                 @php
                     $dailyData = $this->getDailyTransactions();
                     $maxValue = max(
@@ -729,10 +812,10 @@ new class extends Component
             </div>
         @endif
 
-        <!-- GrÃ¡fico de EvoluÃ§Ã£o Mensal -->
+        <!-- Grafico de evolucao -->
         @if($period === 'monthly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">EvoluÃ§Ã£o Mensal (Ãšltimos 12 meses)</h2>
+                <h2 class="text-lg font-semibold mb-6">Evolucao Mensal (Ultimos 12 meses)</h2>
                 @php
                     $monthlyData = $this->getMonthlyEvolution();
                     $maxMonthlyValue = max(
@@ -794,10 +877,10 @@ new class extends Component
             </div>
         @endif
 
-        <!-- GrÃ¡fico de EvoluÃ§Ã£o Anual -->
+        <!-- Grafico de evolucao -->
         @if($period === 'yearly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">EvoluÃ§Ã£o Anual (Ãšltimos 5 anos)</h2>
+                <h2 class="text-lg font-semibold mb-6">Evolucao Anual (Ultimos 5 anos)</h2>
                 @php
                     $yearlyData = $this->getYearlyEvolution();
                     $maxYearlyValue = max(

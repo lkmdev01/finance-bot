@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
@@ -154,5 +155,15 @@ class User extends Authenticatable
     public function tags(): HasMany
     {
         return $this->hasMany(Tag::class);
+    }
+
+    public function finnyProfile(): HasOne
+    {
+        return $this->hasOne(FinnyProfile::class);
+    }
+
+    public function finnyAchievementUnlocks(): HasMany
+    {
+        return $this->hasMany(FinnyAchievementUnlock::class);
     }
 }
