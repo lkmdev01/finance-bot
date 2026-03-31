@@ -1,51 +1,38 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers;
 
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\User;
+use App\Services\AudioTranscriptionService;
 use App\Services\BaileysService;
 use App\Services\OCRService;
 use App\Services\PhoneNumberService;
+use App\Services\WhatsAppDocumentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\URL;
 
 class WhatsAppWebhookController extends Controller
 {
     public function __construct(
         private readonly PhoneNumberService $phoneNumberService,
         private readonly OCRService $ocrService,
+        private readonly AudioTranscriptionService $audioTranscriptionService,
+        private readonly WhatsAppDocumentService $whatsAppDocumentService,
         private readonly BaileysService $baileysService
     ) {}
 
-    /**
-     * Recebe webhook do serviço Baileys
-     *
-     * IMPORTANTE: Há dois números envolvidos:
-     * 1. Número do BOT (fixo): Número conectado no whatsapp-service que RECEBE mensagens
-     * 2. Número do USUÁRIO: Número cadastrado em users.phone_number que ENVIA mensagens
-     *
-     * Quando um usuário envia mensagem para o bot:
-     * - remoteJid = número do USUÁRIO (quem enviou)
-     * - fromMe = false (mensagem recebida pelo bot)
-     *
-     * Quando o bot envia mensagem:
-     * - fromMe = true (mensagem enviada pelo bot)
-     * - Não devemos processar essas mensagens
-     */
     public function handle(Request $request): JsonResponse
     {
         try {
             $data = $request->all();
 
-            // Valida secret do webhook
             $expectedSecret = config('whatsapp.baileys.webhook_secret');
             $receivedSecret = $data['secret'] ?? null;
 
             if ($receivedSecret !== $expectedSecret) {
-                Log::warning('Webhook recebido com secret inválido', [
+                Log::warning('Webhook recebido com secret invalido', [
                     'expected' => $expectedSecret,
                     'received' => $receivedSecret,
                     'match' => $receivedSecret === $expectedSecret,
@@ -54,13 +41,12 @@ class WhatsAppWebhookController extends Controller
                 return response()->json(['status' => 'unauthorized'], 401);
             }
 
-            // Valida assinatura HMAC se fornecida (opcional - depende do serviço Node.js)
-            if (isset($data['signature']) && isset($data['timestamp'])) {
+            if (isset($data['signature'], $data['timestamp'])) {
                 $payload = json_encode($data['data'] ?? []).$data['timestamp'];
                 $expectedSignature = hash_hmac('sha256', $payload, $expectedSecret);
 
                 if (! hash_equals($expectedSignature, $data['signature'])) {
-                    Log::warning('Webhook recebido com assinatura HMAC inválida', [
+                    Log::warning('Webhook recebido com assinatura HMAC invalida', [
                         'expected' => $expectedSignature,
                         'received' => $data['signature'],
                     ]);
@@ -69,11 +55,9 @@ class WhatsAppWebhookController extends Controller
                 }
             }
 
-            // Log para debug
             Log::info('Webhook recebido do Baileys', $data);
 
-            // Verifica se é uma mensagem recebida
-            if (! isset($data['event']) || $data['event'] !== 'messages.upsert') {
+            if (($data['event'] ?? null) !== 'messages.upsert') {
                 return response()->json(['status' => 'ignored']);
             }
 
@@ -82,23 +66,16 @@ class WhatsAppWebhookController extends Controller
                 return response()->json(['status' => 'no_data']);
             }
 
-            // Verifica se é uma mensagem de texto ou imagem recebida (não enviada)
             $key = $messageData['key'] ?? [];
             $message = $messageData['message'] ?? [];
             $messageType = $message['messageType'] ?? null;
+            $pushName = $messageData['pushName'] ?? $data['pushName'] ?? null;
 
-            // Suporta mensagens de texto e imagem (para OCR)
-            if (! in_array($messageType, ['conversation', 'extendedTextMessage', 'imageMessage'])) {
+            if (! in_array($messageType, ['conversation', 'extendedTextMessage', 'imageMessage', 'audioMessage', 'documentMessage'], true)) {
                 return response()->json(['status' => 'not_supported_message_type']);
             }
 
-            // IMPORTANTE: fromMe indica se a mensagem foi enviada PELO BOT (número fixo conectado)
-            // Se fromMe === true, é uma mensagem que o BOT enviou, não devemos processar
-            $fromMe = $key['fromMe'] ?? false;
-
-            // Ignora TODAS as mensagens enviadas pelo bot (número fixo)
-            // Apenas processa mensagens RECEBIDAS de usuários (fromMe === false)
-            if ($fromMe) {
+            if (($key['fromMe'] ?? false) === true) {
                 Log::debug('Mensagem ignorada: enviada pelo bot', [
                     'remoteJid' => $key['remoteJid'] ?? null,
                 ]);
@@ -106,9 +83,6 @@ class WhatsAppWebhookController extends Controller
                 return response()->json(['status' => 'bot_message_ignored']);
             }
 
-            // Extrai número do remetente (usuário que enviou a mensagem)
-            // remoteJid = número do USUÁRIO que enviou a mensagem para o bot
-            // Se o serviço Node.js já processou o número, usa ele, senão processa o remoteJid
             $phoneNumber = $messageData['key']['phoneNumber'] ?? $key['remoteJid'] ?? null;
 
             if (! $phoneNumber) {
@@ -117,130 +91,124 @@ class WhatsAppWebhookController extends Controller
                 return response()->json(['status' => 'no_phone']);
             }
 
-            // Remove sufixos do WhatsApp e normaliza
             $phoneNumber = $this->phoneNumberService->removeWhatsAppSuffixes($phoneNumber);
             $phoneNumber = $this->phoneNumberService->clean($phoneNumber);
 
-            Log::debug('Número processado do WhatsApp', [
+            Log::debug('Numero processado do WhatsApp', [
                 'remoteJid_original' => $key['remoteJid'] ?? null,
                 'phoneNumber_processado' => $phoneNumber,
             ]);
 
-            // Extrai e sanitiza texto da mensagem
-            $text = $message['conversation'] ?? $message['extendedTextMessage']['text'] ?? '';
-            $imageUrl = null;
-
-            // Se for imagem, processa OCR
-            if ($messageType === 'imageMessage') {
-                $imageUrl = $message['imageMessage']['url'] ?? $messageData['imageUrl'] ?? null;
-                $caption = $message['imageMessage']['caption'] ?? '';
-
-                // Se tiver legenda, usa ela
-                if (! empty($caption)) {
-                    $text = $caption;
-                } elseif ($imageUrl) {
-                    // Se não tiver legenda, processa OCR
-                    $ocrText = $this->ocrService->extractText($imageUrl);
-                    if ($ocrText) {
-                        $text = "📷 Imagem recebida. Texto extraído: {$ocrText}";
-                    } else {
-                        $text = '📷 Imagem recebida. Não consegui extrair texto. Descreva a transação na mensagem.';
-                    }
-                }
-            }
-
-            if (empty($text) && empty($imageUrl)) {
-                return response()->json(['status' => 'empty_message']);
-            }
-
-            // Sanitiza mensagem: remove caracteres perigosos e limita tamanho
-            $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-            $text = trim($text);
-            $text = mb_substr($text, 0, 1000); // Limita a 1000 caracteres
-
-            // Identifica usuário pelo número de telefone (remoteJid = número do usuário que enviou)
             $user = $this->identifyUserByPhoneNumber($phoneNumber);
 
-            // Se não encontrou por número e temos pushName, tenta identificar por nome
-            if (! $user && isset($data['pushName']) && $data['pushName']) {
-                $user = $this->identifyUserByPushName($data['pushName']);
+            if (! $user && $pushName) {
+                $user = $this->identifyUserByPushName($pushName);
+
                 if ($user) {
-                    Log::info('Usuário identificado por pushName (fallback)', [
-                        'pushName' => $data['pushName'],
+                    Log::info('Usuario identificado por pushName (fallback)', [
+                        'pushName' => $pushName,
                         'user_id' => $user->id,
                     ]);
                 }
             }
 
             if (! $user) {
-                Log::warning('Nenhum usuário encontrado para processar mensagem do WhatsApp', [
-                    'phone_number' => $phoneNumber,
-                    'remoteJid_original' => $key['remoteJid'] ?? null,
-                    'pushName' => $data['pushName'] ?? null,
-                ]);
-
-                // Envia mensagem de convite para registro
-                $appUrl = config('app.url');
-                $registerUrl = $appUrl . '/register';
-                $whatsappUrl = $appUrl . '/settings/whatsapp';
-
-                $unregisteredMessage = "Olá! 👋 Identificamos que seu número ainda não está vinculado a uma conta no *InovaFinance*.\n\n".
-                    "Para que eu possa gerenciar suas finanças, siga estes passos:\n\n".
-                    "1️⃣ Crie sua conta em: $registerUrl\n".
-                    "2️⃣ Nas configurações, vincule este número em: $whatsappUrl\n\n".
-                    "Depois disso, basta me enviar seus gastos ou ganhos! 🚀";
-
-                try {
-                    $recipientJid = $key['remoteJid'] ?? $this->phoneNumberService->toWhatsAppJid($phoneNumber);
-                    $this->baileysService->sendTextMessage($recipientJid, $unregisteredMessage);
-                } catch (\Exception $e) {
-                    Log::error('Erro ao enviar mensagem de convite', ['error' => $e->getMessage()]);
-                }
-
-                return response()->json([
-                    'status' => 'no_user',
-                    'message' => 'Convite enviado via WhatsApp.',
-                ]);
+                return $this->respondNoUser($key, $phoneNumber, $pushName);
             }
 
-            // IMPORTANTE: Usa o número REAL do usuário cadastrado, não o JID processado
-            // O JID pode ser um ID interno (@lid), mas o número real está em users.phone_number
-            // Se o usuário não tiver número cadastrado, usa o JID processado como fallback
-            $realPhoneNumber = $user->phone_number;
+            $text = $message['conversation'] ?? $message['extendedTextMessage']['text'] ?? '';
+            $imageUrl = null;
+            $audioBase64 = $messageData['audioBase64'] ?? null;
+            $audioMimeType = $message['audioMessage']['mimetype'] ?? $messageData['audioMimeType'] ?? null;
+            $documentBase64 = $messageData['documentBase64'] ?? null;
+            $documentMimeType = $message['documentMessage']['mimetype'] ?? $messageData['documentMimeType'] ?? null;
+            $documentFileName = $message['documentMessage']['fileName'] ?? $messageData['documentFileName'] ?? 'documento';
 
-            // Se não tiver número real cadastrado, tenta extrair do JID ou usa o JID processado
-            if (! $realPhoneNumber) {
-                // Se o JID não for @lid, tenta extrair o número
-                if (! str_contains($phoneNumber, '@lid') && preg_match('/^\d+$/', $phoneNumber)) {
-                    $realPhoneNumber = $phoneNumber;
-                } else {
-                    // Se for @lid ou não conseguir extrair, usa o JID processado como fallback
-                    $realPhoneNumber = $phoneNumber;
+            if ($messageType === 'imageMessage') {
+                $imageUrl = $message['imageMessage']['url'] ?? $messageData['imageUrl'] ?? null;
+                $caption = $message['imageMessage']['caption'] ?? '';
+
+                if ($caption !== '') {
+                    $text = $caption;
+                } elseif ($imageUrl) {
+                    $ocrText = $this->ocrService->extractText($imageUrl);
+                    $text = $ocrText
+                        ? "Imagem recebida. Texto extraido: {$ocrText}"
+                        : 'Imagem recebida. Nao consegui extrair texto. Descreva a transacao na mensagem.';
+                }
+            }
+
+            if ($messageType === 'audioMessage' && $audioBase64) {
+                $text = $this->audioTranscriptionService->transcribeBase64($audioBase64, $audioMimeType) ?? '';
+            }
+
+            if ($messageType === 'documentMessage' && $documentBase64) {
+                $documentResult = $this->whatsAppDocumentService->processBase64(
+                    $user,
+                    $documentBase64,
+                    $documentMimeType,
+                    $documentFileName
+                );
+
+                if (($documentResult['status'] ?? null) === 'imported') {
+                    $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Documento importado com sucesso.');
+
+                    return response()->json([
+                        'status' => 'document_imported',
+                        'imported' => $documentResult['result']['imported'] ?? 0,
+                    ]);
                 }
 
-                Log::warning('Usuário sem número cadastrado, usando JID como fallback', [
+                if (($documentResult['status'] ?? null) === 'text_extracted') {
+                    $text = $documentResult['text'] ?? '';
+                } else {
+                    $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Nao consegui processar o documento enviado.');
+
+                    return response()->json([
+                        'status' => $documentResult['status'] ?? 'document_processing_error',
+                    ]);
+                }
+            }
+
+            if (empty($text) && empty($imageUrl)) {
+                if ($messageType === 'audioMessage') {
+                    $this->sendReply($key, $phoneNumber, 'Nao consegui transcrever sua mensagem de voz. Pode me enviar em texto?');
+
+                    return response()->json(['status' => 'audio_transcription_failed']);
+                }
+
+                return response()->json(['status' => 'empty_message']);
+            }
+
+            $text = htmlspecialchars(trim($text), ENT_QUOTES, 'UTF-8');
+            $text = mb_substr($text, 0, 1000);
+
+            $realPhoneNumber = $user->phone_number;
+
+            if (! $realPhoneNumber) {
+                $realPhoneNumber = $phoneNumber;
+
+                Log::warning('Usuario sem numero cadastrado, usando JID como fallback', [
                     'user_id' => $user->id,
                     'jid_processado' => $phoneNumber,
                 ]);
             }
 
-            Log::info('Mensagem recebida de usuário identificado', [
+            Log::info('Mensagem recebida de usuario identificado', [
                 'user_id' => $user->id,
                 'user_name' => $user->name,
-                'phone_number_jid' => $phoneNumber, // JID processado (pode ser @lid)
-                'phone_number_real' => $realPhoneNumber, // Número real do usuário ou fallback
+                'phone_number_jid' => $phoneNumber,
+                'phone_number_real' => $realPhoneNumber,
                 'message_preview' => substr($text, 0, 50),
             ]);
 
-            // Despacha job para processar mensagem
-            // Passa o número real do usuário (ou fallback), o pushName (se disponível) e o remoteJid original
             ProcessWhatsAppMessage::dispatch(
-                $realPhoneNumber, // Número real do usuário ou fallback
+                $realPhoneNumber,
                 $text,
                 $user->id,
-                $data['pushName'] ?? null, // Nome do WhatsApp
-                $key['remoteJid'] ?? null, // JID original para referência
-                $imageUrl // URL da imagem se houver (para OCR)
+                $pushName,
+                $key['remoteJid'] ?? null,
+                $imageUrl
             );
 
             return response()->json(['status' => 'queued']);
@@ -254,35 +222,62 @@ class WhatsAppWebhookController extends Controller
         }
     }
 
-    /**
-     * Identifica o usuário pelo número de telefone
-     *
-     * O phoneNumber é o remoteJid, que representa o número do USUÁRIO
-     * que enviou a mensagem para o bot (não o número do bot).
-     *
-     * @param  string  $phoneNumber  Número do usuário que enviou a mensagem (remoteJid)
-     * @return User|null Usuário encontrado ou null
-     */
+    private function respondNoUser(array $key, string $phoneNumber, ?string $pushName): JsonResponse
+    {
+        Log::warning('Nenhum usuario encontrado para processar mensagem do WhatsApp', [
+            'phone_number' => $phoneNumber,
+            'remoteJid_original' => $key['remoteJid'] ?? null,
+            'pushName' => $pushName,
+        ]);
+
+        $appUrl = config('app.url');
+        $registerUrl = $appUrl.'/register';
+        $whatsappUrl = $appUrl.'/settings/whatsapp';
+
+        $message = "Ola! Identificamos que seu numero ainda nao esta vinculado a uma conta no InovaFinance.\n\n".
+            "Para que eu possa gerenciar suas financas, siga estes passos:\n\n".
+            "1. Crie sua conta em: {$registerUrl}\n".
+            "2. Nas configuracoes, vincule este numero em: {$whatsappUrl}\n\n".
+            'Depois disso, basta me enviar seus gastos ou ganhos!';
+
+        $this->sendReply($key, $phoneNumber, $message);
+
+        return response()->json([
+            'status' => 'no_user',
+            'message' => 'Convite enviado via WhatsApp.',
+        ]);
+    }
+
+    private function sendReply(array $key, string $phoneNumber, string $message): void
+    {
+        try {
+            $recipientJid = $key['remoteJid'] ?? $this->phoneNumberService->toWhatsAppJid($phoneNumber);
+            $this->baileysService->sendTextMessage($recipientJid, $message);
+        } catch (\Exception $e) {
+            Log::error('Erro ao enviar mensagem via Baileys', [
+                'error' => $e->getMessage(),
+                'remoteJid' => $key['remoteJid'] ?? null,
+            ]);
+        }
+    }
+
     private function identifyUserByPhoneNumber(string $phoneNumber): ?User
     {
-        // Normaliza o número
         $normalized = $this->phoneNumberService->normalize($phoneNumber);
-
-        // Tenta encontrar usuário pelo número exato (ou LID)
         $user = User::where('phone_number', $normalized)->first();
 
         if ($user) {
-            Log::debug('Usuário encontrado pelo número exato', ['user_id' => $user->id]);
+            Log::debug('Usuario encontrado pelo numero exato', ['user_id' => $user->id]);
+
             return $user;
         }
 
-        // Tenta encontrar por variações do número
         $variations = $this->phoneNumberService->getVariations($phoneNumber);
 
         foreach ($variations as $variation) {
             $user = User::where('phone_number', $variation)->first();
             if ($user) {
-                Log::info('Usuário encontrado por variação do número', [
+                Log::info('Usuario encontrado por variacao do numero', [
                     'original' => $phoneNumber,
                     'variation' => $variation,
                     'user_id' => $user->id,
@@ -292,8 +287,7 @@ class WhatsAppWebhookController extends Controller
             }
         }
 
-        // Não retorna fallback - usuário deve ter número cadastrado
-        Log::warning('Usuário não encontrado por número de telefone', [
+        Log::warning('Usuario nao encontrado por numero de telefone', [
             'phone_number' => $phoneNumber,
             'normalized' => $normalized,
             'variations_tried' => $variations,
@@ -302,26 +296,12 @@ class WhatsAppWebhookController extends Controller
         return null;
     }
 
-    /**
-     * Identifica usuário pelo pushName (nome exibido no WhatsApp)
-     * Usado como fallback quando o número não está disponível (ex: @lid)
-     *
-     * @param  string  $pushName  Nome exibido no WhatsApp
-     * @return User|null Usuário encontrado ou null
-     */
     private function identifyUserByPushName(string $pushName): ?User
     {
-        // Tenta encontrar usuário pelo nome (case-insensitive, parcial)
-        // Adiciona proteção contra nomes vazios ou muito curtos
-        if (strlen($pushName) < 3) return null;
-
-        $user = User::whereRaw('LOWER(name) LIKE ?', ['%'.strtolower($pushName).'%'])->first();
-
-        if ($user) {
-            return $user;
+        if (strlen($pushName) < 3) {
+            return null;
         }
 
-        // Se não encontrou, retorna null (não usa fallback aqui para evitar erros)
-        return null;
+        return User::whereRaw('LOWER(name) LIKE ?', ['%'.strtolower($pushName).'%'])->first();
     }
 }

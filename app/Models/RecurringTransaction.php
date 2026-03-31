@@ -14,6 +14,9 @@ class RecurringTransaction extends Model
     protected $fillable = [
         'user_id',
         'category_id',
+        'bank_account_id',
+        'credit_card_id',
+        'subscription_id',
         'type',
         'amount',
         'description',
@@ -47,6 +50,21 @@ class RecurringTransaction extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
+    }
+
+    public function creditCard(): BelongsTo
+    {
+        return $this->belongsTo(CreditCard::class);
+    }
+
+    public function subscription(): BelongsTo
+    {
+        return $this->belongsTo(Subscription::class);
     }
 
     public function shouldProcessToday(): bool

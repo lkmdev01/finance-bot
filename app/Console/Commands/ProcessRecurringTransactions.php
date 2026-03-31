@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Console\Commands;
 
@@ -9,7 +9,7 @@ class ProcessRecurringTransactions extends Command
 {
     protected $signature = 'transactions:process-recurring';
 
-    protected $description = 'Processa transações recorrentes e cria transações automáticas';
+    protected $description = 'Processa transacoes recorrentes e cria transacoes automaticas';
 
     public function handle(): int
     {
@@ -17,25 +17,31 @@ class ProcessRecurringTransactions extends Command
         $processed = 0;
 
         foreach ($recurringTransactions as $recurring) {
-            if ($recurring->shouldProcessToday()) {
-                $recurring->user->transactions()->create([
-                    'category_id' => $recurring->category_id,
-                    'type' => $recurring->type,
-                    'amount' => $recurring->amount,
-                    'description' => $recurring->description ?? 'Transação recorrente',
-                    'date' => now(),
-                    'metadata' => [
-                        'recurring_transaction_id' => $recurring->id,
-                    ],
-                ]);
-
-                $recurring->update(['last_processed_at' => now()]);
-                $processed++;
+            if (! $recurring->shouldProcessToday()) {
+                continue;
             }
+
+            $recurring->user->transactions()->create([
+                'category_id' => $recurring->category_id,
+                'bank_account_id' => $recurring->bank_account_id,
+                'credit_card_id' => $recurring->credit_card_id,
+                'subscription_id' => $recurring->subscription_id,
+                'type' => $recurring->type,
+                'amount' => $recurring->amount,
+                'description' => $recurring->description ?? 'Transacao recorrente',
+                'date' => now(),
+                'metadata' => [
+                    'recurring_transaction_id' => $recurring->id,
+                    'source' => 'recurring_transaction',
+                ],
+            ]);
+
+            $recurring->update(['last_processed_at' => now()]);
+            $processed++;
         }
 
-        $this->info("Processadas {$processed} transação(ões) recorrente(s).");
+        $this->info("Processadas {$processed} transacao(oes) recorrente(s).");
 
-        return Command::SUCCESS;
+        return self::SUCCESS;
     }
 }

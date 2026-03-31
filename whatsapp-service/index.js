@@ -4,6 +4,7 @@ import makeWASocket, {
     DisconnectReason,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
+    downloadMediaMessage,
     jidNormalizedUser,
     isPnUser,
 } from '@whiskeysockets/baileys';
@@ -16,7 +17,7 @@ import { rm, readdir } from 'fs/promises';
 import { join } from 'path';
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
 
 const PORT = process.env.WHATSAPP_SERVICE_PORT || 3001;
 const LARAVEL_URL = process.env.LARAVEL_URL || 'http://financi-app.test';
@@ -226,6 +227,8 @@ async function startWhatsApp() {
         phoneNumber = phoneNumber.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '').replace('@c.us', '');
         
         let text = '';
+        let audioPayload = {};
+        let documentPayload = {};
         
         // Extrai texto da mensagem dependendo do tipo
         if (messageType === 'conversation') {
@@ -237,11 +240,65 @@ async function startWhatsApp() {
             const mediaMessage = message.message[messageType];
             text = mediaMessage?.caption || '';
         }
+
+        if (messageType === 'audioMessage') {
+            try {
+                const audioBuffer = await downloadMediaMessage(
+                    message,
+                    'buffer',
+                    {},
+                    {
+                        logger,
+                        reuploadRequest: sock.updateMediaMessage,
+                    }
+                );
+
+                if (audioBuffer?.length) {
+                    audioPayload = {
+                        audioBase64: audioBuffer.toString('base64'),
+                        audioMimeType: message.message.audioMessage?.mimetype || 'audio/ogg; codecs=opus',
+                        audioSeconds: message.message.audioMessage?.seconds || null,
+                    };
+
+                    console.log(`   🎙️ Áudio baixado para transcrição (${audioBuffer.length} bytes)`);
+                }
+            } catch (mediaError) {
+                console.log(`   ⚠️  Não foi possível baixar o áudio: ${mediaError.message}`);
+            }
+        }
+
+        if (messageType === 'documentMessage') {
+            try {
+                const documentBuffer = await downloadMediaMessage(
+                    message,
+                    'buffer',
+                    {},
+                    {
+                        logger,
+                        reuploadRequest: sock.updateMediaMessage,
+                    }
+                );
+
+                if (documentBuffer?.length) {
+                    documentPayload = {
+                        documentBase64: documentBuffer.toString('base64'),
+                        documentMimeType: message.message.documentMessage?.mimetype || 'application/octet-stream',
+                        documentFileName: message.message.documentMessage?.fileName || 'documento',
+                    };
+
+                    console.log(`   📄 Documento baixado para processamento (${documentBuffer.length} bytes)`);
+                }
+            } catch (mediaError) {
+                console.log(`   ⚠️  Não foi possível baixar o documento: ${mediaError.message}`);
+            }
+        }
         
         // Se não houver texto, verifica se é uma mensagem de mídia ou outro tipo suportado
         if (!text) {
-            const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage'];
-            if (mediaTypes.includes(messageType)) {
+            const mediaTypes = ['imageMessage', 'videoMessage', 'stickerMessage', 'documentMessage'];
+            if (messageType === 'audioMessage') {
+                console.log(`   🎙️  Áudio recebido sem legenda; Laravel vai tentar transcrever`);
+            } else if (mediaTypes.includes(messageType)) {
                 text = `[Mídia: ${messageType}]`;
                 console.log(`   🖼️  Mensagem de mídia recebida: ${messageType}`);
             } else if (messageType && messageType !== 'protocolMessage') {
@@ -274,6 +331,15 @@ async function startWhatsApp() {
                         messageType: messageType,
                         conversation: messageType === 'conversation' ? text : undefined,
                         extendedTextMessage: messageType === 'extendedTextMessage' ? { text } : undefined,
+                        audioMessage: messageType === 'audioMessage' ? {
+                            mimetype: message.message.audioMessage?.mimetype || null,
+                            seconds: message.message.audioMessage?.seconds || null,
+                        } : undefined,
+                        documentMessage: messageType === 'documentMessage' ? {
+                            mimetype: message.message.documentMessage?.mimetype || null,
+                            fileName: message.message.documentMessage?.fileName || null,
+                            caption: message.message.documentMessage?.caption || null,
+                        } : undefined,
                     },
                     // Envia informações adicionais para ajudar na identificação
                     pushName: message.pushName || null,
@@ -282,6 +348,8 @@ async function startWhatsApp() {
                     remoteJidAlt: message.key.remoteJidAlt || null,
                     participantAlt: message.key.participantAlt || null,
                     isLid: isLid || false,
+                    ...audioPayload,
+                    ...documentPayload,
                 },
                 secret: WEBHOOK_SECRET,
             }, {

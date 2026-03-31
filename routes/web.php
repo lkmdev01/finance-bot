@@ -110,6 +110,21 @@ Route::middleware(['auth'])->group(function () {
         return view('pages.recurring-transactions.edit', ['recurringTransaction' => $recurringTransaction]);
     })->name('recurring-transactions.edit');
 
+    // Contas bancarias
+    Volt::route('bank-accounts', 'bank-accounts.index')->name('bank-accounts.index');
+    Volt::route('bank-accounts/create', 'bank-accounts.create')->name('bank-accounts.create');
+    Volt::route('bank-accounts/{bankAccount}/edit', 'bank-accounts.edit')->name('bank-accounts.edit');
+
+    // Cartoes de credito
+    Volt::route('credit-cards', 'credit-cards.index')->name('credit-cards.index');
+    Volt::route('credit-cards/create', 'credit-cards.create')->name('credit-cards.create');
+    Volt::route('credit-cards/{creditCard}/edit', 'credit-cards.edit')->name('credit-cards.edit');
+
+    // Assinaturas e contas recorrentes
+    Volt::route('subscriptions', 'subscriptions.index')->name('subscriptions.index');
+    Volt::route('subscriptions/create', 'subscriptions.create')->name('subscriptions.create');
+    Volt::route('subscriptions/{subscription}/edit', 'subscriptions.edit')->name('subscriptions.edit');
+
     // Planejamento de Gastos
     Volt::route('expense-plans', 'expense-plans.index')->name('expense-plans.index');
     Volt::route('expense-plans/create', 'expense-plans.create')->name('expense-plans.create');

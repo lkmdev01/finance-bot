@@ -2,11 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class TransactionImportService
 {
@@ -15,7 +13,7 @@ class TransactionImportService
     ) {
     }
 
-    public function importFromCsv(User $user, string $filePath, array $mapping = []): array
+    public function importFromCsv(User $user, string $filePath, array $mapping = [], array $defaults = []): array
     {
         $handle = fopen($filePath, 'r');
         $imported = 0;
@@ -26,7 +24,7 @@ class TransactionImportService
 
         while (($row = fgetcsv($handle)) !== false) {
             try {
-                $transaction = $this->parseCsvRow($user, $row, $mapping);
+                $transaction = $this->parseCsvRow($user, $row, $mapping, $defaults);
                 $transaction->save();
                 $imported++;
             } catch (\Exception $e) {
@@ -45,7 +43,7 @@ class TransactionImportService
         ];
     }
 
-    protected function parseCsvRow(User $user, array $row, array $mapping): Transaction
+    protected function parseCsvRow(User $user, array $row, array $mapping, array $defaults = []): Transaction
     {
         $defaultMapping = [
             'date' => 0,
@@ -64,14 +62,14 @@ class TransactionImportService
         // Reconhecer categoria automaticamente
         $category = $this->categoryRecognition->recognizeCategory($user, $description, $amount);
 
-        return new Transaction([
+        return new Transaction(array_merge([
             'user_id' => $user->id,
             'category_id' => $category?->id,
             'type' => $type,
             'amount' => abs($amount),
             'description' => $description,
             'date' => $date,
-        ]);
+        ], $defaults));
     }
 
     protected function parseDate(string $date): string
@@ -114,7 +112,7 @@ class TransactionImportService
         return $amount >= 0 ? 'income' : 'expense';
     }
 
-    public function importFromOfx(User $user, string $filePath): array
+    public function importFromOfx(User $user, string $filePath, array $defaults = []): array
     {
         // Implementação básica de OFX
         // OFX é um formato XML complexo, esta é uma versão simplificada
@@ -136,14 +134,14 @@ class TransactionImportService
 
                     $category = $this->categoryRecognition->recognizeCategory($user, $description, abs($amount));
 
-                    Transaction::create([
+                    Transaction::create(array_merge([
                         'user_id' => $user->id,
                         'category_id' => $category?->id,
                         'type' => $type,
                         'amount' => abs($amount),
                         'description' => $description,
                         'date' => $date,
-                    ]);
+                    ], $defaults));
 
                     $imported++;
                 } catch (\Exception $e) {

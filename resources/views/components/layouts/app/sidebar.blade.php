@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
@@ -28,7 +28,7 @@
                 transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             }
 
-            /* Compensação para o conteúdo principal */
+            /* CompensaÃ§Ã£o para o conteÃºdo principal */
             [data-flux-main] {
                 margin-left: 16rem;
                 transition: margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -75,7 +75,7 @@
                 }
             }
 
-            /* Troca de ícones do Toggle */
+            /* Troca de Ã­cones do Toggle */
             [data-flux-sidebar-collapsed-desktop] .toggle-collapse {
                 display: none !important;
             }
@@ -105,25 +105,34 @@
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="currency-dollar" :href="route('transactions.index')" :current="request()->routeIs('transactions.*')" wire:navigate>
-                    Transações
+                    TransaÃ§Ãµes
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="tag" :href="route('categories.index')" :current="request()->routeIs('categories.*')" wire:navigate>
                     Categorias
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="chart-bar" :href="route('budgets.index')" :current="request()->routeIs('budgets.*')" wire:navigate>
-                    Orçamentos
+                    OrÃ§amentos
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="document-text" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
-                    Relatórios
+                    RelatÃ³rios
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="chart-bar" :href="route('financial-projections.index')" :current="request()->routeIs('financial-projections.*')" wire:navigate>
-                    Projeções
+                    ProjeÃ§Ãµes
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="trophy" :href="route('savings-goals.index')" :current="request()->routeIs('savings-goals.*')" wire:navigate>
                     Metas de Economia
                 </flux:sidebar.item>
+                <flux:sidebar.item icon="building-library" :href="route('bank-accounts.index')" :current="request()->routeIs('bank-accounts.*')" wire:navigate>
+                    Contas Bancarias
+                </flux:sidebar.item>
+                <flux:sidebar.item icon="credit-card" :href="route('credit-cards.index')" :current="request()->routeIs('credit-cards.*')" wire:navigate>
+                    Cartoes de Credito
+                </flux:sidebar.item>
                 <flux:sidebar.item icon="arrow-path" :href="route('recurring-transactions.index')" :current="request()->routeIs('recurring-transactions.*')" wire:navigate>
-                    Transações Recorrentes
+                    TransaÃ§Ãµes Recorrentes
+                </flux:sidebar.item>
+                <flux:sidebar.item icon="calendar-days" :href="route('subscriptions.index')" :current="request()->routeIs('subscriptions.*')" wire:navigate>
+                    Assinaturas
                 </flux:sidebar.item>
             </flux:sidebar.nav>
 
@@ -159,7 +168,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('Configurações') }}</flux:menu.item>
+                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('ConfiguraÃ§Ãµes') }}</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -209,7 +218,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('Configurações') }}</flux:menu.item>
+                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>{{ __('ConfiguraÃ§Ãµes') }}</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -283,10 +292,10 @@
                                     'text-blue-600 dark:text-blue-400': notification.type === 'info'
                                 }"
                             >
-                                <template x-if="notification.type === 'success'">✓</template>
-                                <template x-if="notification.type === 'error'">✗</template>
-                                <template x-if="notification.type === 'warning'">⚠</template>
-                                <template x-if="notification.type === 'info'">ℹ</template>
+                                <template x-if="notification.type === 'success'">âœ“</template>
+                                <template x-if="notification.type === 'error'">âœ—</template>
+                                <template x-if="notification.type === 'warning'">âš </template>
+                                <template x-if="notification.type === 'info'">â„¹</template>
                             </span>
                         </div>
                         <p class="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-100" x-text="notification.message"></p>
@@ -294,7 +303,7 @@
                             @click="removeNotification(notification.id)"
                             class="flex-shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
                         >
-                            ✕
+                            âœ•
                         </button>
                     </div>
                 </template>
@@ -306,3 +315,4 @@
         @fluxScripts
     </body>
 </html>
+

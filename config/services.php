@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    'google_vision' => [
+        'api_key' => env('GOOGLE_VISION_API_KEY'),
+    ],
+
+    'transcription' => [
+        'provider' => env('TRANSCRIPTION_PROVIDER', env('AI_PROVIDER', 'groq')),
+        'api_key' => env('TRANSCRIPTION_API_KEY', env('AI_API_KEY')),
+        'groq_model' => env('TRANSCRIPTION_GROQ_MODEL', 'whisper-large-v3-turbo'),
+        'openai_model' => env('TRANSCRIPTION_OPENAI_MODEL', 'whisper-1'),
+    ],
+
 ];
