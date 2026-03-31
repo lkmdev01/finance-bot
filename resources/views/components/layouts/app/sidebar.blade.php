@@ -76,7 +76,11 @@
                     width: 100% !important;
                 }
                 [data-flux-main] {
+                    width: 100% !important;
+                    max-width: 100vw !important;
+                    min-width: 0 !important;
                     margin-left: 0 !important;
+                    overflow-x: hidden;
                 }
             }
 
@@ -126,8 +130,8 @@
                 <flux:sidebar.item icon="chart-bar" :href="route('financial-projections.index')" :current="request()->routeIs('financial-projections.*')" wire:navigate>
                     Proje&ccedil;&otilde;es
                 </flux:sidebar.item>
-                <flux:sidebar.item icon="sparkles" :href="route('finny.index')" :current="request()->routeIs('finny.*')" wire:navigate>
-                    Finny
+                <flux:sidebar.item icon="sparkles" :href="route(config('mascot.route_name', 'mascot.index'))" :current="request()->routeIs(config('mascot.route_name', 'mascot.index'))" wire:navigate>
+                    {{ config('mascot.name', 'Orbita') }}
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="trophy" :href="route('savings-goals.index')" :current="request()->routeIs('savings-goals.*')" wire:navigate>
                     Metas de Economia

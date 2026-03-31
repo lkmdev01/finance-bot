@@ -2,16 +2,21 @@
 
 namespace App\Services;
 
-use App\Models\FinnyAchievementUnlock;
-use App\Models\FinnyProfile;
+use App\Models\MascotAchievementUnlock;
+use App\Models\MascotProfile;
 use App\Models\SavingsGoalDeposit;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
-class FinancialScoreService
+class MascotScoreService
 {
+    protected function mascotName(): string
+    {
+        return (string) config('mascot.name', 'Orbita');
+    }
+
     public function sync(User $user): array
     {
         $snapshot = $this->buildSnapshot($user);
@@ -23,10 +28,10 @@ class FinancialScoreService
         $xp = $this->calculateXp($snapshot, $unlockedAchievements->count());
         $level = $this->calculateLevel($xp);
         $recentUnlock = $unlockedAchievements
-            ->first(fn (FinnyAchievementUnlock $unlock) => $unlock->unlocked_at->gte(now()->subDays(14)));
+            ->first(fn (MascotAchievementUnlock $unlock) => $unlock->unlocked_at->gte(now()->subDays(14)));
         $mood = $this->determineMood($score, $snapshot, $recentUnlock);
 
-        $profile = FinnyProfile::updateOrCreate(
+        $profile = MascotProfile::updateOrCreate(
             ['user_id' => $user->id],
             [
                 'score' => $score,
@@ -246,13 +251,13 @@ class FinancialScoreService
         ];
     }
 
-    protected function determineMood(int $score, array $snapshot, ?FinnyAchievementUnlock $recentUnlock): array
+    protected function determineMood(int $score, array $snapshot, ?MascotAchievementUnlock $recentUnlock): array
     {
         if ($recentUnlock && $recentUnlock->unlocked_at->gte(now()->subDay())) {
             return [
                 'key' => 'celebrating',
                 'label' => 'Conquista desbloqueada',
-                'headline' => 'Finny esta comemorando seu progresso.',
+                'headline' => $this->mascotName().' esta comemorando seu progresso.',
                 'message' => 'Voce acabou de bater um marco importante. Hora de manter o ritmo.',
                 'tone' => 'amber',
             ];
@@ -262,7 +267,7 @@ class FinancialScoreService
             return [
                 'key' => 'on_track',
                 'label' => 'No caminho certo',
-                'headline' => 'Finny esta feliz com suas decisoes.',
+                'headline' => $this->mascotName().' esta feliz com suas decisoes.',
                 'message' => 'Seu dinheiro esta sob controle e seus habitos estao consistentes.',
                 'tone' => 'emerald',
             ];
@@ -276,7 +281,7 @@ class FinancialScoreService
             return [
                 'key' => 'attention',
                 'label' => 'Precisa de atencao',
-                'headline' => 'Finny percebeu sinais de alerta.',
+                'headline' => $this->mascotName().' percebeu sinais de alerta.',
                 'message' => 'Vale revisar gastos recentes, reforcar o orcamento e retomar a sequencia.',
                 'tone' => 'rose',
             ];
@@ -285,7 +290,7 @@ class FinancialScoreService
         return [
             'key' => 'steady',
             'label' => 'Em evolucao',
-            'headline' => 'Finny ve progresso e quer te levar mais longe.',
+            'headline' => $this->mascotName().' ve progresso e quer te levar mais longe.',
             'message' => 'Voce esta construindo bons habitos. Mais alguns passos e o humor sobe.',
             'tone' => 'sky',
         ];
@@ -358,7 +363,7 @@ class FinancialScoreService
         $eligible = $definitions->filter(fn (array $definition) => ($definition['condition'])($snapshot));
 
         foreach ($eligible as $definition) {
-            FinnyAchievementUnlock::firstOrCreate(
+            MascotAchievementUnlock::firstOrCreate(
                 [
                     'user_id' => $user->id,
                     'achievement_key' => $definition['key'],
@@ -375,7 +380,7 @@ class FinancialScoreService
             );
         }
 
-        return $user->finnyAchievementUnlocks()->orderByDesc('unlocked_at')->get();
+        return $user->mascotAchievementUnlocks()->orderByDesc('unlocked_at')->get();
     }
 
     protected function formatAchievementPayload(string $key, array $metadata = []): array
@@ -404,7 +409,7 @@ class FinancialScoreService
             ],
             'budget' => [
                 'title' => 'Disciplina de orcamento',
-                'description' => 'Orcamentos ativos dentro do limite fazem o humor do Finny subir rapido.',
+                'description' => 'Orcamentos ativos dentro do limite fazem o humor do '.$this->mascotName().' subir rapido.',
             ],
             'savings' => [
                 'title' => 'Reserva e metas',

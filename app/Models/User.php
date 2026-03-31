@@ -157,13 +157,13 @@ class User extends Authenticatable
         return $this->hasMany(Tag::class);
     }
 
-    public function finnyProfile(): HasOne
+    public function mascotProfile(): HasOne
     {
-        return $this->hasOne(FinnyProfile::class);
+        return $this->hasOne(MascotProfile::class);
     }
 
-    public function finnyAchievementUnlocks(): HasMany
+    public function mascotAchievementUnlocks(): HasMany
     {
-        return $this->hasMany(FinnyAchievementUnlock::class);
+        return $this->hasMany(MascotAchievementUnlock::class);
     }
 }

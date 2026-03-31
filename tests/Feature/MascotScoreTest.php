@@ -4,18 +4,18 @@ use App\Models\BankAccount;
 use App\Models\Budget;
 use App\Models\Category;
 use App\Models\CreditCard;
-use App\Models\FinnyAchievementUnlock;
-use App\Models\FinnyProfile;
+use App\Models\MascotAchievementUnlock;
+use App\Models\MascotProfile;
 use App\Models\SavingsGoal;
 use App\Models\SavingsGoalDeposit;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Services\FinancialScoreService;
+use App\Services\MascotScoreService;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\assertDatabaseHas;
 
-it('calcula score, nivel e conquistas do finny para um usuario saudavel', function () {
+it('calcula score, nivel e conquistas do mascote para um usuario saudavel', function () {
     $user = User::factory()->create();
 
     $incomeCategory = Category::factory()->create([
@@ -39,7 +39,7 @@ it('calcula score, nivel e conquistas do finny para um usuario saudavel', functi
 
     CreditCard::create([
         'user_id' => $user->id,
-        'name' => 'Cartao Finny',
+        'name' => 'Cartao Orbita',
         'brand' => 'Visa',
         'credit_limit' => 3000,
         'opening_balance' => 0,
@@ -86,7 +86,7 @@ it('calcula score, nivel e conquistas do finny para um usuario saudavel', functi
         'deposit_date' => now()->subDay(),
     ]);
 
-    $summary = app(FinancialScoreService::class)->sync($user);
+    $summary = app(MascotScoreService::class)->sync($user);
 
     expect($summary['score'])->toBeGreaterThanOrEqual(70);
     expect($summary['level'])->toBeGreaterThanOrEqual(2);
@@ -94,13 +94,13 @@ it('calcula score, nivel e conquistas do finny para um usuario saudavel', functi
     expect($summary['badges_unlocked'])->toBeGreaterThanOrEqual(5);
     expect($summary['mood']['key'])->toBe('celebrating');
 
-    assertDatabaseHas('finny_profiles', [
+    assertDatabaseHas('mascot_profiles', [
         'user_id' => $user->id,
         'current_streak' => 7,
     ]);
 
-    expect(FinnyProfile::where('user_id', $user->id)->exists())->toBeTrue();
-    expect(FinnyAchievementUnlock::where('user_id', $user->id)->count())->toBeGreaterThanOrEqual(5);
+    expect(MascotProfile::where('user_id', $user->id)->exists())->toBeTrue();
+    expect(MascotAchievementUnlock::where('user_id', $user->id)->count())->toBeGreaterThanOrEqual(5);
 });
 
 it('identifica quando o usuario precisa de atencao', function () {
@@ -132,19 +132,19 @@ it('identifica quando o usuario precisa de atencao', function () {
         'date' => now(),
     ]);
 
-    $summary = app(FinancialScoreService::class)->sync($user);
+    $summary = app(MascotScoreService::class)->sync($user);
 
     expect($summary['score'])->toBeLessThan(50);
     expect($summary['mood']['key'])->toBe('attention');
     expect($summary['focus_area']['key'])->not->toBeEmpty();
 });
 
-it('permite abrir a pagina do finny autenticado', function () {
+it('permite abrir a pagina do mascote autenticado', function () {
     $user = User::factory()->create();
 
     actingAs($user)
-        ->get(route('finny.index'))
+        ->get(route(config('mascot.route_name', 'mascot.index')))
         ->assertOk()
-        ->assertSee('Finny')
-        ->assertSee('golden retriever virtual', false);
+        ->assertSee(config('mascot.name', 'Orbita'))
+        ->assertSee('foguete virtual', false);
 });

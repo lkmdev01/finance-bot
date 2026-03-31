@@ -6,33 +6,27 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class FinnyProfile extends Model
+class MascotAchievementUnlock extends Model
 {
     use HasFactory;
 
+    public $timestamps = true;
+
+    protected $table = 'mascot_achievement_unlocks';
+
     protected $fillable = [
         'user_id',
-        'score',
-        'xp',
-        'level',
-        'current_streak',
-        'best_streak',
-        'badges_unlocked',
-        'mood',
-        'last_activity_date',
+        'achievement_key',
+        'unlocked_at',
+        'seen_at',
         'metadata',
     ];
 
     protected function casts(): array
     {
         return [
-            'score' => 'integer',
-            'xp' => 'integer',
-            'level' => 'integer',
-            'current_streak' => 'integer',
-            'best_streak' => 'integer',
-            'badges_unlocked' => 'integer',
-            'last_activity_date' => 'date',
+            'unlocked_at' => 'datetime',
+            'seen_at' => 'datetime',
             'metadata' => 'array',
         ];
     }

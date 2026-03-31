@@ -70,9 +70,9 @@ Route::middleware(['auth'])->group(function () {
         return view('pages.financial-projections.index');
     })->name('financial-projections.index');
 
-    Route::get('finny', function () {
-        return view('pages.finny.index');
-    })->name('finny.index');
+    Route::get(config('mascot.route_path', 'orbita'), function () {
+        return view('pages.mascot.index');
+    })->name(config('mascot.route_name', 'mascot.index'));
 
     // Tags
     Volt::route('tags', 'tags.index')->name('tags.index');

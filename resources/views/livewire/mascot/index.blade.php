@@ -1,6 +1,6 @@
 <?php
 
-use App\Services\FinancialScoreService;
+use App\Services\MascotScoreService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Component;
 
@@ -9,8 +9,18 @@ new class extends Component
     public function with(): array
     {
         return [
-            'finny' => app(FinancialScoreService::class)->sync(Auth::user()),
+            'mascot' => app(MascotScoreService::class)->sync(Auth::user()),
         ];
+    }
+
+    public function mascotName(): string
+    {
+        return (string) config('mascot.name', 'Orbita');
+    }
+
+    public function mascotEmoji(): string
+    {
+        return html_entity_decode((string) config('mascot.emoji', '&#128640;'), ENT_QUOTES, 'UTF-8');
     }
 
     public function toneClasses(string $tone): array
@@ -74,103 +84,103 @@ new class extends Component
     }
 }; ?>
 
-<div class="space-y-8 p-6">
+<div class="space-y-6 p-4 sm:space-y-8 sm:p-6">
     @php
-        $moodClasses = $this->toneClasses($finny['mood']['tone']);
-        $recentClasses = $this->toneClasses($finny['recent_achievement']['tone'] ?? 'amber');
+        $moodClasses = $this->toneClasses($mascot['mood']['tone']);
+        $recentClasses = $this->toneClasses($mascot['recent_achievement']['tone'] ?? 'amber');
     @endphp
 
-    <section class="overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.14),transparent_28%),linear-gradient(135deg,#020617_0%,#0f172a_45%,#111827_100%)] p-8">
+    <section class="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.14),transparent_28%),linear-gradient(135deg,#020617_0%,#0f172a_45%,#111827_100%)] p-5 sm:rounded-[2rem] sm:p-8">
         <div class="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
             <div class="space-y-6">
                 <div class="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
-                    Finny
+                    {{ $this->mascotName() }}
                     <span class="h-1.5 w-1.5 rounded-full bg-amber-300"></span>
                     Sistema de pontuacao
                 </div>
 
                 <div class="space-y-3">
-                    <h1 class="max-w-3xl text-4xl font-black tracking-tight text-white md:text-5xl">
-                        Conhe&ccedil;a o Finny
+                    <h1 class="max-w-3xl text-3xl font-black tracking-tight text-white sm:text-4xl md:text-5xl">
+                        Conhe&ccedil;a {{ $this->mascotName() }}
                     </h1>
-                    <p class="max-w-3xl text-lg leading-8 text-slate-300">
-                        Seu golden retriever virtual que celebra suas conquistas financeiras. Finny acompanha seus habitos, reage ao seu momento e te ajuda a manter constancia com medalhas, XP e foco claro.
+                    <p class="max-w-3xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
+                        {{ config('mascot.companion_copy', 'Seu foguete virtual que celebra suas conquistas financeiras.') }} {{ $this->mascotName() }} acompanha seus habitos, reage ao seu momento e te ajuda a manter constancia com medalhas, XP e foco claro.
                     </p>
                 </div>
 
                 <div class="grid gap-4 md:grid-cols-3">
-                    <article class="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                    <article class="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Pontuacao</p>
-                                <p class="mt-3 text-4xl font-black text-white">{{ $finny['score'] }}</p>
+                                <p class="mt-3 text-4xl font-black text-white">{{ $mascot['score'] }}</p>
                             </div>
                             <div class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-300/15 text-3xl">
-                                &#128054;
+                                {{ $this->mascotEmoji() }}
                             </div>
                         </div>
-                        <p class="mt-4 text-sm leading-6 text-slate-300">{{ $finny['mood']['headline'] }}</p>
+                        <p class="mt-4 text-sm leading-6 text-slate-300">{{ $mascot['mood']['headline'] }}</p>
                     </article>
 
-                    <article class="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                    <article class="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
                         <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Nivel e XP</p>
                         <div class="mt-3 flex items-end gap-3">
-                            <p class="text-4xl font-black text-white">{{ $finny['level'] }}</p>
-                            <p class="pb-1 text-sm text-slate-400">{{ number_format($finny['xp']) }} XP</p>
+                            <p class="text-4xl font-black text-white">{{ $mascot['level'] }}</p>
+                            <p class="pb-1 text-sm text-slate-400">{{ number_format($mascot['xp']) }} XP</p>
                         </div>
                         <div class="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
-                            <div class="h-full rounded-full bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400" style="width: {{ $finny['level_progress'] }}%"></div>
+                            <div class="h-full rounded-full bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400" style="width: {{ $mascot['level_progress'] }}%"></div>
                         </div>
                         <p class="mt-3 text-xs uppercase tracking-[0.16em] text-slate-400">
-                            {{ number_format($finny['xp_in_level']) }} / {{ number_format($finny['xp_for_next_level']) }} XP neste nivel
+                            {{ number_format($mascot['xp_in_level']) }} / {{ number_format($mascot['xp_for_next_level']) }} XP neste nivel
                         </p>
                     </article>
 
-                    <article class="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                    <article class="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
                         <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Sequencia atual</p>
                         <div class="mt-3 flex items-end gap-3">
-                            <p class="text-4xl font-black text-white">{{ $finny['current_streak'] }}</p>
+                            <p class="text-4xl font-black text-white">{{ $mascot['current_streak'] }}</p>
                             <p class="pb-1 text-sm text-slate-400">dias seguidos</p>
                         </div>
                         <p class="mt-4 text-sm leading-6 text-slate-300">
-                            Melhor marca: {{ $finny['best_streak'] }} dias. Cada novo registro reforca o humor do Finny.
+                            Melhor marca: {{ $mascot['best_streak'] }} dias. Cada novo registro reforca o humor do {{ $this->mascotName() }}.
                         </p>
                     </article>
                 </div>
             </div>
 
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-                <article class="rounded-[2rem] border bg-gradient-to-br {{ $moodClasses['panel'] }} p-6 {{ $moodClasses['glow'] }}">
+                <article class="rounded-[1.5rem] border bg-gradient-to-br {{ $moodClasses['panel'] }} p-5 sm:rounded-[2rem] sm:p-6 {{ $moodClasses['glow'] }}">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <span class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] {{ $moodClasses['badge'] }}">
-                                {{ $finny['mood']['label'] }}
+                                {{ $mascot['mood']['label'] }}
                             </span>
-                            <h2 class="mt-4 text-2xl font-black text-white">{{ $finny['mood']['headline'] }}</h2>
-                            <p class="mt-3 max-w-md text-sm leading-7 text-slate-200">{{ $finny['mood']['message'] }}</p>
+                            <h2 class="mt-4 text-2xl font-black text-white">{{ $mascot['mood']['headline'] }}</h2>
+                            <p class="mt-3 max-w-md text-sm leading-7 text-slate-200">{{ $mascot['mood']['message'] }}</p>
                         </div>
                         <div class="inline-flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/10 bg-white/10 text-5xl">
-                            &#128054;
+                            {{ $this->mascotEmoji() }}
                         </div>
                     </div>
                 </article>
 
-                <article class="rounded-[2rem] border bg-gradient-to-br {{ $recentClasses['panel'] }} p-6 {{ $recentClasses['glow'] }}">
+                <article class="rounded-[1.5rem] border bg-gradient-to-br {{ $recentClasses['panel'] }} p-5 sm:rounded-[2rem] sm:p-6 {{ $recentClasses['glow'] }}">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <span class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] {{ $recentClasses['badge'] }}">
-                                {{ $finny['recent_achievement'] ? 'Conquista desbloqueada' : 'Proximo foco' }}
+                                {{ $mascot['recent_achievement'] ? 'Conquista desbloqueada' : 'Proximo foco' }}
                             </span>
-                            @if($finny['recent_achievement'])
-                                <h2 class="mt-4 text-2xl font-black text-white">{{ $finny['recent_achievement']['title'] }}</h2>
-                                <p class="mt-3 text-sm leading-7 text-slate-200">{{ $finny['recent_achievement']['description'] }}</p>
+                            @if($mascot['recent_achievement'])
+                                <h2 class="mt-4 text-2xl font-black text-white">{{ $mascot['recent_achievement']['title'] }}</h2>
+                                <p class="mt-3 text-sm leading-7 text-slate-200">{{ $mascot['recent_achievement']['description'] }}</p>
                             @else
-                                <h2 class="mt-4 text-2xl font-black text-white">{{ $finny['focus_area']['title'] }}</h2>
-                                <p class="mt-3 text-sm leading-7 text-slate-200">{{ $finny['focus_area']['description'] }}</p>
+                                <h2 class="mt-4 text-2xl font-black text-white">{{ $mascot['focus_area']['title'] }}</h2>
+                                <p class="mt-3 text-sm leading-7 text-slate-200">{{ $mascot['focus_area']['description'] }}</p>
                             @endif
                         </div>
                         <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl {{ $recentClasses['icon'] }}">
-                            <span class="h-8 w-8">{!! $this->achievementIcon($finny['recent_achievement']['icon'] ?? 'sparkles') !!}</span>
+                            <span class="h-8 w-8">{!! $this->achievementIcon($mascot['recent_achievement']['icon'] ?? 'sparkles') !!}</span>
                         </div>
                     </div>
                 </article>
@@ -179,19 +189,19 @@ new class extends Component
     </section>
 
     <section class="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div class="rounded-[2rem] border border-white/10 bg-slate-950/80 p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
+        <div class="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5 sm:rounded-[2rem] sm:p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
             <div class="flex items-center justify-between gap-4">
                 <div>
                     <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Score breakdown</p>
-                    <h2 class="mt-2 text-2xl font-black text-white">O que mais pesa na pontuacao do Finny</h2>
+                    <h2 class="mt-2 text-2xl font-black text-white">O que mais pesa na pontuacao do {{ $this->mascotName() }}</h2>
                 </div>
                 <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
-                    {{ $finny['badges_unlocked'] }} medalhas
+                    {{ $mascot['badges_unlocked'] }} medalhas
                 </span>
             </div>
 
             <div class="mt-8 space-y-5">
-                @foreach($finny['score_breakdown'] as $key => $value)
+                @foreach($mascot['score_breakdown'] as $key => $value)
                     <div class="space-y-2">
                         <div class="flex items-center justify-between gap-4">
                             <p class="text-sm font-semibold text-slate-200">{{ $this->statLabel($key) }}</p>
@@ -208,33 +218,33 @@ new class extends Component
             </div>
         </div>
 
-        <div class="rounded-[2rem] border border-white/10 bg-slate-950/80 p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
+        <div class="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5 sm:rounded-[2rem] sm:p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
             <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Foco sugerido</p>
-            <h2 class="mt-2 text-2xl font-black text-white">{{ $finny['focus_area']['title'] }}</h2>
-            <p class="mt-4 text-sm leading-7 text-slate-300">{{ $finny['focus_area']['description'] }}</p>
+            <h2 class="mt-2 text-2xl font-black text-white">{{ $mascot['focus_area']['title'] }}</h2>
+            <p class="mt-4 text-sm leading-7 text-slate-300">{{ $mascot['focus_area']['description'] }}</p>
 
             <div class="mt-8 grid gap-3">
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Receitas do mes</p>
-                    <p class="mt-2 text-2xl font-bold text-emerald-300">R$ {{ number_format($finny['stats']['current_month_income'], 2, ',', '.') }}</p>
+                    <p class="mt-2 text-2xl font-bold text-emerald-300">R$ {{ number_format($mascot['stats']['current_month_income'], 2, ',', '.') }}</p>
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Despesas do mes</p>
-                    <p class="mt-2 text-2xl font-bold text-rose-300">R$ {{ number_format($finny['stats']['current_month_expenses'], 2, ',', '.') }}</p>
+                    <p class="mt-2 text-2xl font-bold text-rose-300">R$ {{ number_format($mascot['stats']['current_month_expenses'], 2, ',', '.') }}</p>
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Economia do mes</p>
-                    <p class="mt-2 text-2xl font-bold text-amber-200">R$ {{ number_format($finny['stats']['current_month_savings'], 2, ',', '.') }}</p>
+                    <p class="mt-2 text-2xl font-bold text-amber-200">R$ {{ number_format($mascot['stats']['current_month_savings'], 2, ',', '.') }}</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="rounded-[2rem] border border-white/10 bg-slate-950/80 p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
+    <section class="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5 sm:rounded-[2rem] sm:p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
         <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
                 <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Conquistas e medalhas</p>
-                <h2 class="mt-2 text-2xl font-black text-white">Finny celebra cada marco importante</h2>
+                <h2 class="mt-2 text-2xl font-black text-white">{{ $this->mascotName() }} celebra cada marco importante</h2>
             </div>
             <p class="max-w-xl text-sm leading-7 text-slate-300">
                 Ganhe medalhas por sequencias de economia, manter-se dentro do orcamento e alcancar metas. As desbloqueadas ficam registradas no seu historico.
@@ -242,7 +252,7 @@ new class extends Component
         </div>
 
         <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            @foreach($finny['achievements'] as $achievement)
+            @foreach($mascot['achievements'] as $achievement)
                 @php
                     $classes = $this->toneClasses($achievement['tone']);
                 @endphp
