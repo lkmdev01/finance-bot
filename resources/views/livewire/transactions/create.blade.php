@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Services\CategoryRecognitionService;
 use Illuminate\Support\Facades\Auth;

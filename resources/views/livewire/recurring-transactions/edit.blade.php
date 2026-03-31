@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Models\RecurringTransaction;
 use Illuminate\Support\Facades\Auth;

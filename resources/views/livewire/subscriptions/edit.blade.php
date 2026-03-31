@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Models\Subscription;
 use Livewire\Volt\Component;
