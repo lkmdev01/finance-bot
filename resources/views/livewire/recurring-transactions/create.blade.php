@@ -6,6 +6,7 @@ new class extends Component {
     public ?int $category_id = null;
     public ?int $bank_account_id = null;
     public ?int $credit_card_id = null;
+    public string $source_type = 'none';
     public string $type = 'expense';
     public ?string $amount = null;
     public ?string $description = null;
@@ -22,8 +23,22 @@ new class extends Component {
         $this->day_of_week = now()->dayOfWeek;
     }
 
+    public function setSourceType(string $type): void
+    {
+        $this->source_type = $type;
+
+        if ($type !== 'bank_account') {
+            $this->bank_account_id = null;
+        }
+
+        if ($type !== 'credit_card') {
+            $this->credit_card_id = null;
+        }
+    }
+
     public function save(): void
     {
+        $this->normalizeSource();
         $this->validateSource();
 
         $rules = [
@@ -96,25 +111,50 @@ new class extends Component {
         $this->redirect(route('recurring-transactions.index'), navigate: true);
     }
 
+    private function normalizeSource(): void
+    {
+        if ($this->source_type === 'bank_account') {
+            $this->credit_card_id = null;
+            return;
+        }
+
+        if ($this->source_type === 'credit_card') {
+            $this->bank_account_id = null;
+            return;
+        }
+
+        $this->bank_account_id = null;
+        $this->credit_card_id = null;
+    }
+
     private function validateSource(): void
     {
-        if ($this->bank_account_id && $this->credit_card_id) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'bank_account_id' => 'Selecione apenas uma fonte financeira.',
-                'credit_card_id' => 'Selecione apenas uma fonte financeira.',
-            ]);
+        if ($this->source_type === 'bank_account') {
+            if (! $this->bank_account_id) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'bank_account_id' => 'Selecione uma conta bancaria.',
+                ]);
+            }
+
+            if (! auth()->user()->bankAccounts()->whereKey($this->bank_account_id)->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'bank_account_id' => 'A conta bancaria selecionada nao existe.',
+                ]);
+            }
         }
 
-        if ($this->bank_account_id && ! auth()->user()->bankAccounts()->whereKey($this->bank_account_id)->exists()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'bank_account_id' => 'A conta bancaria selecionada nao existe.',
-            ]);
-        }
+        if ($this->source_type === 'credit_card') {
+            if (! $this->credit_card_id) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'credit_card_id' => 'Selecione um cartao de credito.',
+                ]);
+            }
 
-        if ($this->credit_card_id && ! auth()->user()->creditCards()->whereKey($this->credit_card_id)->exists()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'credit_card_id' => 'O cartao de credito selecionado nao existe.',
-            ]);
+            if (! auth()->user()->creditCards()->whereKey($this->credit_card_id)->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'credit_card_id' => 'O cartao de credito selecionado nao existe.',
+                ]);
+            }
         }
     }
 
@@ -155,21 +195,56 @@ new class extends Component {
                 </flux:select>
 
                 <flux:input wire:model="description" label="Descricao" placeholder="Ex: Aluguel" />
+            </div>
 
-                <flux:select wire:model="bank_account_id" label="Conta bancaria">
-                    <option value="">Nenhuma</option>
-                    @foreach($bankAccounts as $account)
-                        <option value="{{ $account->id }}">{{ $account->name }}</option>
-                    @endforeach
-                </flux:select>
+            <div class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                        <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Fonte financeira</h2>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">Escolha conta ou cartao. O campo aparece so quando a fonte for selecionada.</p>
+                    </div>
+                    @if($source_type !== 'none')
+                        <button type="button" wire:click="setSourceType('none')" class="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">Limpar</button>
+                    @endif
+                </div>
 
-                <flux:select wire:model="credit_card_id" label="Cartao de credito">
-                    <option value="">Nenhum</option>
-                    @foreach($creditCards as $card)
-                        <option value="{{ $card->id }}">{{ $card->name }}</option>
-                    @endforeach
-                </flux:select>
+                <div class="flex flex-wrap gap-3">
+                    <button type="button" wire:click="setSourceType('bank_account')" class="inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition {{ $source_type === 'bank_account' ? 'border-sky-500 bg-sky-500/10 text-sky-700 dark:text-sky-300' : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300' }}">
+                        <span class="inline-block h-2.5 w-2.5 rounded-full {{ $source_type === 'bank_account' ? 'bg-sky-500' : 'bg-zinc-400' }}"></span>
+                        Conta bancaria
+                    </button>
+                    <button type="button" wire:click="setSourceType('credit_card')" class="inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition {{ $source_type === 'credit_card' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300' }}">
+                        <span class="inline-block h-2.5 w-2.5 rounded-full {{ $source_type === 'credit_card' ? 'bg-emerald-500' : 'bg-zinc-400' }}"></span>
+                        Cartao de credito
+                    </button>
+                </div>
 
+                @if($source_type === 'bank_account')
+                    <div class="mt-4">
+                        <flux:select wire:model="bank_account_id" label="Conta bancaria">
+                            <option value="">Selecione uma conta</option>
+                            @foreach($bankAccounts as $account)
+                                <option value="{{ $account->id }}">{{ $account->name }}</option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="bank_account_id" />
+                    </div>
+                @endif
+
+                @if($source_type === 'credit_card')
+                    <div class="mt-4">
+                        <flux:select wire:model="credit_card_id" label="Cartao de credito">
+                            <option value="">Selecione um cartao</option>
+                            @foreach($creditCards as $card)
+                                <option value="{{ $card->id }}">{{ $card->name }}</option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="credit_card_id" />
+                    </div>
+                @endif
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <flux:select wire:model.live="frequency" label="Frequencia">
                     <option value="daily">Diaria</option>
                     <option value="weekly">Semanal</option>

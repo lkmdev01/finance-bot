@@ -60,14 +60,10 @@ new class extends Component {
                             @endif
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
                                 <p class="text-xs text-zinc-500">Emissor</p>
                                 <p class="font-medium">{{ $card->issuer ?: 'Nao informado' }}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-zinc-500">Final</p>
-                                <p class="font-medium">{{ $card->last_four ? '**** '.$card->last_four : 'Nao informado' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-zinc-500">Limite</p>

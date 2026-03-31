@@ -86,12 +86,12 @@ new class extends Component
 
     public function getTotalExpensesAllTime(): float
     {
-        // Excluir transações de depósito em metas (já são contadas separadamente)
+        // Excluir transaÃ§Ãµes de depÃ³sito em metas (jÃ¡ sÃ£o contadas separadamente)
         $allExpenses = Auth::user()->transactions()
             ->where('type', 'expense')
             ->get();
         
-        // Filtrar transações que não são depósitos em metas
+        // Filtrar transaÃ§Ãµes que nÃ£o sÃ£o depÃ³sitos em metas
         $expensesWithoutSavings = $allExpenses->filter(function ($transaction) {
             $metadata = $transaction->metadata ?? [];
             return !isset($metadata['savings_goal_deposit_id']);
@@ -102,8 +102,8 @@ new class extends Component
 
     public function getAvailableBalance(): float
     {
-        // Saldo disponível considera TODAS as transações, não apenas do período
-        // Depósitos em metas são deduzidos separadamente (não contam como despesas normais)
+        // Saldo disponÃ­vel considera TODAS as transaÃ§Ãµes, nÃ£o apenas do perÃ­odo
+        // DepÃ³sitos em metas sÃ£o deduzidos separadamente (nÃ£o contam como despesas normais)
         return $this->getTotalIncomeAllTime() - $this->getTotalExpensesAllTime() - $this->getTotalSavingsDeposits();
     }
 
@@ -131,7 +131,7 @@ new class extends Component
         return $expenses->map(function ($expense) use ($total) {
             return [
                 'category' => $expense->category->name,
-                'icon' => $expense->category->icon ?? '📦',
+                'icon' => $expense->category->icon ?? 'ðŸ“¦',
                 'color' => $expense->category->color ?? '#95A5A6',
                 'amount' => (float) $expense->total,
                 'percentage' => $total > 0 ? round(($expense->total / $total) * 100, 1) : 0,
@@ -265,7 +265,7 @@ new class extends Component
         $user = Auth::user();
         $months = [];
         
-        // Últimos 12 meses
+        // Ãšltimos 12 meses
         for ($i = 11; $i >= 0; $i--) {
             $date = now()->subMonths($i);
             $monthStart = $date->copy()->startOfMonth();
@@ -301,7 +301,7 @@ new class extends Component
         $user = Auth::user();
         $years = [];
         
-        // Últimos 5 anos
+        // Ãšltimos 5 anos
         for ($i = 4; $i >= 0; $i--) {
             $year = now()->year - $i;
             $yearStart = \Carbon\Carbon::create($year, 1, 1)->startOfYear();
@@ -329,7 +329,7 @@ new class extends Component
     }
 }; ?>
 
-<div class="px-2 py-4 sm:p-6 space-y-6">
+<div x-data="{ notificationsOpen: false }" x-cloak class="px-2 py-4 sm:p-6 space-y-6">
         <!-- Header com Filtros -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
             <h1 class="text-2xl font-bold leading-tight">
@@ -352,6 +352,22 @@ new class extends Component
                     >
                         Anual
                     </flux:button>
+                    <button
+                        type="button"
+                        x-on:click="notificationsOpen = true"
+                        class="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-sky-900/50 bg-slate-950 text-white shadow-[0_0_0_1px_rgba(14,165,233,0.08)] transition hover:border-sky-500/50 hover:bg-slate-900"
+                        aria-label="Abrir notificacoes"
+                    >
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
+                            <path d="M10 21a2 2 0 0 0 4 0" />
+                        </svg>
+                        @if($exceededBudgets->count() > 0)
+                            <span class="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-semibold text-slate-950">
+                                {{ $exceededBudgets->count() }}
+                            </span>
+                        @endif
+                    </button>
                 </div>
                 @if($period === 'monthly')
                     <flux:input 
@@ -363,38 +379,99 @@ new class extends Component
             </div>
         </div>
 
-        <!-- Alertas de Orçamentos Excedidos -->
-        @if($exceededBudgets->count() > 0)
-            <div class="bg-red-50 dark:bg-red-900/20 border-2 border-red-500 dark:border-red-600 rounded-xl p-4">
-                <div class="flex items-start gap-3">
-                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
-                        <span class="text-red-600 dark:text-red-400 text-lg">⚠</span>
-                    </div>
-                    <div class="flex-1">
-                        <h3 class="font-semibold text-red-900 dark:text-red-200 mb-2">
-                            Orçamentos Excedidos ({{ $exceededBudgets->count() }})
-                        </h3>
-                        <ul class="space-y-1">
-                            @foreach($exceededBudgets as $budget)
-                                <li class="text-sm text-red-800 dark:text-red-300">
-                                    <strong>{{ $budget->category->name }}:</strong> 
-                                    Excedido em R$ {{ number_format($budget->spent - $budget->amount, 2, ',', '.') }}
-                                </li>
-                            @endforeach
-                        </ul>
-                        <flux:button 
-                            href="{{ route('budgets.index') }}" 
-                            wire:navigate 
-                            variant="ghost" 
-                            size="sm" 
-                            class="mt-3"
-                        >
-                            Ver Orçamentos
-                        </flux:button>
+        <div
+            x-show="notificationsOpen"
+            x-transition.opacity
+            x-on:keydown.escape.window="notificationsOpen = false"
+            class="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm"
+            style="display: none;"
+        ></div>
+
+        <aside
+            x-show="notificationsOpen"
+            x-transition:enter="transform transition ease-out duration-300"
+            x-transition:enter-start="translate-x-full"
+            x-transition:enter-end="translate-x-0"
+            x-transition:leave="transform transition ease-in duration-200"
+            x-transition:leave-start="translate-x-0"
+            x-transition:leave-end="translate-x-full"
+            class="fixed right-0 top-0 z-50 flex h-screen w-full max-w-md flex-col border-l border-sky-900/40 bg-slate-950 text-slate-100 shadow-2xl"
+            style="display: none;"
+        >
+            <div class="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-6">
+                <div>
+                    <p class="text-2xl font-black tracking-tight">Notificacoes</p>
+                    <p class="mt-2 text-sm text-slate-400">Avisos importantes sem ocupar o dashboard principal.</p>
+                </div>
+                <button
+                    type="button"
+                    x-on:click="notificationsOpen = false"
+                    class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-sky-900/50 bg-slate-900 text-slate-200 transition hover:border-sky-500/50 hover:text-white"
+                    aria-label="Fechar notificacoes"
+                >
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                        <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="px-6 py-5">
+                <div class="rounded-2xl border border-sky-900/40 bg-slate-900/80 px-4 py-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-200">Alertas ativos</p>
+                            <p class="text-xs text-slate-500">Orcamentos e avisos operacionais</p>
+                        </div>
+                        <span class="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-sky-500/15 px-3 text-sm font-bold text-sky-300">
+                            {{ $exceededBudgets->count() }}
+                        </span>
                     </div>
                 </div>
             </div>
-        @endif
+
+            <div class="flex-1 overflow-y-auto px-6 pb-6">
+                @if($exceededBudgets->isEmpty())
+                    <div class="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-5 text-emerald-200">
+                        <p class="text-base font-semibold">Nenhum alerta operacional no momento.</p>
+                    </div>
+                @else
+                    <div class="space-y-4">
+                        @foreach($exceededBudgets as $budget)
+                            <article class="rounded-3xl border border-white/8 bg-slate-900/90 p-5 shadow-[0_20px_60px_rgba(2,6,23,0.45)]">
+                                <div class="flex items-start gap-3">
+                                    <div class="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-300">
+                                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M12 3a7 7 0 0 0-7 7v3.2a2 2 0 0 1-.6 1.4L3 16h18l-1.4-1.4a2 2 0 0 1-.6-1.4V10a7 7 0 0 0-7-7Z" />
+                                            <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <div>
+                                                <p class="text-sm font-semibold uppercase tracking-[0.18em] text-sky-300">Orcamento excedido</p>
+                                                <h3 class="mt-1 text-lg font-semibold text-white">{{ $budget->category->name }}</h3>
+                                            </div>
+                                            <span class="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200">
+                                                R$ {{ number_format($budget->spent - $budget->amount, 2, ',', '.') }}
+                                            </span>
+                                        </div>
+                                        <p class="mt-3 text-sm leading-6 text-slate-300">Seu limite foi ultrapassado nesta categoria. Vale revisar os lancamentos recentes antes de seguir com novos gastos.</p>
+                                        <div class="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
+                                            <span>Orcado: R$ {{ number_format($budget->amount, 2, ',', '.') }}</span>
+                                            <span>Gasto: R$ {{ number_format($budget->spent, 2, ',', '.') }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+                        @endforeach
+
+                        <flux:button href="{{ route('budgets.index') }}" wire:navigate variant="primary" class="w-full justify-center">
+                            Abrir Orcamentos
+                        </flux:button>
+                    </div>
+                @endif
+            </div>
+        </aside>
 
         <!-- Cards de Resumo -->
         <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -409,7 +486,7 @@ new class extends Component
                         $variation = $this->getIncomeVariation();
                     @endphp
                     <p class="text-xs mt-2 {{ $variation >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                        {{ $variation >= 0 ? '↑' : '↓' }} {{ number_format(abs($variation), 1) }}% vs mês anterior
+                        {{ $variation >= 0 ? 'â†‘' : 'â†“' }} {{ number_format(abs($variation), 1) }}% vs mÃªs anterior
                     </p>
                 @endif
             </div>
@@ -425,14 +502,14 @@ new class extends Component
                         $variation = $this->getExpensesVariation();
                     @endphp
                     <p class="text-xs mt-2 {{ $variation <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                        {{ $variation >= 0 ? '↑' : '↓' }} {{ number_format(abs($variation), 1) }}% vs mês anterior
+                        {{ $variation >= 0 ? 'â†‘' : 'â†“' }} {{ number_format(abs($variation), 1) }}% vs mÃªs anterior
                     </p>
                 @endif
             </div>
 
-            <!-- Total de Dívidas -->
+            <!-- Total de DÃ­vidas -->
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Total de dívidas</p>
+                <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Total de dÃ­vidas</p>
                 <p class="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                     R$ 0,00
                 </p>
@@ -446,16 +523,16 @@ new class extends Component
                 </p>
             </div>
 
-            <!-- Saldo Disponível -->
+            <!-- Saldo DisponÃ­vel -->
             <div class="bg-zinc-900 dark:bg-zinc-950 rounded-xl border border-zinc-700 p-6">
-                <p class="text-sm text-zinc-400 mb-2">Saldo disponível</p>
+                <p class="text-sm text-zinc-400 mb-2">Saldo disponÃ­vel</p>
                 <p class="text-2xl font-bold text-white">
                     R$ {{ number_format($this->getAvailableBalance(), 2, ',', '.') }}
                 </p>
             </div>
         </div>
 
-        <!-- Gráfico e Lista de Categorias -->
+        <!-- GrÃ¡fico e Lista de Categorias -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Despesas por Categoria -->
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
@@ -471,7 +548,7 @@ new class extends Component
 
                 @if(count($expensesByCategory) > 0)
                     <div class="flex flex-col md:flex-row items-start md:items-center gap-6">
-                        <!-- Gráfico de Pizza Simples (usando SVG) -->
+                        <!-- GrÃ¡fico de Pizza Simples (usando SVG) -->
                         <div class="w-40 h-40 flex-shrink-0 mx-auto md:mx-0">
                             <svg viewBox="0 0 100 100" class="w-full h-full transform -rotate-90">
                                 <defs>
@@ -538,15 +615,15 @@ new class extends Component
                     </div>
                 @else
                     <div class="text-center py-8 text-zinc-500">
-                        <p>Nenhuma despesa registrada neste período</p>
+                        <p>Nenhuma despesa registrada neste perÃ­odo</p>
                     </div>
                 @endif
             </div>
 
-            <!-- Transações Recentes -->
+            <!-- TransaÃ§Ãµes Recentes -->
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
                 <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-lg font-semibold">Transações Recentes</h2>
+                    <h2 class="text-lg font-semibold">TransaÃ§Ãµes Recentes</h2>
                     <flux:button href="{{ route('transactions.index') }}" wire:navigate variant="ghost" size="sm">
                         Ver todas
                     </flux:button>
@@ -556,13 +633,13 @@ new class extends Component
                     @forelse($this->getRecentTransactions() as $transaction)
                         <div class="flex items-center justify-between p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors">
                             <div class="flex items-center gap-3">
-                                <span class="text-xl">{{ $transaction->category?->icon ?? '📦' }}</span>
+                                <span class="text-xl">{{ $transaction->category?->icon ?? 'ðŸ“¦' }}</span>
                                 <div>
-                                    <p class="font-medium">{{ $transaction->description ?? 'Sem descrição' }}</p>
+                                    <p class="font-medium">{{ $transaction->description ?? 'Sem descriÃ§Ã£o' }}</p>
                                     <p class="text-sm text-zinc-600 dark:text-zinc-400">
                                         {{ $transaction->date->format('d/m/Y') }}
                                         @if($transaction->category)
-                                            • {{ $transaction->category->name }}
+                                            â€¢ {{ $transaction->category->name }}
                                         @endif
                                     </p>
                                 </div>
@@ -575,9 +652,9 @@ new class extends Component
                         </div>
                     @empty
                         <div class="text-center py-8 text-zinc-500">
-                            <p>Nenhuma transação registrada</p>
+                            <p>Nenhuma transaÃ§Ã£o registrada</p>
                             <flux:button href="{{ route('transactions.create') }}" wire:navigate variant="ghost" size="sm" class="mt-4">
-                                Criar primeira transação
+                                Criar primeira transaÃ§Ã£o
                             </flux:button>
                         </div>
                     @endforelse
@@ -585,10 +662,10 @@ new class extends Component
             </div>
         </div>
 
-        <!-- Gráfico de Evolução -->
+        <!-- GrÃ¡fico de EvoluÃ§Ã£o -->
         @if($period === 'monthly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">Evolução Diária</h2>
+                <h2 class="text-lg font-semibold mb-6">EvoluÃ§Ã£o DiÃ¡ria</h2>
                 @php
                     $dailyData = $this->getDailyTransactions();
                     $maxValue = max(
@@ -652,10 +729,10 @@ new class extends Component
             </div>
         @endif
 
-        <!-- Gráfico de Evolução Mensal -->
+        <!-- GrÃ¡fico de EvoluÃ§Ã£o Mensal -->
         @if($period === 'monthly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">Evolução Mensal (Últimos 12 meses)</h2>
+                <h2 class="text-lg font-semibold mb-6">EvoluÃ§Ã£o Mensal (Ãšltimos 12 meses)</h2>
                 @php
                     $monthlyData = $this->getMonthlyEvolution();
                     $maxMonthlyValue = max(
@@ -717,10 +794,10 @@ new class extends Component
             </div>
         @endif
 
-        <!-- Gráfico de Evolução Anual -->
+        <!-- GrÃ¡fico de EvoluÃ§Ã£o Anual -->
         @if($period === 'yearly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">Evolução Anual (Últimos 5 anos)</h2>
+                <h2 class="text-lg font-semibold mb-6">EvoluÃ§Ã£o Anual (Ãšltimos 5 anos)</h2>
                 @php
                     $yearlyData = $this->getYearlyEvolution();
                     $maxYearlyValue = max(

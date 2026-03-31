@@ -9,7 +9,6 @@ new class extends Component {
     public string $name = '';
     public ?string $issuer = null;
     public ?string $brand = null;
-    public ?string $last_four = null;
     public ?string $credit_limit = null;
     public ?string $opening_balance = null;
     public ?int $closing_day = null;
@@ -24,7 +23,6 @@ new class extends Component {
         $this->name = $creditCard->name;
         $this->issuer = $creditCard->issuer;
         $this->brand = $creditCard->brand;
-        $this->last_four = $creditCard->last_four;
         $this->credit_limit = (string) $creditCard->credit_limit;
         $this->opening_balance = (string) $creditCard->opening_balance;
         $this->closing_day = $creditCard->closing_day;
@@ -38,7 +36,6 @@ new class extends Component {
             'name' => ['required', 'string', 'max:255'],
             'issuer' => ['nullable', 'string', 'max:255'],
             'brand' => ['nullable', 'string', 'max:255'],
-            'last_four' => ['nullable', 'string', 'size:4'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'opening_balance' => ['nullable', 'numeric', 'min:0'],
             'closing_day' => ['nullable', 'integer', 'min:1', 'max:31'],
@@ -72,7 +69,6 @@ new class extends Component {
                 <flux:input wire:model="name" label="Nome" />
                 <flux:input wire:model="issuer" label="Emissor" />
                 <flux:input wire:model="brand" label="Bandeira" />
-                <flux:input wire:model="last_four" label="Ultimos 4 digitos" maxlength="4" />
                 <flux:input wire:model="credit_limit" type="number" step="0.01" label="Limite" />
                 <flux:input wire:model="opening_balance" type="number" step="0.01" label="Saldo inicial da fatura" />
                 <flux:input wire:model="closing_day" type="number" min="1" max="31" label="Dia de fechamento" />
