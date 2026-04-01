@@ -165,6 +165,72 @@ test('webhook da abacatepay atualiza cobranca transparente com usuario por email
     ]);
 });
 
+test('webhook da abacatepay libera acesso premium quando checkout do plano e pago', function () {
+    Carbon::setTestNow('2026-04-01 10:00:00');
+
+    config([
+        'abacatepay.webhook_secret' => 'segredo-correto',
+        'abacatepay.public_hmac_key' => 'public-key-123',
+    ]);
+
+    $user = User::factory()->create([
+        'email' => 'plan@example.com',
+    ]);
+
+    AbacatePaySubscription::create([
+        'user_id' => $user->id,
+        'plan_code' => 'pro_monthly',
+        'external_id' => 'pedido-plano-1',
+        'gateway_checkout_id' => 'bill_plan_1',
+        'checkout_url' => 'https://pay.abacatepay.com/bill_plan_1',
+        'amount' => 2990,
+        'status' => 'PENDING',
+        'frequency' => 'MONTHLY',
+        'payload' => [],
+    ]);
+
+    $payload = [
+        'id' => 'log_checkout_plan_paid',
+        'event' => 'checkout.completed',
+        'apiVersion' => 2,
+        'devMode' => false,
+        'data' => [
+            'checkout' => [
+                'id' => 'bill_plan_1',
+                'externalId' => 'pedido-plano-1',
+                'url' => 'https://pay.abacatepay.com/bill_plan_1',
+                'amount' => 2990,
+                'paidAmount' => 2990,
+                'status' => 'PAID',
+                'methods' => ['CARD'],
+                'updatedAt' => '2026-04-01T10:00:05.000Z',
+            ],
+            'customer' => [
+                'name' => 'Plano User',
+                'email' => 'plan@example.com',
+            ],
+        ],
+    ];
+
+    $this->withHeaders([
+        'X-Webhook-Signature' => abacateSignature($payload, 'public-key-123'),
+    ])->postJson('/webhook/abacatepay?webhookSecret=segredo-correto', $payload)
+        ->assertSuccessful();
+
+    $user->refresh();
+
+    expect($user->billing_plan_code)->toBe('pro_monthly')
+        ->and($user->billing_plan_status)->toBe('active')
+        ->and($user->billing_access_ends_at)->not->toBeNull()
+        ->and($user->hasFeature('reports'))->toBeTrue();
+
+    $subscription = AbacatePaySubscription::query()->where('external_id', 'pedido-plano-1')->first();
+
+    expect($subscription)->not->toBeNull()
+        ->and($subscription->status)->toBe('PAID')
+        ->and($subscription->gateway_checkout_id)->toBe('bill_plan_1');
+});
+
 test('webhook da abacatepay cria e atualiza assinatura de billing', function () {
     Carbon::setTestNow('2026-04-01 10:00:00');
 

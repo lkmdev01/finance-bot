@@ -65,17 +65,22 @@ class AbacatePayWebhookProcessor
     {
         $checkout = $payload['data']['checkout'] ?? [];
         $customer = $payload['data']['customer'] ?? [];
+        $existingSubscription = $this->resolvePendingSubscription(
+            gatewayCheckoutId: $checkout['id'] ?? null,
+            externalId: $checkout['externalId'] ?? $event->external_id,
+        );
 
         if (blank($checkout['id'] ?? null)) {
             return;
         }
 
-        $user = $this->resolveUser($customer['email'] ?? null);
+        $user = $this->resolveUser($customer['email'] ?? null) ?? $existingSubscription?->user;
+        $resolvedPlanCode = $this->resolvePlanCode($payload) ?? $existingSubscription?->plan_code;
 
         AbacatePayCharge::query()->updateOrCreate(
             ['gateway_charge_id' => $checkout['id']],
             [
-                'user_id' => $user?->id,
+                'user_id' => $user?->id ?? $existingSubscription?->user_id,
                 'external_id' => $checkout['externalId'] ?? $event->external_id,
                 'charge_type' => 'checkout',
                 'method' => $checkout['methods'][0] ?? null,
@@ -92,6 +97,39 @@ class AbacatePayWebhookProcessor
                 'completed_at' => $this->parseDate($checkout['updatedAt'] ?? null),
             ]
         );
+
+        if (blank($resolvedPlanCode)) {
+            return;
+        }
+
+        $attributes = [
+            'user_id' => $user?->id ?? $existingSubscription?->user_id,
+            'plan_code' => $resolvedPlanCode,
+            'external_id' => $checkout['externalId'] ?? $event->external_id,
+            'gateway_checkout_id' => $checkout['id'],
+            'checkout_url' => $checkout['url'] ?? $existingSubscription?->checkout_url,
+            'gateway_customer_id' => $checkout['customerId'] ?? $existingSubscription?->gateway_customer_id,
+            'customer_name' => $customer['name'] ?? $existingSubscription?->customer_name,
+            'customer_email' => $customer['email'] ?? $existingSubscription?->customer_email,
+            'customer_tax_id' => $customer['taxId'] ?? $existingSubscription?->customer_tax_id,
+            'amount' => $checkout['amount'] ?? $existingSubscription?->amount ?? 0,
+            'currency' => $existingSubscription?->currency ?? 'BRL',
+            'method' => $checkout['methods'][0] ?? $existingSubscription?->method,
+            'frequency' => $existingSubscription?->frequency ?? 'MONTHLY',
+            'status' => $checkout['status'] ?? 'PAID',
+            'dev_mode' => (bool) ($payload['devMode'] ?? false),
+            'starts_at' => $this->parseDate($checkout['updatedAt'] ?? $checkout['createdAt'] ?? null),
+            'payload' => $payload,
+        ];
+
+        if ($existingSubscription) {
+            $existingSubscription->update($attributes);
+            $record = $existingSubscription->fresh();
+        } else {
+            $record = AbacatePaySubscription::query()->create($attributes);
+        }
+
+        $this->syncUserBillingAccess($user, $record, 'completed');
     }
 
     protected function handleSubscriptionUpsert(AbacatePayWebhookEvent $event, array $payload, string $kind): void
@@ -105,7 +143,6 @@ class AbacatePayWebhookProcessor
             return;
         }
 
-        $user = $this->resolveUser($customer['email'] ?? null);
         $externalId = $payment['externalId'] ?? $checkout['externalId'] ?? $event->external_id;
         $existingRecordQuery = AbacatePaySubscription::query()
             ->where('gateway_subscription_id', $subscription['id']);
@@ -115,6 +152,7 @@ class AbacatePayWebhookProcessor
         }
 
         $existingRecord = $existingRecordQuery->latest('id')->first();
+        $user = $this->resolveUser($customer['email'] ?? null) ?? $existingRecord?->user;
         $resolvedPlanCode = $this->resolvePlanCode($payload) ?? $existingRecord?->plan_code;
         $attributes = [
             'user_id' => $user?->id,
@@ -188,9 +226,31 @@ class AbacatePayWebhookProcessor
         return filled($value) ? Carbon::parse($value) : null;
     }
 
+    protected function resolvePendingSubscription(?string $gatewayCheckoutId, ?string $externalId): ?AbacatePaySubscription
+    {
+        if (blank($gatewayCheckoutId) && blank($externalId)) {
+            return null;
+        }
+
+        return AbacatePaySubscription::query()
+            ->where(function ($query) use ($gatewayCheckoutId, $externalId) {
+                if (filled($gatewayCheckoutId)) {
+                    $query->where('gateway_checkout_id', $gatewayCheckoutId);
+                }
+
+                if (filled($externalId)) {
+                    $method = filled($gatewayCheckoutId) ? 'orWhere' : 'where';
+                    $query->{$method}('external_id', $externalId);
+                }
+            })
+            ->latest('id')
+            ->first();
+    }
+
     protected function resolvePlanCode(array $payload): ?string
     {
         return $payload['data']['checkout']['metadata']['plan_code']
+            ?? $payload['data']['checkout']['products'][0]['externalId']
             ?? $payload['data']['payment']['metadata']['plan_code']
             ?? $payload['data']['subscription']['metadata']['plan_code']
             ?? null;

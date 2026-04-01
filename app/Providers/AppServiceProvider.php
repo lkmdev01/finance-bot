@@ -23,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AbacatePayService::class, function ($app) {
             return new AbacatePayService(
                 baseUrl: config('abacatepay.base_url'),
+                legacyBaseUrl: config('abacatepay.legacy_base_url'),
                 apiKey: config('abacatepay.api_key'),
                 timeout: config('abacatepay.timeout'),
             );

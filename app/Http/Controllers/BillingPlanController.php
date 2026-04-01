@@ -32,41 +32,30 @@ class BillingPlanController extends Controller
         if (($plan['price_cents'] ?? 0) === 0) {
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'O plano Starter j√° est√° dispon√≠vel sem cobran√ßa.');
-        }
-
-        if (blank($plan['product_id'] ?? null)) {
-            return redirect()
-                ->route('billing.plans')
-                ->with('status', 'O produto deste plano ainda n√£o foi configurado na AbacatePay.');
+                ->with('status', 'O plano Starter j· est· disponÌvel sem cobranÁa.');
         }
 
         if ($user->hasActivePaidPlan() && $user->billing_plan_code === $planCode) {
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'Voc√™ j√° possui este plano ativo.');
+                ->with('status', 'VocÍ j· possui este plano ativo.');
         }
 
         try {
-            $customerId = $user->abacatepay_customer_id ?: $this->createOrReuseCustomer($user);
-
-            if (! $user->abacatepay_customer_id && $customerId) {
-                $user->forceFill([
-                    'abacatepay_customer_id' => $customerId,
-                ])->save();
-            }
-
             $externalId = 'plan_'.$planCode.'_'.$user->id.'_'.Str::uuid();
 
             $response = $this->abacatePayService->createSubscriptionCheckout([
-                'items' => [
+                'frequency' => 'ONE_TIME',
+                'methods' => ['PIX', 'CARD'],
+                'products' => [
                     [
-                        'id' => $plan['product_id'],
+                        'externalId' => $plan['code'],
+                        'name' => $plan['name'],
+                        'description' => $plan['description'],
                         'quantity' => 1,
+                        'price' => $plan['price_cents'],
                     ],
                 ],
-                'customerId' => $customerId,
-                'methods' => ['CARD'],
                 'externalId' => $externalId,
                 'returnUrl' => route('billing.plans'),
                 'completionUrl' => route('billing.plans', ['checkout' => 'success']),
@@ -82,13 +71,13 @@ class BillingPlanController extends Controller
 
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'N√£o foi poss√≠vel iniciar a assinatura agora. Verifique a configura√ß√£o da AbacatePay.');
+                ->with('status', 'N„o foi possÌvel iniciar a assinatura agora. Verifique a configuraÁ„o da AbacatePay.');
         }
 
         if (! ($response['success'] ?? false) || blank($response['data']['url'] ?? null)) {
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'N√£o foi poss√≠vel iniciar a assinatura agora. Tente novamente.');
+                ->with('status', 'N„o foi possÌvel iniciar a assinatura agora. Tente novamente.');
         }
 
         $data = $response['data'];
@@ -98,7 +87,6 @@ class BillingPlanController extends Controller
             [
                 'user_id' => $user->id,
                 'plan_code' => $planCode,
-                'gateway_customer_id' => $customerId,
                 'gateway_checkout_id' => $data['id'] ?? null,
                 'checkout_url' => $data['url'] ?? null,
                 'amount' => $data['amount'] ?? $plan['price_cents'],
@@ -109,24 +97,5 @@ class BillingPlanController extends Controller
         );
 
         return redirect()->away($data['url']);
-    }
-
-    protected function createOrReuseCustomer($user): string
-    {
-        $response = $this->abacatePayService->createCustomer([
-            'email' => $user->email,
-            'name' => $user->name,
-            'cellphone' => $user->phone_number,
-            'metadata' => [
-                'app_user_id' => $user->id,
-                'source' => 'inovaforce-finance',
-            ],
-        ]);
-
-        if (! ($response['success'] ?? false) || blank($response['data']['id'] ?? null)) {
-            throw new \RuntimeException('N√£o foi poss√≠vel criar o cliente na AbacatePay.');
-        }
-
-        return (string) $response['data']['id'];
     }
 }

@@ -10,6 +10,7 @@ class AbacatePayService
 {
     public function __construct(
         private readonly string $baseUrl,
+        private readonly string $legacyBaseUrl,
         private readonly ?string $apiKey,
         private readonly int $timeout = 15,
     ) {}
@@ -26,12 +27,12 @@ class AbacatePayService
 
     public function createCustomer(array $payload): array
     {
-        return $this->post('/customers/create', $payload);
+        return $this->legacyPost('/customer/create', $payload);
     }
 
     public function createSubscriptionCheckout(array $payload): array
     {
-        return $this->post('/subscriptions/create', $payload);
+        return $this->legacyPost('/billing/create', $payload);
     }
 
     public function getCheckout(array $query): array
@@ -66,21 +67,26 @@ class AbacatePayService
 
     protected function get(string $path, array $query = []): array
     {
-        return $this->request()->get($path, $query)->json();
+        return $this->request($this->baseUrl)->get($path, $query)->json();
     }
 
     protected function post(string $path, array $payload = []): array
     {
-        return $this->request()->post($path, $payload)->json();
+        return $this->request($this->baseUrl)->post($path, $payload)->json();
     }
 
-    protected function request(): PendingRequest
+    protected function legacyPost(string $path, array $payload = []): array
+    {
+        return $this->request($this->legacyBaseUrl)->post($path, $payload)->json();
+    }
+
+    protected function request(string $baseUrl): PendingRequest
     {
         if (blank($this->apiKey)) {
             throw new InvalidArgumentException('ABACATEPAY_API_KEY nao configurada.');
         }
 
-        return Http::baseUrl(rtrim($this->baseUrl, '/'))
+        return Http::baseUrl(rtrim($baseUrl, '/'))
             ->acceptJson()
             ->asJson()
             ->withToken($this->apiKey)

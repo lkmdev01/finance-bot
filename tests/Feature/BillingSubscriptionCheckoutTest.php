@@ -13,30 +13,19 @@ test('usuario pode iniciar checkout de assinatura do plano pro', function () {
 
     config([
         'abacatepay.api_key' => 'abacate_dev_123',
-        'billing.plans.pro_monthly.product_id' => 'prod_pro_monthly_123',
+        'abacatepay.legacy_base_url' => 'https://api.abacatepay.com/v1',
     ]);
 
     Http::fake([
-        'https://api.abacatepay.com/v2/customers/create' => Http::response([
-            'success' => true,
-            'error' => null,
-            'data' => [
-                'id' => 'cust_abc123xyz',
-                'email' => 'lukas@example.com',
-            ],
-        ]),
-        'https://api.abacatepay.com/v2/subscriptions/create' => Http::response([
+        'https://api.abacatepay.com/v1/billing/create' => Http::response([
             'success' => true,
             'error' => null,
             'data' => [
                 'id' => 'bill_sub_123',
-                'externalId' => 'plan_pro_monthly_1_x',
-                'url' => 'https://app.abacatepay.com/pay/bill_sub_123',
+                'url' => 'https://pay.abacatepay.com/bill_sub_123',
                 'amount' => 2990,
                 'status' => 'PENDING',
-                'customerId' => 'cust_abc123xyz',
-                'createdAt' => '2026-04-01T12:00:00.000Z',
-                'updatedAt' => '2026-04-01T12:00:00.000Z',
+                'frequency' => 'ONE_TIME',
             ],
         ]),
     ]);
@@ -44,17 +33,24 @@ test('usuario pode iniciar checkout de assinatura do plano pro', function () {
     $response = $this->actingAs($user)
         ->post(route('billing.subscribe', 'pro_monthly'));
 
-    $response->assertRedirect('https://app.abacatepay.com/pay/bill_sub_123');
+    $response->assertRedirect('https://pay.abacatepay.com/bill_sub_123');
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://api.abacatepay.com/v1/billing/create'
+            && $request['products'][0]['externalId'] === 'pro_monthly'
+            && $request['products'][0]['price'] === 2990
+            && $request['frequency'] === 'ONE_TIME';
+    });
 
     $user->refresh();
 
-    expect($user->abacatepay_customer_id)->toBe('cust_abc123xyz');
+    expect($user->abacatepay_customer_id)->toBeNull();
 
     $subscription = AbacatePaySubscription::query()->where('user_id', $user->id)->latest()->first();
 
     expect($subscription)->not->toBeNull()
         ->and($subscription->plan_code)->toBe('pro_monthly')
-        ->and($subscription->gateway_customer_id)->toBe('cust_abc123xyz')
+        ->and($subscription->gateway_customer_id)->toBeNull()
         ->and($subscription->gateway_checkout_id)->toBe('bill_sub_123')
-        ->and($subscription->checkout_url)->toBe('https://app.abacatepay.com/pay/bill_sub_123');
+        ->and($subscription->checkout_url)->toBe('https://pay.abacatepay.com/bill_sub_123');
 });
