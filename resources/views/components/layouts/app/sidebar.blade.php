@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
@@ -113,19 +113,19 @@
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="currency-dollar" :href="route('transactions.index')" :current="request()->routeIs('transactions.*')" wire:navigate>
-                    Transa&ccedil;&otilde;es
+                    Transações
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="tag" :href="route('categories.index')" :current="request()->routeIs('categories.*')" wire:navigate>
                     Categorias
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="chart-bar" :href="route('budgets.index')" :current="request()->routeIs('budgets.*')" wire:navigate>
-                    Or&ccedil;amentos
+                    Orçamentos
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="document-text" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
-                    Relat&oacute;rios
+                    Relatórios
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="chart-bar" :href="route('financial-projections.index')" :current="request()->routeIs('financial-projections.*')" wire:navigate>
-                    Proje&ccedil;&otilde;es
+                    Projeções
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="sparkles" :href="route(config('mascot.route_name', 'mascot.index'))" :current="request()->routeIs(config('mascot.route_name', 'mascot.index'))" wire:navigate>
                     {{ config('mascot.name', 'Orbita') }}
@@ -134,13 +134,13 @@
                     Metas de Economia
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="building-library" :href="route('bank-accounts.index')" :current="request()->routeIs('bank-accounts.*')" wire:navigate>
-                    Contas Banc&aacute;rias
+                    Contas Bancárias
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="credit-card" :href="route('credit-cards.index')" :current="request()->routeIs('credit-cards.*')" wire:navigate>
-                    Cart&otilde;es de Cr&eacute;dito
+                    Cartões de Crédito
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="arrow-path" :href="route('recurring-transactions.index')" :current="request()->routeIs('recurring-transactions.*')" wire:navigate>
-                    Transa&ccedil;&otilde;es Recorrentes
+                    Transações Recorrentes
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="calendar-days" :href="route('subscriptions.index')" :current="request()->routeIs('subscriptions.*')" wire:navigate>
                     Assinaturas
@@ -179,7 +179,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configura&ccedil;&otilde;es</flux:menu.item>
+                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configurações</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -229,7 +229,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configura&ccedil;&otilde;es</flux:menu.item>
+                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configurações</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -314,7 +314,7 @@
                             @click="removeNotification(notification.id)"
                             class="flex-shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
                         >
-                            âœ•
+                            ×
                         </button>
                     </div>
                 </template>
@@ -326,4 +326,5 @@
         @fluxScripts
     </body>
 </html>
+
 

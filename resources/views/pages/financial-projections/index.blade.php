@@ -1,3 +1,4 @@
-﻿<x-layouts.app.sidebar title="Projecoes Financeiras">
+﻿<x-layouts.app.sidebar title="Projeções Financeiras">
     <livewire:financial-projections.index />
 </x-layouts.app.sidebar>
+

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use App\Services\MascotScoreService;
 use Illuminate\Support\Facades\Auth;
@@ -62,9 +62,9 @@ new class extends Component
     public function statLabel(string $key): string
     {
         return match ($key) {
-            'consistency' => 'Consistencia',
-            'balance' => 'Equilibrio',
-            'budget' => 'Orcamento',
+            'consistency' => 'Consistência',
+            'balance' => 'Equilíbrio',
+            'budget' => 'Orçamento',
             'savings' => 'Economia',
             default => ucfirst($key),
         };
@@ -96,15 +96,15 @@ new class extends Component
                 <div class="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                     {{ $this->mascotName() }}
                     <span class="h-1.5 w-1.5 rounded-full bg-amber-300"></span>
-                    Sistema de pontuacao
+                    Sistema de Pontuação
                 </div>
 
                 <div class="space-y-3">
                     <h1 class="max-w-3xl break-words text-3xl font-black tracking-tight text-white sm:text-4xl md:text-5xl">
-                        Conhe&ccedil;a {{ $this->mascotName() }}
+                        Conheça {{ $this->mascotName() }}
                     </h1>
                     <p class="max-w-3xl break-words text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
-                        {{ config('mascot.companion_copy', 'Seu foguete virtual que celebra suas conquistas financeiras.') }} {{ $this->mascotName() }} acompanha seus habitos, reage ao seu momento e te ajuda a manter constancia com medalhas, XP e foco claro.
+                        {{ config('mascot.companion_copy', 'Seu foguete virtual que celebra suas conquistas financeiras.') }} {{ $this->mascotName() }} acompanha seus hábitos, reage ao seu momento e te ajuda a manter constância com medalhas, XP e foco claro.
                     </p>
                 </div>
 
@@ -112,7 +112,7 @@ new class extends Component
                     <article class="min-w-0 rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
                         <div class="flex items-start justify-between gap-4">
                             <div>
-                                <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Pontuacao</p>
+                                <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Pontuação</p>
                                 <p class="mt-3 text-4xl font-black text-white">{{ $mascot['score'] }}</p>
                             </div>
                             <div class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-300/15 text-3xl">
@@ -123,7 +123,7 @@ new class extends Component
                     </article>
 
                     <article class="min-w-0 rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
-                        <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Nivel e XP</p>
+                        <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Nível e XP</p>
                         <div class="mt-3 flex items-end gap-3">
                             <p class="text-4xl font-black text-white">{{ $mascot['level'] }}</p>
                             <p class="pb-1 text-sm text-slate-400">{{ number_format($mascot['xp']) }} XP</p>
@@ -132,18 +132,18 @@ new class extends Component
                             <div class="h-full rounded-full bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400" style="width: {{ $mascot['level_progress'] }}%"></div>
                         </div>
                         <p class="mt-3 text-xs uppercase tracking-[0.16em] text-slate-400">
-                            {{ number_format($mascot['xp_in_level']) }} / {{ number_format($mascot['xp_for_next_level']) }} XP neste nivel
+                            {{ number_format($mascot['xp_in_level']) }} / {{ number_format($mascot['xp_for_next_level']) }} XP neste nível
                         </p>
                     </article>
 
                     <article class="min-w-0 rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
-                        <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Sequencia atual</p>
+                        <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Sequência atual</p>
                         <div class="mt-3 flex items-end gap-3">
                             <p class="text-4xl font-black text-white">{{ $mascot['current_streak'] }}</p>
                             <p class="pb-1 text-sm text-slate-400">dias seguidos</p>
                         </div>
                         <p class="mt-4 text-sm leading-6 text-slate-300">
-                            Melhor marca: {{ $mascot['best_streak'] }} dias. Cada novo registro reforca o humor do {{ $this->mascotName() }}.
+                            Melhor marca: {{ $mascot['best_streak'] }} dias. Cada novo registro reforça o humor do {{ $this->mascotName() }}.
                         </p>
                     </article>
                 </div>
@@ -169,7 +169,7 @@ new class extends Component
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <span class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] {{ $recentClasses['badge'] }}">
-                                {{ $mascot['recent_achievement'] ? 'Conquista desbloqueada' : 'Proximo foco' }}
+                                {{ $mascot['recent_achievement'] ? 'Conquista desbloqueada' : 'Próximo foco' }}
                             </span>
                             @if($mascot['recent_achievement'])
                                 <h2 class="mt-4 text-2xl font-black text-white">{{ $mascot['recent_achievement']['title'] }}</h2>
@@ -193,7 +193,7 @@ new class extends Component
             <div class="flex items-center justify-between gap-4">
                 <div>
                     <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Score breakdown</p>
-                    <h2 class="mt-2 text-2xl font-black text-white">O que mais pesa na pontuacao do {{ $this->mascotName() }}</h2>
+                    <h2 class="mt-2 text-2xl font-black text-white">O que mais pesa na Pontuação do {{ $this->mascotName() }}</h2>
                 </div>
                 <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
                     {{ $mascot['badges_unlocked'] }} medalhas
@@ -225,15 +225,15 @@ new class extends Component
 
             <div class="mt-8 grid gap-3">
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Receitas do mes</p>
+                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Receitas do mês</p>
                     <p class="mt-2 text-2xl font-bold text-emerald-300">R$ {{ number_format($mascot['stats']['current_month_income'], 2, ',', '.') }}</p>
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Despesas do mes</p>
+                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Despesas do mês</p>
                     <p class="mt-2 text-2xl font-bold text-rose-300">R$ {{ number_format($mascot['stats']['current_month_expenses'], 2, ',', '.') }}</p>
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Economia do mes</p>
+                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Economia do mês</p>
                     <p class="mt-2 text-2xl font-bold text-amber-200">R$ {{ number_format($mascot['stats']['current_month_savings'], 2, ',', '.') }}</p>
                 </div>
             </div>
@@ -247,7 +247,7 @@ new class extends Component
                 <h2 class="mt-2 text-2xl font-black text-white">{{ $this->mascotName() }} celebra cada marco importante</h2>
             </div>
             <p class="max-w-xl text-sm leading-7 text-slate-300">
-                Ganhe medalhas por sequencias de economia, manter-se dentro do orcamento e alcancar metas. As desbloqueadas ficam registradas no seu historico.
+                Ganhe medalhas por sequências de economia, manter-se dentro do Orçamento e alcançar metas. As desbloqueadas ficam registradas no seu histórico.
             </p>
         </div>
 
@@ -279,4 +279,5 @@ new class extends Component
         </div>
     </section>
 </div>
+
 

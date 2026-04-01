@@ -1,9 +1,67 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth">
     <head>
+        @php
+            $seoTitle = 'InovaFinance | Gestão financeira via WhatsApp com IA';
+            $seoDescription = 'Controle gastos, receitas, orçamentos, metas e relatórios financeiros pelo WhatsApp com apoio de IA.';
+            $seoImage = asset('mockup.png');
+            $seoUrl = route('home');
+            $seoKeywords = 'gestão financeira, controle financeiro, finanças pessoais, whatsapp, inteligência artificial, orçamento, controle de gastos';
+            $structuredData = [
+                [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'Organization',
+                    'name' => 'InovaFinance',
+                    'url' => $seoUrl,
+                    'logo' => asset('favicon.svg'),
+                ],
+                [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'WebSite',
+                    'name' => 'InovaFinance',
+                    'url' => $seoUrl,
+                    'description' => $seoDescription,
+                    'inLanguage' => 'pt-BR',
+                ],
+                [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'SoftwareApplication',
+                    'name' => 'InovaFinance',
+                    'applicationCategory' => 'FinanceApplication',
+                    'operatingSystem' => 'Web',
+                    'description' => $seoDescription,
+                    'url' => $seoUrl,
+                ],
+            ];
+        @endphp
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>InovaFinance - Sua Gestão Financeira Decolando</title>
+        <title>{{ $seoTitle }}</title>
+        <meta name="description" content="{{ $seoDescription }}">
+        <meta name="keywords" content="{{ $seoKeywords }}">
+        <meta name="robots" content="index, follow">
+        <meta name="googlebot" content="index, follow">
+        <meta name="theme-color" content="#070b14">
+        <link rel="canonical" href="{{ $seoUrl }}">
+
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="InovaFinance">
+        <meta property="og:locale" content="pt_BR">
+        <meta property="og:title" content="{{ $seoTitle }}">
+        <meta property="og:description" content="{{ $seoDescription }}">
+        <meta property="og:image" content="{{ $seoImage }}">
+        <meta property="og:image:alt" content="{{ $seoTitle }}">
+        <meta property="og:url" content="{{ $seoUrl }}">
+
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="{{ $seoTitle }}">
+        <meta name="twitter:description" content="{{ $seoDescription }}">
+        <meta name="twitter:image" content="{{ $seoImage }}">
+        <meta name="twitter:image:alt" content="{{ $seoTitle }}">
+
+        @foreach($structuredData as $schema)
+            <script type="application/ld+json">{!! json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) !!}</script>
+        @endforeach
 
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -109,7 +167,7 @@
                     <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-400">Decolando.</span>
                 </h1>
                 <p class="text-lg text-slate-400 mb-10 max-w-xl mx-auto lg:mx-0">
-                    Esqueça planilhas complicadas. Registe seus gastos e ganhos enviando mensagens no WhatsApp. Nossa IA categoriza tudo para você instantaneamente.
+                    Esqueça planilhas complicadas. Registre seus gastos e ganhos enviando mensagens no WhatsApp. Nossa IA categoriza tudo para você instantaneamente.
                 </p>
                 <div class="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
                     <a href="{{ route('register') }}" class="w-full sm:w-auto px-8 py-4 bg-primary text-white text-lg rounded-2xl font-bold hover:bg-indigo-500 transition-all shadow-2xl hover:shadow-primary/40 flex items-center justify-center gap-2">
@@ -254,3 +312,4 @@
         </footer>
     </body>
 </html>
+

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use App\Models\RecurringTransaction;
 use Illuminate\Support\Facades\Auth;
@@ -57,7 +57,7 @@ new class extends Component {
     public function save(): void
     {
         $this->normalizeSource();
-        $this->validateSource();
+        $this->válidateSource();
 
         $rules = [
             'category_id' => ['nullable', 'integer'],
@@ -79,23 +79,23 @@ new class extends Component {
             $rules['day_of_week'] = ['required', 'integer', 'min:0', 'max:6'];
         }
 
-        $validated = $this->validate($rules);
+        $válidated = $this->válidate($rules);
 
         $this->recurring->update([
-            'category_id' => $validated['category_id'] ?: null,
-            'bank_account_id' => $validated['bank_account_id'] ?: null,
-            'credit_card_id' => $validated['credit_card_id'] ?: null,
-            'type' => $validated['type'],
-            'amount' => $validated['amount'],
-            'description' => $validated['description'] ?? null,
-            'frequency' => $validated['frequency'],
-            'start_date' => $validated['start_date'],
-            'end_date' => $validated['end_date'] ?? null,
+            'category_id' => $válidated['category_id'] ?: null,
+            'bank_account_id' => $válidated['bank_account_id'] ?: null,
+            'credit_card_id' => $válidated['credit_card_id'] ?: null,
+            'type' => $válidated['type'],
+            'amount' => $válidated['amount'],
+            'description' => $válidated['description'] ?? null,
+            'frequency' => $válidated['frequency'],
+            'start_date' => $válidated['start_date'],
+            'end_date' => $válidated['end_date'] ?? null,
             'day_of_month' => $this->frequency === 'monthly' ? $this->day_of_month : null,
             'day_of_week' => $this->frequency === 'weekly' ? $this->day_of_week : null,
         ]);
 
-        session()->flash('message', 'Transacao recorrente atualizada com sucesso!');
+        session()->flash('message', 'transação recorrente atualizada com sucesso!');
 
         $this->redirect(route('recurring-transactions.index'), navigate: true);
     }
@@ -116,32 +116,32 @@ new class extends Component {
         $this->credit_card_id = null;
     }
 
-    private function validateSource(): void
+    private function válidateSource(): void
     {
         if ($this->source_type === 'bank_account') {
             if (! $this->bank_account_id) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'bank_account_id' => 'Selecione uma conta bancaria.',
+                throw \Illuminate\válidation\válidationException::withMessages([
+                    'bank_account_id' => 'Selecione uma conta bancária.',
                 ]);
             }
 
             if (! auth()->user()->bankAccounts()->whereKey($this->bank_account_id)->exists()) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'bank_account_id' => 'A conta bancaria selecionada nao existe.',
+                throw \Illuminate\válidation\válidationException::withMessages([
+                    'bank_account_id' => 'A conta bancária selecionada não existe.',
                 ]);
             }
         }
 
         if ($this->source_type === 'credit_card') {
             if (! $this->credit_card_id) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'credit_card_id' => 'Selecione um cartao de credito.',
+                throw \Illuminate\válidation\válidationException::withMessages([
+                    'credit_card_id' => 'Selecione um cartão de crédito.',
                 ]);
             }
 
             if (! auth()->user()->creditCards()->whereKey($this->credit_card_id)->exists()) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'credit_card_id' => 'O cartao de credito selecionado nao existe.',
+                throw \Illuminate\válidation\válidationException::withMessages([
+                    'credit_card_id' => 'O cartão de crédito selecionado não existe.',
                 ]);
             }
         }
@@ -160,8 +160,8 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Editar Transacao Recorrente</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Atualize os dados da transacao recorrente.</p>
+            <h1 class="text-2xl font-bold">Editar transação Recorrente</h1>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Atualize os dados da transação recorrente.</p>
         </div>
         <flux:button href="{{ route('recurring-transactions.index') }}" wire:navigate variant="ghost">Voltar</flux:button>
     </div>
@@ -183,14 +183,14 @@ new class extends Component {
                     @endforeach
                 </flux:select>
 
-                <flux:input wire:model="description" label="Descricao" placeholder="Ex: Aluguel" />
+                <flux:input wire:model="description" label="Descrição" placeholder="Ex: Aluguel" />
             </div>
 
             <div class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
                         <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Fonte financeira</h2>
-                        <p class="text-xs text-zinc-500 dark:text-zinc-400">Escolha conta ou cartao. O campo aparece so quando a fonte for selecionada.</p>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">Escolha conta ou cartão. O campo aparece só quando a fonte for selecionada.</p>
                     </div>
                     @if($source_type !== 'none')
                         <button type="button" wire:click="setSourceType('none')" class="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">Limpar</button>
@@ -200,17 +200,17 @@ new class extends Component {
                 <div class="flex flex-wrap gap-3">
                     <button type="button" wire:click="setSourceType('bank_account')" class="inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition {{ $source_type === 'bank_account' ? 'border-sky-500 bg-sky-500/10 text-sky-700 dark:text-sky-300' : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300' }}">
                         <span class="inline-block h-2.5 w-2.5 rounded-full {{ $source_type === 'bank_account' ? 'bg-sky-500' : 'bg-zinc-400' }}"></span>
-                        Conta bancaria
+                        Conta bancária
                     </button>
                     <button type="button" wire:click="setSourceType('credit_card')" class="inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition {{ $source_type === 'credit_card' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300' }}">
                         <span class="inline-block h-2.5 w-2.5 rounded-full {{ $source_type === 'credit_card' ? 'bg-emerald-500' : 'bg-zinc-400' }}"></span>
-                        Cartao de credito
+                        cartão de crédito
                     </button>
                 </div>
 
                 @if($source_type === 'bank_account')
                     <div class="mt-4">
-                        <flux:select wire:model="bank_account_id" label="Conta bancaria">
+                        <flux:select wire:model="bank_account_id" label="Conta bancária">
                             <option value="">Selecione uma conta</option>
                             @foreach($bankAccounts as $account)
                                 <option value="{{ $account->id }}">{{ $account->name }}</option>
@@ -222,8 +222,8 @@ new class extends Component {
 
                 @if($source_type === 'credit_card')
                     <div class="mt-4">
-                        <flux:select wire:model="credit_card_id" label="Cartao de credito">
-                            <option value="">Selecione um cartao</option>
+                        <flux:select wire:model="credit_card_id" label="cartão de crédito">
+                            <option value="">Selecione um cartão</option>
                             @foreach($creditCards as $card)
                                 <option value="{{ $card->id }}">{{ $card->name }}</option>
                             @endforeach
@@ -234,8 +234,8 @@ new class extends Component {
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <flux:select wire:model.live="frequency" label="Frequencia">
-                    <option value="daily">Diaria</option>
+                <flux:select wire:model.live="frequency" label="Frequência">
+                    <option value="daily">Diária</option>
                     <option value="weekly">Semanal</option>
                     <option value="monthly">Mensal</option>
                     <option value="yearly">Anual</option>
@@ -245,25 +245,25 @@ new class extends Component {
                 <flux:input wire:model="end_date" type="date" label="Data final (opcional)" />
 
                 @if($frequency === 'monthly')
-                    <flux:input wire:model="day_of_month" type="number" min="1" max="31" label="Dia do mes" />
+                    <flux:input wire:model="day_of_month" type="number" min="1" max="31" label="Dia do mês" />
                 @endif
 
                 @if($frequency === 'weekly')
                     <flux:select wire:model="day_of_week" label="Dia da semana">
                         <option value="0">Domingo</option>
                         <option value="1">Segunda-feira</option>
-                        <option value="2">Terca-feira</option>
+                        <option value="2">Terça-feira</option>
                         <option value="3">Quarta-feira</option>
                         <option value="4">Quinta-feira</option>
                         <option value="5">Sexta-feira</option>
-                        <option value="6">Sabado</option>
+                        <option value="6">Sábado</option>
                     </flux:select>
                 @endif
             </div>
 
             <div class="flex justify-end gap-3">
                 <flux:button href="{{ route('recurring-transactions.index') }}" wire:navigate variant="ghost">Cancelar</flux:button>
-                <flux:button type="submit" variant="primary">Atualizar Transacao</flux:button>
+                <flux:button type="submit" variant="primary">Atualizar transação</flux:button>
             </div>
         </form>
     </div>

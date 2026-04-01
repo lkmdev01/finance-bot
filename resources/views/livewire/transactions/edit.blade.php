@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Auth;
@@ -35,9 +35,9 @@ new class extends Component {
 
     public function save(): void
     {
-        $this->validateSource();
+        $this->válidateSource();
 
-        $validated = $this->validate([
+        $válidated = $this->válidate([
             'type' => ['required', 'string', 'in:income,expense'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'description' => ['nullable', 'string', 'max:255'],
@@ -48,42 +48,42 @@ new class extends Component {
             'selectedTags' => ['nullable', 'array'],
             'selectedTags.*' => ['exists:tags,id'],
         ], [
-            'type.required' => 'O tipo da transacao e obrigatorio.',
+            'type.required' => 'O tipo da transação e obrigatório.',
             'type.in' => 'O tipo deve ser receita ou despesa.',
-            'amount.required' => 'O valor e obrigatorio.',
-            'amount.numeric' => 'O valor deve ser um numero.',
+            'amount.required' => 'O valor e obrigatório.',
+            'amount.numeric' => 'O valor deve ser um número.',
             'amount.min' => 'O valor deve ser maior que zero.',
-            'date.required' => 'A data e obrigatoria.',
-            'date.date' => 'A data deve ser valida.',
-            'category_id.exists' => 'A categoria selecionada nao existe.',
+            'date.required' => 'A data e obrigatória.',
+            'date.date' => 'A data deve ser válida.',
+            'category_id.exists' => 'A categoria selecionada não existe.',
         ]);
 
-        $this->transaction->update($validated);
+        $this->transaction->update($válidated);
         $this->transaction->tags()->sync($this->selectedTags ?? []);
 
-        session()->flash('message', 'Transacao atualizada com sucesso!');
+        session()->flash('message', 'transação atualizada com sucesso!');
 
         $this->redirect(route('transactions.index'), navigate: true);
     }
 
-    private function validateSource(): void
+    private function válidateSource(): void
     {
         if ($this->bank_account_id && $this->credit_card_id) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw \Illuminate\válidation\válidationException::withMessages([
                 'bank_account_id' => 'Selecione apenas uma fonte financeira.',
                 'credit_card_id' => 'Selecione apenas uma fonte financeira.',
             ]);
         }
 
         if ($this->bank_account_id && ! Auth::user()->bankAccounts()->whereKey($this->bank_account_id)->exists()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'bank_account_id' => 'A conta bancaria selecionada nao existe.',
+            throw \Illuminate\válidation\válidationException::withMessages([
+                'bank_account_id' => 'A conta bancária selecionada não existe.',
             ]);
         }
 
         if ($this->credit_card_id && ! Auth::user()->creditCards()->whereKey($this->credit_card_id)->exists()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'credit_card_id' => 'O cartao de credito selecionado nao existe.',
+            throw \Illuminate\válidation\válidationException::withMessages([
+                'credit_card_id' => 'O cartão de crédito selecionado não existe.',
             ]);
         }
     }
@@ -105,8 +105,8 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Editar Transacao</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Atualize os dados da transacao</p>
+            <h1 class="text-2xl font-bold">Editar transação</h1>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Atualize os dados da transação</p>
         </div>
         <flux:button href="{{ route('transactions.index') }}" wire:navigate variant="ghost">
             Voltar
@@ -206,7 +206,7 @@ new class extends Component {
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Conta bancaria</flux:label>
+                    <flux:label>Conta bancária</flux:label>
                     <flux:select wire:model="bank_account_id" placeholder="Selecione uma conta">
                         <option value="">Nenhuma</option>
                         @foreach($bankAccounts as $account)
@@ -217,8 +217,8 @@ new class extends Component {
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Cartao de credito</flux:label>
-                    <flux:select wire:model="credit_card_id" placeholder="Selecione um cartao">
+                    <flux:label>cartão de crédito</flux:label>
+                    <flux:select wire:model="credit_card_id" placeholder="Selecione um cartão">
                         <option value="">Nenhum</option>
                         @foreach($creditCards as $card)
                             <option value="{{ $card->id }}">{{ $card->name }}</option>
@@ -228,10 +228,10 @@ new class extends Component {
                 </flux:field>
 
                 <flux:field class="md:col-span-2">
-                    <flux:label>Descricao</flux:label>
+                    <flux:label>Descrição</flux:label>
                     <flux:textarea
                         wire:model="description"
-                        placeholder="Descricao da transacao (opcional)"
+                        placeholder="Descrição da transação (opcional)"
                         rows="3"
                     />
                     <flux:error name="description" />
@@ -239,7 +239,7 @@ new class extends Component {
 
                 <flux:field class="md:col-span-2">
                     <flux:label>Tags (opcional)</flux:label>
-                    <flux:description>Selecione tags para organizar suas transacoes</flux:description>
+                    <flux:description>Selecione tags para organizar suas transações</flux:description>
                     <div class="space-y-2 max-h-32 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg p-3">
                         @forelse($tags as $tag)
                             <label class="flex items-center gap-2 cursor-pointer">
@@ -274,9 +274,10 @@ new class extends Component {
                     Cancelar
                 </flux:button>
                 <flux:button type="submit" variant="primary">
-                    Atualizar Transacao
+                    Atualizar transação
                 </flux:button>
             </div>
         </form>
     </div>
 </div>
+

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use App\Services\MascotScoreService;
 use Illuminate\Support\Facades\Auth;
@@ -93,7 +93,7 @@ new class extends Component
             ->where('type', 'expense')
             ->get();
         
-        // Filtrar transacoes que nao sao depositos em metas
+        // Filtrar transações que não são depósitos em metas
         $expensesWithoutSavings = $allExpenses->filter(function ($transaction) {
             $metadata = $transaction->metadata ?? [];
             return !isset($metadata['savings_goal_deposit_id']);
@@ -104,8 +104,8 @@ new class extends Component
 
     public function getAvailableBalance(): float
     {
-        // Saldo disponivel considera todas as transacoes, nao apenas do periodo
-        // Depositos em metas sao deduzidos separadamente (nao contam como despesas normais)
+        // Saldo disponível considera todas as transações, não apenas do período
+        // Depósitos em metas são deduzidos separadamente (não contam como despesas normais)
         return $this->getTotalIncomeAllTime() - $this->getTotalExpensesAllTime() - $this->getTotalSavingsDeposits();
     }
 
@@ -166,7 +166,7 @@ new class extends Component
             return html_entity_decode('&#128230;', ENT_QUOTES, 'UTF-8');
         }
 
-        if (str_contains($icon, 'ð') || str_contains($icon, 'Ã')) {
+        if (str_contains($icon, 'Ã°') || str_contains($icon, 'Ãƒ')) {
             return html_entity_decode('&#128230;', ENT_QUOTES, 'UTF-8');
         }
 
@@ -434,7 +434,7 @@ new class extends Component
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm font-semibold text-slate-200">Alertas ativos</p>
-                            <p class="text-xs text-slate-500">Orcamentos e avisos operacionais</p>
+                            <p class="text-xs text-slate-500">Orçamentos e avisos operacionais</p>
                         </div>
                         <span class="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-sky-500/15 px-3 text-sm font-bold text-sky-300">
                             {{ $exceededBudgets->count() }}
@@ -462,16 +462,16 @@ new class extends Component
                                     <div class="flex-1">
                                         <div class="flex items-center justify-between gap-3">
                                             <div>
-                                                <p class="text-sm font-semibold uppercase tracking-[0.18em] text-sky-300">Orcamento excedido</p>
+                                                <p class="text-sm font-semibold uppercase tracking-[0.18em] text-sky-300">Orçamento excedido</p>
                                                 <h3 class="mt-1 text-lg font-semibold text-white">{{ $budget->category->name }}</h3>
                                             </div>
                                             <span class="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200">
                                                 R$ {{ number_format($budget->spent - $budget->amount, 2, ',', '.') }}
                                             </span>
                                         </div>
-                                        <p class="mt-3 text-sm leading-6 text-slate-300">Seu limite foi ultrapassado nesta categoria. Vale revisar os lancamentos recentes antes de seguir com novos gastos.</p>
+                                        <p class="mt-3 text-sm leading-6 text-slate-300">Seu limite foi ultrapassado nesta categoria. Vale revisar os lançamentos recentes antes de seguir com novos gastos.</p>
                                         <div class="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
-                                            <span>Orcado: R$ {{ number_format($budget->amount, 2, ',', '.') }}</span>
+                                            <span>Orçado: R$ {{ number_format($budget->amount, 2, ',', '.') }}</span>
                                             <span>Gasto: R$ {{ number_format($budget->spent, 2, ',', '.') }}</span>
                                         </div>
                                     </div>
@@ -480,7 +480,7 @@ new class extends Component
                         @endforeach
 
                         <flux:button href="{{ route('budgets.index') }}" wire:navigate variant="primary" class="w-full justify-center">
-                            Abrir Orcamentos
+                            Abrir Orçamentos
                         </flux:button>
                     </div>
                 @endif
@@ -547,7 +547,7 @@ new class extends Component
                         $variation = $this->getIncomeVariation();
                     @endphp
                     <p class="text-xs mt-2 {{ $variation >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                        {{ $variation >= 0 ? '+' : '-' }} {{ number_format(abs($variation), 1) }}% vs mes anterior
+                        {{ $variation >= 0 ? '+' : '-' }} {{ number_format(abs($variation), 1) }}% vs mês anterior
                     </p>
                 @endif
             </div>
@@ -563,14 +563,14 @@ new class extends Component
                         $variation = $this->getExpensesVariation();
                     @endphp
                     <p class="text-xs mt-2 {{ $variation <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                        {{ $variation >= 0 ? '+' : '-' }} {{ number_format(abs($variation), 1) }}% vs mes anterior
+                        {{ $variation >= 0 ? '+' : '-' }} {{ number_format(abs($variation), 1) }}% vs mês anterior
                     </p>
                 @endif
             </div>
 
-            <!-- Total de dividas -->
+            <!-- Total de dívidas -->
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Total de dividas</p>
+                <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Total de dívidas</p>
                 <p class="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                     R$ 0,00
                 </p>
@@ -584,16 +584,16 @@ new class extends Component
                 </p>
             </div>
 
-            <!-- Saldo disponivel -->
+            <!-- Saldo disponível -->
             <div class="bg-zinc-900 dark:bg-zinc-950 rounded-xl border border-zinc-700 p-6">
-                <p class="text-sm text-zinc-400 mb-2">Saldo disponivel</p>
+                <p class="text-sm text-zinc-400 mb-2">Saldo disponível</p>
                 <p class="text-2xl font-bold text-white">
                     R$ {{ number_format($this->getAvailableBalance(), 2, ',', '.') }}
                 </p>
             </div>
         </div>
 
-        <!-- Grafico e lista de categorias -->
+        <!-- Gráfico e lista de categorias -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Despesas por Categoria -->
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
@@ -609,7 +609,7 @@ new class extends Component
 
                 @if(count($expensesByCategory) > 0)
                     <div class="flex flex-col md:flex-row items-start md:items-center gap-6">
-                        <!-- Grafico de pizza simples (usando SVG) -->
+                        <!-- Gráfico de pizza simples (usando SVG) -->
                         <div class="w-40 h-40 flex-shrink-0 mx-auto md:mx-0">
                             <svg viewBox="0 0 100 100" class="w-full h-full transform -rotate-90">
                                 <defs>
@@ -676,15 +676,15 @@ new class extends Component
                     </div>
                 @else
                     <div class="text-center py-8 text-zinc-500">
-                        <p>Nenhuma despesa registrada neste periodo</p>
+                        <p>Nenhuma despesa registrada neste período</p>
                     </div>
                 @endif
             </div>
 
-            <!-- Transacoes recentes -->
+            <!-- Transações Recentes -->
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
                 <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-lg font-semibold">Transacoes Recentes</h2>
+                    <h2 class="text-lg font-semibold">Transações Recentes</h2>
                     <flux:button href="{{ route('transactions.index') }}" wire:navigate variant="ghost" size="sm">
                         Ver todas
                     </flux:button>
@@ -696,7 +696,7 @@ new class extends Component
                             <div class="flex items-center gap-3">
                                 <span class="text-xl">{{ $this->normalizeCategoryIcon($transaction->category?->icon) }}</span>
                                 <div>
-                                    <p class="font-medium">{{ $transaction->description ?? 'Sem descricao' }}</p>
+                                    <p class="font-medium">{{ $transaction->description ?? 'Sem descrição' }}</p>
                                     <p class="text-sm text-zinc-600 dark:text-zinc-400">
                                         {{ $transaction->date->format('d/m/Y') }}
                                         @if($transaction->category)
@@ -713,9 +713,9 @@ new class extends Component
                         </div>
                     @empty
                         <div class="text-center py-8 text-zinc-500">
-                            <p>Nenhuma transacao registrada</p>
+                            <p>Nenhuma transação registrada</p>
                             <flux:button href="{{ route('transactions.create') }}" wire:navigate variant="ghost" size="sm" class="mt-4">
-                                Criar primeira transacao
+                                Criar primeira transação
                             </flux:button>
                         </div>
                     @endforelse
@@ -723,10 +723,10 @@ new class extends Component
             </div>
         </div>
 
-        <!-- Grafico de evolucao -->
+        <!-- Gráfico de evolução -->
         @if($period === 'monthly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">Evolucao Diaria</h2>
+                <h2 class="text-lg font-semibold mb-6">evolução Diaria</h2>
                 @php
                     $dailyData = $this->getDailyTransactions();
                     $maxValue = max(
@@ -790,10 +790,10 @@ new class extends Component
             </div>
         @endif
 
-        <!-- Grafico de evolucao -->
+        <!-- Gráfico de evolução -->
         @if($period === 'monthly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">Evolucao Mensal (Ultimos 12 meses)</h2>
+                <h2 class="text-lg font-semibold mb-6">evolução Mensal (Ultimos 12 meses)</h2>
                 @php
                     $monthlyData = $this->getMonthlyEvolution();
                     $maxMonthlyValue = max(
@@ -855,10 +855,10 @@ new class extends Component
             </div>
         @endif
 
-        <!-- Grafico de evolucao -->
+        <!-- Gráfico de evolução -->
         @if($period === 'yearly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">Evolucao Anual (Ultimos 5 anos)</h2>
+                <h2 class="text-lg font-semibold mb-6">evolução Anual (Ultimos 5 anos)</h2>
                 @php
                     $yearlyData = $this->getYearlyEvolution();
                     $maxYearlyValue = max(
@@ -915,3 +915,4 @@ new class extends Component
         @endif
     </div>
 </div>
+

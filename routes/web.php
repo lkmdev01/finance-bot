@@ -8,6 +8,39 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+Route::get('/sitemap.xml', function () {
+    $urls = collect([
+        [
+            'loc' => route('home'),
+            'lastmod' => now()->toDateString(),
+            'changefreq' => 'weekly',
+            'priority' => '1.0',
+        ],
+    ]);
+
+    if (Route::has('login')) {
+        $urls->push([
+            'loc' => route('login'),
+            'lastmod' => now()->toDateString(),
+            'changefreq' => 'monthly',
+            'priority' => '0.7',
+        ]);
+    }
+
+    if (Route::has('register')) {
+        $urls->push([
+            'loc' => route('register'),
+            'lastmod' => now()->toDateString(),
+            'changefreq' => 'monthly',
+            'priority' => '0.8',
+        ]);
+    }
+
+    $xml = view('sitemap', ['urls' => $urls]);
+
+    return response($xml, 200)->header('Content-Type', 'application/xml');
+})->name('sitemap');
+
 Route::view('dashboard', 'pages.dashboard')
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
