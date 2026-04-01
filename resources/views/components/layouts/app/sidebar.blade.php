@@ -70,12 +70,9 @@
             }
 
             @media (max-width: 1024px) {
-                [data-flux-sidebar] {
-                    position: relative !important;
-                    height: auto !important;
-                    width: 100% !important;
-                }
                 [data-flux-main] {
+                    display: block !important;
+                    flex: 1 1 auto;
                     width: 100% !important;
                     max-width: 100vw !important;
                     min-width: 0 !important;

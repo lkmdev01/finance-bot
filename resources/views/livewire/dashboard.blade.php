@@ -505,53 +505,31 @@ new class extends Component
             };
         @endphp
 
-        <div class="rounded-[2rem] border bg-gradient-to-br {{ $mascotPanelClass }} p-6 shadow-[0_24px_80px_rgba(2,6,23,0.34)]">
-            <div class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                <div class="flex items-start gap-4">
-                    <div class="inline-flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/10 bg-white/10 text-5xl">
+        <div class="rounded-[2rem] border bg-gradient-to-br {{ $mascotPanelClass }} p-4 shadow-[0_24px_80px_rgba(2,6,23,0.34)] sm:p-5">
+            <div class="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+                <div class="flex items-center gap-3">
+                    <div class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] border border-white/10 bg-white/10 text-3xl">
                         {{ html_entity_decode(config('mascot.emoji', '&#128640;'), ENT_QUOTES, 'UTF-8') }}
                     </div>
-                    <div class="space-y-3">
+                    <div class="min-w-0 space-y-2">
                         <div class="inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] {{ $mascotBadgeClass }}">
                             {{ $mascotSummary['mood']['label'] }}
                         </div>
                         <div>
-                            <h2 class="text-2xl font-black text-white">{{ config('mascot.name', 'Orbita') }}</h2>
-                            <p class="mt-2 max-w-2xl text-sm leading-7 text-slate-300">{{ $mascotSummary['mood']['message'] }}</p>
-                        </div>
-                        <div class="flex flex-wrap gap-3 pt-1">
-                            <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
-                                Score {{ $mascotSummary['score'] }}/100
-                            </span>
-                            <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
-                                Nivel {{ $mascotSummary['level'] }}
-                            </span>
-                            <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
-                                Sequencia {{ $mascotSummary['current_streak'] }} dias
-                            </span>
-                            <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
-                                Medalhas {{ $mascotSummary['badges_unlocked'] }}
-                            </span>
+                            <h2 class="text-lg font-black text-white sm:text-xl">{{ config('mascot.name', 'Orbita') }}</h2>
+                            <p class="mt-1 text-sm leading-6 text-slate-300">{{ $mascotSummary['mood']['headline'] }}</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-                    <div class="rounded-3xl border border-white/10 bg-slate-950/60 p-5">
-                        <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Proximo foco</p>
-                        <h3 class="mt-3 text-lg font-bold text-white">{{ $mascotSummary['focus_area']['title'] }}</h3>
-                        <p class="mt-2 text-sm leading-6 text-slate-300">{{ $mascotSummary['focus_area']['description'] }}</p>
+                <div class="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-950/60 p-4">
+                    <div class="min-w-0">
+                        <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Sistema completo</p>
+                        <p class="mt-1 text-sm font-semibold text-white">{{ $mascotSummary['focus_area']['title'] }}</p>
                     </div>
-
-                    <div class="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-950/60 p-5">
-                        <div>
-                            <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Pagina completa</p>
-                            <p class="mt-3 text-lg font-bold text-white">Medalhas, XP e humor do {{ config('mascot.name', 'Orbita') }}</p>
-                        </div>
-                        <flux:button href="{{ route(config('mascot.route_name', 'mascot.index')) }}" wire:navigate variant="primary">
-                            Abrir {{ config('mascot.name', 'Orbita') }}
-                        </flux:button>
-                    </div>
+                    <flux:button href="{{ route(config('mascot.route_name', 'mascot.index')) }}" wire:navigate variant="primary" size="sm">
+                        Ver mais
+                    </flux:button>
                 </div>
             </div>
         </div>

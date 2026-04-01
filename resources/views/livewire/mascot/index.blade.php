@@ -84,15 +84,15 @@ new class extends Component
     }
 }; ?>
 
-<div class="space-y-6 p-4 sm:space-y-8 sm:p-6">
+<div class="max-w-full space-y-6 overflow-x-hidden p-4 sm:space-y-8 sm:p-6">
     @php
         $moodClasses = $this->toneClasses($mascot['mood']['tone']);
         $recentClasses = $this->toneClasses($mascot['recent_achievement']['tone'] ?? 'amber');
     @endphp
 
-    <section class="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.14),transparent_28%),linear-gradient(135deg,#020617_0%,#0f172a_45%,#111827_100%)] p-5 sm:rounded-[2rem] sm:p-8">
-        <div class="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-            <div class="space-y-6">
+    <section class="w-full max-w-full overflow-hidden rounded-[1.75rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.14),transparent_28%),linear-gradient(135deg,#020617_0%,#0f172a_45%,#111827_100%)] p-4 sm:p-6 lg:p-8 lg:rounded-[2rem]">
+        <div class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] xl:gap-8">
+            <div class="min-w-0 space-y-6">
                 <div class="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-amber-100">
                     {{ $this->mascotName() }}
                     <span class="h-1.5 w-1.5 rounded-full bg-amber-300"></span>
@@ -100,16 +100,16 @@ new class extends Component
                 </div>
 
                 <div class="space-y-3">
-                    <h1 class="max-w-3xl text-3xl font-black tracking-tight text-white sm:text-4xl md:text-5xl">
+                    <h1 class="max-w-3xl break-words text-3xl font-black tracking-tight text-white sm:text-4xl md:text-5xl">
                         Conhe&ccedil;a {{ $this->mascotName() }}
                     </h1>
-                    <p class="max-w-3xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
+                    <p class="max-w-3xl break-words text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
                         {{ config('mascot.companion_copy', 'Seu foguete virtual que celebra suas conquistas financeiras.') }} {{ $this->mascotName() }} acompanha seus habitos, reage ao seu momento e te ajuda a manter constancia com medalhas, XP e foco claro.
                     </p>
                 </div>
 
                 <div class="grid gap-4 md:grid-cols-3">
-                    <article class="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
+                    <article class="min-w-0 rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Pontuacao</p>
@@ -122,7 +122,7 @@ new class extends Component
                         <p class="mt-4 text-sm leading-6 text-slate-300">{{ $mascot['mood']['headline'] }}</p>
                     </article>
 
-                    <article class="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
+                    <article class="min-w-0 rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
                         <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Nivel e XP</p>
                         <div class="mt-3 flex items-end gap-3">
                             <p class="text-4xl font-black text-white">{{ $mascot['level'] }}</p>
@@ -136,7 +136,7 @@ new class extends Component
                         </p>
                     </article>
 
-                    <article class="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
+                    <article class="min-w-0 rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur sm:rounded-3xl sm:p-5">
                         <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Sequencia atual</p>
                         <div class="mt-3 flex items-end gap-3">
                             <p class="text-4xl font-black text-white">{{ $mascot['current_streak'] }}</p>
@@ -149,8 +149,8 @@ new class extends Component
                 </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-                <article class="rounded-[1.5rem] border bg-gradient-to-br {{ $moodClasses['panel'] }} p-5 sm:rounded-[2rem] sm:p-6 {{ $moodClasses['glow'] }}">
+            <div class="min-w-0 grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                <article class="min-w-0 rounded-[1.5rem] border bg-gradient-to-br {{ $moodClasses['panel'] }} p-5 sm:rounded-[2rem] sm:p-6 {{ $moodClasses['glow'] }}">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <span class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] {{ $moodClasses['badge'] }}">
@@ -165,7 +165,7 @@ new class extends Component
                     </div>
                 </article>
 
-                <article class="rounded-[1.5rem] border bg-gradient-to-br {{ $recentClasses['panel'] }} p-5 sm:rounded-[2rem] sm:p-6 {{ $recentClasses['glow'] }}">
+                <article class="min-w-0 rounded-[1.5rem] border bg-gradient-to-br {{ $recentClasses['panel'] }} p-5 sm:rounded-[2rem] sm:p-6 {{ $recentClasses['glow'] }}">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <span class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] {{ $recentClasses['badge'] }}">
