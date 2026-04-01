@@ -7,6 +7,7 @@
             $seoImage = asset('social-card.png');
             $seoUrl = route('home');
             $seoKeywords = 'gestão financeira, controle financeiro, finanças pessoais, whatsapp, inteligência artificial, orçamento, controle de gastos';
+            $faviconVersion = file_exists(public_path('favicon.ico')) ? filemtime(public_path('favicon.ico')) : time();
             $structuredData = [
                 [
                     '@context' => 'https://schema.org',
@@ -58,6 +59,11 @@
         <meta name="twitter:description" content="{{ $seoDescription }}">
         <meta name="twitter:image" content="{{ $seoImage }}">
         <meta name="twitter:image:alt" content="{{ $seoTitle }}">
+
+        <link rel="icon" href="/favicon.ico?v={{ $faviconVersion }}" sizes="any">
+        <link rel="shortcut icon" href="/favicon.ico?v={{ $faviconVersion }}">
+        <link rel="icon" href="/favicon-512.png?v={{ $faviconVersion }}" type="image/png">
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png?v={{ $faviconVersion }}">
 
         @foreach($structuredData as $schema)
             <script type="application/ld+json">{!! json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) !!}</script>
@@ -344,5 +350,4 @@
         </footer>
     </body>
 </html>
-
 

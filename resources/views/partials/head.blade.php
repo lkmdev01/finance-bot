@@ -13,6 +13,7 @@
     $seoRobots = $robots ?? 'noindex, nofollow';
     $seoTwitterSite = config('seo.twitter_site');
     $seoStructuredData = $structuredData ?? [];
+    $faviconVersion = file_exists(public_path('favicon.ico')) ? filemtime(public_path('favicon.ico')) : time();
 @endphp
 
 <meta charset="utf-8" />
@@ -45,9 +46,10 @@
 <meta name="twitter:site" content="{{ $seoTwitterSite }}" />
 @endif
 
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" href="/favicon-512.png" type="image/png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/favicon.ico?v={{ $faviconVersion }}" sizes="any">
+<link rel="shortcut icon" href="/favicon.ico?v={{ $faviconVersion }}">
+<link rel="icon" href="/favicon-512.png?v={{ $faviconVersion }}" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v={{ $faviconVersion }}">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
