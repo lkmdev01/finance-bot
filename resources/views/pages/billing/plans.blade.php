@@ -62,7 +62,7 @@
                     <ul class="mt-6 space-y-3 text-sm text-slate-200">
                         @foreach ($plan['features'] as $feature)
                             <li class="flex items-center gap-3">
-                                <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-200">?</span>
+                                <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/15"><span class="h-2.5 w-2.5 rounded-full bg-emerald-200"></span></span>
                                 <span>{{ str($feature)->replace('_', ' ')->title() }}</span>
                             </li>
                         @endforeach
@@ -91,3 +91,5 @@
         </section>
     </div>
 </x-layouts.app.sidebar>
+
+
