@@ -74,7 +74,7 @@ new class extends Component
     }
 }; ?>
 
-<div class="p-6 space-y-6">
+<div class="space-y-6 p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
             <h1 class="text-2xl font-bold">Projeções Financeiras</h1>
@@ -225,7 +225,7 @@ new class extends Component
                         @foreach($projections as $projection)
                             <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-800">
                                 <td class="whitespace-nowrap px-6 py-4 text-sm font-medium">
-                                    {{ \Carbon\Carbon::parse($projection->projection_date)->locale('pt_BR')->translatedFormat('F \d\e Y') }}
+                                    {{ \Carbon\Carbon::parse($projection->projection_date)->locale('pt_BR')->translatedFormat('F \\d\\e Y') }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-green-600 dark:text-green-400">
                                     R$ {{ number_format($projection->projected_income, 2, ',', '.') }}

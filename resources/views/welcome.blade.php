@@ -13,7 +13,7 @@
                     '@type' => 'Organization',
                     'name' => 'InovaFinance',
                     'url' => $seoUrl,
-                    'logo' => asset('favicon.svg'),
+                    'logo' => asset('logo.png'),
                 ],
                 [
                     '@context' => 'https://schema.org',
@@ -119,8 +119,8 @@
         {{-- Navbar --}}
         <nav class="relative z-50 px-6 py-6 max-w-7xl mx-auto flex items-center justify-between">
             <div class="flex items-center gap-2 group cursor-pointer">
-                <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-transform group-hover:scale-110">
-                    <span class="text-2xl">🚀</span>
+                <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-transform group-hover:scale-110 p-2">
+                    <img src="{{ asset('logo.png') }}" alt="InovaFinance" class="h-full w-full object-contain" />
                 </div>
                 <span class="text-xl font-bold tracking-tight">InovaFinance</span>
             </div>
@@ -329,7 +329,7 @@
         <footer class="relative z-10 py-12 px-6 border-t border-slate-800">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
                 <div class="flex items-center gap-2">
-                    <span class="text-2xl">🚀</span>
+                    <img src="{{ asset('logo.png') }}" alt="InovaFinance" class="h-8 w-8 object-contain" />
                     <span class="text-xl font-bold">InovaFinance</span>
                 </div>
                 <div class="flex gap-8 text-sm text-slate-500">
