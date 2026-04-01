@@ -24,7 +24,7 @@ test('usuario pode iniciar checkout de assinatura do plano pro apos confirmar da
             'data' => [
                 'id' => 'bill_sub_123',
                 'url' => 'https://pay.abacatepay.com/bill_sub_123',
-                'amount' => 2990,
+                'amount' => 100,
                 'status' => 'PENDING',
                 'frequency' => 'ONE_TIME',
             ],
@@ -41,7 +41,7 @@ test('usuario pode iniciar checkout de assinatura do plano pro apos confirmar da
     Http::assertSent(function ($request) {
         return $request->url() === 'https://api.abacatepay.com/v1/billing/create'
             && $request['products'][0]['externalId'] === 'pro_monthly'
-            && $request['products'][0]['price'] === 2990
+            && $request['products'][0]['price'] === 100
             && $request['frequency'] === 'ONE_TIME'
             && $request['customer']['name'] === 'Lukas Martins'
             && $request['customer']['email'] === 'lukas@example.com'
@@ -93,3 +93,4 @@ test('usuario sem numero cadastrado continua vendo a tela intermediaria', functi
     $response->assertOk()
         ->assertSee('Configurar WhatsApp');
 });
+

@@ -13,10 +13,10 @@ return [
         'starter' => [
             'code' => 'starter',
             'name' => 'Starter',
-            'description' => 'Base gratuita para registrar transações, orçamentos e metas.',
+            'description' => 'Base gratuita para registrar transacoes, orcamentos e metas.',
             'price_cents' => 0,
             'frequency' => 'NONE',
-            'badge' => 'Grátis',
+            'badge' => 'Gratis',
             'highlight' => false,
             'product_id' => null,
             'features' => [
@@ -34,8 +34,8 @@ return [
         'pro_monthly' => [
             'code' => 'pro_monthly',
             'name' => 'Pro Mensal',
-            'description' => 'Relatórios, projeções e Orbita com cobrança mensal.',
-            'price_cents' => 2990,
+            'description' => 'Relatorios, projecoes e Orbita com cobranca mensal.',
+            'price_cents' => 100,
             'frequency' => 'MONTHLY',
             'badge' => 'Mais popular',
             'highlight' => true,
@@ -58,8 +58,8 @@ return [
         'pro_yearly' => [
             'code' => 'pro_yearly',
             'name' => 'Pro Anual',
-            'description' => 'Tudo do Pro com renovação anual e melhor custo.',
-            'price_cents' => 29900,
+            'description' => 'Tudo do Pro com renovacao anual e melhor custo.',
+            'price_cents' => 100,
             'frequency' => 'YEARLY',
             'badge' => 'Economize 2 meses',
             'highlight' => false,
