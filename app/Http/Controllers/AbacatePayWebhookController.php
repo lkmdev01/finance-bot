@@ -50,6 +50,21 @@ class AbacatePayWebhookController extends Controller
             ->first();
 
         if ($existingEvent) {
+            if ($existingEvent->status === 'failed') {
+                $event = tap($existingEvent)->update([
+                    'event_name' => $payload['event'] ?? $existingEvent->event_name,
+                    'api_version' => $payload['apiVersion'] ?? $existingEvent->api_version,
+                    'dev_mode' => (bool) ($payload['devMode'] ?? $existingEvent->dev_mode),
+                    'status' => 'received',
+                    'payload' => $payload,
+                    'received_at' => now(),
+                    'processed_at' => null,
+                    'error_message' => null,
+                ]);
+
+                return $this->processEvent($event->fresh(), $payload);
+            }
+
             return response()->json([
                 'success' => true,
                 'status' => 'already_processed',
@@ -67,6 +82,11 @@ class AbacatePayWebhookController extends Controller
             'received_at' => now(),
         ]);
 
+        return $this->processEvent($event, $payload);
+    }
+
+    protected function processEvent(AbacatePayWebhookEvent $event, array $payload): JsonResponse
+    {
         try {
             $this->abacatePayWebhookProcessor->process($event, $payload);
 

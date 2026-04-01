@@ -205,9 +205,9 @@
                 {{-- Card 1 --}}
                 <div class="glass p-8 rounded-3xl hover:border-primary/50 transition-all group">
                     <div class="w-12 h-12 bg-green-500/20 rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform">💬</div>
-                    <h3 class="text-xl font-bold mb-3">WhatsApp Bot</h3>
+                    <h3 class="text-xl font-bold mb-3">WhatsApp Inteligente</h3>
                     <p class="text-slate-400 text-sm leading-relaxed">
-                        Envie "Gastei 50 no posto" e pronto. O registro é automático via chat.
+                        Envie texto, áudio ou documentos como CSV e OFX. O sistema transforma isso em lançamentos sem burocracia.
                     </p>
                 </div>
                 {{-- Card 2 --}}
@@ -220,18 +220,50 @@
                 </div>
                 {{-- Card 3 --}}
                 <div class="glass p-8 rounded-3xl hover:border-primary/50 transition-all group">
-                    <div class="w-12 h-12 bg-cyan-400/20 rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform">📊</div>
-                    <h3 class="text-xl font-bold mb-3">Dashboard Premium</h3>
+                    <div class="w-12 h-12 bg-violet-400/20 rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform">🏦</div>
+                    <h3 class="text-xl font-bold mb-3">Contas e Cartões</h3>
                     <p class="text-slate-400 text-sm leading-relaxed">
-                        Gráficos interativos e dashboards completos para você entender para onde vai seu dinheiro.
+                        Organize contas bancárias e cartões de crédito em um só lugar, com saldo e uso acompanhados no painel.
                     </p>
                 </div>
                 {{-- Card 4 --}}
+                <div class="glass p-8 rounded-3xl hover:border-primary/50 transition-all group">
+                    <div class="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform">🔁</div>
+                    <h3 class="text-xl font-bold mb-3">Recorrências e Assinaturas</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">
+                        Controle despesas recorrentes, vencimentos e assinaturas com registro automático e visão clara do que volta todo mês.
+                    </p>
+                </div>
+                {{-- Card 5 --}}
+                <div class="glass p-8 rounded-3xl hover:border-primary/50 transition-all group">
+                    <div class="w-12 h-12 bg-cyan-400/20 rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform">📊</div>
+                    <h3 class="text-xl font-bold mb-3">Relatórios e Projeções</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">
+                        Visualize gráficos, tendências e projeções financeiras para entender para onde vai seu dinheiro e o que vem pela frente.
+                    </p>
+                </div>
+                {{-- Card 6 --}}
                 <div class="glass p-8 rounded-3xl hover:border-primary/50 transition-all group">
                     <div class="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform">🎯</div>
                     <h3 class="text-xl font-bold mb-3">Metas de Economia</h3>
                     <p class="text-slate-400 text-sm leading-relaxed">
                         Planeje seu próximo foguete. Defina metas e acompanhe sua evolução mensal.
+                    </p>
+                </div>
+                {{-- Card 7 --}}
+                <div class="glass p-8 rounded-3xl hover:border-primary/50 transition-all group">
+                    <div class="w-12 h-12 bg-rose-400/20 rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform">🚨</div>
+                    <h3 class="text-xl font-bold mb-3">Orçamentos e Alertas</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">
+                        Defina limites por categoria, receba avisos no painel e acompanhe antes que o orçamento estoure.
+                    </p>
+                </div>
+                {{-- Card 8 --}}
+                <div class="glass p-8 rounded-3xl hover:border-primary/50 transition-all group">
+                    <div class="w-12 h-12 bg-indigo-400/20 rounded-2xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform">🚀</div>
+                    <h3 class="text-xl font-bold mb-3">Orbita</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">
+                        Acompanhe sua evolução com pontuação, foco sugerido e recompensas visuais para manter constância financeira.
                     </p>
                 </div>
             </div>
@@ -247,22 +279,22 @@
                             <div class="flex gap-6">
                                 <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold shrink-0">1</div>
                                 <div>
-                                    <h4 class="text-xl font-bold mb-2">Crie sua conta</h4>
-                                    <p class="text-slate-400">Em menos de 1 minuto você já tem acesso ao painel e ao número do WhatsApp.</p>
+                                    <h4 class="text-xl font-bold mb-2">Crie sua conta e conecte o WhatsApp</h4>
+                                    <p class="text-slate-400">Em poucos minutos você já acessa o painel e pode começar a registrar sua vida financeira pelo chat.</p>
                                 </div>
                             </div>
                             <div class="flex gap-6">
                                 <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold shrink-0">2</div>
                                 <div>
-                                    <h4 class="text-xl font-bold mb-2">Envie uma mensagem</h4>
-                                    <p class="text-slate-400">Diga à IA quanto e onde gastou através do chat do WhatsApp.</p>
+                                    <h4 class="text-xl font-bold mb-2">Envie texto, áudio ou documento</h4>
+                                    <p class="text-slate-400">Mande uma mensagem como “Gastei 50 no posto”, grave um áudio ou envie CSV e OFX para importar movimentações.</p>
                                 </div>
                             </div>
                             <div class="flex gap-6">
                                 <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold shrink-0">3</div>
                                 <div>
-                                    <h4 class="text-xl font-bold mb-2">Acompanhe no Dashboard</h4>
-                                    <p class="text-slate-400">Veja relatórios automáticos e tome melhores decisões financeiras.</p>
+                                    <h4 class="text-xl font-bold mb-2">Acompanhe, planeje e evolua</h4>
+                                    <p class="text-slate-400">Veja relatórios, projeções, metas, recorrências, alertas e os avanços do Orbita em um só lugar.</p>
                                 </div>
                             </div>
                         </div>
@@ -277,13 +309,13 @@
                             <div class="space-y-4">
                                 <div class="flex justify-end">
                                     <div class="bg-primary/20 border border-primary/30 p-3 rounded-2xl rounded-tr-none max-w-[80%] text-sm">
-                                        Gastei 150 de gasolina ⛽
+                                        Enviei um OFX do banco e também gravei um áudio com meu gasto no posto ⛽
                                     </div>
                                 </div>
                                 <div class="flex justify-start">
                                     <div class="glass p-3 rounded-2xl rounded-tl-none max-w-[80%] text-sm flex gap-3 italic">
                                         <span>🚀</span>
-                                        Registro concluído! <br> Gasolina: R$ 150,00 (Transporte)
+                                        Importação concluída! <br> Movimentações organizadas, gasto categorizado e painel atualizado.
                                     </div>
                                 </div>
                             </div>

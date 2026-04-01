@@ -114,6 +114,100 @@ test('webhook da abacatepay registra evento valido com idempotencia', function (
     expect(AbacatePayWebhookEvent::count())->toBe(1);
 });
 
+test('webhook da abacatepay reprocessa evento que falhou anteriormente', function () {
+    config([
+        'abacatepay.webhook_secret' => 'segredo-correto',
+        'abacatepay.public_hmac_key' => 'public-key-123',
+    ]);
+
+    $user = User::factory()->create([
+        'email' => 'retry@example.com',
+    ]);
+
+    AbacatePaySubscription::create([
+        'user_id' => $user->id,
+        'plan_code' => 'pro_monthly',
+        'external_id' => 'plan_retry_1',
+        'gateway_checkout_id' => 'bill_retry_1',
+        'amount' => 100,
+        'status' => 'PENDING',
+        'frequency' => 'MONTHLY',
+        'customer_email' => 'retry@example.com',
+        'payload' => [],
+    ]);
+
+    AbacatePayWebhookEvent::create([
+        'external_id' => 'log_retry_1',
+        'event_name' => 'billing.paid',
+        'api_version' => 2,
+        'dev_mode' => false,
+        'status' => 'failed',
+        'payload' => ['old' => true],
+        'received_at' => now()->subMinute(),
+        'processed_at' => now()->subMinute(),
+        'error_message' => 'temporary_failure',
+    ]);
+
+    $payload = [
+        'id' => 'log_retry_1',
+        'event' => 'billing.paid',
+        'devMode' => false,
+        'data' => [
+            'billing' => [
+                'id' => 'bill_retry_1',
+                'kind' => ['PIX'],
+                'amount' => 100,
+                'status' => 'PAID',
+                'customer' => [
+                    'id' => 'cust_retry_1',
+                    'metadata' => [
+                        'name' => 'Retry User',
+                        'email' => 'retry@example.com',
+                        'taxId' => '11144477735',
+                    ],
+                ],
+                'products' => [
+                    [
+                        'publicId' => 'prod_retry_1',
+                        'quantity' => 1,
+                        'externalId' => 'pro_monthly',
+                    ],
+                ],
+                'frequency' => 'ONE_TIME',
+                'paidAmount' => 100,
+                'couponsUsed' => [],
+            ],
+            'payment' => [
+                'fee' => 80,
+                'amount' => 100,
+                'method' => 'PIX',
+            ],
+        ],
+    ];
+
+    $response = $this->withHeaders([
+        'X-Webhook-Signature' => abacateSignature($payload, 'public-key-123'),
+    ])->postJson('/webhook/abacatepay?webhookSecret=segredo-correto', $payload);
+
+    $response->assertSuccessful()
+        ->assertJson([
+            'success' => true,
+            'status' => 'processed',
+            'event' => 'billing.paid',
+        ]);
+
+    $event = AbacatePayWebhookEvent::query()->where('external_id', 'log_retry_1')->first();
+
+    expect($event)->not->toBeNull()
+        ->and($event->status)->toBe('processed')
+        ->and($event->error_message)->toBeNull();
+
+    $user->refresh();
+
+    expect($user->billing_plan_code)->toBe('pro_monthly')
+        ->and($user->billing_plan_status)->toBe('active');
+});
+
 test('webhook da abacatepay atualiza cobranca transparente com usuario por email', function () {
     config([
         'abacatepay.webhook_secret' => 'segredo-correto',
@@ -229,6 +323,255 @@ test('webhook da abacatepay libera acesso premium quando checkout do plano e pag
     expect($subscription)->not->toBeNull()
         ->and($subscription->status)->toBe('PAID')
         ->and($subscription->gateway_checkout_id)->toBe('bill_plan_1');
+});
+
+test('webhook billing.paid da abacatepay libera acesso premium para fluxo legado', function () {
+    Carbon::setTestNow('2026-04-01 15:18:20');
+
+    config([
+        'abacatepay.webhook_secret' => 'segredo-correto',
+        'abacatepay.public_hmac_key' => 'public-key-123',
+    ]);
+
+    $user = User::factory()->create([
+        'email' => 'legacy@example.com',
+    ]);
+
+    $pending = AbacatePaySubscription::create([
+        'user_id' => $user->id,
+        'plan_code' => 'pro_monthly',
+        'external_id' => 'plan_pro_monthly_1_uuid',
+        'gateway_checkout_id' => 'bill_legacy_1',
+        'amount' => 100,
+        'status' => 'PENDING',
+        'frequency' => 'MONTHLY',
+        'customer_email' => 'legacy@example.com',
+        'payload' => [],
+    ]);
+
+    $payload = [
+        'id' => 'log_legacy_billing_paid',
+        'event' => 'billing.paid',
+        'devMode' => false,
+        'data' => [
+            'billing' => [
+                'id' => 'bill_legacy_1',
+                'kind' => ['PIX', 'CARD'],
+                'amount' => 100,
+                'status' => 'PAID',
+                'customer' => [
+                    'id' => 'cust_legacy_1',
+                    'metadata' => [
+                        'name' => 'Legacy User',
+                        'email' => 'legacy@example.com',
+                        'taxId' => '11144477735',
+                        'cellphone' => '5511999999999',
+                    ],
+                ],
+                'products' => [
+                    [
+                        'publicId' => 'prod_legacy_1',
+                        'quantity' => 1,
+                        'externalId' => 'pro_monthly',
+                    ],
+                ],
+                'frequency' => 'ONE_TIME',
+                'paidAmount' => 0,
+                'couponsUsed' => [],
+            ],
+            'payment' => [
+                'fee' => 80,
+                'amount' => 100,
+                'method' => 'PIX',
+            ],
+        ],
+    ];
+
+    $this->withHeaders([
+        'X-Webhook-Signature' => abacateSignature($payload, 'public-key-123'),
+    ])->postJson('/webhook/abacatepay?webhookSecret=segredo-correto', $payload)
+        ->assertSuccessful();
+
+    $user->refresh();
+
+    expect($user->billing_plan_code)->toBe('pro_monthly')
+        ->and($user->billing_plan_status)->toBe('active')
+        ->and($user->billing_access_ends_at)->not->toBeNull()
+        ->and($user->hasFeature('reports'))->toBeTrue();
+
+    expect($pending->fresh()->status)->toBe('PAID')
+        ->and($pending->fresh()->gateway_customer_id)->toBe('cust_legacy_1')
+        ->and($pending->fresh()->customer_email)->toBe('legacy@example.com');
+
+    $this->assertDatabaseHas('abacate_pay_charges', [
+        'user_id' => $user->id,
+        'gateway_charge_id' => 'bill_legacy_1',
+        'charge_type' => 'billing',
+        'status' => 'PAID',
+        'amount' => 100,
+    ]);
+});
+
+test('webhook billing.paid mantem 1 mes de acesso para plano mensal pago no cartao', function () {
+    Carbon::setTestNow('2026-04-01 15:18:20');
+
+    config([
+        'abacatepay.webhook_secret' => 'segredo-correto',
+        'abacatepay.public_hmac_key' => 'public-key-123',
+    ]);
+
+    $user = User::factory()->create([
+        'email' => 'card@example.com',
+    ]);
+
+    $pending = AbacatePaySubscription::create([
+        'user_id' => $user->id,
+        'plan_code' => 'pro_monthly',
+        'external_id' => 'plan_pro_monthly_card_1',
+        'gateway_checkout_id' => 'bill_card_monthly_1',
+        'amount' => 100,
+        'status' => 'PENDING',
+        'frequency' => 'MONTHLY',
+        'customer_email' => 'card@example.com',
+        'payload' => [],
+    ]);
+
+    $payload = [
+        'id' => 'log_billing_paid_card_monthly',
+        'event' => 'billing.paid',
+        'devMode' => false,
+        'data' => [
+            'billing' => [
+                'id' => 'bill_card_monthly_1',
+                'kind' => ['CARD'],
+                'amount' => 100,
+                'status' => 'PAID',
+                'customer' => [
+                    'id' => 'cust_card_monthly_1',
+                    'metadata' => [
+                        'name' => 'Card User',
+                        'email' => 'card@example.com',
+                        'taxId' => '11144477735',
+                        'cellphone' => '5511999999999',
+                    ],
+                ],
+                'products' => [
+                    [
+                        'publicId' => 'prod_card_monthly_1',
+                        'quantity' => 1,
+                        'externalId' => 'pro_monthly',
+                    ],
+                ],
+                'frequency' => 'ONE_TIME',
+                'paidAmount' => 100,
+                'couponsUsed' => [],
+            ],
+            'payment' => [
+                'fee' => 80,
+                'amount' => 100,
+                'method' => 'CARD',
+            ],
+        ],
+    ];
+
+    $this->withHeaders([
+        'X-Webhook-Signature' => abacateSignature($payload, 'public-key-123'),
+    ])->postJson('/webhook/abacatepay?webhookSecret=segredo-correto', $payload)
+        ->assertSuccessful();
+
+    $user->refresh();
+
+    expect($user->billing_plan_code)->toBe('pro_monthly')
+        ->and($user->billing_plan_status)->toBe('active')
+        ->and($user->billing_access_ends_at?->toDateTimeString())->toBe(now()->addMonth()->toDateTimeString());
+
+    expect($pending->fresh()->method)->toBe('CARD')
+        ->and($pending->fresh()->status)->toBe('PAID');
+
+    $this->assertDatabaseHas('abacate_pay_charges', [
+        'user_id' => $user->id,
+        'gateway_charge_id' => 'bill_card_monthly_1',
+        'charge_type' => 'billing',
+        'method' => 'CARD',
+        'status' => 'PAID',
+        'amount' => 100,
+        'paid_amount' => 100,
+    ]);
+});
+
+test('webhook billing.paid libera 1 ano de acesso para plano anual', function () {
+    Carbon::setTestNow('2026-04-01 15:18:20');
+
+    config([
+        'abacatepay.webhook_secret' => 'segredo-correto',
+        'abacatepay.public_hmac_key' => 'public-key-123',
+    ]);
+
+    $user = User::factory()->create([
+        'email' => 'annual@example.com',
+    ]);
+
+    AbacatePaySubscription::create([
+        'user_id' => $user->id,
+        'plan_code' => 'pro_yearly',
+        'external_id' => 'plan_pro_yearly_1',
+        'gateway_checkout_id' => 'bill_annual_1',
+        'amount' => 100,
+        'status' => 'PENDING',
+        'frequency' => 'YEARLY',
+        'customer_email' => 'annual@example.com',
+        'payload' => [],
+    ]);
+
+    $payload = [
+        'id' => 'log_billing_paid_annual',
+        'event' => 'billing.paid',
+        'devMode' => false,
+        'data' => [
+            'billing' => [
+                'id' => 'bill_annual_1',
+                'kind' => ['PIX'],
+                'amount' => 100,
+                'status' => 'PAID',
+                'customer' => [
+                    'id' => 'cust_annual_1',
+                    'metadata' => [
+                        'name' => 'Annual User',
+                        'email' => 'annual@example.com',
+                        'taxId' => '11144477735',
+                        'cellphone' => '5511999999999',
+                    ],
+                ],
+                'products' => [
+                    [
+                        'publicId' => 'prod_annual_1',
+                        'quantity' => 1,
+                        'externalId' => 'pro_yearly',
+                    ],
+                ],
+                'frequency' => 'ONE_TIME',
+                'paidAmount' => 100,
+                'couponsUsed' => [],
+            ],
+            'payment' => [
+                'fee' => 80,
+                'amount' => 100,
+                'method' => 'PIX',
+            ],
+        ],
+    ];
+
+    $this->withHeaders([
+        'X-Webhook-Signature' => abacateSignature($payload, 'public-key-123'),
+    ])->postJson('/webhook/abacatepay?webhookSecret=segredo-correto', $payload)
+        ->assertSuccessful();
+
+    $user->refresh();
+
+    expect($user->billing_plan_code)->toBe('pro_yearly')
+        ->and($user->billing_plan_status)->toBe('active')
+        ->and($user->billing_access_ends_at?->toDateTimeString())->toBe(now()->addYear()->toDateTimeString())
+        ->and($user->hasFeature('financial_projections'))->toBeTrue();
 });
 
 test('webhook da abacatepay cria e atualiza assinatura de billing', function () {

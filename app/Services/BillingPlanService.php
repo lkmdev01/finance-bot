@@ -27,7 +27,7 @@ class BillingPlanService
         $plan = $this->find($code);
 
         if (! $plan) {
-            throw new InvalidArgumentException("Plano [{$code}] nao encontrado.");
+            throw new InvalidArgumentException("Plano [{$code}] não encontrado.");
         }
 
         return $plan;
@@ -72,13 +72,13 @@ class BillingPlanService
         }
 
         if (blank($user->phone_number)) {
-            $missing[] = 'Numero de WhatsApp';
+            $missing[] = 'Número de WhatsApp';
         }
 
         if (blank($user->tax_id)) {
             $missing[] = 'CPF ou CNPJ';
         } elseif (! BrazilTaxId::isValid($user->tax_id)) {
-            $missing[] = 'CPF ou CNPJ valido';
+            $missing[] = 'CPF ou CNPJ válido';
         }
 
         return $missing;
@@ -89,7 +89,7 @@ class BillingPlanService
         $priceCents = (int) ($plan['price_cents'] ?? 0);
 
         $plan['formatted_price'] = $priceCents === 0
-            ? 'Gratis'
+            ? 'Grátis'
             : 'R$ '.number_format($priceCents / 100, 2, ',', '.');
 
         return $plan;

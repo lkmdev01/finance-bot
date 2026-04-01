@@ -20,6 +20,7 @@ class AbacatePayWebhookProcessor
         $eventName = $payload['event'] ?? 'unknown';
 
         match ($eventName) {
+            'billing.paid' => $this->handleLegacyBillingPaid($event, $payload),
             'transparent.completed' => $this->handleTransparentCompleted($event, $payload),
             'checkout.completed' => $this->handleCheckoutCompleted($event, $payload),
             'subscription.completed' => $this->handleSubscriptionUpsert($event, $payload, 'completed'),
@@ -27,6 +28,75 @@ class AbacatePayWebhookProcessor
             'subscription.cancelled' => $this->handleSubscriptionUpsert($event, $payload, 'cancelled'),
             default => null,
         };
+    }
+
+    protected function handleLegacyBillingPaid(AbacatePayWebhookEvent $event, array $payload): void
+    {
+        $billing = $payload['data']['billing'] ?? [];
+        $payment = $payload['data']['payment'] ?? [];
+        $customerMetadata = $billing['customer']['metadata'] ?? [];
+        $existingSubscription = $this->resolvePendingSubscription(
+            gatewayCheckoutId: $billing['id'] ?? null,
+            externalId: $billing['externalId'] ?? $event->external_id,
+        );
+
+        if (blank($billing['id'] ?? null)) {
+            return;
+        }
+
+        $user = $this->resolveUser($customerMetadata['email'] ?? null) ?? $existingSubscription?->user;
+        $resolvedPlanCode = $this->resolvePlanCode($payload) ?? $existingSubscription?->plan_code;
+
+        AbacatePayCharge::query()->updateOrCreate(
+            ['gateway_charge_id' => $billing['id']],
+            [
+                'user_id' => $user?->id ?? $existingSubscription?->user_id,
+                'external_id' => $billing['externalId'] ?? $existingSubscription?->external_id ?? $event->external_id,
+                'charge_type' => 'billing',
+                'method' => $payment['method'] ?? $billing['kind'][0] ?? null,
+                'status' => $billing['status'] ?? 'PAID',
+                'amount' => $billing['amount'] ?? $payment['amount'] ?? 0,
+                'paid_amount' => $billing['paidAmount'] ?: ($payment['amount'] ?? $billing['amount'] ?? 0),
+                'dev_mode' => (bool) ($payload['devMode'] ?? false),
+                'customer_name' => $customerMetadata['name'] ?? $existingSubscription?->customer_name,
+                'customer_email' => $customerMetadata['email'] ?? $existingSubscription?->customer_email,
+                'customer_tax_id' => $customerMetadata['taxId'] ?? $existingSubscription?->customer_tax_id,
+                'payload' => $payload,
+                'completed_at' => now(),
+            ]
+        );
+
+        if (blank($resolvedPlanCode)) {
+            return;
+        }
+
+        $attributes = [
+            'user_id' => $user?->id ?? $existingSubscription?->user_id,
+            'plan_code' => $resolvedPlanCode,
+            'external_id' => $billing['externalId'] ?? $existingSubscription?->external_id ?? $event->external_id,
+            'gateway_checkout_id' => $billing['id'],
+            'gateway_customer_id' => $billing['customer']['id'] ?? $existingSubscription?->gateway_customer_id,
+            'customer_name' => $customerMetadata['name'] ?? $existingSubscription?->customer_name,
+            'customer_email' => $customerMetadata['email'] ?? $existingSubscription?->customer_email,
+            'customer_tax_id' => $customerMetadata['taxId'] ?? $existingSubscription?->customer_tax_id,
+            'amount' => $billing['amount'] ?? $payment['amount'] ?? $existingSubscription?->amount ?? 0,
+            'currency' => $existingSubscription?->currency ?? 'BRL',
+            'method' => $payment['method'] ?? $billing['kind'][0] ?? $existingSubscription?->method,
+            'frequency' => $existingSubscription?->frequency ?? 'MONTHLY',
+            'status' => $billing['status'] ?? 'PAID',
+            'dev_mode' => (bool) ($payload['devMode'] ?? false),
+            'starts_at' => now(),
+            'payload' => $payload,
+        ];
+
+        if ($existingSubscription) {
+            $existingSubscription->update($attributes);
+            $record = $existingSubscription->fresh();
+        } else {
+            $record = AbacatePaySubscription::query()->create($attributes);
+        }
+
+        $this->syncUserBillingAccess($user, $record, 'completed');
     }
 
     protected function handleTransparentCompleted(AbacatePayWebhookEvent $event, array $payload): void
@@ -251,6 +321,8 @@ class AbacatePayWebhookProcessor
     {
         return $payload['data']['checkout']['metadata']['plan_code']
             ?? $payload['data']['checkout']['products'][0]['externalId']
+            ?? $payload['data']['billing']['metadata']['plan_code']
+            ?? $payload['data']['billing']['products'][0]['externalId']
             ?? $payload['data']['payment']['metadata']['plan_code']
             ?? $payload['data']['subscription']['metadata']['plan_code']
             ?? null;
