@@ -169,4 +169,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(MascotAchievementUnlock::class);
     }
+
+    public function abacatePayCharges(): HasMany
+    {
+        return $this->hasMany(AbacatePayCharge::class);
+    }
+
+    public function abacatePaySubscriptions(): HasMany
+    {
+        return $this->hasMany(AbacatePaySubscription::class);
+    }
 }

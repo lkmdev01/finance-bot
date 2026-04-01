@@ -54,7 +54,9 @@ Route::view('dashboard', 'pages.dashboard')
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {
-    // Transações
+    Route::post('billing/abacatepay/transparents/pix', [App\Http\Controllers\AbacatePayChargeController::class, 'createTransparentPix'])
+        ->name('billing.abacatepay.transparents.pix');
+    // TransaÃƒÂ§ÃƒÂµes
     Route::get('transactions', function () {
         return view('pages.transactions.index');
     })->name('transactions.index');
@@ -88,7 +90,7 @@ Route::middleware(['auth'])->group(function () {
         return view('pages.categories.edit', ['category' => $category]);
     })->name('categories.edit');
 
-    // Orçamentos
+    // OrÃƒÂ§amentos
     Route::get('budgets', function () {
         return view('pages.budgets.index');
     })->name('budgets.index');
@@ -101,12 +103,12 @@ Route::middleware(['auth'])->group(function () {
         return view('pages.budgets.edit', ['budget' => $budget]);
     })->name('budgets.edit');
 
-    // Relatórios
+    // RelatÃƒÂ³rios
     Route::get('reports', function () {
         return view('pages.reports.index');
     })->name('reports.index');
 
-    // Projeções Financeiras
+    // ProjeÃƒÂ§ÃƒÂµes Financeiras
     Route::get('financial-projections', function () {
         return view('pages.financial-projections.index');
     })->name('financial-projections.index');
@@ -121,7 +123,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/export/pdf', [App\Http\Controllers\ReportsExportController::class, 'exportPdf'])->name('reports.export.pdf');
     Route::get('reports/export/excel', [App\Http\Controllers\ReportsExportController::class, 'exportExcel'])->name('reports.export.excel');
     
-    // Exportação de Transações
+    // ExportaÃƒÂ§ÃƒÂ£o de TransaÃƒÂ§ÃƒÂµes
     Route::get('transactions/export/csv', [App\Http\Controllers\TransactionExportController::class, 'exportCsv'])->name('transactions.export.csv');
     Route::get('transactions/export/excel', [App\Http\Controllers\TransactionExportController::class, 'exportExcel'])->name('transactions.export.excel');
     Route::get('transactions/export/pdf', [App\Http\Controllers\TransactionExportController::class, 'exportPdf'])->name('transactions.export.pdf');
@@ -144,7 +146,7 @@ Route::middleware(['auth'])->group(function () {
         return view('pages.savings-goals.deposit', ['savingsGoal' => $savingsGoal]);
     })->name('savings-goals.deposit');
 
-    // Transações Recorrentes
+    // TransaÃƒÂ§ÃƒÂµes Recorrentes
     Route::get('recurring-transactions', function () {
         return view('pages.recurring-transactions.index');
     })->name('recurring-transactions.index');
@@ -157,7 +159,7 @@ Route::middleware(['auth'])->group(function () {
         return view('pages.recurring-transactions.edit', ['recurringTransaction' => $recurringTransaction]);
     })->name('recurring-transactions.edit');
 
-    // Contas bancárias
+    // Contas bancÃƒÂ¡rias
     Route::get('bank-accounts', function () {
         return view('pages.bank-accounts.index');
     })->name('bank-accounts.index');
@@ -168,7 +170,7 @@ Route::middleware(['auth'])->group(function () {
         return view('pages.bank-accounts.edit', ['bankAccount' => $bankAccount]);
     })->name('bank-accounts.edit');
 
-    // Cartões de crédito
+    // CartÃƒÂµes de crÃƒÂ©dito
     Route::get('credit-cards', function () {
         return view('pages.credit-cards.index');
     })->name('credit-cards.index');
@@ -213,7 +215,7 @@ Route::middleware(['auth'])->group(function () {
         return view('pages.whatsapp.index');
     })->name('whatsapp.index');
 
-    // Configurações
+    // ConfiguraÃƒÂ§ÃƒÂµes
     Route::redirect('settings', 'settings/profile');
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');
@@ -233,7 +235,11 @@ Route::middleware(['auth'])->group(function () {
         ->name('two-factor.show');
 });
 
-// Webhook da Evolution API (sem autenticação)
+// Webhook da Evolution API (sem autenticaÃƒÂ§ÃƒÂ£o)
 Route::post('/webhook/whatsapp', [App\Http\Controllers\WhatsAppWebhookController::class, 'handle'])
-    ->middleware('throttle:60,1') // 60 requisições por minuto
+    ->middleware('throttle:60,1') // 60 requisiÃƒÂ§ÃƒÂµes por minuto
     ->name('webhook.whatsapp');
+
+Route::post('/webhook/abacatepay', [App\Http\Controllers\AbacatePayWebhookController::class, 'handle'])
+    ->middleware('throttle:120,1')
+    ->name('webhook.abacatepay');
