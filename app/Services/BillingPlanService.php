@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Support\BrazilTaxId;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
@@ -56,6 +57,31 @@ class BillingPlanService
         }
 
         return $user->hasActivePaidPlan();
+    }
+
+    public function missingBillingRequirements(User $user): array
+    {
+        $missing = [];
+
+        if (blank($user->name)) {
+            $missing[] = 'Nome completo';
+        }
+
+        if (blank($user->email)) {
+            $missing[] = 'E-mail';
+        }
+
+        if (blank($user->phone_number)) {
+            $missing[] = 'Número de WhatsApp';
+        }
+
+        if (blank($user->tax_id)) {
+            $missing[] = 'CPF ou CNPJ';
+        } elseif (! BrazilTaxId::isValid($user->tax_id)) {
+            $missing[] = 'CPF ou CNPJ válido';
+        }
+
+        return $missing;
     }
 
     protected function decorate(array $plan): array

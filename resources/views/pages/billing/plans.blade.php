@@ -18,7 +18,7 @@
                     </div>
                     <h1 class="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl">Escolha o plano ideal para continuar subindo.</h1>
                     <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                        O Starter cobre o bÃ¡sico. Os planos Pro liberam relatÃ³rios avanÃ§ados, projeÃ§Ãµes financeiras e a experiÃªncia completa do {{ config('mascot.name', 'Orbita') }}.
+                        O Starter cobre o básico. Os planos Pro liberam relatórios avançados, projeções financeiras e a experiência completa do {{ config('mascot.name', 'Orbita') }}.
                     </p>
                 </div>
 
@@ -32,7 +32,7 @@
                         </span>
                         @if ($user->billing_access_ends_at)
                             <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                Acesso atÃ© {{ $user->billing_access_ends_at->format('d/m/Y') }}
+                                Acesso até {{ $user->billing_access_ends_at->format('d/m/Y') }}
                             </span>
                         @endif
                     </div>
@@ -62,7 +62,7 @@
                     <ul class="mt-6 space-y-3 text-sm text-slate-200">
                         @foreach ($plan['features'] as $feature)
                             <li class="flex items-center gap-3">
-                                <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-200">âœ“</span>
+                                <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-200">?</span>
                                 <span>{{ str($feature)->replace('_', ' ')->title() }}</span>
                             </li>
                         @endforeach
@@ -71,7 +71,7 @@
                     <div class="mt-8">
                         @if ($plan['price_cents'] === 0)
                             <flux:button variant="ghost" class="w-full" disabled>
-                                Sempre disponÃ­vel
+                                Sempre disponível
                             </flux:button>
                         @elseif ($isCurrent)
                             <flux:button variant="ghost" class="w-full" disabled>

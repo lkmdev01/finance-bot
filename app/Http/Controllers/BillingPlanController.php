@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AbacatePaySubscription;
 use App\Services\AbacatePayService;
 use App\Services\BillingPlanService;
+use App\Support\BrazilTaxId;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -24,10 +25,45 @@ class BillingPlanController extends Controller
         ]);
     }
 
+    public function showCheckoutData(Request $request, string $planCode)
+    {
+        $plan = $this->billingPlanService->findOrFail($planCode);
+
+        return view('pages.billing.checkout-data', [
+            'plan' => $plan,
+            'formattedPhoneNumber' => $this->formatBillingPhone($request->user()->phone_number),
+        ]);
+    }
+
+    public function storeCheckoutData(Request $request, string $planCode): RedirectResponse
+    {
+        $this->billingPlanService->findOrFail($planCode);
+
+        $validated = $request->validate([
+            'tax_id' => [
+                'required',
+                'string',
+                'max:20',
+                function (string $attribute, string $value, \Closure $fail) {
+                    if (! BrazilTaxId::isValid($value)) {
+                        $fail('Informe um CPF ou CNPJ válido.');
+                    }
+                },
+            ],
+        ]);
+
+        $user = $request->user();
+        $user->forceFill([
+            'tax_id' => BrazilTaxId::normalize($validated['tax_id']),
+        ])->save();
+
+        return $this->startCheckoutForPlan($request, $planCode);
+    }
+
     public function subscribe(Request $request, string $planCode): RedirectResponse
     {
-        $user = $request->user();
         $plan = $this->billingPlanService->findOrFail($planCode);
+        $user = $request->user();
 
         if (($plan['price_cents'] ?? 0) === 0) {
             return redirect()
@@ -40,6 +76,22 @@ class BillingPlanController extends Controller
                 ->route('billing.plans')
                 ->with('status', 'Você já possui este plano ativo.');
         }
+
+        $missingBillingRequirements = $this->billingPlanService->missingBillingRequirements($user);
+
+        if ($missingBillingRequirements !== []) {
+            return redirect()
+                ->route('billing.checkout-data.show', $planCode)
+                ->with('status', 'Confirme seus dados antes de seguir para o checkout.');
+        }
+
+        return $this->startCheckoutForPlan($request, $planCode);
+    }
+
+    protected function startCheckoutForPlan(Request $request, string $planCode): RedirectResponse
+    {
+        $user = $request->user();
+        $plan = $this->billingPlanService->findOrFail($planCode);
 
         try {
             $externalId = 'plan_'.$planCode.'_'.$user->id.'_'.Str::uuid();
@@ -56,6 +108,12 @@ class BillingPlanController extends Controller
                         'price' => $plan['price_cents'],
                     ],
                 ],
+                'customer' => [
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'cellphone' => $this->formatBillingPhone($user->phone_number),
+                    'taxId' => BrazilTaxId::format($user->tax_id),
+                ],
                 'externalId' => $externalId,
                 'returnUrl' => route('billing.plans'),
                 'completionUrl' => route('billing.plans', ['checkout' => 'success']),
@@ -70,14 +128,14 @@ class BillingPlanController extends Controller
             report($exception);
 
             return redirect()
-                ->route('billing.plans')
+                ->route('billing.checkout-data.show', $planCode)
                 ->with('status', 'Não foi possível iniciar a assinatura agora. Verifique a configuração da AbacatePay.');
         }
 
         if (! ($response['success'] ?? false) || blank($response['data']['url'] ?? null)) {
             return redirect()
-                ->route('billing.plans')
-                ->with('status', 'Não foi possível iniciar a assinatura agora. Tente novamente.');
+                ->route('billing.checkout-data.show', $planCode)
+                ->with('status', $response['error'] ?? 'Não foi possível iniciar a assinatura agora. Tente novamente.');
         }
 
         $data = $response['data'];
@@ -92,10 +150,32 @@ class BillingPlanController extends Controller
                 'amount' => $data['amount'] ?? $plan['price_cents'],
                 'status' => $data['status'] ?? 'PENDING',
                 'frequency' => $plan['frequency'],
+                'customer_name' => $user->name,
+                'customer_email' => $user->email,
+                'customer_tax_id' => BrazilTaxId::format($user->tax_id),
                 'payload' => $data,
             ]
         );
 
         return redirect()->away($data['url']);
+    }
+
+    protected function formatBillingPhone(?string $phoneNumber): ?string
+    {
+        if (blank($phoneNumber)) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', (string) $phoneNumber);
+
+        if (str_starts_with($digits, '55') && strlen($digits) >= 12) {
+            $digits = substr($digits, 2);
+        }
+
+        return match (strlen($digits)) {
+            10 => preg_replace('/(\d{2})(\d{4})(\d{4})/', '($1) $2-$3', $digits),
+            11 => preg_replace('/(\d{2})(\d{5})(\d{4})/', '($1) $2-$3', $digits),
+            default => $phoneNumber,
+        };
     }
 }

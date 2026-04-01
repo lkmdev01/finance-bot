@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Carbon\CarbonInterface;
+use App\Support\BrazilTaxId;
 
 class User extends Authenticatable
 {
@@ -23,6 +24,10 @@ class User extends Authenticatable
             if ($user->phone_number) {
                 $service = app(\App\Services\PhoneNumberService::class);
                 $user->phone_number = $service->formatForStorage($user->phone_number);
+            }
+
+            if ($user->tax_id) {
+                $user->tax_id = BrazilTaxId::normalize($user->tax_id);
             }
         });
     }
@@ -39,6 +44,7 @@ class User extends Authenticatable
         'email',
         'password',
         'phone_number',
+        'tax_id',
         'auth_provider',
         'google_id',
         'google_avatar',

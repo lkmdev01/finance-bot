@@ -55,6 +55,8 @@ Route::view('dashboard', 'pages.dashboard')
 
 Route::middleware(['auth'])->group(function () {
     Route::get('billing/plans', [App\Http\Controllers\BillingPlanController::class, 'index'])->name('billing.plans');
+    Route::get('billing/plans/{planCode}/checkout-data', [App\Http\Controllers\BillingPlanController::class, 'showCheckoutData'])->name('billing.checkout-data.show');
+    Route::post('billing/plans/{planCode}/checkout-data', [App\Http\Controllers\BillingPlanController::class, 'storeCheckoutData'])->name('billing.checkout-data.store');
     Route::post('billing/plans/{planCode}/subscribe', [App\Http\Controllers\BillingPlanController::class, 'subscribe'])->name('billing.subscribe');
     Route::post('billing/abacatepay/transparents/pix', [App\Http\Controllers\AbacatePayChargeController::class, 'createTransparentPix'])
         ->name('billing.abacatepay.transparents.pix');
@@ -245,3 +247,4 @@ Route::post('/webhook/whatsapp', [App\Http\Controllers\WhatsAppWebhookController
 Route::post('/webhook/abacatepay', [App\Http\Controllers\AbacatePayWebhookController::class, 'handle'])
     ->middleware('throttle:120,1')
     ->name('webhook.abacatepay');
+
