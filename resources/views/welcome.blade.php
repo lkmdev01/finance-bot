@@ -4,7 +4,7 @@
         @php
             $seoTitle = 'InovaFinance | Gestão financeira via WhatsApp com IA';
             $seoDescription = 'Controle gastos, receitas, orçamentos, metas e relatórios financeiros pelo WhatsApp com apoio de IA.';
-            $seoImage = asset('mockup.png');
+            $seoImage = asset('social-card.png');
             $seoUrl = route('home');
             $seoKeywords = 'gestão financeira, controle financeiro, finanças pessoais, whatsapp, inteligência artificial, orçamento, controle de gastos';
             $structuredData = [
@@ -312,4 +312,5 @@
         </footer>
     </body>
 </html>
+
 

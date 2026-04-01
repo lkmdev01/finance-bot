@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 return [
     'site_name' => env('SEO_SITE_NAME', 'InovaFinance'),
@@ -15,7 +15,7 @@ return [
         'controle de gastos',
         'inovafinance',
     ],
-    'default_image' => env('SEO_DEFAULT_IMAGE', 'mockup.png'),
+    'default_image' => env('SEO_DEFAULT_IMAGE', 'social-card.png'),
     'theme_color' => env('SEO_THEME_COLOR', '#070b14'),
     'locale' => env('SEO_LOCALE', 'pt_BR'),
     'twitter_site' => env('SEO_TWITTER_SITE'),

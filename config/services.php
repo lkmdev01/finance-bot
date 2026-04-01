@@ -39,6 +39,12 @@ return [
         'api_key' => env('GOOGLE_VISION_API_KEY'),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+    ],
+
     'transcription' => [
         'provider' => env('TRANSCRIPTION_PROVIDER', env('AI_PROVIDER', 'groq')),
         'api_key' => env('TRANSCRIPTION_API_KEY', env('AI_API_KEY')),
