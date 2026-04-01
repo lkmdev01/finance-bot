@@ -9,9 +9,12 @@ class AbacatePaySubscription extends Model
 {
     protected $fillable = [
         'user_id',
+        'plan_code',
         'external_id',
         'gateway_subscription_id',
+        'gateway_customer_id',
         'gateway_checkout_id',
+        'checkout_url',
         'gateway_payment_id',
         'customer_name',
         'customer_email',

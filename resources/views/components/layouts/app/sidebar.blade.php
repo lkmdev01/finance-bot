@@ -145,6 +145,9 @@
                 <flux:sidebar.item icon="calendar-days" :href="route('subscriptions.index')" :current="request()->routeIs('subscriptions.*')" wire:navigate>
                     Assinaturas
                 </flux:sidebar.item>
+                <flux:sidebar.item icon="rocket-launch" :href="route('billing.plans')" :current="request()->routeIs('billing.*')" wire:navigate>
+                    Planos
+                </flux:sidebar.item>
             </flux:sidebar.nav>
 
             <flux:sidebar.spacer />

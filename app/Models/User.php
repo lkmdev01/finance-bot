@@ -11,6 +11,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
+use Carbon\CarbonInterface;
 
 class User extends Authenticatable
 {
@@ -41,6 +42,10 @@ class User extends Authenticatable
         'auth_provider',
         'google_id',
         'google_avatar',
+        'abacatepay_customer_id',
+        'billing_plan_code',
+        'billing_plan_status',
+        'billing_access_ends_at',
     ];
 
     /**
@@ -65,6 +70,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'billing_access_ends_at' => 'datetime',
         ];
     }
 
@@ -178,5 +184,38 @@ class User extends Authenticatable
     public function abacatePaySubscriptions(): HasMany
     {
         return $this->hasMany(AbacatePaySubscription::class);
+    }
+
+    public function hasActivePaidPlan(): bool
+    {
+        if (blank($this->billing_plan_code) || $this->billing_plan_code === config('billing.default_plan', 'starter')) {
+            return false;
+        }
+
+        if (! in_array($this->billing_plan_status, ['active', 'renewed', 'cancelled'], true)) {
+            return false;
+        }
+
+        if (! $this->billing_access_ends_at instanceof CarbonInterface) {
+            return false;
+        }
+
+        return $this->billing_access_ends_at->isFuture();
+    }
+
+    public function hasFeature(string $feature): bool
+    {
+        return app(\App\Services\BillingPlanService::class)->userHasFeature($this, $feature);
+    }
+
+    public function getBillingPlanStatusLabelAttribute(): string
+    {
+        return match ($this->billing_plan_status) {
+            'active' => 'Ativo',
+            'renewed' => 'Renovado',
+            'cancelled' => 'Cancelado',
+            'pending' => 'Pendente',
+            default => 'Starter',
+        };
     }
 }

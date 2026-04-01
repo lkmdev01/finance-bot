@@ -10,8 +10,15 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ReportsExportController extends Controller
 {
+    protected function ensurePremiumAccess(): void
+    {
+        abort_unless(Auth::user()?->hasFeature('reports'), 403);
+    }
+
     public function exportPdf(Request $request)
     {
+        $this->ensurePremiumAccess();
+
         $user = Auth::user();
         $period = $request->get('period', 'monthly');
         $selectedMonth = $request->get('selectedMonth', now()->format('Y-m'));
@@ -54,6 +61,8 @@ class ReportsExportController extends Controller
 
     public function exportExcel(Request $request)
     {
+        $this->ensurePremiumAccess();
+
         $user = Auth::user();
         $period = $request->get('period', 'monthly');
         $selectedMonth = $request->get('selectedMonth', now()->format('Y-m'));

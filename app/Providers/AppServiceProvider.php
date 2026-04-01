@@ -9,6 +9,7 @@ use App\Services\AIService;
 use App\Services\AbacatePayService;
 use App\Services\AbacatePayWebhookProcessor;
 use App\Services\BaileysService;
+use App\Services\BillingPlanService;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -28,7 +29,13 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(AbacatePayWebhookProcessor::class, function ($app) {
-            return new AbacatePayWebhookProcessor();
+            return new AbacatePayWebhookProcessor(
+                billingPlanService: $app->make(BillingPlanService::class),
+            );
+        });
+
+        $this->app->singleton(BillingPlanService::class, function ($app) {
+            return new BillingPlanService();
         });
 
         $this->app->singleton(BaileysService::class, function ($app) {

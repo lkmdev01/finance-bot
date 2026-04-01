@@ -24,6 +24,16 @@ class AbacatePayService
         return $this->post('/checkouts/create', $payload);
     }
 
+    public function createCustomer(array $payload): array
+    {
+        return $this->post('/customers/create', $payload);
+    }
+
+    public function createSubscriptionCheckout(array $payload): array
+    {
+        return $this->post('/subscriptions/create', $payload);
+    }
+
     public function getCheckout(array $query): array
     {
         return $this->get('/checkouts/get', $query);

@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->string('external_id')->nullable()->index();
-            $table->string('gateway_subscription_id')->unique();
+            $table->string('gateway_subscription_id')->nullable()->unique();
             $table->string('gateway_checkout_id')->nullable()->index();
             $table->string('gateway_payment_id')->nullable()->index();
             $table->string('customer_name')->nullable();

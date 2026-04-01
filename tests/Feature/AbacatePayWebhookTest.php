@@ -4,6 +4,7 @@ use App\Models\AbacatePayCharge;
 use App\Models\AbacatePaySubscription;
 use App\Models\AbacatePayWebhookEvent;
 use App\Models\User;
+use Carbon\Carbon;
 
 function abacateSignature(array $payload, string $publicKey): string
 {
@@ -165,6 +166,8 @@ test('webhook da abacatepay atualiza cobranca transparente com usuario por email
 });
 
 test('webhook da abacatepay cria e atualiza assinatura de billing', function () {
+    Carbon::setTestNow('2026-04-01 10:00:00');
+
     config([
         'abacatepay.webhook_secret' => 'segredo-correto',
         'abacatepay.public_hmac_key' => 'public-key-123',
@@ -209,6 +212,10 @@ test('webhook da abacatepay cria e atualiza assinatura de billing', function () 
             'checkout' => [
                 'id' => 'bill_checkout_1',
                 'externalId' => 'pedido-billing-1',
+                'customerId' => 'cust_123',
+                'metadata' => [
+                    'plan_code' => 'pro_monthly',
+                ],
             ],
         ],
     ];
@@ -222,8 +229,15 @@ test('webhook da abacatepay cria e atualiza assinatura de billing', function () 
 
     expect($subscription)->not->toBeNull();
     expect($subscription->user_id)->toBe($user->id)
+        ->and($subscription->plan_code)->toBe('pro_monthly')
         ->and($subscription->status)->toBe('ACTIVE')
         ->and($subscription->gateway_payment_id)->toBe('char_pay_1');
+
+    $user->refresh();
+
+    expect($user->billing_plan_code)->toBe('pro_monthly')
+        ->and($user->billing_plan_status)->toBe('active')
+        ->and($user->hasFeature('reports'))->toBeTrue();
 
     $renewedPayload = $completedPayload;
     $renewedPayload['id'] = 'log_sub_renewed';
@@ -235,6 +249,10 @@ test('webhook da abacatepay cria e atualiza assinatura de billing', function () 
         ->assertSuccessful();
 
     expect($subscription->fresh()->renewed_at)->not->toBeNull();
+
+    $user->refresh();
+    expect($user->billing_plan_status)->toBe('renewed')
+        ->and($user->billing_access_ends_at)->not->toBeNull();
 
     $cancelledPayload = $completedPayload;
     $cancelledPayload['id'] = 'log_sub_cancelled';
@@ -258,4 +276,78 @@ test('webhook da abacatepay cria e atualiza assinatura de billing', function () 
     ]);
 
     expect(AbacatePayCharge::query()->where('gateway_charge_id', 'char_pay_1')->exists())->toBeTrue();
+
+    $user->refresh();
+    expect($user->billing_plan_status)->toBe('cancelled')
+        ->and($user->billing_plan_code)->toBe('pro_monthly');
+});
+
+test('webhook da abacatepay reconcila assinatura pendente criada pelo checkout', function () {
+    config([
+        'abacatepay.webhook_secret' => 'segredo-correto',
+        'abacatepay.public_hmac_key' => 'public-key-123',
+    ]);
+
+    $user = User::factory()->create([
+        'email' => 'checkout@example.com',
+    ]);
+
+    $pending = AbacatePaySubscription::create([
+        'user_id' => $user->id,
+        'plan_code' => 'pro_monthly',
+        'external_id' => 'pedido-checkout-1',
+        'gateway_customer_id' => 'cust_123',
+        'gateway_checkout_id' => 'bill_checkout_1',
+        'checkout_url' => 'https://app.abacatepay.com/pay/bill_checkout_1',
+        'amount' => 2990,
+        'status' => 'PENDING',
+        'frequency' => 'MONTHLY',
+        'payload' => [],
+    ]);
+
+    $payload = [
+        'id' => 'log_sub_checkout_reconcile',
+        'event' => 'subscription.completed',
+        'apiVersion' => 2,
+        'devMode' => false,
+        'data' => [
+            'subscription' => [
+                'id' => 'subs_reconciled_1',
+                'amount' => 2990,
+                'currency' => 'BRL',
+                'method' => 'CARD',
+                'status' => 'ACTIVE',
+                'frequency' => 'MONTHLY',
+                'createdAt' => '2026-04-01T10:00:00.000Z',
+                'updatedAt' => '2026-04-01T10:00:05.000Z',
+            ],
+            'customer' => [
+                'name' => 'Checkout User',
+                'email' => 'checkout@example.com',
+            ],
+            'payment' => [
+                'id' => 'char_checkout_1',
+                'externalId' => 'pedido-checkout-1',
+                'amount' => 2990,
+                'paidAmount' => 2990,
+                'status' => 'PAID',
+                'methods' => ['CARD'],
+                'updatedAt' => '2026-04-01T10:00:05.000Z',
+            ],
+            'checkout' => [
+                'id' => 'bill_checkout_1',
+                'externalId' => 'pedido-checkout-1',
+                'customerId' => 'cust_123',
+            ],
+        ],
+    ];
+
+    $this->withHeaders([
+        'X-Webhook-Signature' => abacateSignature($payload, 'public-key-123'),
+    ])->postJson('/webhook/abacatepay?webhookSecret=segredo-correto', $payload)
+        ->assertSuccessful();
+
+    expect(AbacatePaySubscription::count())->toBe(1);
+    expect($pending->fresh()->gateway_subscription_id)->toBe('subs_reconciled_1')
+        ->and($pending->fresh()->status)->toBe('ACTIVE');
 });
