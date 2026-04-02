@@ -119,6 +119,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
             // Processa ação retornada pela IA
             $action = $result['action'] ?? null;
 
+            if ($action === null && $this->isGreetingMessage()) {
+                $result['reply'] = $this->buildGreetingReply($user);
+            }
+
             // Se for confirmação de transação grande, processa
             if ($action === 'confirm_large_transaction' && isset($result['transaction_data'])) {
                 // Verifica se a mensagem é uma confirmação
@@ -207,7 +211,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'transaction_id' => $result['transaction_id'],
                 ]);
             } elseif ($action === 'delete_transaction' && isset($result['transaction_id'])) {
-                $this->deleteTransaction($user, $result['transaction_id']);
+                $deletedTransaction = $this->deleteTransaction($user, $result['transaction_id']);
+                $result['reply'] = $this->buildDeleteReply($deletedTransaction);
 
                 // Invalida cache após deletar transação
                 Cache::forget("user.{$user->id}.financial_data");
@@ -247,7 +252,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'user_id' => $user->id,
                 ]);
 
-                $this->deleteTransaction($user, $transactionId);
+                $deletedTransaction = $this->deleteTransaction($user, $transactionId);
+                $result['reply'] = $this->buildDeleteReply($deletedTransaction);
 
                 // Registra métrica de sucesso
                 $metricsService->recordTransactionSuccess(true, 'whatsapp');
@@ -256,10 +262,13 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'user_id' => $user->id,
                     'transaction_id' => $transactionId,
                 ]);
-            } elseif (in_array($action, ['query_report_pdf', 'query_report_csv', 'query_report_excel'])) {
+            } elseif (in_array($action, ['query_report', 'query_report_pdf', 'query_report_csv', 'query_report_excel'])) {
                 // Gera e envia relatório via WhatsApp
                 $this->generateAndSendReport($user, $action, $baileysService, $phoneNumberService);
-            } elseif (in_array($action, ['query_balance', 'query_expenses', 'query_income', 'query_transactions', 'query_category', 'query_report', 'query_savings', 'query_budgets', 'query_evolution', 'query_projections', 'query_income_source', 'query_categories'])) {
+                return;
+            } elseif (in_array($action, ['query_balance', 'query_expenses', 'query_income', 'query_transactions', 'query_category', 'query_savings', 'query_budgets', 'query_evolution', 'query_projections', 'query_income_source', 'query_categories'])) {
+                $result['reply'] = $this->buildQueryReply($user, $action, $result['reply'] ?? '');
+
                 Log::info('Consulta processada via WhatsApp', [
                     'user_id' => $user->id,
                     'user_name' => $user->name,
@@ -465,6 +474,170 @@ class ProcessWhatsAppMessage implements ShouldQueue
     }
 
     /**
+     * Detecta saudações curtas para responder de forma consistente.
+     */
+    private function isGreetingMessage(): bool
+    {
+        $normalized = mb_strtolower(trim($this->message));
+        $normalized = preg_replace('/[!?.]+/u', '', $normalized);
+
+        return in_array($normalized, [
+            'oi',
+            'olá',
+            'ola',
+            'bom dia',
+            'boa tarde',
+            'boa noite',
+            'e ai',
+            'e aí',
+            'hey',
+            'opa',
+        ], true);
+    }
+
+    /**
+     * Resposta padrão para saudações.
+     */
+    private function buildGreetingReply(User $user): string
+    {
+        $firstName = trim((string) explode(' ', trim($user->name))[0]);
+        $namePart = $firstName !== '' ? " {$firstName}" : '';
+
+        return "Olá{$namePart}! Eu sou o InovaFinance. Posso registrar gastos e receitas, consultar seu saldo, listar suas últimas transações e gerar relatórios.";
+    }
+
+    /**
+     * Torna respostas de consulta consistentes e úteis.
+     */
+    private function buildQueryReply(User $user, string $action, string $fallbackReply): string
+    {
+        return match ($action) {
+            'query_transactions' => $this->buildTransactionsReply($user),
+            'query_category' => $this->buildCategoryReply($user, $fallbackReply),
+            default => $fallbackReply,
+        };
+    }
+
+    /**
+     * Lista as últimas transações com contexto real.
+     */
+    private function buildTransactionsReply(User $user): string
+    {
+        $message = mb_strtolower($this->message);
+        $type = null;
+        $title = 'Últimas transações';
+
+        if (str_contains($message, 'gasto') || str_contains($message, 'despesa')) {
+            $type = 'expense';
+            $title = 'Seus últimos gastos';
+        } elseif (str_contains($message, 'receita') || str_contains($message, 'ganho') || str_contains($message, 'entrada')) {
+            $type = 'income';
+            $title = 'Suas últimas receitas';
+        }
+
+        $transactions = Transaction::query()
+            ->with('category')
+            ->where('user_id', $user->id)
+            ->when($type, fn ($query) => $query->where('type', $type))
+            ->latest('date')
+            ->latest('id')
+            ->limit(5)
+            ->get();
+
+        if ($transactions->isEmpty()) {
+            return match ($type) {
+                'expense' => 'Você ainda não tem gastos registrados.',
+                'income' => 'Você ainda não tem receitas registradas.',
+                default => 'Você ainda não tem transações registradas.',
+            };
+        }
+
+        $lines = $transactions->map(function (Transaction $transaction) {
+            $date = $transaction->date?->format('d/m') ?? now()->format('d/m');
+            $label = $transaction->description ?: ($transaction->type === 'income' ? 'Receita' : 'Gasto');
+            $category = $transaction->category?->name ? " ({$transaction->category->name})" : '';
+            $amount = number_format((float) $transaction->amount, 2, ',', '.');
+
+            return "• {$date} - {$label}{$category}: R$ {$amount}";
+        })->implode("\n");
+
+        return "{$title}:\n{$lines}";
+    }
+
+    /**
+     * Resume gastos de uma categoria/termo específico.
+     */
+    private function buildCategoryReply(User $user, string $fallbackReply): string
+    {
+        $searchTerm = $this->extractCategorySearchTerm();
+
+        if ($searchTerm === null) {
+            return $fallbackReply;
+        }
+
+        $transactions = Transaction::query()
+            ->with('category')
+            ->where('user_id', $user->id)
+            ->where('type', 'expense')
+            ->where(function ($query) use ($searchTerm) {
+                $query->whereRaw('LOWER(description) LIKE ?', ['%'.$searchTerm.'%'])
+                    ->orWhereHas('category', function ($categoryQuery) use ($searchTerm) {
+                        $categoryQuery->whereRaw('LOWER(name) LIKE ?', ['%'.$searchTerm.'%']);
+                    });
+            })
+            ->latest('date')
+            ->latest('id')
+            ->get();
+
+        if ($transactions->isEmpty()) {
+            return "Não encontrei gastos com {$searchTerm} ainda.";
+        }
+
+        $count = $transactions->count();
+        $total = number_format((float) $transactions->sum('amount'), 2, ',', '.');
+        $latest = $transactions->first();
+        $latestDate = $latest->date?->format('d/m') ?? now()->format('d/m');
+        $label = $latest->description ?: $latest->category?->name ?: ucfirst($searchTerm);
+
+        if ($count === 1) {
+            return "Encontrei 1 gasto com {$label}, no valor de R$ {$total}, em {$latestDate}.";
+        }
+
+        return "Encontrei {$count} gastos com {$label}, somando R$ {$total}. O mais recente foi em {$latestDate}.";
+    }
+
+    /**
+     * Extrai o termo principal de uma consulta por categoria.
+     */
+    private function extractCategorySearchTerm(): ?string
+    {
+        $message = mb_strtolower(trim($this->message));
+        $message = preg_replace('/[?!.]+/u', '', $message);
+
+        $patterns = [
+            '/gastos?\s+com\s+(.+)$/u',
+            '/despesas?\s+com\s+(.+)$/u',
+            '/gastei\s+com\s+(.+)$/u',
+            '/com\s+(.+)$/u',
+            '/de\s+(.+)$/u',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $message, $matches)) {
+                $term = trim($matches[1]);
+                $term = preg_replace('/\b(hoje|ontem|esse mes|este mes|mês|mes|ultimos?|últimos?)\b/u', '', $term);
+                $term = trim($term);
+
+                if ($term !== '') {
+                    return $term;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Detecta mensagens vagas como "gastei 1" ou "recebi 420".
      */
     private function isAmountOnlyMessage(string $message): bool
@@ -561,7 +734,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
     /**
      * Deleta uma transação existente
      */
-    private function deleteTransaction(User $user, $transactionId): void
+    private function deleteTransaction(User $user, $transactionId): array
     {
 
         Log::info('Iniciando deleção de transação', [
@@ -569,41 +742,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             'input_transaction_id' => $transactionId,
         ]);
 
-        // Se o transactionId não for numérico, tenta buscar por descrição/valor
-        if (! is_numeric($transactionId)) {
-            Log::info('Buscando transação por descrição/valor', [
-                'busca' => (string) $transactionId,
-            ]);
-            $transaction = Transaction::findByDescriptionOrAmount($user, (string) $transactionId);
-            Log::info('Resultado busca por descrição/valor', [
-                'transaction_id_encontrada' => $transaction?->id,
-                'description' => $transaction?->description,
-            ]);
-            // Fallback: se não encontrar, pega a última transação do usuário
-            if (! $transaction) {
-                Log::info('Nenhuma transação encontrada por descrição/valor. Buscando última transação do usuário.', [
-                    'user_id' => $user->id,
-                ]);
-                $transaction = Transaction::where('user_id', $user->id)
-                    ->latest('date')
-                    ->first();
-                Log::info('Resultado busca última transação', [
-                    'transaction_id_encontrada' => $transaction?->id,
-                    'description' => $transaction?->description,
-                ]);
-            }
-        } else {
-            Log::info('Buscando transação por ID', [
-                'id' => $transactionId,
-            ]);
-            $transaction = Transaction::where('id', $transactionId)
-                ->where('user_id', $user->id)
-                ->first();
-            Log::info('Resultado busca por ID', [
-                'transaction_id_encontrada' => $transaction?->id,
-                'description' => $transaction?->description,
-            ]);
-        }
+        $transaction = $this->resolveTransactionForDeletion($user, $transactionId);
 
         if (! $transaction) {
             Log::warning('Transação não encontrada para exclusão', [
@@ -614,9 +753,11 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
 
         $transactionData = [
+            'id' => $transaction->id,
             'amount' => $transaction->amount,
             'type' => $transaction->type,
             'description' => $transaction->description,
+            'category_name' => $transaction->category?->name,
         ];
 
         Log::info('Deletando transação', [
@@ -639,6 +780,81 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'deleted_transaction' => $transactionData,
             ]
         );
+
+        return $transactionData;
+    }
+
+    /**
+     * Resolve qual transação deve ser apagada sem chutar em caso ambíguo.
+     */
+    private function resolveTransactionForDeletion(User $user, $transactionId): ?Transaction
+    {
+        if (is_numeric($transactionId)) {
+            Log::info('Buscando transação por ID', [
+                'id' => $transactionId,
+            ]);
+
+            return Transaction::query()
+                ->with('category')
+                ->where('id', $transactionId)
+                ->where('user_id', $user->id)
+                ->first();
+        }
+
+        $query = mb_strtolower(trim((string) $transactionId));
+        $query = str_replace(['*', '_'], '', $query);
+
+        if ($query === '' || in_array($query, ['ultima', 'última', 'ultima transacao', 'última transação', 'ultima compra', 'última compra'], true)) {
+            return Transaction::query()
+                ->with('category')
+                ->where('user_id', $user->id)
+                ->latest('date')
+                ->latest('id')
+                ->first();
+        }
+
+        Log::info('Buscando transação por descrição/valor', [
+            'busca' => $query,
+        ]);
+
+        $candidates = Transaction::query()
+            ->with('category')
+            ->where('user_id', $user->id)
+            ->where(function ($builder) use ($query) {
+                $builder->whereRaw('LOWER(description) LIKE ?', ['%'.$query.'%'])
+                    ->orWhereHas('category', function ($categoryQuery) use ($query) {
+                        $categoryQuery->whereRaw('LOWER(name) LIKE ?', ['%'.$query.'%']);
+                    });
+            })
+            ->latest('date')
+            ->latest('id')
+            ->limit(5)
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        if ($candidates->count() > 1) {
+            throw new \Exception('Encontrei mais de uma transação com esse contexto. Me diga o valor ou a data da que você quer apagar.');
+        }
+
+        return $candidates->first();
+    }
+
+    /**
+     * Monta uma resposta de exclusão mais humana.
+     */
+    private function buildDeleteReply(array $transaction): string
+    {
+        $amount = number_format((float) ($transaction['amount'] ?? 0), 2, ',', '.');
+        $description = trim((string) ($transaction['description'] ?? ''));
+        $category = trim((string) ($transaction['category_name'] ?? ''));
+        $label = $description !== '' && ! $this->isPlaceholderDescription($description)
+            ? $description
+            : ($category !== '' ? $category : 'transação');
+
+        return "✅ Apaguei {$label} de R$ {$amount}.";
     }
 
     /**
@@ -772,14 +988,18 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 default => 'PDF',
             };
 
-            $periodName = $period === 'monthly' ? "mês {$selectedMonth}" : "ano {$year}";
+            $periodName = $period === 'monthly'
+                ? 'mês atual'
+                : "ano de {$year}";
 
-            $message = "📊 Relatório {$formatName} gerado com sucesso!\n\n".
+            if ($selectedMonth !== now()->format('Y-m') && $period === 'monthly') {
+                $periodName = 'mês '.\Carbon\Carbon::createFromFormat('Y-m', $selectedMonth)->translatedFormat('m/Y');
+            }
+
+            $message = "📊 Seu relatório {$formatName} está pronto.\n\n".
                 "📅 Período: {$periodName}\n".
-                "📄 Formato: {$formatName}\n\n".
-                "🔗 Acesse o relatório em:\n".
-                "{$reportUrl}\n\n".
-                '💡 Dica: Você pode acessar este link para baixar o relatório completo.';
+                "🔗 Link para abrir ou baixar:\n{$reportUrl}\n\n".
+                'Se quiser, eu também posso gerar esse relatório em outro formato.';
 
             $this->sendResponse($baileysService, $phoneNumberService, $message, $user);
 

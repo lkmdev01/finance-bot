@@ -528,3 +528,177 @@ it('lida com erro na API da IA graciosamente', function () {
         app(\App\Services\PerformanceMetricsService::class)
     ))->not->toThrow();
 });
+
+it('responde saudacao com copy consistente do InovaFinance', function () {
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => 'Oi! Como posso ajudar?',
+                            'action' => null,
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'InovaFinance')
+                    && str_contains($message, 'registrar gastos e receitas')
+                    && ! str_contains($message, 'FinanciBot');
+            }))
+            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Oi',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
+it('resume ultimos gastos com lista real', function () {
+    Transaction::factory()->create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'type' => 'expense',
+        'amount' => 12.50,
+        'description' => 'Uber',
+        'date' => now()->subDay(),
+    ]);
+
+    Transaction::factory()->create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'type' => 'expense',
+        'amount' => 45.90,
+        'description' => 'Mercado',
+        'date' => now(),
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => 'Ultimas transacoes:',
+                            'action' => 'query_transactions',
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Seus últimos gastos:')
+                    && str_contains($message, 'Mercado')
+                    && str_contains($message, 'Uber')
+                    && str_contains($message, 'R$ 45,90');
+            }))
+            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'quais foram meus últimos gastos?',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
+it('resume gastos por contexto especifico sem resposta vaga', function () {
+    $transportCategory = Category::factory()->create([
+        'user_id' => $this->user->id,
+        'type' => 'expense',
+        'name' => 'Transporte',
+    ]);
+
+    Transaction::factory()->create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'type' => 'expense',
+        'amount' => 18.00,
+        'description' => 'Uber',
+        'category_id' => $transportCategory->id,
+        'date' => now()->subDay(),
+    ]);
+
+    Transaction::factory()->create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'type' => 'expense',
+        'amount' => 22.00,
+        'description' => 'Uber',
+        'category_id' => $transportCategory->id,
+        'date' => now(),
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => 'O valor foi registrado em Transporte.',
+                            'action' => 'query_category',
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Encontrei 2 gastos com Uber')
+                    && str_contains($message, 'R$ 40,00')
+                    && str_contains($message, 'O mais recente foi em');
+            }))
+            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Tenho gastos com uber?',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});

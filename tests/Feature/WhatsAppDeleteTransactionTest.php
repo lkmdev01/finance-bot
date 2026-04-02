@@ -73,3 +73,65 @@ it('deleta transacao via whatsapp quando a ia retorna transaction_id', function 
         'id' => $transaction->id,
     ]);
 });
+
+it('pede mais detalhes quando encontra mais de uma transacao parecida para apagar', function () {
+    Transaction::factory()->create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'type' => 'expense',
+        'amount' => 18.00,
+        'description' => 'Uber',
+    ]);
+
+    Transaction::factory()->create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'type' => 'expense',
+        'amount' => 27.00,
+        'description' => 'Uber',
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => 'Apagando gasto com Uber.',
+                            'action' => 'delete_transaction',
+                            'transaction_id' => 'uber',
+                            'transaction_data' => null,
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'mais de uma transação')
+                    && str_contains($message, 'valor ou a data');
+            }))
+            ->andReturn(new Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'apagar gasto com uber',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    expect(Transaction::query()->where('user_id', $this->user->id)->count())->toBe(2);
+});
