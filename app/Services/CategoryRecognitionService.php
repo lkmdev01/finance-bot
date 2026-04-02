@@ -146,6 +146,27 @@ class CategoryRecognitionService
         return null;
     }
 
+    public function findExistingCategoryByName(User $user, string $name, ?string $type = null): ?Category
+    {
+        $normalizedName = $this->normalizeCategoryName($name);
+        $asciiNormalizedName = mb_strtolower(Str::ascii($normalizedName));
+
+        return $user->categories()
+            ->get()
+            ->first(function (Category $category) use ($type, $normalizedName, $asciiNormalizedName) {
+                if ($type && $category->type !== $type) {
+                    return false;
+                }
+
+                $categoryName = mb_strtolower(trim($category->name));
+                $normalizedCategoryName = $this->normalizeCategoryName($categoryName);
+                $asciiCategoryName = mb_strtolower(Str::ascii($normalizedCategoryName));
+
+                return $normalizedCategoryName === $normalizedName
+                    || $asciiCategoryName === $asciiNormalizedName;
+            });
+    }
+
     public function findOrCreateCategory(User $user, string $name, string $type): Category
     {
         // Normaliza o nome antes de criar/buscar

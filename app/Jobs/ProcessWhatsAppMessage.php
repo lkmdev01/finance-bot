@@ -352,15 +352,23 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
         // 2. IA sugeriu uma nova categoria
         if (!$category && !empty($data['category_name'])) {
-            $category = $categoryRecognition->findOrCreateCategory(
+            $category = $categoryRecognition->findExistingCategoryByName(
                 $user,
                 $data['category_name'],
                 $data['type'] ?? 'expense'
             );
 
-            // Se a IA também sugeriu um ícone, atualiza se necessário
-            if (!empty($data['category_icon']) && $category->icon === '📦') {
-                $category->update(['icon' => $data['category_icon']]);
+            if (! $category) {
+                $category = $categoryRecognition->findOrCreateCategory(
+                    $user,
+                    $data['category_name'],
+                    $data['type'] ?? 'expense'
+                );
+
+                // Se a IA também sugeriu um ícone, atualiza se necessário
+                if (!empty($data['category_icon']) && $category->icon === '📦') {
+                    $category->update(['icon' => $data['category_icon']]);
+                }
             }
         }
 

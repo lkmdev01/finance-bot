@@ -323,6 +323,70 @@ it('nao inventa categoria para gasto vago sem descricao', function () {
     ]);
 });
 
+it('reutiliza categoria existente equivalente antes de criar uma nova', function () {
+    $existingCategory = Category::factory()->create([
+        'user_id' => $this->user->id,
+        'type' => 'expense',
+        'name' => 'Mercado',
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => '✅ Registrado: R$ 32,00 em Alimentação (Burger King)',
+                            'action' => 'create_transaction',
+                            'transaction_data' => [
+                                'type' => 'expense',
+                                'amount' => 32.00,
+                                'description' => 'Burger King',
+                                'category_id' => null,
+                                'category_name' => 'Alimentação',
+                                'date' => now()->format('Y-m-d'),
+                            ],
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'gastei 32 no burger king',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    $transaction = Transaction::query()
+        ->where('user_id', $this->user->id)
+        ->where('amount', 32.00)
+        ->where('description', 'Burger King')
+        ->latest('id')
+        ->first();
+
+    expect($transaction)->not->toBeNull();
+    expect([$this->category->id, $existingCategory->id])->toContain($transaction->category_id);
+
+    expect(Category::where('user_id', $this->user->id)->where('name', 'Alimentação')->count())->toBe(0);
+});
+
 it('atualiza contexto do contato após processar mensagem', function () {
     // Mock da resposta da IA
     Http::fake([
