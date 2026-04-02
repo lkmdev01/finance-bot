@@ -305,7 +305,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
     {
         $rules = [
             'amount' => ['required', 'numeric', 'min:0.01', 'max:999999.99'],
-            'description' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:255'],
             'type' => ['required', 'in:income,expense'],
             'category_id' => ['nullable', 'integer'],
             'date' => ['nullable', 'date', 'before_or_equal:today'],

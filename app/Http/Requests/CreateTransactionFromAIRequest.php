@@ -21,7 +21,7 @@ class CreateTransactionFromAIRequest extends FormRequest
     {
         return [
             'amount' => ['required', 'numeric', 'min:0.01', 'max:999999.99'],
-            'description' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:255'],
             'type' => ['required', 'in:income,expense'],
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'date' => ['required', 'date', 'before_or_equal:today'],
@@ -38,7 +38,6 @@ class CreateTransactionFromAIRequest extends FormRequest
             'amount.numeric' => 'O valor deve ser um número válido.',
             'amount.min' => 'O valor mínimo é R$ 0,01.',
             'amount.max' => 'O valor máximo é R$ 999.999,99.',
-            'description.required' => 'A descrição é obrigatória.',
             'description.max' => 'A descrição não pode ter mais de 255 caracteres.',
             'type.required' => 'O tipo da transação é obrigatório.',
             'type.in' => 'O tipo deve ser "income" ou "expense".',
