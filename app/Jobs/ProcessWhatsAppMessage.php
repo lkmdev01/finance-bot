@@ -200,7 +200,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
                 // Invalida cache após editar transação
                 Cache::forget("user.{$user->id}.financial_data");
-                Cache::tags(['financial_projections', "user.{$user->id}"])->flush();
+                Cache::forget("user.{$user->id}.financial_projections");
 
                 Log::info('Transação editada via WhatsApp', [
                     'user_id' => $user->id,
@@ -211,7 +211,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
                 // Invalida cache após deletar transação
                 Cache::forget("user.{$user->id}.financial_data");
-                Cache::tags(['financial_projections', "user.{$user->id}"])->flush();
+                Cache::forget("user.{$user->id}.financial_projections");
 
                 // Registra métrica de sucesso
                 $metricsService->recordTransactionSuccess(true, 'whatsapp');
