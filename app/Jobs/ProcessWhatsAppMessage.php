@@ -419,6 +419,11 @@ class ProcessWhatsAppMessage implements ShouldQueue
     {
         $description = trim((string) ($data['description'] ?? ''));
 
+        if ($this->isPlaceholderDescription($description)) {
+            $data['description'] = null;
+            $description = '';
+        }
+
         if ($description !== '') {
             return $data;
         }
@@ -439,7 +444,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
      */
     private function shouldUseGenericTransactionReply(array $data): bool
     {
-        return empty($data['description']) && $this->isAmountOnlyMessage($this->message);
+        $description = trim((string) ($data['description'] ?? ''));
+
+        return ($description === '' || $this->isPlaceholderDescription($description))
+            && $this->isAmountOnlyMessage($this->message);
     }
 
     /**
@@ -468,6 +476,28 @@ class ProcessWhatsAppMessage implements ShouldQueue
         $normalized = preg_replace('/\s+/u', ' ', trim($normalized));
 
         return $normalized === '';
+    }
+
+    /**
+     * Trata descricoes artificiais da IA como ausencia de contexto real.
+     */
+    private function isPlaceholderDescription(string $description): bool
+    {
+        $normalized = mb_strtolower(trim($description));
+        $normalized = str_replace(['*', '_'], '', $normalized);
+
+        return in_array($normalized, [
+            'n/a',
+            'na',
+            'n a',
+            'sem descricao',
+            'sem descrição',
+            'sem detalhes',
+            'sem detalhe',
+            'nao informado',
+            'não informado',
+            'indefinido',
+        ], true);
     }
 
     /**

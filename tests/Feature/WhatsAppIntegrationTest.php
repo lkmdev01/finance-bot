@@ -323,6 +323,65 @@ it('nao inventa categoria para gasto vago sem descricao', function () {
     ]);
 });
 
+it('trata N/A como ausencia de descricao em gasto vago', function () {
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => '✅ Registrado: R$ 1,00 em Alimentação (N/A)',
+                            'action' => 'create_transaction',
+                            'transaction_data' => [
+                                'type' => 'expense',
+                                'amount' => 1.00,
+                                'description' => 'N/A',
+                                'category_id' => null,
+                                'category_name' => 'Alimentação',
+                                'date' => now()->format('Y-m-d'),
+                            ],
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Gasto de R$ 1,00 registrado!')
+                    && ! str_contains($message, 'Alimentação')
+                    && ! str_contains($message, 'N/A');
+            }))
+            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'gastei 1',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'type' => 'expense',
+        'amount' => 1.00,
+        'description' => 'Gasto',
+        'category_id' => null,
+    ]);
+});
+
 it('reutiliza categoria existente equivalente antes de criar uma nova', function () {
     $existingCategory = Category::factory()->create([
         'user_id' => $this->user->id,

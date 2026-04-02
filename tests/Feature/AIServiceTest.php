@@ -175,7 +175,7 @@ it('processa comando de ajuda corretamente', function () {
                 [
                     'message' => [
                         'content' => json_encode([
-                            'reply' => '🤖 *FinanciBot - Seu Assistente Financeiro*\n\n*REGISTRAR:*\n• Gastei 50 reais no supermercado\n• Recebi 1000 de salário\n\n*CONSULTAS:*\n• Qual é o meu saldo?\n• Quanto gastei este mês?',
+                            'reply' => '🤖 *InovaFinance - Seu Assistente Financeiro*\n\n*REGISTRAR:*\n• Gastei 50 reais no supermercado\n• Recebi 1000 de salário\n\n*CONSULTAS:*\n• Qual é o meu saldo?\n• Quanto gastei este mês?',
                             'action' => null,
                         ]),
                     ],
@@ -187,7 +187,7 @@ it('processa comando de ajuda corretamente', function () {
     $result = $this->aiService->processMessage('/ajuda', $this->user);
 
     expect($result['action'])->toBeNull();
-    expect($result['reply'])->toContain('FinanciBot');
+    expect($result['reply'])->toContain('InovaFinance');
 });
 
 it('processa comando de ajuda com variações', function () {
@@ -198,7 +198,7 @@ it('processa comando de ajuda com variações', function () {
                 [
                     'message' => [
                         'content' => json_encode([
-                            'reply' => '🤖 *FinanciBot - Seu Assistente Financeiro*',
+                            'reply' => '🤖 *InovaFinance - Seu Assistente Financeiro*',
                             'action' => null,
                         ]),
                     ],
@@ -213,7 +213,7 @@ it('processa comando de ajuda com variações', function () {
         $result = $this->aiService->processMessage($message, $this->user);
 
         expect($result['action'])->toBeNull();
-        expect($result['reply'])->toContain('FinanciBot');
+        expect($result['reply'])->toContain('InovaFinance');
     }
 });
 

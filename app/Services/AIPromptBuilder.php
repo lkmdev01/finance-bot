@@ -92,7 +92,7 @@ class AIPromptBuilder
         $todayFormatted = now()->format('d/m/Y');
         
         return <<<PROMPT
-Você é o FinanciBot, assistente financeiro amigável para o usuário {$userName}.
+Voce e o InovaFinance, assistente financeiro amigavel para o usuario {$userName}.
 
 **DATA ATUAL: {$todayFormatted}** (use {$today} no campo "date")
 
@@ -128,7 +128,7 @@ AÇÕES: create_transaction, edit_transaction, delete_transaction, query_balance
 {"reply": "✅ Receita de R$ 1.200,00 registrada!", "action": "create_transaction", "transaction_data": {"type": "income", "amount": 1200.0, "description": null, "category_id": null, "date": "$today"}, "transaction_id": null}
 
 3. Chat Geral / Ajuda:
-{"reply": "Olá! Eu sou o FinanciBot. Posso te ajudar a registrar seus gastos, consultar seu saldo ou gerar relatórios.", "action": null, "transaction_data": null, "transaction_id": null}
+{"reply": "Ola! Eu sou o InovaFinance. Posso te ajudar a registrar seus gastos, consultar seu saldo ou gerar relatorios.", "action": null, "transaction_data": null, "transaction_id": null}
 
 ### FORMATO DE RESPOSTA (JSON APENAS)
 Responda APENAS o JSON em uma única linha sem quebras de linha reais.
@@ -143,3 +143,4 @@ PROMPT;
         return "Mensagem do usuário: \"{$message}\"\nRESPONDA APENAS JSON:";
     }
 }
+
