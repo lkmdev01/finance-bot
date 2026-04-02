@@ -136,6 +136,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
             }
 
             if ($action === 'create_transaction' && isset($result['transaction_data'])) {
+                $result['transaction_data'] = $this->normalizeTransactionData($result['transaction_data']);
+
                 // Valida dados antes de criar transação
                 $validation = $this->validateTransactionData($result['transaction_data'], $user);
 
@@ -170,6 +172,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 }
 
                 $this->createTransaction($user, $contact, $result['transaction_data']);
+
+                if ($this->shouldUseGenericTransactionReply($result['transaction_data'])) {
+                    $result['reply'] = $this->buildGenericTransactionReply($result['transaction_data']);
+                }
 
                 // Registra métrica de sucesso
                 $metricsService->recordTransactionSuccess(true, 'whatsapp');
@@ -359,9 +365,9 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
 
         // 3. Fallback: Reconhecimento Inteligente (Keywords/Histórico)
-        // Se a descrição for nula, usamos a mensagem original para tentar reconhecer a categoria
-        if (!$category) {
-            $recognitionText = !empty($data['description']) ? $data['description'] : $this->message;
+        // Só tenta reconhecer pela descrição quando ela realmente existe.
+        if (!$category && !empty($data['description'])) {
+            $recognitionText = $data['description'];
             $category = $categoryRecognition->recognizeCategory(
                 $user,
                 $recognitionText,
@@ -401,6 +407,64 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'category_name' => $category?->name,
             ]
         );
+    }
+
+    /**
+     * Evita categorias inventadas quando a mensagem só informa tipo + valor.
+     */
+    private function normalizeTransactionData(array $data): array
+    {
+        $description = trim((string) ($data['description'] ?? ''));
+
+        if ($description !== '') {
+            return $data;
+        }
+
+        if (! $this->isAmountOnlyMessage($this->message)) {
+            return $data;
+        }
+
+        $data['description'] = null;
+        $data['category_id'] = null;
+        unset($data['category_name'], $data['category_icon']);
+
+        return $data;
+    }
+
+    /**
+     * Para mensagens vagas, a resposta deve refletir exatamente o que foi salvo.
+     */
+    private function shouldUseGenericTransactionReply(array $data): bool
+    {
+        return empty($data['description']) && $this->isAmountOnlyMessage($this->message);
+    }
+
+    /**
+     * Gera uma resposta consistente para lançamentos sem contexto.
+     */
+    private function buildGenericTransactionReply(array $data): string
+    {
+        $amount = number_format((float) ($data['amount'] ?? 0), 2, ',', '.');
+
+        if (($data['type'] ?? 'expense') === 'income') {
+            return "✅ Receita de R$ {$amount} registrada!";
+        }
+
+        return "✅ Gasto de R$ {$amount} registrado!";
+    }
+
+    /**
+     * Detecta mensagens vagas como "gastei 1" ou "recebi 420".
+     */
+    private function isAmountOnlyMessage(string $message): bool
+    {
+        $normalized = mb_strtolower($message);
+        $normalized = preg_replace('/[\d\p{P}\p{Sc}]+/u', ' ', $normalized);
+        $normalized = preg_replace('/\b(r\$|rs|reais?|real|pix|cart[aã]o|credito|cr[eé]dito|d[eé]bito|no|na|de|do|da|em|por|para|com|um|uma|uns|umas|foi|era|s[oó]|apenas)\b/u', ' ', $normalized);
+        $normalized = preg_replace('/\b(gastei|gasto|paguei|pago|recebi|recebido|ganhei|ganho|entrou|entrada|sa[ií]da)\b/u', ' ', $normalized);
+        $normalized = preg_replace('/\s+/u', ' ', trim($normalized));
+
+        return $normalized === '';
     }
 
     /**
