@@ -1,4 +1,4 @@
-<x-layouts.app.sidebar title="Confirmar dados de cobrança">
+<x-layouts.app.sidebar title="Confirmar dados de cobranca">
     @php
         $user = auth()->user();
         $canContinue = filled($formattedPhoneNumber);
@@ -19,7 +19,7 @@
                     </div>
                     <h1 class="mt-5 text-3xl font-black tracking-tight text-white sm:text-4xl">Confirme seus dados antes de seguir.</h1>
                     <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-                        Vamos abrir o checkout do plano <span class="font-semibold text-white">{{ $plan['name'] }}</span>. Antes disso, confirme o número cadastrado e informe seu CPF ou CNPJ.
+                        Vamos abrir o pagamento do plano <span class="font-semibold text-white">{{ $plan['name'] }}</span>. Antes disso, confirme o numero cadastrado e informe seu CPF ou CNPJ.
                     </p>
                 </div>
 
@@ -33,15 +33,15 @@
 
         <section class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
             <div class="rounded-[1.75rem] border border-white/10 bg-slate-950/80 p-6 shadow-[0_16px_60px_rgba(2,6,23,0.28)]">
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Número cadastrado</p>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Numero cadastrado</p>
                 @if ($formattedPhoneNumber)
                     <p class="mt-3 text-2xl font-black text-white">{{ $formattedPhoneNumber }}</p>
-                    <p class="mt-2 text-sm leading-7 text-slate-300">Esse número será usado como contato da cobrança na AbacatePay.</p>
+                    <p class="mt-2 text-sm leading-7 text-slate-300">Esse numero sera usado como contato da cobranca na AbacatePay.</p>
                     <a href="{{ route('whatsapp.settings') }}" class="mt-5 inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10">
-                        Alterar número
+                        Alterar numero
                     </a>
                 @else
-                    <p class="mt-3 text-base font-semibold text-amber-200">Você ainda não configurou um número de WhatsApp.</p>
+                    <p class="mt-3 text-base font-semibold text-amber-200">Voce ainda nao configurou um numero de WhatsApp.</p>
                     <p class="mt-2 text-sm leading-7 text-slate-300">Precisamos desse dado antes de abrir o checkout.</p>
                     <a href="{{ route('whatsapp.settings') }}" class="mt-5 inline-flex items-center justify-center rounded-xl border border-amber-300/20 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-50 transition hover:bg-amber-400/15">
                         Configurar WhatsApp
@@ -61,7 +61,7 @@
                             type="text"
                             placeholder="000.000.000-00"
                             value="{{ old('tax_id', \App\Support\BrazilTaxId::format($user->tax_id)) }}"
-                            hint="A AbacatePay exige esse dado para gerar a cobrança."
+                            hint="A AbacatePay exige esse dado para gerar a cobranca."
                         />
                         @error('tax_id')
                             <p class="mt-2 text-sm text-rose-300">{{ $message }}</p>
@@ -70,7 +70,7 @@
 
                     <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
                         <p class="font-medium text-white">Resumo</p>
-                        <p class="mt-1">Ao continuar, vamos abrir o checkout da AbacatePay em uma nova página para finalizar o pagamento.</p>
+                        <p class="mt-1">Ao continuar, vamos abrir o checkout da AbacatePay em uma nova pagina para concluir o pagamento e liberar o acesso do periodo escolhido.</p>
                     </div>
 
                     <div class="flex flex-col gap-3">

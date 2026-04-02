@@ -18,7 +18,10 @@
                     </div>
                     <h1 class="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl">Escolha o plano ideal para continuar subindo.</h1>
                     <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                        O Starter cobre o básico. Os planos Pro liberam relatórios avançados, projeções financeiras e a experiência completa do {{ config('mascot.name', 'Orbita') }}.
+                        O Starter cobre o basico. Os planos Pro liberam relatorios avancados, projecoes financeiras e a experiencia completa do {{ config('mascot.name', 'Orbita') }}.
+                    </p>
+                    <p class="mt-2 max-w-2xl text-sm leading-7 text-slate-400">
+                        Cada pagamento libera o acesso pelo periodo do plano escolhido. Nao ha renovacao automatica nesta etapa.
                     </p>
                 </div>
 
@@ -32,7 +35,7 @@
                         </span>
                         @if ($user->billing_access_ends_at)
                             <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                Acesso até {{ $user->billing_access_ends_at->format('d/m/Y') }}
+                                Acesso ate {{ $user->billing_access_ends_at->format('d/m/Y') }}
                             </span>
                         @endif
                     </div>
@@ -71,7 +74,7 @@
                     <div class="mt-8">
                         @if ($plan['price_cents'] === 0)
                             <flux:button variant="ghost" class="w-full" disabled>
-                                Sempre disponível
+                                Sempre disponivel
                             </flux:button>
                         @elseif ($isCurrent)
                             <flux:button variant="ghost" class="w-full" disabled>
@@ -81,7 +84,7 @@
                             <form method="POST" action="{{ route('billing.subscribe', $plan['code']) }}">
                                 @csrf
                                 <flux:button type="submit" variant="primary" class="w-full">
-                                    Assinar {{ $plan['name'] }}
+                                    Ativar {{ $plan['name'] }}
                                 </flux:button>
                             </form>
                         @endif

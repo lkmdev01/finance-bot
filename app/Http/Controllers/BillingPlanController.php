@@ -46,7 +46,7 @@ class BillingPlanController extends Controller
                 'max:20',
                 function (string $attribute, string $value, \Closure $fail) {
                     if (! BrazilTaxId::isValid($value)) {
-                        $fail('Informe um CPF ou CNPJ válido.');
+                        $fail('Informe um CPF ou CNPJ valido.');
                     }
                 },
             ],
@@ -68,13 +68,13 @@ class BillingPlanController extends Controller
         if (($plan['price_cents'] ?? 0) === 0) {
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'O plano Starter já está disponível sem cobrança.');
+                ->with('status', 'O plano Starter ja esta disponivel sem cobranca.');
         }
 
         if ($user->hasActivePaidPlan() && $user->billing_plan_code === $planCode) {
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'Você já possui este plano ativo.');
+                ->with('status', 'Voce ja possui este plano ativo.');
         }
 
         $missingBillingRequirements = $this->billingPlanService->missingBillingRequirements($user);
@@ -129,13 +129,13 @@ class BillingPlanController extends Controller
 
             return redirect()
                 ->route('billing.checkout-data.show', $planCode)
-                ->with('status', 'Não foi possível iniciar a assinatura agora. Verifique a configuração da AbacatePay.');
+                ->with('status', 'Nao foi possivel iniciar o pagamento do plano agora. Verifique a configuracao da AbacatePay.');
         }
 
         if (! ($response['success'] ?? false) || blank($response['data']['url'] ?? null)) {
             return redirect()
                 ->route('billing.checkout-data.show', $planCode)
-                ->with('status', $response['error'] ?? 'Não foi possível iniciar a assinatura agora. Tente novamente.');
+                ->with('status', $response['error'] ?? 'Nao foi possivel iniciar o pagamento do plano agora. Tente novamente.');
         }
 
         $data = $response['data'];

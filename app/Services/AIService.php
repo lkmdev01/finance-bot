@@ -56,6 +56,7 @@ class AIService
             'reply' => $parsedResponse['reply'],
             'action' => $parsedResponse['action'] ?? null,
             'transaction_data' => $parsedResponse['transaction_data'] ?? null,
+            'transaction_id' => $parsedResponse['transaction_id'] ?? null,
         ];
     }
 

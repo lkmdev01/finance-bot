@@ -207,28 +207,23 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'transaction_id' => $result['transaction_id'],
                 ]);
             } elseif ($action === 'delete_transaction' && isset($result['transaction_id'])) {
-
-                Log::info('Ação de apagar gasto desativada temporariamente', [
-                    'user_id' => $user->id,
-                    'transaction_id' => $result['transaction_id'],
-                    'result' => $result,
-                ]);
-                $this->sendResponse($baileysService, $phoneNumberService, 'A função de apagar gasto está temporariamente indisponível. Em breve estará de volta!', $user);
-                return;
+                $this->deleteTransaction($user, $result['transaction_id']);
 
                 // Invalida cache após deletar transação
                 Cache::forget("user.{$user->id}.financial_data");
                 Cache::tags(['financial_projections', "user.{$user->id}"])->flush();
 
+                // Registra métrica de sucesso
+                $metricsService->recordTransactionSuccess(true, 'whatsapp');
+
+                Log::info('Transação deletada via WhatsApp', [
+                    'user_id' => $user->id,
+                    'transaction_id' => $result['transaction_id'],
+                ]);
+
             } elseif ($action === 'delete_transaction') {
                 // Se não tiver transaction_id, tenta buscar pela descrição ou última transação
-
-                Log::info('Ação de apagar gasto desativada temporariamente', [
-                    'user_id' => $user->id,
-                    'result' => $result,
-                ]);
-                $this->sendResponse($baileysService, $phoneNumberService, 'A função de apagar gasto está temporariamente indisponível. Em breve estará de volta!', $user);
-                return;
+                $transactionId = $result['transaction_id'] ?? null;
 
                 if (!$transactionId && isset($result['transaction_data']['description'])) {
                     // Busca pela descrição
@@ -259,7 +254,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
                 Log::info('Transação deletada via WhatsApp', [
                     'user_id' => $user->id,
-                    'transaction_id' => $result['transaction_id'],
+                    'transaction_id' => $transactionId,
                 ]);
             } elseif (in_array($action, ['query_report_pdf', 'query_report_csv', 'query_report_excel'])) {
                 // Gera e envia relatório via WhatsApp

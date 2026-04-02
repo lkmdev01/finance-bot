@@ -1,6 +1,6 @@
 @props([
     'featureTitle' => 'Recurso premium',
-    'featureDescription' => 'Este recurso faz parte dos planos pagos.',
+    'featureDescription' => 'Este recurso faz parte dos planos Pro.',
 ])
 
 <div class="rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/80 p-6 shadow-[0_24px_80px_rgba(2,6,23,0.32)] sm:p-8">
@@ -15,7 +15,7 @@
         <div class="mt-8 grid gap-4 rounded-[1.5rem] border border-white/10 bg-white/5 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
             <div>
                 <p class="text-sm font-semibold text-white">Desbloqueie com Pro Mensal ou Pro Anual</p>
-                <p class="mt-1 text-sm text-slate-400">Assine para liberar relatórios avançados, projeções e o Orbita.</p>
+                <p class="mt-1 text-sm text-slate-400">Ative um plano para liberar relatorios avancados, projecoes e o Orbita durante o periodo pago.</p>
             </div>
 
             <flux:button :href="route('billing.plans')" wire:navigate variant="primary">
