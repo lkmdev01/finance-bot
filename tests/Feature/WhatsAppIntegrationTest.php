@@ -7,11 +7,18 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
 use App\Services\BaileysService;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
 use function Pest\Laravel\assertDatabaseHas;
 use function Pest\Laravel\assertDatabaseMissing;
+
+function fakeBaileysSuccessResponse(): Response
+{
+    return new Response(new Psr7Response(200, [], json_encode(['success' => true])));
+}
 
 beforeEach(function () {
     $this->user = User::factory()->create([
@@ -58,7 +65,7 @@ it('processa mensagem do WhatsApp end-to-end e cria transação', function () {
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
-            ->andReturn(['success' => true]);
+            ->andReturn(fakeBaileysSuccessResponse());
     });
     
     // Processa a mensagem
@@ -124,7 +131,7 @@ it('processa mensagem de consulta de saldo via WhatsApp', function () {
             ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
                 return str_contains($message, 'saldo') || str_contains($message, 'R$');
             }))
-            ->andReturn(['success' => true]);
+            ->andReturn(fakeBaileysSuccessResponse());
     });
     
     // Processa a mensagem
@@ -183,7 +190,7 @@ it('processa mensagem de receita via WhatsApp', function () {
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
-            ->andReturn(['success' => true]);
+            ->andReturn(fakeBaileysSuccessResponse());
     });
     
     // Processa a mensagem
@@ -238,7 +245,7 @@ it('cria receita via WhatsApp mesmo quando a IA retorna descricao vazia', functi
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
-            ->andReturn(['success' => true]);
+            ->andReturn(fakeBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
@@ -296,7 +303,7 @@ it('nao inventa categoria para gasto vago sem descricao', function () {
                 return str_contains($message, 'Gasto de R$ 1,00 registrado!')
                     && ! str_contains($message, 'Alimentação');
             }))
-            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+            ->andReturn(fakeBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
@@ -355,7 +362,7 @@ it('trata N/A como ausencia de descricao em gasto vago', function () {
                     && ! str_contains($message, 'Alimentação')
                     && ! str_contains($message, 'N/A');
             }))
-            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+            ->andReturn(fakeBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
@@ -415,7 +422,7 @@ it('reutiliza categoria existente equivalente antes de criar uma nova', function
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
-            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+            ->andReturn(fakeBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
@@ -467,7 +474,7 @@ it('atualiza contexto do contato após processar mensagem', function () {
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
-            ->andReturn(['success' => true]);
+            ->andReturn(fakeBaileysSuccessResponse());
     });
     
     $initialContextCount = count($this->contact->context ?? []);
@@ -508,7 +515,7 @@ it('lida com erro na API da IA graciosamente', function () {
             ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
                 return str_contains($message, 'erro') || str_contains($message, 'desculpe');
             }))
-            ->andReturn(['success' => true]);
+            ->andReturn(fakeBaileysSuccessResponse());
     });
     
     // Processa a mensagem
@@ -526,7 +533,7 @@ it('lida com erro na API da IA graciosamente', function () {
         app(BaileysService::class),
         app(\App\Services\PhoneNumberService::class),
         app(\App\Services\PerformanceMetricsService::class)
-    ))->not->toThrow();
+    ))->not->toThrow(\Throwable::class);
 });
 
 it('responde saudacao com copy consistente do InovaFinance', function () {
@@ -553,7 +560,7 @@ it('responde saudacao com copy consistente do InovaFinance', function () {
                     && str_contains($message, 'registrar gastos e receitas')
                     && ! str_contains($message, 'FinanciBot');
             }))
-            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+            ->andReturn(fakeBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
@@ -615,7 +622,7 @@ it('resume ultimos gastos com lista real', function () {
                     && str_contains($message, 'Uber')
                     && str_contains($message, 'R$ 45,90');
             }))
-            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+            ->andReturn(fakeBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
@@ -684,7 +691,7 @@ it('resume gastos por contexto especifico sem resposta vaga', function () {
                     && str_contains($message, 'R$ 40,00')
                     && str_contains($message, 'O mais recente foi em');
             }))
-            ->andReturn(new \Illuminate\Http\Client\Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
+            ->andReturn(fakeBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
@@ -702,3 +709,4 @@ it('resume gastos por contexto especifico sem resposta vaga', function () {
         app(\App\Services\PerformanceMetricsService::class)
     );
 });
+

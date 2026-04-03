@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Auth;

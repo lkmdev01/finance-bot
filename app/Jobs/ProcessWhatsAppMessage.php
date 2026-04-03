@@ -175,10 +175,12 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     }
                 }
 
-                $this->createTransaction($user, $contact, $result['transaction_data']);
+                $createdTransaction = $this->createTransaction($user, $contact, $result['transaction_data']);
 
                 if ($this->shouldUseGenericTransactionReply($result['transaction_data'])) {
                     $result['reply'] = $this->buildGenericTransactionReply($result['transaction_data']);
+                } else {
+                    $result['reply'] = $this->buildCreatedTransactionReply($createdTransaction);
                 }
 
                 // Registra métrica de sucesso
@@ -200,7 +202,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'message_length' => strlen($this->message),
                 ]);
             } elseif ($action === 'edit_transaction' && isset($result['transaction_id'])) {
-                $this->editTransaction($user, $result['transaction_id'], $result['transaction_data'] ?? []);
+                $updatedTransaction = $this->editTransaction($user, $result['transaction_id'], $result['transaction_data'] ?? []);
+                $result['reply'] = $this->buildEditReply($updatedTransaction);
 
                 // Invalida cache após editar transação
                 Cache::forget("user.{$user->id}.financial_data");
@@ -342,7 +345,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
     /**
      * Cria uma transação baseada nos dados da IA
      */
-    private function createTransaction(User $user, WhatsAppContact $contact, array $data): void
+    private function createTransaction(User $user, WhatsAppContact $contact, array $data): Transaction
     {
         $categoryRecognition = app(CategoryRecognitionService::class);
         $category = null;
@@ -419,6 +422,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'category_name' => $category?->name,
             ]
         );
+
+        return $transaction->loadMissing('category');
     }
 
     /**
@@ -468,6 +473,46 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
         if (($data['type'] ?? 'expense') === 'income') {
             return "✅ Receita de R$ {$amount} registrada!";
+        }
+
+        return "✅ Gasto de R$ {$amount} registrado!";
+    }
+
+    /**
+     * Gera uma resposta consistente para lançamentos com contexto.
+     */
+    private function buildCreatedTransactionReply(Transaction $transaction): string
+    {
+        $amount = number_format((float) $transaction->amount, 2, ',', '.');
+        $description = trim((string) $transaction->description);
+        $category = trim((string) ($transaction->category?->name ?? ''));
+
+        if ($transaction->type === 'income') {
+            if ($description !== '' && $description !== 'Receita' && $category !== '') {
+                return "✅ Receita de R$ {$amount} registrada em {$category} ({$description}).";
+            }
+
+            if ($description !== '' && $description !== 'Receita') {
+                return "✅ Receita de R$ {$amount} registrada como {$description}.";
+            }
+
+            if ($category !== '') {
+                return "✅ Receita de R$ {$amount} registrada em {$category}.";
+            }
+
+            return "✅ Receita de R$ {$amount} registrada!";
+        }
+
+        if ($description !== '' && $description !== 'Gasto' && $category !== '') {
+            return "✅ Registrei R$ {$amount} em {$category} ({$description}).";
+        }
+
+        if ($description !== '' && $description !== 'Gasto') {
+            return "✅ Registrei R$ {$amount} em {$description}.";
+        }
+
+        if ($category !== '') {
+            return "✅ Registrei R$ {$amount} em {$category}.";
         }
 
         return "✅ Gasto de R$ {$amount} registrado!";
@@ -676,7 +721,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
     /**
      * Edita uma transação existente
      */
-    private function editTransaction(User $user, $transactionId, array $data): void
+    private function editTransaction(User $user, $transactionId, array $data): Transaction
     {
         // Se o transactionId não for numérico, tenta buscar por descrição/valor
         if (! is_numeric($transactionId)) {
@@ -729,6 +774,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'changes' => $updateData,
             ]
         );
+
+        return $transaction->fresh(['category']);
     }
 
     /**
@@ -858,6 +905,23 @@ class ProcessWhatsAppMessage implements ShouldQueue
     }
 
     /**
+     * Monta uma resposta objetiva para edições.
+     */
+    private function buildEditReply(Transaction $transaction): string
+    {
+        $amount = number_format((float) $transaction->amount, 2, ',', '.');
+        $description = trim((string) $transaction->description);
+        $category = trim((string) ($transaction->category?->name ?? ''));
+        $label = $description !== '' ? $description : ($category !== '' ? $category : 'transação');
+
+        if ($category !== '' && $description !== '' && $description !== $category) {
+            return "✅ Atualizei {$label} em {$category} para R$ {$amount}.";
+        }
+
+        return "✅ Atualizei {$label} para R$ {$amount}.";
+    }
+
+    /**
      * Obtém o JID do destinatário para envio de mensagem
      */
     private function getRecipientJid(PhoneNumberService $phoneNumberService): string
@@ -898,6 +962,20 @@ class ProcessWhatsAppMessage implements ShouldQueue
     private function getErrorMessage(\Exception $e): string
     {
         $errorType = get_class($e);
+        $errorMessage = trim($e->getMessage());
+
+        if ($errorMessage !== '') {
+            if (str_contains($errorMessage, 'mais de uma transação')) {
+                return '⚠️ '.$errorMessage;
+            }
+
+            if (
+                str_contains($errorMessage, 'Não consegui identificar qual transação deletar')
+                || str_contains($errorMessage, 'Transação não encontrada para exclusão')
+            ) {
+                return '⚠️ '.$errorMessage;
+            }
+        }
 
         // Mensagens específicas por tipo de erro
         $messages = [

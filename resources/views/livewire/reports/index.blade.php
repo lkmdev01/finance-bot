@@ -55,12 +55,12 @@ new class extends Component {
         $totalIncome = $transactions->where('type', 'income')->sum('amount');
         $totalExpenses = $transactions->where('type', 'expense')->sum('amount');
         
-        // Calcular saldo disponível (mesma lógica do Dashboard)
+        // Calcular saldo disponÃ­vel (mesma lÃ³gica do Dashboard)
         $totalIncomeAllTime = (float) $user->transactions()
             ->where('type', 'income')
             ->sum('amount');
 
-        // Excluir transações de depósito em metas
+        // Excluir transaÃ§Ãµes de depÃ³sito em metas
         $allExpenses = $user->transactions()
             ->where('type', 'expense')
             ->get();
@@ -86,7 +86,7 @@ new class extends Component {
             ->map(function ($group) {
                 return [
                     'category' => $group->first()->category->name,
-                    'icon' => $group->first()->category->icon ?? '📦',
+                    'icon' => $group->first()->category->icon ?? 'ðŸ“¦',
                     'amount' => $group->sum('amount'),
                     'count' => $group->count(),
                 ];
@@ -101,7 +101,7 @@ new class extends Component {
             ->map(function ($group) {
                 return [
                     'category' => $group->first()->category->name,
-                    'icon' => $group->first()->category->icon ?? '📦',
+                    'icon' => $group->first()->category->icon ?? 'ðŸ“¦',
                     'amount' => $group->sum('amount'),
                     'count' => $group->count(),
                 ];
@@ -113,8 +113,8 @@ new class extends Component {
             'transactions' => $transactions,
             'totalIncome' => $totalIncome,
             'totalExpenses' => $totalExpenses,
-            'balance' => $totalIncome - $totalExpenses, // Saldo do período
-            'availableBalance' => $availableBalance, // Saldo disponível (all-time)
+            'balance' => $totalIncome - $totalExpenses, // Saldo do perÃ­odo
+            'availableBalance' => $availableBalance, // Saldo disponÃ­vel (all-time)
             'expensesByCategory' => $expensesByCategory,
             'incomeByCategory' => $incomeByCategory,
             'transactionCount' => $transactions->count(),
@@ -125,8 +125,8 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Relatórios</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Análise detalhada das suas finanças</p>
+            <h1 class="text-2xl font-bold">RelatÃ³rios</h1>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">AnÃ¡lise detalhada das suas finanÃ§as</p>
         </div>
         <div class="flex items-center gap-3">
             <flux:dropdown>
@@ -148,13 +148,13 @@ new class extends Component {
     <!-- Filtros -->
     <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <flux:select wire:model.live="period" label="Período">
+            <flux:select wire:model.live="period" label="PerÃ­odo">
                 <option value="monthly">Mensal</option>
                 <option value="yearly">Anual</option>
             </flux:select>
 
             @if($period === 'monthly')
-                <flux:input type="month" wire:model.live="selectedMonth" label="Mês" />
+                <flux:input type="month" wire:model.live="selectedMonth" label="MÃªs" />
             @else
                 <flux:input type="number" wire:model.live="year" label="Ano" min="2020" max="2100" />
             @endif
@@ -184,23 +184,23 @@ new class extends Component {
         </div>
 
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Saldo do Período</p>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Saldo do PerÃ­odo</p>
             <p class="text-2xl font-bold {{ $balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
                 R$ {{ number_format($balance, 2, ',', '.') }}
             </p>
             <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
-                {{ $transactionCount }} transação(ões)
+                {{ $transactionCount }} transaÃ§Ã£o(Ãµes)
             </p>
         </div>
         
-        <!-- Saldo Disponível (All-time) -->
+        <!-- Saldo DisponÃ­vel (All-time) -->
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Saldo Disponível</p>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Saldo DisponÃ­vel</p>
             <p class="text-2xl font-bold {{ $availableBalance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
                 R$ {{ number_format($availableBalance, 2, ',', '.') }}
             </p>
             <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
-                Total acumulado (todas as transações)
+                Total acumulado (todas as transaÃ§Ãµes)
             </p>
         </div>
     </div>
@@ -217,7 +217,7 @@ new class extends Component {
                             <div>
                                 <p class="font-medium">{{ $item['category'] }}</p>
                                 <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                                    {{ $item['count'] }} transação(ões)
+                                    {{ $item['count'] }} transaÃ§Ã£o(Ãµes)
                                 </p>
                             </div>
                         </div>
@@ -247,7 +247,7 @@ new class extends Component {
                             <div>
                                 <p class="font-medium">{{ $item['category'] }}</p>
                                 <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                                    {{ $item['count'] }} transação(ões)
+                                    {{ $item['count'] }} transaÃ§Ã£o(Ãµes)
                                 </p>
                             </div>
                         </div>
@@ -265,15 +265,15 @@ new class extends Component {
         </div>
     @endif
 
-    <!-- Lista Completa de Transações -->
+    <!-- Lista Completa de TransaÃ§Ãµes -->
     <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-        <h2 class="text-lg font-semibold mb-6">Todas as Transações</h2>
+        <h2 class="text-lg font-semibold mb-6">Todas as TransaÃ§Ãµes</h2>
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Data</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Descrição</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">DescriÃ§Ã£o</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Categoria</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Tipo</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Valor</th>
@@ -312,7 +312,7 @@ new class extends Component {
                     @empty
                         <tr>
                             <td colspan="5" class="px-6 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                                Nenhuma transação encontrada neste período.
+                                Nenhuma transaÃ§Ã£o encontrada neste perÃ­odo.
                             </td>
                         </tr>
                     @endforelse

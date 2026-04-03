@@ -10,7 +10,7 @@ new class extends Component {
     {
         $goal = Auth::user()->savingsGoals()->findOrFail($goalId);
         $goal->delete();
-        session()->flash('message', 'Meta excluída com sucesso!');
+        session()->flash('message', 'Meta excluÃ­da com sucesso!');
     }
 
     public function removeDeposit(int $goalId, int $depositId): void
@@ -18,10 +18,10 @@ new class extends Component {
         $goal = Auth::user()->savingsGoals()->findOrFail($goalId);
         $deposit = $goal->deposits()->findOrFail($depositId);
         
-        // Deletar depósito (o boot() do modelo já remove a transação associada)
+        // Deletar depÃ³sito (o boot() do modelo jÃ¡ remove a transaÃ§Ã£o associada)
         $deposit->delete();
         
-        session()->flash('message', 'Depósito removido com sucesso! O valor foi devolvido ao saldo disponível.');
+        session()->flash('message', 'DepÃ³sito removido com sucesso! O valor foi devolvido ao saldo disponÃ­vel.');
     }
 
     public function with(): array
@@ -58,7 +58,7 @@ new class extends Component {
                         @endif
                         @if($goal->target_date)
                             <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
-                                Meta até: {{ $goal->target_date->format('d/m/Y') }}
+                                Meta atÃ©: {{ $goal->target_date->format('d/m/Y') }}
                             </p>
                         @endif
                     </div>
@@ -132,13 +132,13 @@ new class extends Component {
 
                     @if($goal->is_completed)
                         <div class="mt-3 p-2 bg-green-100 dark:bg-green-900 rounded-lg text-center">
-                            <span class="text-sm font-medium text-green-800 dark:text-green-200">✓ Meta Concluída!</span>
+                            <span class="text-sm font-medium text-green-800 dark:text-green-200">âœ“ Meta ConcluÃ­da!</span>
                         </div>
                     @endif
 
                     @if($goal->deposits->count() > 0)
                         <div class="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
-                            <p class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Depósitos ({{ $goal->deposits->count() }})</p>
+                            <p class="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">DepÃ³sitos ({{ $goal->deposits->count() }})</p>
                             <div class="space-y-2 max-h-40 overflow-y-auto">
                                 @foreach($goal->deposits->take(10) as $deposit)
                                     <div class="flex items-center justify-between text-xs group">
@@ -152,7 +152,7 @@ new class extends Component {
                                             <p class="font-semibold text-green-600 dark:text-green-400">+ R$ {{ number_format($deposit->amount, 2, ',', '.') }}</p>
                                             <flux:button 
                                                 wire:click="removeDeposit({{ $goal->id }}, {{ $deposit->id }})"
-                                                wire:confirm="Tem certeza que deseja remover este depósito? O valor será devolvido ao saldo disponível."
+                                                wire:confirm="Tem certeza que deseja remover este depÃ³sito? O valor serÃ¡ devolvido ao saldo disponÃ­vel."
                                                 variant="ghost"
                                                 size="xs"
                                                 icon="trash"
@@ -163,7 +163,7 @@ new class extends Component {
                                 @endforeach
                                 @if($goal->deposits->count() > 10)
                                     <p class="text-xs text-zinc-500 dark:text-zinc-400 text-center pt-2">
-                                        + {{ $goal->deposits->count() - 10 }} depósito(s) anterior(es)
+                                        + {{ $goal->deposits->count() - 10 }} depÃ³sito(s) anterior(es)
                                     </p>
                                 @endif
                             </div>

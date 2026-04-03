@@ -27,7 +27,7 @@ new class extends Component {
             ->where('type', 'income')
             ->sum('amount');
         
-        // Excluir transações de depósito em metas (já são contadas separadamente)
+        // Excluir transaÃ§Ãµes de depÃ³sito em metas (jÃ¡ sÃ£o contadas separadamente)
         $allExpenses = $user->transactions()
             ->where('type', 'expense')
             ->get();
@@ -54,29 +54,29 @@ new class extends Component {
             'description' => ['nullable', 'string', 'max:500'],
             'deposit_date' => ['required', 'date', 'before_or_equal:today'],
         ], [
-            'amount.required' => 'O valor do depósito é obrigatório.',
-            'amount.numeric' => 'O valor deve ser um número.',
+            'amount.required' => 'O valor do depÃ³sito Ã© obrigatÃ³rio.',
+            'amount.numeric' => 'O valor deve ser um nÃºmero.',
             'amount.min' => 'O valor deve ser maior que zero.',
-            'deposit_date.required' => 'A data do depósito é obrigatória.',
-            'deposit_date.before_or_equal' => 'A data não pode ser no futuro.',
+            'deposit_date.required' => 'A data do depÃ³sito Ã© obrigatÃ³ria.',
+            'deposit_date.before_or_equal' => 'A data nÃ£o pode ser no futuro.',
         ]);
 
         $depositAmount = (float) $this->amount;
         $availableBalance = $this->getAvailableBalance();
 
         if ($depositAmount > $availableBalance) {
-            $this->addError('amount', 'Saldo insuficiente. Saldo disponível: R$ ' . number_format($availableBalance, 2, ',', '.'));
+            $this->addError('amount', 'Saldo insuficiente. Saldo disponÃ­vel: R$ ' . number_format($availableBalance, 2, ',', '.'));
             return;
         }
 
-        // Criar depósito
+        // Criar depÃ³sito
         $deposit = $this->goal->deposits()->create([
             'amount' => $this->amount,
             'description' => $this->description,
             'deposit_date' => $this->deposit_date,
         ]);
 
-        // Criar transação automática de despesa para manter o histórico
+        // Criar transaÃ§Ã£o automÃ¡tica de despesa para manter o histÃ³rico
         $user = Auth::user();
         $savingsCategory = $user->categories()
             ->where('name', 'Economia')
@@ -87,11 +87,11 @@ new class extends Component {
             $savingsCategory = $user->categories()->create([
                 'name' => 'Economia',
                 'type' => 'expense',
-                'description' => 'Depósitos em metas de economia',
+                'description' => 'DepÃ³sitos em metas de economia',
             ]);
         }
 
-        // Verificar se já existe uma transação para este depósito (evitar duplicatas)
+        // Verificar se jÃ¡ existe uma transaÃ§Ã£o para este depÃ³sito (evitar duplicatas)
         $existingTransaction = $user->transactions()
             ->get()
             ->filter(function ($transaction) use ($deposit) {
@@ -105,7 +105,7 @@ new class extends Component {
                 'category_id' => $savingsCategory->id,
                 'type' => 'expense',
                 'amount' => $this->amount,
-                'description' => 'Depósito em meta: ' . $this->goal->name . ($this->description ? ' - ' . $this->description : ''),
+                'description' => 'DepÃ³sito em meta: ' . $this->goal->name . ($this->description ? ' - ' . $this->description : ''),
                 'date' => $this->deposit_date,
                 'metadata' => [
                     'savings_goal_id' => $this->goal->id,
@@ -114,7 +114,7 @@ new class extends Component {
             ]);
         }
 
-        session()->flash('message', 'Depósito realizado com sucesso!');
+        session()->flash('message', 'DepÃ³sito realizado com sucesso!');
         
         $this->redirect(route('savings-goals.index'), navigate: true);
     }
@@ -123,7 +123,7 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Fazer Depósito</h1>
+            <h1 class="text-2xl font-bold">Fazer DepÃ³sito</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Meta: {{ $goal->name }}</p>
         </div>
         <flux:button href="{{ route('savings-goals.index') }}" wire:navigate variant="ghost">
@@ -143,7 +143,7 @@ new class extends Component {
                     <p class="text-lg font-semibold">R$ {{ number_format($goal->target_amount, 2, ',', '.') }}</p>
                 </div>
                 <div>
-                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Saldo Disponível</p>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Saldo DisponÃ­vel</p>
                     <p class="text-lg font-semibold {{ $this->getAvailableBalance() < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
                         R$ {{ number_format($this->getAvailableBalance(), 2, ',', '.') }}
                     </p>
@@ -156,14 +156,14 @@ new class extends Component {
                         style="width: {{ min(100, $goal->progress_percentage) }}%"
                     ></div>
                 </div>
-                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{{ number_format($goal->progress_percentage, 1) }}% concluído</p>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{{ number_format($goal->progress_percentage, 1) }}% concluÃ­do</p>
             </div>
         </div>
 
         <form wire:submit="save" class="space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <flux:field>
-                    <flux:label>Valor do Depósito</flux:label>
+                    <flux:label>Valor do DepÃ³sito</flux:label>
                     <div 
                         x-data="{ 
                             displayValue: '',
@@ -218,16 +218,16 @@ new class extends Component {
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Data do Depósito</flux:label>
+                    <flux:label>Data do DepÃ³sito</flux:label>
                     <flux:input type="date" wire:model="deposit_date" max="{{ now()->format('Y-m-d') }}" required />
                     <flux:error name="deposit_date" />
                 </flux:field>
 
                 <flux:field class="md:col-span-2">
-                    <flux:label>Descrição (opcional)</flux:label>
+                    <flux:label>DescriÃ§Ã£o (opcional)</flux:label>
                     <flux:textarea 
                         wire:model="description" 
-                        placeholder="Ex: Depósito inicial, Economia do mês..."
+                        placeholder="Ex: DepÃ³sito inicial, Economia do mÃªs..."
                         rows="3"
                     />
                     <flux:error name="description" />
@@ -239,7 +239,7 @@ new class extends Component {
                     Cancelar
                 </flux:button>
                 <flux:button type="submit" variant="primary">
-                    Fazer Depósito
+                    Fazer DepÃ³sito
                 </flux:button>
             </div>
         </form>

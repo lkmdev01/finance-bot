@@ -19,7 +19,7 @@ new class extends Component {
     {
         $budget = Auth::user()->budgets()->findOrFail($budgetId);
         $budget->delete();
-        session()->flash('message', 'Orçamento excluído com sucesso!');
+        session()->flash('message', 'OrÃ§amento excluÃ­do com sucesso!');
     }
 
     public function with(): array
@@ -46,18 +46,18 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Orçamentos</h1>
+            <h1 class="text-2xl font-bold">OrÃ§amentos</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Defina limites de gastos por categoria</p>
         </div>
         <flux:button href="{{ route('budgets.create') }}" wire:navigate variant="primary">
-            Novo Orçamento
+            Novo OrÃ§amento
         </flux:button>
     </div>
 
     <!-- Filtros -->
     <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <flux:select wire:model.live="period" label="Período">
+            <flux:select wire:model.live="period" label="PerÃ­odo">
                 <option value="monthly">Mensal</option>
                 <option value="yearly">Anual</option>
             </flux:select>
@@ -65,7 +65,7 @@ new class extends Component {
             <flux:input type="number" wire:model.live="year" label="Ano" min="2020" max="2100" />
 
             @if($period === 'monthly')
-                <flux:select wire:model.live="month" label="Mês">
+                <flux:select wire:model.live="month" label="MÃªs">
                     @for($m = 1; $m <= 12; $m++)
                         <option value="{{ $m }}">{{ \Carbon\Carbon::create(null, $m, 1)->locale('pt_BR')->monthName }}</option>
                     @endfor
@@ -74,7 +74,7 @@ new class extends Component {
         </div>
     </div>
 
-    <!-- Lista de Orçamentos -->
+    <!-- Lista de OrÃ§amentos -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         @forelse($budgets as $budget)
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
@@ -103,7 +103,7 @@ new class extends Component {
                         />
                         <flux:button 
                             wire:click="delete({{ $budget->id }})"
-                            wire:confirm="Tem certeza que deseja excluir este orçamento?"
+                            wire:confirm="Tem certeza que deseja excluir este orÃ§amento?"
                             variant="ghost"
                             size="sm"
                             icon="trash"
@@ -115,7 +115,7 @@ new class extends Component {
                 <div class="space-y-3">
                     <div>
                         <div class="flex items-center justify-between mb-1">
-                            <span class="text-sm text-zinc-600 dark:text-zinc-400">Orçado</span>
+                            <span class="text-sm text-zinc-600 dark:text-zinc-400">OrÃ§ado</span>
                             <span class="text-sm font-semibold">R$ {{ number_format($budget->amount, 2, ',', '.') }}</span>
                         </div>
                         <div class="flex items-center justify-between mb-1">
@@ -145,9 +145,9 @@ new class extends Component {
             </div>
         @empty
             <div class="col-span-full bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
-                <p class="text-zinc-500 dark:text-zinc-400 mb-4">Nenhum orçamento encontrado para este período.</p>
+                <p class="text-zinc-500 dark:text-zinc-400 mb-4">Nenhum orÃ§amento encontrado para este perÃ­odo.</p>
                 <flux:button href="{{ route('budgets.create') }}" wire:navigate variant="primary">
-                    Criar primeiro orçamento
+                    Criar primeiro orÃ§amento
                 </flux:button>
             </div>
         @endforelse

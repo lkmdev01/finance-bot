@@ -5,6 +5,8 @@ use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
 test('usuario pode iniciar checkout de assinatura do plano pro apos confirmar dados', function () {
+    $planPrice = config('billing.plans.pro_monthly.price_cents');
+
     $user = User::factory()->create([
         'email' => 'lukas@example.com',
         'name' => 'Lukas Martins',
@@ -24,7 +26,7 @@ test('usuario pode iniciar checkout de assinatura do plano pro apos confirmar da
             'data' => [
                 'id' => 'bill_sub_123',
                 'url' => 'https://pay.abacatepay.com/bill_sub_123',
-                'amount' => 100,
+                'amount' => $planPrice,
                 'status' => 'PENDING',
                 'frequency' => 'ONE_TIME',
             ],
@@ -41,7 +43,7 @@ test('usuario pode iniciar checkout de assinatura do plano pro apos confirmar da
     Http::assertSent(function ($request) {
         return $request->url() === 'https://api.abacatepay.com/v1/billing/create'
             && $request['products'][0]['externalId'] === 'pro_monthly'
-            && $request['products'][0]['price'] === 100
+            && $request['products'][0]['price'] === config('billing.plans.pro_monthly.price_cents')
             && $request['frequency'] === 'ONE_TIME'
             && $request['customer']['name'] === 'Lukas Martins'
             && $request['customer']['email'] === 'lukas@example.com'

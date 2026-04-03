@@ -89,8 +89,8 @@ new class extends Component {
             </div>
 
             <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
-                <p class="font-medium text-white">Cobrança</p>
-                <p class="mt-1">O CPF/CNPJ é solicitado na tela anterior ao checkout do plano, junto com a confirmação do seu número cadastrado.</p>
+                <p class="font-medium text-white">CobranÃ§a</p>
+                <p class="mt-1">O CPF/CNPJ Ã© solicitado na tela anterior ao checkout do plano, junto com a confirmaÃ§Ã£o do seu nÃºmero cadastrado.</p>
             </div>
 
             <div class="flex items-center gap-4">

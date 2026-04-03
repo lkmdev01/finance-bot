@@ -10,7 +10,10 @@ test('profile page is displayed', function () {
 });
 
 test('profile information can be updated', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create([
+        'name' => 'Lukas Martins',
+        'email' => 'lukas@example.com',
+    ]);
 
     $this->actingAs($user);
 
@@ -29,7 +32,10 @@ test('profile information can be updated', function () {
 });
 
 test('email verification status is unchanged when email address is unchanged', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create([
+        'name' => 'Lukas Martins',
+        'email' => 'lukas@example.com',
+    ]);
 
     $this->actingAs($user);
 

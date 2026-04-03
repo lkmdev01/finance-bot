@@ -17,12 +17,12 @@ new class extends Component {
             'color' => ['nullable', 'string', 'max:7'],
             'icon' => ['nullable', 'string', 'max:50'],
         ], [
-            'name.required' => 'O nome da categoria é obrigatório.',
-            'name.max' => 'O nome não pode ter mais de 255 caracteres.',
-            'type.required' => 'O tipo da categoria é obrigatório.',
+            'name.required' => 'O nome da categoria Ã© obrigatÃ³rio.',
+            'name.max' => 'O nome nÃ£o pode ter mais de 255 caracteres.',
+            'type.required' => 'O tipo da categoria Ã© obrigatÃ³rio.',
             'type.in' => 'O tipo deve ser receita ou despesa.',
-            'color.max' => 'A cor deve ter no máximo 7 caracteres.',
-            'icon.max' => 'O ícone deve ter no máximo 50 caracteres.',
+            'color.max' => 'A cor deve ter no mÃ¡ximo 7 caracteres.',
+            'icon.max' => 'O Ã­cone deve ter no mÃ¡ximo 50 caracteres.',
         ]);
 
         auth()->user()->categories()->create($validated);
@@ -37,7 +37,7 @@ new class extends Component {
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold">Nova Categoria</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Crie uma nova categoria para organizar suas transações</p>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Crie uma nova categoria para organizar suas transaÃ§Ãµes</p>
         </div>
         <flux:button href="{{ route('categories.index') }}" wire:navigate variant="ghost">
             Voltar
@@ -49,7 +49,7 @@ new class extends Component {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <flux:field>
                     <flux:label>Nome</flux:label>
-                    <flux:input wire:model="name" placeholder="Ex: Alimentação" required />
+                    <flux:input wire:model="name" placeholder="Ex: AlimentaÃ§Ã£o" required />
                     <flux:error name="name" />
                 </flux:field>
 
@@ -70,9 +70,9 @@ new class extends Component {
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Ícone (opcional)</flux:label>
-                    <flux:input wire:model="icon" placeholder="Ex: 🍔, 🚗, 💰" maxlength="2" />
-                    <flux:description>Use um emoji ou símbolo para representar a categoria</flux:description>
+                    <flux:label>Ãcone (opcional)</flux:label>
+                    <flux:input wire:model="icon" placeholder="Ex: ðŸ”, ðŸš—, ðŸ’°" maxlength="2" />
+                    <flux:description>Use um emoji ou sÃ­mbolo para representar a categoria</flux:description>
                     <flux:error name="icon" />
                 </flux:field>
             </div>

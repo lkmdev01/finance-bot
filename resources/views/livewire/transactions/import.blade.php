@@ -34,7 +34,7 @@ new class extends Component
             $this->errors = $result['errors'];
 
             if ($this->imported > 0) {
-                session()->flash('message', "{$this->imported} transações importadas com sucesso!");
+                session()->flash('message', "{$this->imported} transaÃ§Ãµes importadas com sucesso!");
                 $this->redirect(route('transactions.index'), navigate: true);
             }
         } catch (\Exception $e) {
@@ -47,8 +47,8 @@ new class extends Component
 
 <div class="p-6 space-y-6">
     <div>
-        <h1 class="text-2xl font-bold">Importar Transações</h1>
-        <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Importe transações de arquivos CSV ou OFX</p>
+        <h1 class="text-2xl font-bold">Importar TransaÃ§Ãµes</h1>
+        <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Importe transaÃ§Ãµes de arquivos CSV ou OFX</p>
     </div>
 
     <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
@@ -68,18 +68,18 @@ new class extends Component
                     <flux:input type="file" wire:model="file" accept=".csv,.txt,.ofx" />
                     <flux:error name="file" />
                     <flux:description>
-                        Formatos aceitos: CSV, TXT, OFX. Tamanho máximo: 10MB
+                        Formatos aceitos: CSV, TXT, OFX. Tamanho mÃ¡ximo: 10MB
                     </flux:description>
                 </flux:field>
 
                 @if($imported !== null)
                     <div class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                         <p class="text-sm text-green-800 dark:text-green-200">
-                            <strong>{{ $imported }}</strong> transações importadas com sucesso!
+                            <strong>{{ $imported }}</strong> transaÃ§Ãµes importadas com sucesso!
                         </p>
                         @if(count($errors) > 0)
                             <p class="text-xs text-green-700 dark:text-green-300 mt-2">
-                                {{ count($errors) }} erros encontrados durante a importação.
+                                {{ count($errors) }} erros encontrados durante a importaÃ§Ã£o.
                             </p>
                         @endif
                     </div>

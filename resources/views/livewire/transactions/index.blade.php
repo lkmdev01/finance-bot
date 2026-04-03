@@ -98,7 +98,7 @@ new class extends Component
     {
         $transaction = Auth::user()->transactions()->findOrFail($transactionId);
         $transaction->delete();
-        session()->flash('message', 'Transação excluída com sucesso!');
+        session()->flash('message', 'TransaÃ§Ã£o excluÃ­da com sucesso!');
     }
 
     public function with(): array
@@ -106,7 +106,7 @@ new class extends Component
         $query = Auth::user()->transactions()
             ->with('category');
 
-        // Busca por descrição ou categoria
+        // Busca por descriÃ§Ã£o ou categoria
         if ($this->search) {
             $query->where(function ($q) {
                 $q->where('description', 'like', "%{$this->search}%")
@@ -146,7 +146,7 @@ new class extends Component
             });
         }
 
-        // Ordenação
+        // OrdenaÃ§Ã£o
         $sortField = match ($this->sortBy) {
             'amount' => 'amount',
             'description' => 'description',
@@ -154,10 +154,10 @@ new class extends Component
         };
         $query->orderBy($sortField, $this->sortDirection);
         if ($this->sortBy !== 'date') {
-            $query->orderBy('date', 'desc'); // Ordenação secundária por data
+            $query->orderBy('date', 'desc'); // OrdenaÃ§Ã£o secundÃ¡ria por data
         }
 
-        // Calcular totais do período filtrado
+        // Calcular totais do perÃ­odo filtrado
         $totalIncome = (float) Auth::user()->transactions()
             ->where('type', 'income')
             ->when($this->dateFrom, fn ($q) => $q->where('date', '>=', $this->dateFrom))
@@ -170,12 +170,12 @@ new class extends Component
             ->when($this->dateTo, fn ($q) => $q->where('date', '<=', $this->dateTo))
             ->sum('amount');
 
-        // Calcular saldo disponível (mesma lógica do Dashboard)
+        // Calcular saldo disponÃ­vel (mesma lÃ³gica do Dashboard)
         $totalIncomeAllTime = (float) Auth::user()->transactions()
             ->where('type', 'income')
             ->sum('amount');
 
-        // Excluir transações de depósito em metas
+        // Excluir transaÃ§Ãµes de depÃ³sito em metas
         $allExpenses = Auth::user()->transactions()
             ->where('type', 'expense')
             ->get();
@@ -209,11 +209,11 @@ new class extends Component
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Transações</h1>
+            <h1 class="text-2xl font-bold">TransaÃ§Ãµes</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie suas receitas e despesas</p>
         </div>
         <flux:button href="{{ route('transactions.create') }}" wire:navigate variant="primary">
-            Nova Transação
+            Nova TransaÃ§Ã£o
         </flux:button>
     </div>
 
@@ -232,7 +232,7 @@ new class extends Component
             </p>
         </div>
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Saldo disponível</p>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Saldo disponÃ­vel</p>
             <p class="text-2xl font-bold {{ $availableBalance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
                 R$ {{ number_format($availableBalance, 2, ',', '.') }}
             </p>
@@ -250,7 +250,7 @@ new class extends Component
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <flux:input 
                 wire:model.live.debounce.300ms="search" 
-                placeholder="Buscar por descrição ou categoria..."
+                placeholder="Buscar por descriÃ§Ã£o ou categoria..."
                 icon="magnifying-glass"
             />
             
@@ -277,7 +277,7 @@ new class extends Component
             <flux:select wire:model.live="sortBy" placeholder="Ordenar por">
                 <option value="date">Data</option>
                 <option value="amount">Valor</option>
-                <option value="description">Descrição</option>
+                <option value="description">DescriÃ§Ã£o</option>
             </flux:select>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
@@ -286,21 +286,21 @@ new class extends Component
             <flux:input 
                 type="number" 
                 wire:model.live.debounce.300ms="amountMin" 
-                placeholder="Valor mínimo"
+                placeholder="Valor mÃ­nimo"
                 step="0.01"
                 min="0"
             />
             <flux:input 
                 type="number" 
                 wire:model.live.debounce.300ms="amountMax" 
-                placeholder="Valor máximo"
+                placeholder="Valor mÃ¡ximo"
                 step="0.01"
                 min="0"
             />
         </div>
     </div>
 
-    <!-- Tabela de Transações -->
+    <!-- Tabela de TransaÃ§Ãµes -->
     <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full">
@@ -310,15 +310,15 @@ new class extends Component
                             <button wire:click="sortBy('date')" class="flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-200">
                                 Data
                                 @if($sortBy === 'date')
-                                    <span class="text-zinc-400">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                                    <span class="text-zinc-400">{{ $sortDirection === 'asc' ? 'â†‘' : 'â†“' }}</span>
                                 @endif
                             </button>
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                             <button wire:click="sortBy('description')" class="flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-200">
-                                Descrição
+                                DescriÃ§Ã£o
                                 @if($sortBy === 'description')
-                                    <span class="text-zinc-400">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                                    <span class="text-zinc-400">{{ $sortDirection === 'asc' ? 'â†‘' : 'â†“' }}</span>
                                 @endif
                             </button>
                         </th>
@@ -328,11 +328,11 @@ new class extends Component
                             <button wire:click="sortBy('amount')" class="flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-200 ml-auto">
                                 Valor
                                 @if($sortBy === 'amount')
-                                    <span class="text-zinc-400">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                                    <span class="text-zinc-400">{{ $sortDirection === 'asc' ? 'â†‘' : 'â†“' }}</span>
                                 @endif
                             </button>
                         </th>
-                        <th class="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Ações</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">AÃ§Ãµes</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -375,7 +375,7 @@ new class extends Component
                                     />
                                     <flux:button 
                                         wire:click="delete({{ $transaction->id }})"
-                                        wire:confirm="Tem certeza que deseja excluir esta transação?"
+                                        wire:confirm="Tem certeza que deseja excluir esta transaÃ§Ã£o?"
                                         variant="ghost"
                                         size="sm"
                                         icon="trash"
@@ -387,7 +387,7 @@ new class extends Component
                     @empty
                         <tr>
                             <td colspan="6" class="px-6 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                                Nenhuma transação encontrada.
+                                Nenhuma transaÃ§Ã£o encontrada.
                             </td>
                         </tr>
                     @endforelse

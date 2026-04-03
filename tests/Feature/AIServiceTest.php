@@ -56,7 +56,7 @@ it('processa mensagem de gasto corretamente', function () {
     $result = $this->aiService->processMessage('Gastei 50 reais no supermercado', $this->user);
 
     expect($result['action'])->toBe('create_transaction');
-    expect($result['transaction_data']['amount'])->toBe(50.0);
+    expect((float) $result['transaction_data']['amount'])->toBe(50.0);
     expect($result['transaction_data']['type'])->toBe('expense');
     expect($result['transaction_data']['description'])->toBe('Supermercado');
     expect($result['reply'])->toContain('Registrei');
@@ -95,7 +95,7 @@ it('processa mensagem de receita corretamente', function () {
     $result = $this->aiService->processMessage('Recebi 1000 de salário', $this->user);
 
     expect($result['action'])->toBe('create_transaction');
-    expect($result['transaction_data']['amount'])->toBe(1000.0);
+    expect((float) $result['transaction_data']['amount'])->toBe(1000.0);
     expect($result['transaction_data']['type'])->toBe('income');
     expect($result['reply'])->toContain('Registrei');
 });
@@ -243,7 +243,7 @@ it('solicita confirmação para transações grandes', function () {
     $result = $this->aiService->processMessage('Gastei 1500 reais', $this->user);
 
     expect($result['action'])->toBe('confirm_large_transaction');
-    expect($result['transaction_data']['amount'])->toBe(1500.0);
+    expect((float) $result['transaction_data']['amount'])->toBe(1500.0);
     expect($result['reply'])->toContain('Confirma');
 });
 
@@ -289,6 +289,7 @@ it('normaliza mensagem corretamente', function () {
 it('usa contexto de contato quando disponível', function () {
     $contact = WhatsAppContact::factory()->create([
         'user_id' => $this->user->id,
+        'phone_number' => '5513991290256',
         'context' => [
             [
                 'message' => 'Qual é o meu saldo?',
@@ -450,3 +451,4 @@ it('processa mensagens com valores em diferentes formatos', function () {
         expect($result['action'])->toBe('create_transaction');
     }
 });
+
