@@ -27,13 +27,13 @@ new class extends Component
             'thresholdPercentage' => ['required_if:type,milestone', 'nullable', 'numeric', 'min:1', 'max:100'],
             'daysBeforeDeadline' => ['required_if:type,deadline', 'nullable', 'integer', 'min:1'],
         ], [
-            'type.required' => 'O tipo de alerta Ã© obrigatÃ³rio.',
-            'thresholdPercentage.required_if' => 'A porcentagem Ã© obrigatÃ³ria para alertas de marco.',
-            'thresholdPercentage.numeric' => 'A porcentagem deve ser um nÃºmero.',
+            'type.required' => 'O tipo de alerta é obrigatório.',
+            'thresholdPercentage.required_if' => 'A porcentagem é obrigatória para alertas de marco.',
+            'thresholdPercentage.numeric' => 'A porcentagem deve ser um número.',
             'thresholdPercentage.min' => 'A porcentagem deve ser pelo menos 1%.',
-            'thresholdPercentage.max' => 'A porcentagem nÃ£o pode ser maior que 100%.',
-            'daysBeforeDeadline.required_if' => 'Os dias antes do prazo sÃ£o obrigatÃ³rios para alertas de prazo.',
-            'daysBeforeDeadline.integer' => 'Os dias devem ser um nÃºmero inteiro.',
+            'thresholdPercentage.max' => 'A porcentagem não pode ser maior que 100%.',
+            'daysBeforeDeadline.required_if' => 'Os dias antes do prazo são obrigatórios para alertas de prazo.',
+            'daysBeforeDeadline.integer' => 'Os dias devem ser um número inteiro.',
             'daysBeforeDeadline.min' => 'Os dias devem ser pelo menos 1.',
         ]);
 
@@ -52,7 +52,7 @@ new class extends Component
     {
         $alert = Auth::user()->savingsGoalAlerts()->findOrFail($alertId);
         $alert->delete();
-        session()->flash('message', 'Alerta excluÃ­do com sucesso!');
+        session()->flash('message', 'Alerta excluído com sucesso!');
     }
 
     public function toggleActive(int $alertId): void
@@ -81,7 +81,7 @@ new class extends Component
         </flux:button>
     </div>
 
-    <!-- FormulÃ¡rio para criar novo alerta -->
+    <!-- Formulário para criar novo alerta -->
     <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
         <h2 class="text-lg font-semibold mb-4">Criar Novo Alerta</h2>
         <form wire:submit="save" class="space-y-6">
@@ -108,7 +108,7 @@ new class extends Component
                         required
                     />
                     <flux:description>
-                        O alerta serÃ¡ disparado quando a meta atingir esta porcentagem.
+                        O alerta será disparado quando a meta atingir esta porcentagem.
                     </flux:description>
                     <flux:error name="thresholdPercentage" />
                 </flux:field>
@@ -125,7 +125,7 @@ new class extends Component
                         required
                     />
                     <flux:description>
-                        O alerta serÃ¡ disparado quando faltarem este nÃºmero de dias para o prazo final.
+                        O alerta será disparado quando faltarem este número de dias para o prazo final.
                     </flux:description>
                     <flux:error name="daysBeforeDeadline" />
                 </flux:field>
@@ -134,7 +134,7 @@ new class extends Component
             @if($type === 'low_progress')
                 <flux:field>
                     <flux:description>
-                        Este alerta serÃ¡ disparado automaticamente quando o progresso da meta estiver abaixo de 50% do esperado para a data atual.
+                        Este alerta será disparado automaticamente quando o progresso da meta estiver abaixo de 50% do esperado para a data atual.
                     </flux:description>
                 </flux:field>
             @endif
@@ -190,7 +190,7 @@ new class extends Component
                             </p>
                             @if($alert->last_triggered_at)
                                 <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                                    Ãšltimo disparo: {{ $alert->last_triggered_at->format('d/m/Y H:i') }}
+                                    Último disparo: {{ $alert->last_triggered_at->format('d/m/Y H:i') }}
                                 </p>
                             @endif
                         </div>

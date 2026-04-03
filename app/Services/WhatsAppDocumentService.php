@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -14,6 +15,13 @@ class WhatsAppDocumentService
 
     public function processBase64(User $user, string $documentBase64, ?string $mimeType = null, ?string $fileName = null): array
     {
+        if (! $user->hasWritableFinancialAccess()) {
+            return [
+                'status' => 'requires_subscription',
+                'message' => (string) Config::get('billing.trial_expired_message', 'Seu teste gratuito terminou. Para continuar registrando novas informações, ative um plano.'),
+            ];
+        }
+
         $binary = base64_decode($documentBase64, true);
 
         if ($binary === false || $binary === '') {

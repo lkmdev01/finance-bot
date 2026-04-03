@@ -16,9 +16,9 @@ new class extends Component {
             'target_amount' => ['required', 'numeric', 'min:0.01'],
             'target_date' => ['nullable', 'date', 'after_or_equal:today'],
         ], [
-            'name.required' => 'O nome da meta Ã© obrigatÃ³rio.',
-            'target_amount.required' => 'O valor da meta Ã© obrigatÃ³rio.',
-            'target_amount.numeric' => 'O valor deve ser um nÃºmero.',
+            'name.required' => 'O nome da meta é obrigatório.',
+            'target_amount.required' => 'O valor da meta é obrigatório.',
+            'target_amount.numeric' => 'O valor deve ser um número.',
             'target_amount.min' => 'O valor deve ser maior que zero.',
             'target_date.after_or_equal' => 'A data deve ser hoje ou no futuro.',
         ]);
@@ -114,12 +114,12 @@ new class extends Component {
                 <flux:field>
                     <flux:label>Data Alvo (opcional)</flux:label>
                     <flux:input type="date" wire:model="target_date" min="{{ now()->format('Y-m-d') }}" />
-                    <flux:description>Data limite para alcanÃ§ar a meta</flux:description>
+                    <flux:description>Data limite para alcançar a meta</flux:description>
                     <flux:error name="target_date" />
                 </flux:field>
 
                 <flux:field class="md:col-span-2">
-                    <flux:label>DescriÃ§Ã£o (opcional)</flux:label>
+                    <flux:label>Descrição (opcional)</flux:label>
                     <flux:textarea 
                         wire:model="description" 
                         placeholder="Descreva sua meta..."

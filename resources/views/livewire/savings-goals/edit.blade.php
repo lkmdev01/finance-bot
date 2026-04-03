@@ -32,9 +32,9 @@ new class extends Component {
             'target_amount' => ['required', 'numeric', 'min:0.01'],
             'target_date' => ['nullable', 'date'],
         ], [
-            'name.required' => 'O nome da meta Ã© obrigatÃ³rio.',
-            'target_amount.required' => 'O valor da meta Ã© obrigatÃ³rio.',
-            'target_amount.numeric' => 'O valor da meta deve ser um nÃºmero.',
+            'name.required' => 'O nome da meta é obrigatório.',
+            'target_amount.required' => 'O valor da meta é obrigatório.',
+            'target_amount.numeric' => 'O valor da meta deve ser um número.',
         ]);
 
         $this->goal->update([
@@ -132,7 +132,7 @@ new class extends Component {
                 </flux:field>
 
                 <flux:field class="md:col-span-2">
-                    <flux:label>DescriÃ§Ã£o (opcional)</flux:label>
+                    <flux:label>Descrição (opcional)</flux:label>
                     <flux:textarea 
                         wire:model="description" 
                         placeholder="Descreva sua meta..."

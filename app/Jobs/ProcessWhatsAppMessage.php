@@ -9,9 +9,10 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
 use App\Services\BaileysService;
-use App\Services\PerformanceMetricsService;
+use App\Services\BillingPlanService;
 use App\Services\CategoryRecognitionService;
 use App\Services\PhoneNumberService;
+use App\Services\PerformanceMetricsService;
 use App\Services\WhatsAppFormatter;
 use App\Services\WhatsAppMessageProcessor;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -85,6 +86,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
     ): void {
         try {
             $user = User::findOrFail($this->userId);
+            $billingPlanService = app(BillingPlanService::class);
 
             // Cria ou atualiza o contato usando o número REAL do usuário
             // O phoneNumber aqui é o número real do usuário (users.phone_number)
@@ -140,6 +142,17 @@ class ProcessWhatsAppMessage implements ShouldQueue
             }
 
             if ($action === 'create_transaction' && isset($result['transaction_data'])) {
+                if (! $billingPlanService->userCanCreateRecords($user)) {
+                    $this->sendResponse(
+                        $baileysService,
+                        $phoneNumberService,
+                        $this->buildSubscriptionRequiredReply($user, $billingPlanService),
+                        $user
+                    );
+
+                    return;
+                }
+
                 $result['transaction_data'] = $this->normalizeTransactionData($result['transaction_data']);
 
                 // Valida dados antes de criar transação
@@ -476,6 +489,15 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
 
         return "✅ Gasto de R$ {$amount} registrado!";
+    }
+
+    private function buildSubscriptionRequiredReply(User $user, BillingPlanService $billingPlanService): string
+    {
+        $plansUrl = rtrim((string) config('app.url'), '/').'/billing/plans';
+
+        return $billingPlanService->writeAccessMessage($user)
+            ."\n\nAssine um plano para voltar a registrar novas informações:\n"
+            .$plansUrl;
     }
 
     /**

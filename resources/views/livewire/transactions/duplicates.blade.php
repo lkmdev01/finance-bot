@@ -34,8 +34,8 @@ new class extends Component
 
 <div class="p-6 space-y-6">
     <div>
-        <h1 class="text-2xl font-bold">TransaÃ§Ãµes Duplicadas</h1>
-        <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">TransaÃ§Ãµes que podem estar duplicadas</p>
+        <h1 class="text-2xl font-bold">Transações Duplicadas</h1>
+        <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Transações que podem estar duplicadas</p>
     </div>
 
     @if(count($duplicates) > 0)
@@ -44,10 +44,10 @@ new class extends Component
                 <table class="w-full">
                     <thead class="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">TransaÃ§Ã£o</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Transação</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Duplicata</th>
                             <th class="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Similaridade</th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">AÃ§Ãµes</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">Ações</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -80,7 +80,7 @@ new class extends Component
                                     <div class="flex items-center justify-center gap-2">
                                         <flux:button 
                                             wire:click="resolve({{ $duplicate['id'] }}, true)"
-                                            wire:confirm="Manter a primeira transaÃ§Ã£o e excluir a duplicata?"
+                                            wire:confirm="Manter a primeira transação e excluir a duplicata?"
                                             variant="ghost"
                                             size="sm"
                                         >
@@ -88,7 +88,7 @@ new class extends Component
                                         </flux:button>
                                         <flux:button 
                                             wire:click="resolve({{ $duplicate['id'] }}, false)"
-                                            wire:confirm="Manter a segunda transaÃ§Ã£o e excluir a primeira?"
+                                            wire:confirm="Manter a segunda transação e excluir a primeira?"
                                             variant="ghost"
                                             size="sm"
                                         >
@@ -104,7 +104,7 @@ new class extends Component
         </div>
     @else
         <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
-            <p class="text-zinc-500 dark:text-zinc-400">Nenhuma transaÃ§Ã£o duplicada encontrada.</p>
+            <p class="text-zinc-500 dark:text-zinc-400">Nenhuma transação duplicada encontrada.</p>
         </div>
     @endif
 </div>

@@ -1,7 +1,9 @@
-<?php
+﻿<?php
 
 return [
     'default_plan' => 'starter',
+    'trial_days' => 7,
+    'trial_expired_message' => 'Seu teste gratuito terminou. Para continuar registrando novas informações, ative um plano.',
 
     'premium_features' => [
         'reports',
@@ -13,10 +15,10 @@ return [
         'starter' => [
             'code' => 'starter',
             'name' => 'Starter',
-            'description' => 'Base gratuita para registrar transa��es, or�amentos e metas.',
+            'description' => 'Base para consultar histórico, dashboard e continuar acompanhando suas finanças.',
             'price_cents' => 0,
             'frequency' => 'NONE',
-            'badge' => 'Gr�tis',
+            'badge' => 'Teste + leitura',
             'highlight' => false,
             'product_id' => null,
             'features' => [
@@ -34,7 +36,7 @@ return [
         'pro_monthly' => [
             'code' => 'pro_monthly',
             'name' => 'Pro Mensal',
-            'description' => 'Relatorios, projecoes e Orbita com acesso por 30 dias apos o pagamento.',
+            'description' => 'Relatórios, projeções, Orbita e acesso completo por 30 dias após o pagamento.',
             'price_cents' => 1997,
             'frequency' => 'MONTHLY',
             'badge' => 'Mais popular',
@@ -58,7 +60,7 @@ return [
         'pro_yearly' => [
             'code' => 'pro_yearly',
             'name' => 'Pro Anual',
-            'description' => 'Tudo do Pro com acesso por 12 meses apos o pagamento e melhor custo.',
+            'description' => 'Tudo do Pro com acesso por 12 meses após o pagamento e melhor custo.',
             'price_cents' => 19970,
             'frequency' => 'YEARLY',
             'badge' => 'Economize 2 meses',

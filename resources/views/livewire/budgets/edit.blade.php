@@ -36,22 +36,22 @@ new class extends Component {
             'year' => ['required', 'integer', 'min:2020', 'max:2100'],
             'month' => ['nullable', 'integer', 'min:1', 'max:12'],
         ], [
-            'category_id.required' => 'A categoria Ã© obrigatÃ³ria.',
-            'category_id.exists' => 'A categoria selecionada nÃ£o existe.',
-            'amount.required' => 'O valor Ã© obrigatÃ³rio.',
-            'amount.numeric' => 'O valor deve ser um nÃºmero.',
+            'category_id.required' => 'A categoria é obrigatória.',
+            'category_id.exists' => 'A categoria selecionada não existe.',
+            'amount.required' => 'O valor é obrigatório.',
+            'amount.numeric' => 'O valor deve ser um número.',
             'amount.min' => 'O valor deve ser maior que zero.',
-            'period.required' => 'O perÃ­odo Ã© obrigatÃ³rio.',
-            'period.in' => 'O perÃ­odo deve ser mensal ou anual.',
-            'year.required' => 'O ano Ã© obrigatÃ³rio.',
-            'month.integer' => 'O mÃªs deve ser um nÃºmero entre 1 e 12.',
+            'period.required' => 'O período é obrigatório.',
+            'period.in' => 'O período deve ser mensal ou anual.',
+            'year.required' => 'O ano é obrigatório.',
+            'month.integer' => 'O mês deve ser um número entre 1 e 12.',
         ]);
 
         $validated['month'] = $this->period === 'monthly' ? $this->month : null;
 
         $this->budget->update($validated);
 
-        session()->flash('message', 'OrÃ§amento atualizado com sucesso!');
+        session()->flash('message', 'Orçamento atualizado com sucesso!');
         
         $this->redirect(route('budgets.index'), navigate: true);
     }
@@ -70,8 +70,8 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Editar OrÃ§amento</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Atualize os dados do orÃ§amento</p>
+            <h1 class="text-2xl font-bold">Editar Orçamento</h1>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Atualize os dados do orçamento</p>
         </div>
         <flux:button href="{{ route('budgets.index') }}" wire:navigate variant="ghost">
             Voltar
@@ -93,7 +93,7 @@ new class extends Component {
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>Valor do OrÃ§amento</flux:label>
+                    <flux:label>Valor do Orçamento</flux:label>
                     <div 
                         x-data="{ 
                             displayValue: '',
@@ -148,7 +148,7 @@ new class extends Component {
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>PerÃ­odo</flux:label>
+                    <flux:label>Período</flux:label>
                     <flux:radio.group wire:model.live="period">
                         <flux:radio value="monthly" label="Mensal" />
                         <flux:radio value="yearly" label="Anual" />
@@ -164,7 +164,7 @@ new class extends Component {
 
                 @if($period === 'monthly')
                     <flux:field>
-                        <flux:label>MÃªs</flux:label>
+                        <flux:label>Mês</flux:label>
                         <flux:select wire:model="month" required>
                             @for($m = 1; $m <= 12; $m++)
                                 <option value="{{ $m }}">{{ \Carbon\Carbon::create(null, $m, 1)->locale('pt_BR')->monthName }}</option>
@@ -180,7 +180,7 @@ new class extends Component {
                     Cancelar
                 </flux:button>
                 <flux:button type="submit" variant="primary">
-                    Atualizar OrÃ§amento
+                    Atualizar Orçamento
                 </flux:button>
             </div>
         </form>

@@ -59,6 +59,24 @@ class BillingPlanService
         return $user->hasActivePaidPlan();
     }
 
+    public function userCanCreateRecords(User $user): bool
+    {
+        return $user->hasWritableFinancialAccess();
+    }
+
+    public function writeAccessMessage(User $user): string
+    {
+        if ($user->hasActiveTrial()) {
+            $date = $user->trial_ends_at?->format('d/m/Y');
+
+            return $date
+                ? "Seu teste grátis está ativo até {$date}."
+                : 'Seu teste grátis está ativo.';
+        }
+
+        return (string) config('billing.trial_expired_message', 'Seu teste gratuito terminou. Para continuar registrando novas informações, ative um plano.');
+    }
+
     public function missingBillingRequirements(User $user): array
     {
         $missing = [];

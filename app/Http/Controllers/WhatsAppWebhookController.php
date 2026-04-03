@@ -159,6 +159,14 @@ class WhatsAppWebhookController extends Controller
                     ]);
                 }
 
+                if (($documentResult['status'] ?? null) === 'requires_subscription') {
+                    $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Seu teste gratuito terminou. Assine um plano para voltar a registrar novas informações.');
+
+                    return response()->json([
+                        'status' => 'requires_subscription',
+                    ]);
+                }
+
                 if (($documentResult['status'] ?? null) === 'text_extracted') {
                     $text = $documentResult['text'] ?? '';
                 } else {

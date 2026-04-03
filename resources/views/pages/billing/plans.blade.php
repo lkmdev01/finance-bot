@@ -33,6 +33,15 @@
                         <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                             Status: {{ $user->billing_plan_status_label }}
                         </span>
+                        @if ($user->hasActiveTrial())
+                            <span class="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-emerald-100">
+                                Teste grátis até {{ $user->trial_ends_at?->format('d/m/Y') }}
+                            </span>
+                        @elseif ($user->trial_ends_at)
+                            <span class="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-amber-100">
+                                Leitura liberada, novos registros exigem assinatura
+                            </span>
+                        @endif
                         @if ($user->billing_access_ends_at)
                             <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                                 Acesso ate {{ $user->billing_access_ends_at->format('d/m/Y') }}

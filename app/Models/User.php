@@ -13,6 +13,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Carbon\CarbonInterface;
 use App\Support\BrazilTaxId;
+use Illuminate\Support\Carbon;
 
 class User extends Authenticatable
 {
@@ -28,6 +29,14 @@ class User extends Authenticatable
 
             if ($user->tax_id) {
                 $user->tax_id = BrazilTaxId::normalize($user->tax_id);
+            }
+        });
+
+        static::creating(function ($user) {
+            if (! $user->trial_started_at && ! $user->trial_ends_at) {
+                $trialStartedAt = Carbon::now();
+                $user->trial_started_at = $trialStartedAt;
+                $user->trial_ends_at = $trialStartedAt->copy()->addDays((int) config('billing.trial_days', 7));
             }
         });
     }
@@ -52,6 +61,9 @@ class User extends Authenticatable
         'billing_plan_code',
         'billing_plan_status',
         'billing_access_ends_at',
+        'trial_started_at',
+        'trial_ends_at',
+        'onboarding_tutorial_seen_at',
     ];
 
     /**
@@ -77,6 +89,9 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'billing_access_ends_at' => 'datetime',
+            'trial_started_at' => 'datetime',
+            'trial_ends_at' => 'datetime',
+            'onboarding_tutorial_seen_at' => 'datetime',
         ];
     }
 
@@ -209,6 +224,17 @@ class User extends Authenticatable
         return $this->billing_access_ends_at->isFuture();
     }
 
+    public function hasActiveTrial(): bool
+    {
+        return $this->trial_ends_at instanceof CarbonInterface
+            && $this->trial_ends_at->isFuture();
+    }
+
+    public function hasWritableFinancialAccess(): bool
+    {
+        return $this->hasActivePaidPlan() || $this->hasActiveTrial();
+    }
+
     public function hasFeature(string $feature): bool
     {
         return app(\App\Services\BillingPlanService::class)->userHasFeature($this, $feature);
@@ -216,6 +242,14 @@ class User extends Authenticatable
 
     public function getBillingPlanStatusLabelAttribute(): string
     {
+        if ($this->hasActiveTrial()) {
+            return 'Teste grátis';
+        }
+
+        if (! $this->hasWritableFinancialAccess() && $this->trial_ends_at instanceof CarbonInterface) {
+            return 'Acesso somente leitura';
+        }
+
         return match ($this->billing_plan_status) {
             'active' => 'Ativo',
             'renewed' => 'Renovado',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Transaction;
+use App\Services\BillingPlanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,6 +12,10 @@ use Illuminate\Support\Facades\Gate;
 
 class TransactionController extends Controller
 {
+    public function __construct(
+        private readonly BillingPlanService $billingPlanService,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = Auth::user()->transactions()->with('category');
@@ -38,6 +43,12 @@ class TransactionController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (! $this->billingPlanService->userCanCreateRecords($request->user())) {
+            return response()->json([
+                'message' => $this->billingPlanService->writeAccessMessage($request->user()),
+            ], 403);
+        }
+
         $validated = $request->validate([
             'type' => ['required', 'string', 'in:income,expense'],
             'amount' => ['required', 'numeric', 'min:0.01'],

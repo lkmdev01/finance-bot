@@ -2,6 +2,7 @@
 
 use App\Services\MascotScoreService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Volt\Component;
 
@@ -10,6 +11,9 @@ new class extends Component
     public string $period = 'monthly'; // 'monthly' ou 'yearly'
 
     public ?string $selectedMonth = null;
+    public bool $showOnboardingTutorial = false;
+    public int $onboardingStep = 0;
+    public string $onboardingPhoneNumber = '';
 
     public function getExceededBudgets(): \Illuminate\Database\Eloquent\Collection
     {
@@ -33,6 +37,63 @@ new class extends Component
     public function mount(): void
     {
         $this->selectedMonth = now()->format('Y-m');
+        $this->onboardingPhoneNumber = Auth::user()->phone_number ?? '';
+        $this->showOnboardingTutorial = Auth::user()->onboarding_tutorial_seen_at === null;
+    }
+
+    public function startOnboardingTutorial(): void
+    {
+        $this->onboardingStep = blank($this->onboardingPhoneNumber) ? 1 : 2;
+    }
+
+    public function dismissOnboardingTutorial(): void
+    {
+        $user = Auth::user();
+        $user->forceFill([
+            'onboarding_tutorial_seen_at' => now(),
+        ])->save();
+
+        $this->showOnboardingTutorial = false;
+        $this->onboardingStep = 0;
+    }
+
+    public function saveOnboardingPhoneNumber(): void
+    {
+        $service = app(\App\Services\PhoneNumberService::class);
+        $phoneNumber = $service->formatForStorage($this->onboardingPhoneNumber ?? '');
+
+        if ($phoneNumber === '') {
+            $phoneNumber = null;
+        }
+
+        $this->validate([
+            'onboardingPhoneNumber' => [
+                'required',
+                'string',
+                'max:20',
+                'regex:/^[0-9+\-\s()]+$/',
+                function ($attribute, $value, $fail) use ($phoneNumber) {
+                    $exists = DB::table('users')
+                        ->where('phone_number', $phoneNumber)
+                        ->where('id', '!=', Auth::id())
+                        ->exists();
+
+                    if ($exists) {
+                        $fail('Esse número já está vinculado a outra conta.');
+                    }
+                },
+            ],
+        ], [
+            'onboardingPhoneNumber.required' => 'Preencha seu número para continuar.',
+            'onboardingPhoneNumber.regex' => 'Use um número válido com DDD.',
+        ]);
+
+        $user = Auth::user();
+        $user->phone_number = $phoneNumber;
+        $user->save();
+
+        $this->onboardingPhoneNumber = $phoneNumber;
+        $this->onboardingStep = 2;
     }
 
     public function updatedPeriod(): void
@@ -343,7 +404,211 @@ new class extends Component
     }
 }; ?>
 
-<div x-data="{ notificationsOpen: false }" x-cloak class="px-2 py-4 sm:p-6 space-y-6">
+@php
+    $tutorialContactNumber = config('whatsapp.tutorial.contact_number');
+    $tutorialContactDigits = preg_replace('/\D+/', '', (string) $tutorialContactNumber);
+    $tutorialContactLabel = config('whatsapp.tutorial.contact_label', 'WhatsApp oficial do InovaFinance');
+    $tutorialPrefilledMessage = config('whatsapp.tutorial.prefilled_message', 'Oi! Acabei de entrar no InovaFinance e quero testar o robô.');
+    $tutorialWhatsappUrl = $tutorialContactDigits
+        ? 'https://wa.me/'.$tutorialContactDigits.'?text='.urlencode($tutorialPrefilledMessage)
+        : null;
+@endphp
+
+<div x-data="{ notificationsOpen: false }" x-cloak class="relative px-2 py-4 sm:p-6 space-y-6">
+    @if($showOnboardingTutorial)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+            <div class="relative w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f] text-white shadow-2xl shadow-black/40">
+                <div class="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.22),_transparent_55%),linear-gradient(135deg,_rgba(34,197,94,0.12),_transparent_60%)]"></div>
+
+                <div class="relative grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div class="p-6 sm:p-8 lg:p-10">
+                        <div class="mb-6 flex items-center justify-between gap-4">
+                            <div>
+                                <span class="inline-flex items-center rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200">
+                                    Primeiros passos
+                                </span>
+                                <h2 class="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
+                                    Bem-vindo ao seu cockpit financeiro
+                                </h2>
+                                <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+                                    Vamos deixar tudo pronto para o robô reconhecer seu número e começar a registrar seus gastos pelo WhatsApp em poucos minutos.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                wire:click="dismissOnboardingTutorial"
+                                class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+                                aria-label="Fechar tutorial"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div class="mb-8 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                            <span class="inline-flex h-8 w-8 items-center justify-center rounded-full {{ $onboardingStep === 0 ? 'bg-white text-slate-950' : 'border border-white/15 bg-white/5 text-slate-300' }}">1</span>
+                            <span class="h-px flex-1 bg-white/10"></span>
+                            <span class="inline-flex h-8 w-8 items-center justify-center rounded-full {{ $onboardingStep === 1 ? 'bg-white text-slate-950' : 'border border-white/15 bg-white/5 text-slate-300' }}">2</span>
+                            <span class="h-px flex-1 bg-white/10"></span>
+                            <span class="inline-flex h-8 w-8 items-center justify-center rounded-full {{ $onboardingStep === 2 ? 'bg-white text-slate-950' : 'border border-white/15 bg-white/5 text-slate-300' }}">3</span>
+                        </div>
+
+                        @if($onboardingStep === 0)
+                            <div class="space-y-6">
+                                <div class="grid gap-4 md:grid-cols-3">
+                                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-sky-200">Passo 1</p>
+                                        <p class="mt-2 text-lg font-bold">Vincule seu número</p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-300">É isso que permite ao robô reconhecer você quando a mensagem chegar.</p>
+                                    </div>
+                                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">Passo 2</p>
+                                        <p class="mt-2 text-lg font-bold">Mande uma mensagem</p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-300">Depois disso, já dá para testar com um “gastei 32 no uber” ou “recebi 420”.</p>
+                                    </div>
+                                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">Resultado</p>
+                                        <p class="mt-2 text-lg font-bold">Tudo registrado</p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-300">O sistema organiza, categoriza e já deixa seu dashboard pronto para uso.</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap gap-3">
+                                    <flux:button type="button" variant="primary" wire:click="startOnboardingTutorial">
+                                        Ver passo a passo
+                                    </flux:button>
+                                    <flux:button type="button" variant="ghost" wire:click="dismissOnboardingTutorial">
+                                        Fechar por agora
+                                    </flux:button>
+                                </div>
+                            </div>
+                        @elseif($onboardingStep === 1)
+                            <div class="space-y-6">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.24em] text-sky-200">Passo 1 de 2</p>
+                                    <h3 class="mt-3 text-2xl font-black">Qual é o número que vai falar com o robô?</h3>
+                                    <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+                                        Preencha seu WhatsApp com DDD. O sistema salva esse número para identificar automaticamente as suas mensagens quando elas chegarem.
+                                    </p>
+                                </div>
+
+                                <form wire:submit="saveOnboardingPhoneNumber" class="space-y-5">
+                                    <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+                                        <flux:input
+                                            wire:model="onboardingPhoneNumber"
+                                            label="Seu número de WhatsApp"
+                                            type="tel"
+                                            placeholder="(11) 99999-9999"
+                                            hint="Pode digitar só DDD + número. O sistema normaliza para você."
+                                        />
+                                    </div>
+
+                                    <div class="flex flex-wrap gap-3">
+                                        <flux:button type="submit" variant="primary">
+                                            Salvar número e continuar
+                                        </flux:button>
+                                        <flux:button type="button" variant="ghost" wire:click="$set('onboardingStep', 0)">
+                                            Voltar
+                                        </flux:button>
+                                        <a href="{{ route('whatsapp.settings') }}" class="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10">
+                                            Abrir página completa
+                                        </a>
+                                    </div>
+                                </form>
+                            </div>
+                        @else
+                            <div class="space-y-6">
+                                <div>
+                                    <p class="text-sm font-semibold uppercase tracking-[0.24em] text-emerald-200">Passo 2 de 2</p>
+                                    <h3 class="mt-3 text-2xl font-black">Agora é só mandar mensagem</h3>
+                                    <p class="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+                                        Seu número já está vinculado. O próximo passo é abrir o WhatsApp e mandar uma mensagem para o nosso atendimento para começar a registrar tudo por chat.
+                                    </p>
+                                </div>
+
+                                <div class="flex flex-wrap items-center gap-3">
+                                    @if($tutorialWhatsappUrl)
+                                        <a
+                                            href="{{ $tutorialWhatsappUrl }}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-emerald-300"
+                                        >
+                                            Abrir conversa no WhatsApp
+                                        </a>
+                                        <span class="text-sm text-slate-300">
+                                            Número: <span class="font-semibold text-white">{{ $tutorialContactNumber }}</span>
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center rounded-xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm font-medium text-amber-100">
+                                            Configure `WHATSAPP_CONTACT_NUMBER` para mostrar o número oficial aqui.
+                                        </span>
+                                    @endif
+                                </div>
+
+                                <div class="rounded-[1.75rem] border border-white/10 bg-[#0a1628] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                    <div class="mx-auto max-w-md rounded-[1.8rem] border border-white/10 bg-[#08101d] p-4 shadow-2xl">
+                                        <div class="flex items-center gap-3 border-b border-white/10 pb-4">
+                                            <div class="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-400/15 text-lg">💬</div>
+                                            <div>
+                                                <p class="font-semibold text-white">{{ $tutorialContactLabel }}</p>
+                                                <p class="text-xs text-emerald-200">online agora</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-3 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.00))] px-1 py-4">
+                                            <div class="ml-auto max-w-[82%] rounded-2xl rounded-br-md bg-emerald-500 px-4 py-3 text-sm font-medium text-slate-950 shadow-lg">
+                                                Gastei 32 no Uber
+                                            </div>
+                                            <div class="max-w-[88%] rounded-2xl rounded-bl-md bg-white/8 px-4 py-3 text-sm leading-6 text-slate-100">
+                                                ✅ Registrei R$ 32,00 em Transporte (Uber).
+                                            </div>
+                                            <div class="ml-auto max-w-[82%] rounded-2xl rounded-br-md bg-emerald-500 px-4 py-3 text-sm font-medium text-slate-950 shadow-lg">
+                                                Quanto tenho disponível?
+                                            </div>
+                                            <div class="max-w-[88%] rounded-2xl rounded-bl-md bg-white/8 px-4 py-3 text-sm leading-6 text-slate-100">
+                                                💰 Seu saldo disponível hoje é R$ 2.540,00.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap gap-3">
+                                    <flux:button type="button" variant="primary" wire:click="dismissOnboardingTutorial">
+                                        Concluir tutorial
+                                    </flux:button>
+                                    <flux:button type="button" variant="ghost" wire:click="$set('onboardingStep', 1)">
+                                        Voltar
+                                    </flux:button>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="hidden border-l border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-8 lg:block">
+                        <div class="rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
+                            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">O que você ganha</p>
+                            <div class="mt-6 space-y-5">
+                                <div class="rounded-2xl border border-white/10 bg-black/10 p-4">
+                                    <p class="text-sm font-semibold text-white">Reconhecimento automático</p>
+                                    <p class="mt-2 text-sm leading-6 text-slate-300">Depois que o número estiver salvo, o sistema bate a mensagem com a sua conta sem você precisar fazer mais nada.</p>
+                                </div>
+                                <div class="rounded-2xl border border-white/10 bg-black/10 p-4">
+                                    <p class="text-sm font-semibold text-white">Primeiro uso sem fricção</p>
+                                    <p class="mt-2 text-sm leading-6 text-slate-300">Seu primeiro teste pode ser uma mensagem simples como “gastei 20 no almoço” ou “recebi 500”.</p>
+                                </div>
+                                <div class="rounded-2xl border border-white/10 bg-black/10 p-4">
+                                    <p class="text-sm font-semibold text-white">Dashboard pronto mais rápido</p>
+                                    <p class="mt-2 text-sm leading-6 text-slate-300">Quanto antes você manda a primeira mensagem, mais rápido entram categorias, gráficos e histórico real no painel.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
         <!-- Header com Filtros -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
             <h1 class="text-2xl font-bold leading-tight">

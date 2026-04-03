@@ -67,7 +67,7 @@ Route::middleware(['auth'])->group(function () {
     
     Route::get('transactions/create', function () {
         return view('pages.transactions.create');
-    })->name('transactions.create');
+    })->middleware('billing.writable')->name('transactions.create');
     
     Route::get('transactions/{transaction}/edit', function (App\Models\Transaction $transaction) {
         return view('pages.transactions.edit', ['transaction' => $transaction]);
@@ -75,7 +75,7 @@ Route::middleware(['auth'])->group(function () {
     
     Route::get('transactions/import', function () {
         return view('pages.transactions.import');
-    })->name('transactions.import');
+    })->middleware('billing.writable')->name('transactions.import');
     
     Route::get('transactions/duplicates', function () {
         return view('pages.transactions.duplicates');
@@ -88,7 +88,7 @@ Route::middleware(['auth'])->group(function () {
     
     Route::get('categories/create', function () {
         return view('pages.categories.create');
-    })->name('categories.create');
+    })->middleware('billing.writable')->name('categories.create');
     
     Route::get('categories/{category}/edit', function (App\Models\Category $category) {
         return view('pages.categories.edit', ['category' => $category]);
@@ -101,7 +101,7 @@ Route::middleware(['auth'])->group(function () {
     
     Route::get('budgets/create', function () {
         return view('pages.budgets.create');
-    })->name('budgets.create');
+    })->middleware('billing.writable')->name('budgets.create');
     
     Route::get('budgets/{budget}/edit', function (App\Models\Budget $budget) {
         return view('pages.budgets.edit', ['budget' => $budget]);
@@ -140,7 +140,7 @@ Route::middleware(['auth'])->group(function () {
     
     Route::get('savings-goals/create', function () {
         return view('pages.savings-goals.create');
-    })->name('savings-goals.create');
+    })->middleware('billing.writable')->name('savings-goals.create');
     
     Route::get('savings-goals/{savingsGoal}/edit', function (App\Models\SavingsGoal $savingsGoal) {
         return view('pages.savings-goals.edit', ['savingsGoal' => $savingsGoal]);
@@ -148,7 +148,7 @@ Route::middleware(['auth'])->group(function () {
     
     Route::get('savings-goals/{savingsGoal}/deposit', function (App\Models\SavingsGoal $savingsGoal) {
         return view('pages.savings-goals.deposit', ['savingsGoal' => $savingsGoal]);
-    })->name('savings-goals.deposit');
+    })->middleware('billing.writable')->name('savings-goals.deposit');
 
     // TransaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes Recorrentes
     Route::get('recurring-transactions', function () {
@@ -157,7 +157,7 @@ Route::middleware(['auth'])->group(function () {
     
     Route::get('recurring-transactions/create', function () {
         return view('pages.recurring-transactions.create');
-    })->name('recurring-transactions.create');
+    })->middleware('billing.writable')->name('recurring-transactions.create');
     
     Route::get('recurring-transactions/{recurringTransaction}/edit', function (App\Models\RecurringTransaction $recurringTransaction) {
         return view('pages.recurring-transactions.edit', ['recurringTransaction' => $recurringTransaction]);
@@ -169,7 +169,7 @@ Route::middleware(['auth'])->group(function () {
     })->name('bank-accounts.index');
     Route::get('bank-accounts/create', function () {
         return view('pages.bank-accounts.create');
-    })->name('bank-accounts.create');
+    })->middleware('billing.writable')->name('bank-accounts.create');
     Route::get('bank-accounts/{bankAccount}/edit', function (App\Models\BankAccount $bankAccount) {
         return view('pages.bank-accounts.edit', ['bankAccount' => $bankAccount]);
     })->name('bank-accounts.edit');
@@ -180,7 +180,7 @@ Route::middleware(['auth'])->group(function () {
     })->name('credit-cards.index');
     Route::get('credit-cards/create', function () {
         return view('pages.credit-cards.create');
-    })->name('credit-cards.create');
+    })->middleware('billing.writable')->name('credit-cards.create');
     Route::get('credit-cards/{creditCard}/edit', function (App\Models\CreditCard $creditCard) {
         return view('pages.credit-cards.edit', ['creditCard' => $creditCard]);
     })->name('credit-cards.edit');
@@ -191,22 +191,22 @@ Route::middleware(['auth'])->group(function () {
     })->name('subscriptions.index');
     Route::get('subscriptions/create', function () {
         return view('pages.subscriptions.create');
-    })->name('subscriptions.create');
+    })->middleware('billing.writable')->name('subscriptions.create');
     Route::get('subscriptions/{subscription}/edit', function (App\Models\Subscription $subscription) {
         return view('pages.subscriptions.edit', ['subscription' => $subscription]);
     })->name('subscriptions.edit');
 
     // Planejamento de Gastos
     Volt::route('expense-plans', 'expense-plans.index')->name('expense-plans.index');
-    Volt::route('expense-plans/create', 'expense-plans.create')->name('expense-plans.create');
+    Volt::route('expense-plans/create', 'expense-plans.create')->middleware('billing.writable')->name('expense-plans.create');
     Volt::route('expense-plans/{expensePlan}/edit', 'expense-plans.edit')->name('expense-plans.edit');
 
     // Alertas de Metas
-    Volt::route('savings-goals/{savingsGoal}/alerts', 'savings-goals.alerts')->name('savings-goals.alerts');
+    Volt::route('savings-goals/{savingsGoal}/alerts', 'savings-goals.alerts')->middleware('billing.writable')->name('savings-goals.alerts');
 
     // Webhooks
     Volt::route('webhooks', 'webhooks.index')->name('webhooks.index');
-    Volt::route('webhooks/create', 'webhooks.create')->name('webhooks.create');
+    Volt::route('webhooks/create', 'webhooks.create')->middleware('billing.writable')->name('webhooks.create');
     Volt::route('webhooks/{webhook}/edit', 'webhooks.edit')->name('webhooks.edit');
 
     // Monitoramento
