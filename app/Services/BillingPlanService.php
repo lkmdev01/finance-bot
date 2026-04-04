@@ -48,15 +48,19 @@ class BillingPlanService
     {
         $plan = $this->userPlan($user);
 
-        if (! in_array($feature, $plan['features'], true)) {
-            return false;
+        if (in_array($feature, $plan['features'], true)) {
+            if ($plan['price_cents'] === 0) {
+                return true;
+            }
+
+            return $user->hasActivePaidPlan();
         }
 
-        if ($plan['price_cents'] === 0) {
-            return true;
+        if ($user->hasActiveTrial()) {
+            return in_array($feature, (array) config('billing.premium_features', []), true);
         }
 
-        return $user->hasActivePaidPlan();
+        return false;
     }
 
     public function userCanCreateRecords(User $user): bool
