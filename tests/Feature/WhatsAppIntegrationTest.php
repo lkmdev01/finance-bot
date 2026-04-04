@@ -389,6 +389,62 @@ it('trata N/A como ausencia de descricao em gasto vago', function () {
     ]);
 });
 
+it('orienta quando o usuario manda varios lancamentos na mesma mensagem', function () {
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => '✅ Registrei sua despesa!',
+                            'action' => 'create_transaction',
+                            'transaction_data' => [
+                                'type' => 'expense',
+                                'amount' => 10.00,
+                                'description' => 'Uber',
+                                'category_id' => null,
+                                'date' => now()->format('Y-m-d'),
+                            ],
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'não consigo registrar vários lançamentos')
+                    && str_contains($message, 'Manda um por vez')
+                    && str_contains($message, 'Gastei 32 no Uber');
+            }))
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'gastei 10 no uber e 20 no mercado',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    assertDatabaseMissing('transactions', [
+        'user_id' => $this->user->id,
+        'amount' => 10.00,
+        'description' => 'Uber',
+    ]);
+});
+
 it('reutiliza categoria existente equivalente antes de criar uma nova', function () {
     $existingCategory = Category::factory()->create([
         'user_id' => $this->user->id,

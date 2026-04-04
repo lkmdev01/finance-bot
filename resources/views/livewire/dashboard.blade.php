@@ -455,31 +455,107 @@ new class extends Component
 
                         @if($onboardingStep === 0)
                             <div class="space-y-6">
-                                <div class="grid gap-4 md:grid-cols-3">
+                                <div class="grid gap-4 sm:grid-cols-3">
                                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-sky-200">Passo 1</p>
-                                        <p class="mt-2 text-lg font-bold">Vincule seu número</p>
-                                        <p class="mt-2 text-sm leading-6 text-slate-300">É isso que permite ao robô reconhecer você quando a mensagem chegar.</p>
+                                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">Leva menos de 2 min</p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-300">Você configura uma vez e já pode começar a usar no mesmo minuto.</p>
                                     </div>
                                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">Passo 2</p>
-                                        <p class="mt-2 text-lg font-bold">Mande uma mensagem</p>
-                                        <p class="mt-2 text-sm leading-6 text-slate-300">Depois disso, já dá para testar com um “gastei 32 no uber” ou “recebi 420”.</p>
+                                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-sky-200">Sem copiar nada</p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-300">O robô reconhece seu número automaticamente quando a mensagem chega.</p>
                                     </div>
                                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">Resultado</p>
-                                        <p class="mt-2 text-lg font-bold">Tudo registrado</p>
-                                        <p class="mt-2 text-sm leading-6 text-slate-300">O sistema organiza, categoriza e já deixa seu dashboard pronto para uso.</p>
+                                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">Tudo no WhatsApp</p>
+                                        <p class="mt-2 text-sm leading-6 text-slate-300">Registrar gasto, consultar saldo e gerar relatório vira conversa do dia a dia.</p>
                                     </div>
                                 </div>
 
-                                <div class="flex flex-wrap gap-3">
-                                    <flux:button type="button" variant="primary" wire:click="startOnboardingTutorial">
-                                        Ver passo a passo
-                                    </flux:button>
-                                    <flux:button type="button" variant="ghost" wire:click="dismissOnboardingTutorial">
-                                        Fechar por agora
-                                    </flux:button>
+                                <div class="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+                                    <div class="rounded-[1.75rem] border border-white/10 bg-white/5 p-5 sm:p-6">
+                                        <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                                            <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-slate-950">1</span>
+                                            <span>O que vai acontecer</span>
+                                        </div>
+
+                                        <div class="mt-5 space-y-4">
+                                            <div class="flex gap-4">
+                                                <div class="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-400/15 text-lg text-sky-200">①</div>
+                                                <div>
+                                                    <p class="text-lg font-bold text-white">Vincule seu número</p>
+                                                    <p class="mt-1 text-sm leading-6 text-slate-300">É isso que permite ao sistema entender que aquela mensagem é sua.</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex gap-4">
+                                                <div class="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/15 text-lg text-emerald-200">②</div>
+                                                <div>
+                                                    <p class="text-lg font-bold text-white">Abra a conversa oficial</p>
+                                                    <p class="mt-1 text-sm leading-6 text-slate-300">No último passo, já aparece o botão para abrir o WhatsApp com a mensagem pronta.</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex gap-4">
+                                                <div class="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-400/15 text-lg text-amber-200">③</div>
+                                                <div>
+                                                    <p class="text-lg font-bold text-white">Comece a registrar por chat</p>
+                                                    <p class="mt-1 text-sm leading-6 text-slate-300">Pode testar com frases simples como “gastei 32 no Uber” ou “recebi 420”.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-6 flex flex-wrap gap-3">
+                                            <flux:button type="button" variant="primary" wire:click="startOnboardingTutorial">
+                                                Começar agora
+                                            </flux:button>
+                                            <flux:button type="button" variant="ghost" wire:click="dismissOnboardingTutorial">
+                                                Fechar por agora
+                                            </flux:button>
+                                        </div>
+                                    </div>
+
+                                    <div class="rounded-[1.75rem] border border-white/10 bg-[#0a1628] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                        <div class="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
+                                            <div>
+                                                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200">Prévia real</p>
+                                                <p class="mt-2 text-lg font-bold text-white">Como vai ser o primeiro teste</p>
+                                            </div>
+                                            <div class="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-right">
+                                                <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">Etapa final</p>
+                                                <p class="mt-1 text-sm font-bold text-white">1 clique para abrir o WhatsApp</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-4 space-y-4">
+                                            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                                <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Número oficial</p>
+                                                <p class="mt-2 text-base font-bold text-white">{{ $tutorialContactNumber ?: '+55 13 97605-4715' }}</p>
+                                                <p class="mt-2 text-sm leading-6 text-slate-300">Quando você chegar no fim do tutorial, o botão já leva direto para essa conversa.</p>
+                                            </div>
+
+                                            <div class="rounded-[1.6rem] border border-white/10 bg-[#08101d] p-4 shadow-2xl">
+                                                <div class="flex items-center gap-3 border-b border-white/10 pb-4">
+                                                    <div class="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-400/15 text-lg">💬</div>
+                                                    <div>
+                                                        <p class="font-semibold text-white">{{ $tutorialContactLabel }}</p>
+                                                        <p class="text-xs text-emerald-200">pronto para receber sua primeira mensagem</p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="space-y-3 px-1 py-4">
+                                                    <div class="ml-auto max-w-[82%] rounded-2xl rounded-br-md bg-emerald-500 px-4 py-3 text-sm font-medium text-slate-950 shadow-lg">
+                                                        Oi! Quero testar.
+                                                    </div>
+                                                    <div class="max-w-[88%] rounded-2xl rounded-bl-md bg-white/8 px-4 py-3 text-sm leading-6 text-slate-100">
+                                                        Olá! Me manda algo como “gastei 20 no almoço” ou “recebi 500” e eu já registro para você.
+                                                    </div>
+                                                    <div class="ml-auto max-w-[82%] rounded-2xl rounded-br-md bg-emerald-500 px-4 py-3 text-sm font-medium text-slate-950 shadow-lg">
+                                                        Gastei 32 no Uber
+                                                    </div>
+                                                    <div class="max-w-[88%] rounded-2xl rounded-bl-md bg-white/8 px-4 py-3 text-sm leading-6 text-slate-100">
+                                                        ✅ Registrei R$ 32,00 em Transporte (Uber).
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         @elseif($onboardingStep === 1)

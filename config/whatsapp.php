@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 return [
     'tutorial' => [
@@ -16,3 +16,4 @@ return [
         'instance_name' => env('EVOLUTION_API_INSTANCE_NAME', 'default'),
     ],
 ];
+

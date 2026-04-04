@@ -142,6 +142,17 @@ class ProcessWhatsAppMessage implements ShouldQueue
             }
 
             if ($action === 'create_transaction' && isset($result['transaction_data'])) {
+                if ($this->isCompoundFinancialMessage()) {
+                    $this->sendResponse(
+                        $baileysService,
+                        $phoneNumberService,
+                        $this->buildCompoundTransactionReply(),
+                        $user
+                    );
+
+                    return;
+                }
+
                 if (! $billingPlanService->userCanCreateRecords($user)) {
                     $this->sendResponse(
                         $baileysService,
@@ -180,8 +191,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                             'data' => $result['transaction_data'],
                         ]);
 
-                        $errorMessage = '❌ Não consegui criar a transação. '.
-                                       implode(' ', $errors->all());
+                        $errorMessage = $this->buildValidationGuidanceReply($errors->all());
                         $this->sendErrorMessage($baileysService, $phoneNumberService, $errorMessage);
 
                         return;
@@ -741,6 +751,129 @@ class ProcessWhatsAppMessage implements ShouldQueue
     }
 
     /**
+     * Detecta quando o usuário tenta registrar mais de uma transação na mesma mensagem.
+     */
+    private function isCompoundFinancialMessage(): bool
+    {
+        $message = mb_strtolower(trim($this->message));
+
+        if (! $this->looksLikeTransactionIntent($message)) {
+            return false;
+        }
+
+        $amountMatches = [];
+        preg_match_all('/(?:r\\$\\s*)?\\d+(?:[.,]\\d{1,2})?/u', $message, $amountMatches);
+        $amountCount = count($amountMatches[0] ?? []);
+
+        if ($amountCount < 2) {
+            return false;
+        }
+
+        $connectors = [
+            ' e ',
+            ',',
+            ';',
+            "\n",
+            ' depois ',
+            ' também ',
+            ' tambem ',
+            ' mais ',
+        ];
+
+        foreach ($connectors as $connector) {
+            if (str_contains($message, $connector)) {
+                return true;
+            }
+        }
+
+        $verbs = ['gastei', 'paguei', 'recebi', 'ganhei', 'entrou'];
+        $verbHits = 0;
+
+        foreach ($verbs as $verb) {
+            if (str_contains($message, $verb)) {
+                $verbHits++;
+            }
+        }
+
+        return $verbHits >= 2;
+    }
+
+    /**
+     * Detecta mensagens que parecem tentar registrar uma transação.
+     */
+    private function looksLikeTransactionIntent(string $message): bool
+    {
+        foreach (['gastei', 'gasto', 'paguei', 'recebi', 'ganhei', 'entrou'] as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Resposta guiada para mensagens com múltiplos lançamentos.
+     */
+    private function buildCompoundTransactionReply(): string
+    {
+        return "⚠️ Eu ainda não consigo registrar vários lançamentos na mesma mensagem.\n\n".
+            "Manda um por vez, assim:\n".
+            "• Gastei 32 no Uber\n".
+            "• Gastei 48 no mercado\n".
+            "• Recebi 420 de freelance\n\n".
+            "Se quiser, pode me enviar uma mensagem atrás da outra que eu registro tudo.";
+    }
+
+    /**
+     * Resposta de ajuda para erros de validação no WhatsApp.
+     */
+    private function buildValidationGuidanceReply(array $errors = []): string
+    {
+        $message = mb_strtolower($this->message);
+
+        if ($this->isCompoundFinancialMessage()) {
+            return $this->buildCompoundTransactionReply();
+        }
+
+        if (str_contains($message, 'apaga') || str_contains($message, 'apagar') || str_contains($message, 'exclui') || str_contains($message, 'remove')) {
+            return "⚠️ Não consegui entender qual transação você quer apagar.\n\n".
+                "Tente assim:\n".
+                "• apagar última transação\n".
+                "• apagar Uber de 18 reais\n".
+                "• apagar mercado de ontem";
+        }
+
+        if (str_contains($message, 'relatorio') || str_contains($message, 'relatório')) {
+            return "⚠️ Não consegui entender qual relatório você quer gerar.\n\n".
+                "Tente assim:\n".
+                "• me gera um relatório do mês\n".
+                "• me manda o relatório em PDF\n".
+                "• relatório anual em Excel";
+        }
+
+        if (str_contains($message, 'saldo') || str_contains($message, 'gastos') || str_contains($message, 'receitas') || str_contains($message, 'ultimos') || str_contains($message, 'últimos')) {
+            return "⚠️ Não consegui entender essa consulta do jeito que ela veio.\n\n".
+                "Você pode tentar assim:\n".
+                "• qual é o meu saldo?\n".
+                "• quais foram meus últimos gastos?\n".
+                "• quanto eu gastei esse mês?";
+        }
+
+        $details = collect($errors)
+            ->filter()
+            ->implode(' ');
+
+        $base = "⚠️ Não consegui entender essa mensagem do jeito que ela veio.\n\n".
+            "Tente mandar em um destes formatos:\n".
+            "• Gastei 50 no supermercado\n".
+            "• Recebi 1000 de salário\n".
+            "• Qual é o meu saldo?";
+
+        return $details !== '' ? $base."\n\nDetalhe: {$details}" : $base;
+    }
+
+    /**
      * Edita uma transação existente
      */
     private function editTransaction(User $user, $transactionId, array $data): Transaction
@@ -987,6 +1120,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
         $errorMessage = trim($e->getMessage());
 
         if ($errorMessage !== '') {
+            if ($this->isCompoundFinancialMessage()) {
+                return $this->buildCompoundTransactionReply();
+            }
+
             if (str_contains($errorMessage, 'mais de uma transação')) {
                 return '⚠️ '.$errorMessage;
             }
@@ -1001,11 +1138,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
         // Mensagens específicas por tipo de erro
         $messages = [
-            \Illuminate\Validation\ValidationException::class => "❌ Não consegui processar sua mensagem. Verifique se o formato está correto.\n\n".
-                "Exemplos:\n".
-                "• Gastei 50 reais no supermercado\n".
-                "• Recebi 1000 de salário\n".
-                '• Qual é o meu saldo?',
+            \Illuminate\Validation\ValidationException::class => $this->buildValidationGuidanceReply(),
 
             \Illuminate\Database\QueryException::class => '❌ Ocorreu um erro ao salvar os dados. Tente novamente em alguns instantes.',
         ];
