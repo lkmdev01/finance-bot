@@ -1,6 +1,5 @@
-﻿<?php
+<?php
 
-use App\Services\MascotScoreService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -14,10 +13,17 @@ new class extends Component
     public bool $showOnboardingTutorial = false;
     public int $onboardingStep = 0;
     public string $onboardingPhoneNumber = '';
+    
+    protected function user(): \App\Models\User
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        return $user;
+    }
 
     public function getExceededBudgets(): \Illuminate\Database\Eloquent\Collection
     {
-        return Auth::user()->budgets()
+        return $this->user()->budgets()
             ->with('category')
             ->get()
             ->filter(function ($budget) {
@@ -28,17 +34,17 @@ new class extends Component
     public function with(): array
     {
         return [
-            'title' => 'Planejamento de '.auth()->user()->name,
+            'title' => 'Planejamento de '.$this->user()->name,
             'exceededBudgets' => $this->getExceededBudgets(),
-            'mascotSummary' => app(MascotScoreService::class)->sync(Auth::user()),
+            'mascotSummary' => app(\App\Services\MascotScoreService::class)->sync($this->user()),
         ];
     }
 
     public function mount(): void
     {
         $this->selectedMonth = now()->format('Y-m');
-        $this->onboardingPhoneNumber = Auth::user()->phone_number ?? '';
-        $this->showOnboardingTutorial = Auth::user()->onboarding_tutorial_seen_at === null;
+        $this->onboardingPhoneNumber = $this->user()->phone_number ?? '';
+        $this->showOnboardingTutorial = $this->user()->onboarding_tutorial_seen_at === null;
     }
 
     public function startOnboardingTutorial(): void
@@ -48,8 +54,7 @@ new class extends Component
 
     public function dismissOnboardingTutorial(): void
     {
-        $user = Auth::user();
-        $user->forceFill([
+        $this->user()->forceFill([
             'onboarding_tutorial_seen_at' => now(),
         ])->save();
 
@@ -75,7 +80,7 @@ new class extends Component
                 function ($attribute, $value, $fail) use ($phoneNumber) {
                     $exists = DB::table('users')
                         ->where('phone_number', $phoneNumber)
-                        ->where('id', '!=', Auth::id())
+                        ->where('id', '!=', $this->user()->id)
                         ->exists();
 
                     if ($exists) {
@@ -88,7 +93,7 @@ new class extends Component
             'onboardingPhoneNumber.regex' => 'Use um número válido com DDD.',
         ]);
 
-        $user = Auth::user();
+        $user = $this->user();
         $user->phone_number = $phoneNumber;
         $user->save();
 
@@ -103,8 +108,7 @@ new class extends Component
 
     public function getTotalIncome(): float
     {
-        $user = Auth::user();
-        $query = $user->transactions()->where('type', 'income');
+        $query = $this->user()->transactions()->where('type', 'income');
 
         if ($this->period === 'monthly') {
             [$year, $month] = explode('-', $this->selectedMonth);
@@ -118,8 +122,7 @@ new class extends Component
 
     public function getTotalExpenses(): float
     {
-        $user = Auth::user();
-        $query = $user->transactions()->where('type', 'expense');
+        $query = $this->user()->transactions()->where('type', 'expense');
 
         if ($this->period === 'monthly') {
             [$year, $month] = explode('-', $this->selectedMonth);
@@ -133,8 +136,7 @@ new class extends Component
 
     public function getTotalSavingsDeposits(): float
     {
-        $user = Auth::user();
-        return (float) $user->savingsGoals()
+        return (float) $this->user()->savingsGoals()
             ->with('deposits')
             ->get()
             ->sum(fn($goal) => $goal->deposits->sum('amount'));
@@ -142,7 +144,7 @@ new class extends Component
 
     public function getTotalIncomeAllTime(): float
     {
-        return (float) Auth::user()->transactions()
+        return (float) $this->user()->transactions()
             ->where('type', 'income')
             ->sum('amount');
     }
@@ -150,7 +152,7 @@ new class extends Component
     public function getTotalExpensesAllTime(): float
     {
         // Excluir transacoes de deposito em metas (ja sao contadas separadamente)
-        $allExpenses = Auth::user()->transactions()
+        $allExpenses = $this->user()->transactions()
             ->where('type', 'expense')
             ->get();
         
@@ -172,7 +174,7 @@ new class extends Component
 
     public function getExpensesByCategory(): array
     {
-        $user = Auth::user();
+        $user = $this->user();
         $query = $user->transactions()
             ->where('type', 'expense')
             ->whereNotNull('category_id');
@@ -204,7 +206,7 @@ new class extends Component
 
     public function getRecentTransactions(): \Illuminate\Database\Eloquent\Collection
     {
-        $user = Auth::user();
+        $user = $this->user();
         $query = $user->transactions()
             ->with('category')
             ->orderBy('date', 'desc')
@@ -242,7 +244,7 @@ new class extends Component
         [$year, $month] = explode('-', $this->selectedMonth);
         $previousMonth = \Carbon\Carbon::create($year, $month, 1)->subMonth();
 
-        return (float) Auth::user()->transactions()
+        return (float) $this->user()->transactions()
             ->where('type', 'income')
             ->whereYear('date', $previousMonth->year)
             ->whereMonth('date', $previousMonth->month)
@@ -258,7 +260,7 @@ new class extends Component
         [$year, $month] = explode('-', $this->selectedMonth);
         $previousMonth = \Carbon\Carbon::create($year, $month, 1)->subMonth();
 
-        return (float) Auth::user()->transactions()
+        return (float) $this->user()->transactions()
             ->where('type', 'expense')
             ->whereYear('date', $previousMonth->year)
             ->whereMonth('date', $previousMonth->month)
@@ -291,7 +293,7 @@ new class extends Component
 
     public function getDailyTransactions(): array
     {
-        $user = Auth::user();
+        $user = $this->user();
         $query = $user->transactions();
 
         if ($this->period === 'monthly') {
@@ -337,7 +339,7 @@ new class extends Component
 
     public function getMonthlyEvolution(): array
     {
-        $user = Auth::user();
+        $user = $this->user();
         $months = [];
         
         // Ultimos 12 meses
@@ -373,7 +375,7 @@ new class extends Component
 
     public function getYearlyEvolution(): array
     {
-        $user = Auth::user();
+        $user = $this->user();
         $years = [];
         
         // Ultimos 5 anos
@@ -416,8 +418,9 @@ new class extends Component
 
 <div x-data="{ notificationsOpen: false }" x-cloak class="relative px-2 py-4 sm:p-6 space-y-6">
     @if($showOnboardingTutorial)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-            <div class="relative w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f] text-white shadow-2xl shadow-black/40">
+        <div class="fixed inset-0 z-[60] overflow-y-auto bg-slate-950/80 backdrop-blur-sm overscroll-contain" x-on:keydown.escape.window="$wire.dismissOnboardingTutorial()">
+            <div class="flex min-h-full items-center justify-center p-4 sm:p-6 lg:p-8">
+                <div class="relative w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f] text-white shadow-[0_0_80px_-15px_rgba(0,0,0,0.6)]">
                 <div class="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.22),_transparent_55%),linear-gradient(135deg,_rgba(34,197,94,0.12),_transparent_60%)]"></div>
 
                 <div class="relative grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
@@ -1000,7 +1003,10 @@ new class extends Component
                                             <div class="w-32 bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
                                                 <div 
                                                     class="h-2 rounded-full" 
-                                                    style="width: {{ $expense['percentage'] }}%; background-color: {{ $expense['color'] }};"
+                                                    @style([
+                                                        'width' => $expense['percentage'] . '%',
+                                                        'background-color' => $expense['color'],
+                                                    ])
                                                 ></div>
                                             </div>
                                         </div>
@@ -1084,8 +1090,8 @@ new class extends Component
                         }, 500)"
                     >
                         @foreach($dailyData as $index => $day)
-                            <div class="flex flex-col items-center gap-2 group shrink-0 {{ $day['isToday'] ? 'is-today' : '' }}" style="width: {{ 100 / min(30, count($dailyData)) }}%; min-width: 24px;">
-                                <div class="w-full flex flex-col justify-end gap-1 bg-transparent relative" style="height: 280px; min-height: 280px;">
+                            <div class="flex flex-col items-center gap-2 group shrink-0 {{ $day['isToday'] ? 'is-today' : '' }}" @style(['width' => (100 / min(30, count($dailyData))) . '%', 'min-width' => '24px'])>
+                                <div class="w-full flex flex-col justify-end gap-1 bg-transparent relative" @style(['height' => '280px', 'min-height' => '280px'])>
                                     @if($day['income'] > 0)
                                         @php
                                             $incomePercent = ($day['income'] / $maxValue) * 100;
@@ -1094,7 +1100,7 @@ new class extends Component
                                         @endphp
                                         <div 
                                             class="w-full bg-green-600 dark:bg-green-500 rounded-t-md hover:bg-green-700 dark:hover:bg-green-400 transition-all shadow-md hover:shadow-lg"
-                                            style="height: {{ $incomeHeight }}%; min-height: {{ $incomeMinPx }}px;"
+                                            @style(['height' => $incomeHeight . '%', 'min-height' => $incomeMinPx . 'px'])
                                             title="Receita: R$ {{ number_format($day['income'], 2, ',', '.') }}"
                                         ></div>
                                     @endif
@@ -1106,7 +1112,7 @@ new class extends Component
                                         @endphp
                                         <div 
                                             class="w-full bg-red-600 dark:bg-red-500 rounded-b-md hover:bg-red-700 dark:hover:bg-red-400 transition-all shadow-md hover:shadow-lg"
-                                            style="height: {{ $expenseHeight }}%; min-height: {{ $expenseMinPx }}px;"
+                                            @style(['height' => $expenseHeight . '%', 'min-height' => $expenseMinPx . 'px'])
                                             title="Despesa: R$ {{ number_format($day['expense'], 2, ',', '.') }}"
                                         ></div>
                                     @endif
@@ -1134,7 +1140,7 @@ new class extends Component
         <!-- Gráfico de evolução -->
         @if($period === 'monthly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">evolução Mensal (Ultimos 12 meses)</h2>
+                <h2 class="text-lg font-semibold mb-6">Evolução Mensal (Últimos 12 meses)</h2>
                 @php
                     $monthlyData = $this->getMonthlyEvolution();
                     $maxMonthlyValue = max(
@@ -1151,8 +1157,8 @@ new class extends Component
                         }, 600)"
                     >
                         @foreach($monthlyData as $month)
-                            <div class="flex flex-col items-center gap-2 group shrink-0 {{ $month['isCurrent'] ? 'is-current' : '' }}" style="width: {{ 100 / count($monthlyData) }}%; min-width: 60px;">
-                                <div class="w-full flex flex-col justify-end gap-1 bg-transparent relative" style="height: 280px; min-height: 280px;">
+                            <div class="flex flex-col items-center gap-2 group shrink-0 {{ $month['isCurrent'] ? 'is-current' : '' }}" @style(['width' => (100 / count($monthlyData)) . '%', 'min-width' => '60px'])>
+                                <div class="w-full flex flex-col justify-end gap-1 bg-transparent relative" @style(['height' => '280px', 'min-height' => '280px'])>
                                     @if($month['income'] > 0)
                                         @php
                                             $incomeHeight = max(($month['income'] / $maxMonthlyValue) * 100, 5);
@@ -1160,7 +1166,7 @@ new class extends Component
                                         @endphp
                                         <div 
                                             class="w-full bg-green-600 dark:bg-green-500 rounded-t-md hover:bg-green-700 dark:hover:bg-green-400 transition-all shadow-md"
-                                            style="height: {{ $incomeHeight }}%; min-height: {{ $incomeMinPx }}px;"
+                                            @style(['height' => $incomeHeight . '%', 'min-height' => $incomeMinPx . 'px'])
                                             title="Receita: R$ {{ number_format($month['income'], 2, ',', '.') }}"
                                         ></div>
                                     @endif
@@ -1171,7 +1177,7 @@ new class extends Component
                                         @endphp
                                         <div 
                                             class="w-full bg-red-600 dark:bg-red-500 rounded-b-md hover:bg-red-700 dark:hover:bg-red-400 transition-all shadow-md"
-                                            style="height: {{ $expenseHeight }}%; min-height: {{ $expenseMinPx }}px;"
+                                            @style(['height' => $expenseHeight . '%', 'min-height' => $expenseMinPx . 'px'])
                                             title="Despesa: R$ {{ number_format($month['expense'], 2, ',', '.') }}"
                                         ></div>
                                     @endif
@@ -1199,7 +1205,7 @@ new class extends Component
         <!-- Gráfico de evolução -->
         @if($period === 'yearly')
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-                <h2 class="text-lg font-semibold mb-6">evolução Anual (Ultimos 5 anos)</h2>
+                <h2 class="text-lg font-semibold mb-6">Evolução Anual (Últimos 5 anos)</h2>
                 @php
                     $yearlyData = $this->getYearlyEvolution();
                     $maxYearlyValue = max(
@@ -1210,8 +1216,8 @@ new class extends Component
                 <div class="bg-gradient-to-t from-zinc-100 to-zinc-50 dark:from-zinc-800 dark:to-zinc-900 rounded-lg p-4 border-2 border-zinc-200 dark:border-zinc-700">
                     <div class="h-80 flex items-end gap-4 overflow-x-auto pb-2">
                         @foreach($yearlyData as $year)
-                            <div class="flex flex-col items-center gap-2 group shrink-0" style="width: {{ 100 / count($yearlyData) }}%; min-width: 80px;">
-                                <div class="w-full flex flex-col justify-end gap-1 bg-transparent relative" style="height: 280px; min-height: 280px;">
+                            <div class="flex flex-col items-center gap-2 group shrink-0" @style(['width' => (100 / count($yearlyData)) . '%', 'min-width' => '80px'])>
+                                <div class="w-full flex flex-col justify-end gap-1 bg-transparent relative" @style(['height' => '280px', 'min-height' => '280px'])>
                                     @if($year['income'] > 0)
                                         @php
                                             $incomeHeight = max(($year['income'] / $maxYearlyValue) * 100, 5);
@@ -1219,7 +1225,7 @@ new class extends Component
                                         @endphp
                                         <div 
                                             class="w-full bg-green-600 dark:bg-green-500 rounded-t-md hover:bg-green-700 dark:hover:bg-green-400 transition-all shadow-md"
-                                            style="height: {{ $incomeHeight }}%; min-height: {{ $incomeMinPx }}px;"
+                                            @style(['height' => $incomeHeight . '%', 'min-height' => $incomeMinPx . 'px'])
                                             title="Receita: R$ {{ number_format($year['income'], 2, ',', '.') }}"
                                         ></div>
                                     @endif
@@ -1230,7 +1236,7 @@ new class extends Component
                                         @endphp
                                         <div 
                                             class="w-full bg-red-600 dark:bg-red-500 rounded-b-md hover:bg-red-700 dark:hover:bg-red-400 transition-all shadow-md"
-                                            style="height: {{ $expenseHeight }}%; min-height: {{ $expenseMinPx }}px;"
+                                            @style(['height' => $expenseHeight . '%', 'min-height' => $expenseMinPx . 'px'])
                                             title="Despesa: R$ {{ number_format($year['expense'], 2, ',', '.') }}"
                                         ></div>
                                     @endif

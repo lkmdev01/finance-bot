@@ -1,10 +1,14 @@
-﻿<x-layouts.app.sidebar :title="config('mascot.name', 'Orbita')">
+@php
+    $mascotName = config('mascot.name', 'Orbita');
+@endphp
+
+<x-layouts.app.sidebar :title="$mascotName">
     @if (auth()->user()->hasFeature('mascot'))
         <livewire:mascot.index />
     @else
         <x-billing.feature-paywall
-            :feature-title="config('mascot.name', 'Orbita')"
-            :feature-description="'O sistema de pontuação, humor e medalhas do '.config('mascot.name', 'Orbita').' faz parte da assinatura Pro.'"
+            :feature-title="$mascotName"
+            :feature-description="'O sistema de pontuação, humor e medalhas do '.$mascotName.' faz parte da assinatura Pro.'"
         />
     @endif
 </x-layouts.app.sidebar>
