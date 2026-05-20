@@ -2,8 +2,6 @@
 
 namespace App\Services\WhatsApp;
 
-use App\Models\WhatsAppContact;
-
 class MessageClassifier
 {
     public function classify(string $message, array $state = []): array
@@ -28,6 +26,10 @@ class MessageClassifier
             return ['kind' => $kind, 'normalized' => $stripped];
         }
 
+        if ($this->looksLikeBudgetQuery($stripped)) {
+            return ['kind' => 'budget_query', 'normalized' => $stripped];
+        }
+
         if ($followUp = $this->extractFollowUpBudgetCategory($stripped, $state)) {
             return ['kind' => 'budget_follow_up', 'category_name' => $followUp, 'normalized' => $stripped];
         }
@@ -47,7 +49,32 @@ class MessageClassifier
 
     private function isCancellation(string $message): bool
     {
-        return in_array($message, ['cancelar', 'cancela', 'deixa', 'deixa pra la', 'deixa pra lá', 'não', 'nao'], true);
+        if (in_array($message, ['cancelar', 'cancela', 'deixa', 'deixa pra la', 'deixa pra lá', 'não', 'nao'], true)) {
+            return true;
+        }
+
+        foreach (['não quero', 'nao quero', 'agora não', 'agora nao', 'não precisa', 'nao precisa'] as $phrase) {
+            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function looksLikeBudgetQuery(string $message): bool
+    {
+        if (! str_contains($message, 'orcamento') && ! str_contains($message, 'orçamento')) {
+            return false;
+        }
+
+        foreach (['qual', 'quais', 'mostrar', 'mostra', 'meu', 'meus', 'listar', 'liste'] as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function extractFollowUpBudgetCategory(string $message, array $state): ?string
@@ -56,7 +83,7 @@ class MessageClassifier
             return null;
         }
 
-        if (!preg_match('/^(?:e\s+)?(?:o|a|os|as)?\s*([\p{L}\p{N} _-]+)$/u', $message, $matches)) {
+        if (! preg_match('/^(?:e\s+)?(?:o|a|os|as)?\s*([\p{L}\p{N} _-]+)$/u', $message, $matches)) {
             return null;
         }
 

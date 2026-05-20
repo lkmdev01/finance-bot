@@ -33,6 +33,19 @@ class ConversationOrchestrator
             ],
             'cancellation' => $this->handleCancellation($state),
             'confirmation' => $this->handleConfirmation($state),
+            'budget_query' => [
+                'handled' => false,
+                'result' => [
+                    'reply' => '',
+                    'action' => 'query_budgets',
+                    'transaction_data' => null,
+                    '_resolved_message' => $message,
+                    '_conversation_metadata' => [
+                        'clear_pending' => true,
+                        'reply_kind' => 'query',
+                    ],
+                ],
+            ],
             'budget_follow_up' => [
                 'handled' => false,
                 'result' => [
@@ -55,7 +68,7 @@ class ConversationOrchestrator
     {
         $metadata = $result['_conversation_metadata'] ?? [];
 
-        if ($action === 'confirm_large_transaction' && !empty($result['transaction_data'])) {
+        if ($action === 'confirm_large_transaction' && ! empty($result['transaction_data'])) {
             $metadata['pending_intent'] = 'confirm_large_transaction';
             $metadata['pending_payload'] = [
                 'transaction_data' => $result['transaction_data'],
@@ -64,7 +77,7 @@ class ConversationOrchestrator
             $metadata['clear_pending'] = false;
         }
 
-        if (!isset($metadata['entities'])) {
+        if (! isset($metadata['entities'])) {
             $metadata['entities'] = [];
         }
 
@@ -72,7 +85,7 @@ class ConversationOrchestrator
             $metadata['entities']['budget_query_message'] = $result['_resolved_message'];
         }
 
-        if (!array_key_exists('clear_pending', $metadata)) {
+        if (! array_key_exists('clear_pending', $metadata)) {
             $metadata['clear_pending'] = true;
         }
 
@@ -92,7 +105,7 @@ class ConversationOrchestrator
 
         return [
             'handled' => true,
-            'reply' => $this->composer->composeNeutralAcknowledgement($state['last_action'] ?? null),
+            'reply' => 'Sem problema. Se quiser, posso te mostrar seus orçamentos, saldo ou registrar um gasto.',
             'action' => null,
             'metadata' => ['clear_pending' => false, 'reply_kind' => 'message'],
         ];
@@ -109,7 +122,7 @@ class ConversationOrchestrator
             ];
         }
 
-        if (($state['pending_intent'] ?? null) === 'confirm_large_transaction' && !empty($state['pending_payload']['transaction_data'])) {
+        if (($state['pending_intent'] ?? null) === 'confirm_large_transaction' && ! empty($state['pending_payload']['transaction_data'])) {
             return [
                 'handled' => false,
                 'result' => [
