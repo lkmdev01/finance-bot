@@ -33,7 +33,19 @@ class QueryHandler extends BaseHandler
     public function handle(?string $action, array &$result, User $user, WhatsAppContact $contact, ProcessWhatsAppMessage $job): bool
     {
         $rawMessage = $result['_resolved_message'] ?? $job->message;
-        $reply = $this->buildQueryReply($user, $action, $result['reply'] ?? '', $rawMessage);
+
+        try {
+            $reply = $this->buildQueryReply($user, $action, $result['reply'] ?? '', $rawMessage);
+        } catch (\Throwable $exception) {
+            Log::error('Falha ao montar resposta de consulta via WhatsApp', [
+                'user_id' => $user->id,
+                'action' => $action,
+                'message' => $rawMessage,
+                'error' => $exception->getMessage(),
+            ]);
+
+            $reply = 'NÃ£o consegui consultar esses dados agora. Tente novamente em instantes.';
+        }
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'query',
@@ -43,7 +55,7 @@ class QueryHandler extends BaseHandler
         Log::info('Consulta processada via WhatsApp', [
             'user_id' => $user->id,
             'action' => $action,
-            'reply_length' => strlen($reply),
+            'reply_length' => mb_strlen($reply),
         ]);
 
         $this->sendResponse($job, $reply, $user);
@@ -65,14 +77,14 @@ class QueryHandler extends BaseHandler
     {
         $message = mb_strtolower($rawMessage);
         $type = null;
-        $title = 'Últimas transações';
+        $title = 'Ãšltimas transaÃ§Ãµes';
 
         if (str_contains($message, 'gasto') || str_contains($message, 'despesa')) {
             $type = 'expense';
-            $title = 'Seus últimos gastos';
+            $title = 'Seus Ãºltimos gastos';
         } elseif (str_contains($message, 'receita') || str_contains($message, 'ganho') || str_contains($message, 'entrada')) {
             $type = 'income';
-            $title = 'Suas últimas receitas';
+            $title = 'Suas Ãºltimas receitas';
         }
 
         $transactions = Transaction::query()
@@ -86,9 +98,9 @@ class QueryHandler extends BaseHandler
 
         if ($transactions->isEmpty()) {
             return match ($type) {
-                'expense' => 'Você ainda não tem gastos registrados.',
-                'income' => 'Você ainda não tem receitas registradas.',
-                default => 'Você ainda não tem transações registradas.',
+                'expense' => 'VocÃª ainda nÃ£o tem gastos registrados.',
+                'income' => 'VocÃª ainda nÃ£o tem receitas registradas.',
+                default => 'VocÃª ainda nÃ£o tem transaÃ§Ãµes registradas.',
             };
         }
 
@@ -98,10 +110,12 @@ class QueryHandler extends BaseHandler
             $category = $transaction->category?->name ? " ({$transaction->category->name})" : '';
             $amount = number_format((float) $transaction->amount, 2, ',', '.');
 
-            return "• {$date} - {$label}{$category}: R$ {$amount}";
-        })->implode("\n");
+            return "- {$date} - {$label}{$category}: R$ {$amount}";
+        })->implode("
+");
 
-        return "{$title}:\n{$lines}";
+        return "{$title}:
+{$lines}";
     }
 
     private function buildCategoryReply(User $user, string $fallbackReply, string $rawMessage): string
@@ -125,7 +139,7 @@ class QueryHandler extends BaseHandler
             ->get();
 
         if ($transactions->isEmpty()) {
-            return "Não encontrei gastos com {$searchTerm} ainda.";
+            return "NÃ£o encontrei gastos com {$searchTerm} ainda.";
         }
 
         $count = $transactions->count();
@@ -157,7 +171,7 @@ class QueryHandler extends BaseHandler
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $message, $matches)) {
                 $term = trim($matches[1]);
-                $term = preg_replace('/\b(hoje|ontem|esse mes|este mes|mês|mes|ultimos?|últimos?)\b/u', '', $term);
+                $term = preg_replace('/\b(hoje|ontem|esse mes|este mes|mÃªs|mes|ultimos?|Ãºltimos?)\b/u', '', $term);
                 $term = trim($term);
 
                 if ($term !== '') {
@@ -185,7 +199,7 @@ class QueryHandler extends BaseHandler
             ->get();
 
         if ($budgets->isEmpty()) {
-            return 'Você ainda não tem orçamentos cadastrados para este período.';
+            return 'VocÃª ainda nÃ£o tem orÃ§amentos cadastrados para este perÃ­odo.';
         }
 
         $searchTerm = $this->extractBudgetSearchTerm($rawMessage);
@@ -200,7 +214,7 @@ class QueryHandler extends BaseHandler
             })->values();
 
             if ($budgets->isEmpty()) {
-                return "Não encontrei orçamento para {$searchTerm} neste período.";
+                return "NÃ£o encontrei orÃ§amento para {$searchTerm} neste perÃ­odo.";
             }
         }
 
@@ -214,9 +228,11 @@ class QueryHandler extends BaseHandler
             $category = $budget->category?->name ?? 'Sem categoria';
 
             return "- {$category}: limite R$ {$amount} | gasto R$ {$spent} | restante R$ {$remaining} ({$period})";
-        })->implode("\n");
+        })->implode("
+");
 
-        return "Seus orçamentos de {$periodLabel}:\n{$lines}";
+        return "Seus orÃ§amentos de {$periodLabel}:
+{$lines}";
     }
 
     private function extractBudgetSearchTerm(string $rawMessage): ?string
@@ -226,15 +242,15 @@ class QueryHandler extends BaseHandler
 
         $patterns = [
             '/orcamento\s+(?:para|de)\s+(.+)$/u',
-            '/orçamento\s+(?:para|de)\s+(.+)$/u',
+            '/orÃ§amento\s+(?:para|de)\s+(.+)$/u',
             '/meu\s+orcamento\s+(?:para|de)\s+(.+)$/u',
-            '/meu\s+orçamento\s+(?:para|de)\s+(.+)$/u',
+            '/meu\s+orÃ§amento\s+(?:para|de)\s+(.+)$/u',
         ];
 
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $message, $matches)) {
                 $term = trim($matches[1]);
-                $term = preg_replace('/\b(geral|gerais|do mes|do mês|desse mes|desse mês|este mes|este mês)\b/u', '', $term);
+                $term = preg_replace('/\b(geral|gerais|do mes|do mÃªs|desse mes|desse mÃªs|este mes|este mÃªs)\b/u', '', $term);
                 $term = trim($term);
 
                 if ($term !== '') {

@@ -37,7 +37,7 @@ class MessageClassifier
 
     private function isGreeting(string $message): bool
     {
-        return in_array($message, ['oi', 'ol·', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e ai', 'e aÌ', 'hey', 'opa'], true);
+        return in_array($message, ['oi', 'ol√°', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e ai', 'e a√≠', 'hey', 'opa'], true);
     }
 
     private function isShortAcknowledgement(string $message): bool
@@ -47,7 +47,7 @@ class MessageClassifier
 
     private function isCancellation(string $message): bool
     {
-        return in_array($message, ['cancelar', 'cancela', 'deixa', 'deixa pra la', 'deixa pra l·', 'n„o', 'nao'], true);
+        return in_array($message, ['cancelar', 'cancela', 'deixa', 'deixa pra la', 'deixa pra l√°', 'n√£o', 'nao'], true);
     }
 
     private function extractFollowUpBudgetCategory(string $message, array $state): ?string
@@ -61,7 +61,7 @@ class MessageClassifier
         }
 
         $term = trim($matches[1] ?? '');
-        $term = preg_replace('/\b(orcamento|orÁamento|mes|mÍs|geral|gerais|tambem|tambÈm)\b/u', '', $term);
+        $term = preg_replace('/\b(orcamento|or√ßamento|mes|m√™s|geral|gerais|tambem|tamb√©m)\b/u', '', $term);
         $term = trim((string) $term);
 
         return $term !== '' ? ucfirst($term) : null;

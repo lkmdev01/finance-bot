@@ -113,7 +113,7 @@ class ConversationOrchestrator
             return [
                 'handled' => false,
                 'result' => [
-                    'reply' => 'Perfeito, vou confirmar esse lançamento para você.',
+                    'reply' => 'Perfeito, vou confirmar esse lanÃ§amento para vocÃª.',
                     'action' => 'confirm_large_transaction',
                     'transaction_data' => $state['pending_payload']['transaction_data'],
                     '_conversation_metadata' => [

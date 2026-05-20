@@ -41,6 +41,10 @@ class Budget extends Model
 
     public function getSpentAttribute(): float
     {
+        if (! $this->category) {
+            return 0.0;
+        }
+
         $query = $this->category->transactions()
             ->where('type', 'expense')
             ->where('user_id', $this->user_id);
