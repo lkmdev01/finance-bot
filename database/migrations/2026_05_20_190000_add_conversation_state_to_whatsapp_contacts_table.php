@@ -8,15 +8,27 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('whatsapp_contacts', function (Blueprint $table) {
-            $table->json('conversation_state')->nullable()->after('context');
+        if (! Schema::hasTable('whats_app_contacts')) {
+            return;
+        }
+
+        Schema::table('whats_app_contacts', function (Blueprint $table) {
+            if (! Schema::hasColumn('whats_app_contacts', 'conversation_state')) {
+                $table->json('conversation_state')->nullable()->after('context');
+            }
         });
     }
 
     public function down(): void
     {
-        Schema::table('whatsapp_contacts', function (Blueprint $table) {
-            $table->dropColumn('conversation_state');
+        if (! Schema::hasTable('whats_app_contacts')) {
+            return;
+        }
+
+        Schema::table('whats_app_contacts', function (Blueprint $table) {
+            if (Schema::hasColumn('whats_app_contacts', 'conversation_state')) {
+                $table->dropColumn('conversation_state');
+            }
         });
     }
 };
