@@ -36,7 +36,7 @@ class ConversationStateService
     {
         $state = $this->getState($contact);
         $state['last_action'] = $action;
-        $state['last_entities'] = $entities;
+        $state['last_entities'] = $this->sanitizeValue($entities);
         $state['last_reply_kind'] = $replyKind;
         $state['updated_at'] = now()->toIso8601String();
         $this->persistState($contact, $state);
@@ -44,12 +44,12 @@ class ConversationStateService
 
     public function rememberInteraction(WhatsAppContact $contact, string $message, string $reply, ?string $action, array $meta = []): void
     {
-        $context = $contact->context ?? [];
+        $context = $this->sanitizeValue($contact->context ?? []);
         $context[] = [
-            'message' => $message,
-            'reply' => $reply,
+            'message' => $this->sanitizeValue($message),
+            'reply' => $this->sanitizeValue($reply),
             'action' => $action,
-            'meta' => $meta,
+            'meta' => $this->sanitizeValue($meta),
             'timestamp' => now()->toIso8601String(),
         ];
 
@@ -57,7 +57,7 @@ class ConversationStateService
             $context = array_slice($context, -self::MAX_CONTEXT_ITEMS);
         }
 
-        $contact->forceFill(['context' => $context])->save();
+        $contact->forceFill(['context' => $this->sanitizeValue($context)])->save();
     }
 
     public function applyHandledResult(WhatsAppContact $contact, string $message, ?string $action, string $reply, array $metadata = []): void
@@ -97,7 +97,9 @@ class ConversationStateService
 
     private function persistState(WhatsAppContact $contact, array $state): void
     {
-        $contact->forceFill(['conversation_state' => $this->normalizeState($state)])->save();
+        $contact->forceFill([
+            'conversation_state' => $this->sanitizeValue($this->normalizeState($state)),
+        ])->save();
     }
 
     private function normalizeState(array $state): array
@@ -111,5 +113,28 @@ class ConversationStateService
             'last_reply_kind' => $state['last_reply_kind'] ?? null,
             'updated_at' => $state['updated_at'] ?? null,
         ];
+    }
+
+    private function sanitizeValue(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            foreach ($value as $key => $item) {
+                $value[$key] = $this->sanitizeValue($item);
+            }
+
+            return $value;
+        }
+
+        if (! is_string($value)) {
+            return $value;
+        }
+
+        $sanitized = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+        if ($sanitized === false) {
+            return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+        }
+
+        return $sanitized;
     }
 }

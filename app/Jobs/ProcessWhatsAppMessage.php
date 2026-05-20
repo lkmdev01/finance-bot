@@ -40,7 +40,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
     public function rememberFinalReply(string $reply): void
     {
-        $this->finalReply = $reply;
+        $this->finalReply = $this->sanitizeUtf8($reply);
     }
 
     public function getFinalReply(): ?string
@@ -55,6 +55,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
         User $user
     ): void {
         $recipientJid = $this->getRecipientJid($phoneNumberService);
+        $message = $this->sanitizeUtf8($message);
 
         try {
             $response = $baileysService->sendTextMessage($recipientJid, $message);
@@ -70,12 +71,12 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 Log::info('Mensagem enviada com sucesso via WhatsApp', [
                     'user_id' => $user->id,
                     'recipient' => $recipientJid,
-                    'message_length' => strlen($message),
+                    'message_length' => mb_strlen($message),
                     'message_preview' => substr($message, 0, 100),
                 ]);
             }
         } catch (\Exception $sendError) {
-            Log::error('Exceção ao enviar mensagem via WhatsApp', [
+            Log::error('Excecao ao enviar mensagem via WhatsApp', [
                 'error' => $sendError->getMessage(),
                 'recipient' => $recipientJid,
                 'user_id' => $user->id,
@@ -334,12 +335,12 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
     private function buildCompoundTransactionReply(): string
     {
-        return "Atenção: eu ainda não consigo registrar vários lançamentos na mesma mensagem.\n\n"
+        return "Atencao: eu ainda nao consigo registrar varios lancamentos na mesma mensagem.\n\n"
             ."Manda um por vez, assim:\n"
-            ."• Gastei 32 no Uber\n"
-            ."• Gastei 48 no mercado\n"
-            ."• Recebi 420 de freelance\n\n"
-            ."Se quiser, pode me enviar uma mensagem atrás da outra que eu registro tudo.";
+            ."- Gastei 32 no Uber\n"
+            ."- Gastei 48 no mercado\n"
+            ."- Recebi 420 de freelance\n\n"
+            ."Se quiser, pode me enviar uma mensagem atras da outra que eu registro tudo.";
     }
 
     private function buildValidationGuidanceReply(array $errors = []): string
@@ -351,35 +352,35 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
 
         if (str_contains($message, 'apaga') || str_contains($message, 'apagar') || str_contains($message, 'exclui') || str_contains($message, 'remove')) {
-            return "Atenção: não consegui entender qual transação você quer apagar.\n\n"
+            return "Atencao: nao consegui entender qual transacao voce quer apagar.\n\n"
                 ."Tente assim:\n"
-                ."• apagar última transação\n"
-                ."• apagar Uber de 18 reais\n"
-                ."• apagar mercado de ontem";
+                ."- apagar ultima transacao\n"
+                ."- apagar Uber de 18 reais\n"
+                ."- apagar mercado de ontem";
         }
 
         if (str_contains($message, 'relatorio') || str_contains($message, 'relatório')) {
-            return "Atenção: não consegui entender qual relatório você quer gerar.\n\n"
+            return "Atencao: nao consegui entender qual relatorio voce quer gerar.\n\n"
                 ."Tente assim:\n"
-                ."• me gera um relatório do mês\n"
-                ."• me manda o relatório em PDF\n"
-                ."• relatório anual em Excel";
+                ."- me gera um relatorio do mes\n"
+                ."- me manda o relatorio em PDF\n"
+                ."- relatorio anual em Excel";
         }
 
         if (str_contains($message, 'saldo') || str_contains($message, 'gastos') || str_contains($message, 'receitas') || str_contains($message, 'ultimos') || str_contains($message, 'últimos')) {
-            return "Atenção: não consegui entender essa consulta do jeito que ela veio.\n\n"
-                ."Você pode tentar assim:\n"
-                ."• qual é o meu saldo?\n"
-                ."• quais foram meus últimos gastos?\n"
-                ."• quanto eu gastei esse mês?";
+            return "Atencao: nao consegui entender essa consulta do jeito que ela veio.\n\n"
+                ."Voce pode tentar assim:\n"
+                ."- qual e o meu saldo?\n"
+                ."- quais foram meus ultimos gastos?\n"
+                ."- quanto eu gastei esse mes?";
         }
 
-        $details = collect($errors)->filter()->implode(' ');
-        $base = "Atenção: não consegui entender essa mensagem do jeito que ela veio.\n\n"
+        $details = $this->sanitizeUtf8(collect($errors)->filter()->implode(' '));
+        $base = "Atencao: nao consegui entender essa mensagem do jeito que ela veio.\n\n"
             ."Tente mandar em um destes formatos:\n"
-            ."• Gastei 50 no supermercado\n"
-            ."• Recebi 1000 de salário\n"
-            ."• Qual é o meu saldo?";
+            ."- Gastei 50 no supermercado\n"
+            ."- Recebi 1000 de salario\n"
+            ."- Qual e o meu saldo?";
 
         return $details !== '' ? $base."\n\nDetalhe: {$details}" : $base;
     }
@@ -402,7 +403,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
     ): void {
         try {
             $recipientJid = $this->getRecipientJid($phoneNumberService);
-            $baileysService->sendTextMessage($recipientJid, $message);
+            $baileysService->sendTextMessage($recipientJid, $this->sanitizeUtf8($message));
         } catch (\Exception $sendError) {
             Log::error('Erro ao enviar mensagem de erro', [
                 'error' => $sendError->getMessage(),
@@ -421,15 +422,17 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 return $this->buildCompoundTransactionReply();
             }
 
-            if (str_contains($errorMessage, 'mais de uma transação')) {
-                return 'Atenção: '.$errorMessage;
+            if (str_contains($errorMessage, 'mais de uma transacao') || str_contains($errorMessage, 'mais de uma transação')) {
+                return 'Atencao: '.$this->sanitizeUtf8($errorMessage);
             }
 
             if (
-                str_contains($errorMessage, 'Não consegui identificar qual transação deletar')
+                str_contains($errorMessage, 'Nao consegui identificar qual transacao deletar')
+                || str_contains($errorMessage, 'Não consegui identificar qual transação deletar')
+                || str_contains($errorMessage, 'Transacao nao encontrada para exclusao')
                 || str_contains($errorMessage, 'Transação não encontrada para exclusão')
             ) {
-                return 'Atenção: '.$errorMessage;
+                return 'Atencao: '.$this->sanitizeUtf8($errorMessage);
             }
         }
 
@@ -441,5 +444,17 @@ class ProcessWhatsAppMessage implements ShouldQueue
         return $messages[$errorType]
             ?? "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente em alguns instantes.\n\nSe o problema persistir, entre em contato com o suporte.";
     }
+
+    private function sanitizeUtf8(string $value): string
+    {
+        $sanitized = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+        if ($sanitized === false) {
+            return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+        }
+
+        return $sanitized;
+    }
 }
+
 
