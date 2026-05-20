@@ -53,7 +53,7 @@ class QueryHandler extends BaseHandler
         return match ($action) {
             'query_transactions' => $this->buildTransactionsReply($user, $rawMessage),
             'query_category'     => $this->buildCategoryReply($user, $fallbackReply, $rawMessage),
-            'query_budgets'      => $this->buildBudgetsReply($user),
+            'query_budgets'      => $this->buildBudgetsReply($user, $rawMessage),
             default              => $fallbackReply,
         };
     }
@@ -178,7 +178,7 @@ class QueryHandler extends BaseHandler
     // Orçamentos
     // -------------------------------------------------------------------------
 
-    private function buildBudgetsReply(User $user): string
+    private function buildBudgetsReply(User $user, string $rawMessage): string
     {
         $budgets = Budget::query()
             ->with('category')
@@ -197,6 +197,22 @@ class QueryHandler extends BaseHandler
             return 'Voce ainda nao tem orcamentos cadastrados para este periodo.';
         }
 
+        $searchTerm = $this->extractBudgetSearchTerm($rawMessage);
+
+        if ($searchTerm !== null) {
+            $normalizedTerm = mb_strtolower($searchTerm);
+
+            $budgets = $budgets->filter(function (Budget $budget) use ($normalizedTerm) {
+                $categoryName = mb_strtolower((string) ($budget->category?->name ?? ''));
+
+                return $categoryName !== '' && str_contains($categoryName, $normalizedTerm);
+            })->values();
+
+            if ($budgets->isEmpty()) {
+                return "Nao encontrei orcamento para {$searchTerm} neste periodo.";
+            }
+        }
+
         $periodLabel = now()->translatedFormat('F/Y');
 
         $lines = $budgets->map(function (Budget $budget) {
@@ -210,5 +226,32 @@ class QueryHandler extends BaseHandler
         })->implode("\n");
 
         return "Seus orcamentos de {$periodLabel}:\n{$lines}";
+    }
+
+    private function extractBudgetSearchTerm(string $rawMessage): ?string
+    {
+        $message = mb_strtolower(trim($rawMessage));
+        $message = preg_replace('/[?!.]+/u', '', $message);
+
+        $patterns = [
+            '/orcamento\s+(?:para|de)\s+(.+)$/u',
+            '/orçamento\s+(?:para|de)\s+(.+)$/u',
+            '/meu\s+orcamento\s+(?:para|de)\s+(.+)$/u',
+            '/meu\s+orçamento\s+(?:para|de)\s+(.+)$/u',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $message, $matches)) {
+                $term = trim($matches[1]);
+                $term = preg_replace('/\b(geral|gerais|do mes|do mês|desse mes|desse mês|este mes|este mês)\b/u', '', $term);
+                $term = trim($term);
+
+                if ($term !== '') {
+                    return ucfirst($term);
+                }
+            }
+        }
+
+        return null;
     }
 }

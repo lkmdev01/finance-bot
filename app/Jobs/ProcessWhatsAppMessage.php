@@ -222,7 +222,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             return false;
         }
 
-        foreach (['criar', 'crie', 'definir', 'defina', 'cadastrar', 'cadastre', 'adicionar', 'adicione'] as $keyword) {
+        foreach (['criar', 'crie', 'definir', 'defina', 'cadastrar', 'cadastre', 'adicionar', 'adicione', 'registrar', 'registre', 'ajustar', 'ajuste', 'colocar', 'coloque'] as $keyword) {
             if (str_contains($message, $keyword)) {
                 return true;
             }

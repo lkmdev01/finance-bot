@@ -53,6 +53,7 @@ class CreateBudgetHandler extends BaseHandler
         $period = in_array(($data['period'] ?? 'monthly'), ['monthly', 'yearly'], true)
             ? $data['period']
             : 'monthly';
+        $categoryName = isset($data['category_name']) ? trim((string) $data['category_name']) : null;
 
         return [
             'amount' => isset($data['amount']) ? (float) $data['amount'] : null,
@@ -60,7 +61,7 @@ class CreateBudgetHandler extends BaseHandler
             'year' => (int) ($data['year'] ?? now()->year),
             'month' => $period === 'monthly' ? (int) ($data['month'] ?? now()->month) : null,
             'category_id' => isset($data['category_id']) ? (int) $data['category_id'] : null,
-            'category_name' => isset($data['category_name']) ? trim((string) $data['category_name']) : null,
+            'category_name' => $categoryName !== '' ? $categoryName : null,
         ];
     }
 
@@ -91,7 +92,7 @@ class CreateBudgetHandler extends BaseHandler
                     ->where('type', 'expense')
                     ->first();
 
-                if (! $category) {
+                if (! $category && blank($data['category_name'] ?? null)) {
                     $validator->errors()->add('category_id', 'A categoria informada nao e uma categoria de despesa valida.');
                 }
             }
@@ -157,6 +158,7 @@ class CreateBudgetHandler extends BaseHandler
             ."Tente assim:\n"
             ."• criar orcamento de 800 para mercado\n"
             ."• definir orcamento de 300 para transporte\n"
+            ."• registrar orcamento de 500 para compras\n"
             ."• criar orcamento anual de 5000 para saude"
             .$details;
     }
@@ -170,3 +172,4 @@ class CreateBudgetHandler extends BaseHandler
             .$plansUrl;
     }
 }
+
