@@ -71,6 +71,10 @@ class GoogleAuthController extends Controller
         Auth::login($user, remember: true);
         request()->session()->regenerate();
 
+        if (! $user->whatsapp_verified_at) {
+            return redirect()->route('whatsapp.activation.show');
+        }
+
         return redirect()->intended(route('dashboard'));
     }
 }

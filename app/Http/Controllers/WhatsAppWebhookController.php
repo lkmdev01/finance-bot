@@ -8,6 +8,7 @@ use App\Services\AudioTranscriptionService;
 use App\Services\BaileysService;
 use App\Services\OCRService;
 use App\Services\PhoneNumberService;
+use App\Services\WhatsAppActivationService;
 use App\Services\WhatsAppDocumentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class WhatsAppWebhookController extends Controller
 {
     public function __construct(
         private readonly PhoneNumberService $phoneNumberService,
+        private readonly WhatsAppActivationService $whatsAppActivationService,
         private readonly OCRService $ocrService,
         private readonly AudioTranscriptionService $audioTranscriptionService,
         private readonly WhatsAppDocumentService $whatsAppDocumentService,
@@ -99,6 +101,24 @@ class WhatsAppWebhookController extends Controller
                 'phoneNumber_processado' => $phoneNumber,
             ]);
 
+            $text = $message['conversation'] ?? $message['extendedTextMessage']['text'] ?? '';
+
+            if ($activation = $this->whatsAppActivationService->verifyCodeFromIncomingMessage($text, $phoneNumber)) {
+                $this->sendReply(
+                    $key,
+                    $phoneNumber,
+                    $this->whatsAppActivationService->activationSuccessMessage()
+                );
+
+                Log::info('Codigo de ativacao do WhatsApp validado', [
+                    'activation_id' => $activation->id,
+                    'phone_number' => $phoneNumber,
+                    'client_key' => $activation->client_key,
+                ]);
+
+                return response()->json(['status' => 'activation_verified']);
+            }
+
             $user = $this->identifyUserByPhoneNumber($phoneNumber);
 
             if (! $user && $pushName) {
@@ -116,7 +136,18 @@ class WhatsAppWebhookController extends Controller
                 return $this->respondNoUser($key, $phoneNumber, $pushName);
             }
 
-            $text = $message['conversation'] ?? $message['extendedTextMessage']['text'] ?? '';
+            if (! $user->whatsapp_verified_at) {
+                $this->sendReply(
+                    $key,
+                    $phoneNumber,
+                    'Seu número ainda não foi ativado no InovaFinance. Envie o código que aparece na sua tela de ativação para concluir a conexão.'
+                );
+
+                return response()->json([
+                    'status' => 'activation_pending',
+                ]);
+            }
+
             $imageUrl = null;
             $audioBase64 = $messageData['audioBase64'] ?? null;
             $audioMimeType = $message['audioMessage']['mimetype'] ?? $messageData['audioMimeType'] ?? null;
@@ -240,13 +271,11 @@ class WhatsAppWebhookController extends Controller
 
         $appUrl = config('app.url');
         $registerUrl = $appUrl.'/register';
-        $whatsappUrl = $appUrl.'/settings/whatsapp';
-
-        $message = "Ola! Identificamos que seu numero ainda nao esta vinculado a uma conta no InovaFinance.\n\n".
-            "Para que eu possa gerenciar suas financas, siga estes passos:\n\n".
+        $message = "Olá! Seu número ainda não está vinculado a uma conta do InovaFinance.\n\n".
+            "Para eu começar a cuidar das suas finanças:\n\n".
             "1. Crie sua conta em: {$registerUrl}\n".
-            "2. Nas configuracoes, vincule este numero em: {$whatsappUrl}\n\n".
-            'Depois disso, basta me enviar seus gastos ou ganhos!';
+            "2. Conclua a ativação do WhatsApp no próprio cadastro\n\n".
+            'Depois disso, basta me enviar seus gastos ou ganhos.';
 
         $this->sendReply($key, $phoneNumber, $message);
 

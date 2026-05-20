@@ -106,7 +106,6 @@ new class extends Component
         $query = Auth::user()->transactions()
             ->with('category');
 
-        // Busca por descrição ou categoria
         if ($this->search) {
             $query->where(function ($q) {
                 $q->where('description', 'like', "%{$this->search}%")
@@ -146,7 +145,6 @@ new class extends Component
             });
         }
 
-        // Ordenação
         $sortField = match ($this->sortBy) {
             'amount' => 'amount',
             'description' => 'description',
@@ -154,57 +152,56 @@ new class extends Component
         };
         $query->orderBy($sortField, $this->sortDirection);
         if ($this->sortBy !== 'date') {
-            $query->orderBy('date', 'desc'); // Ordenação secundária por data
+            $query->orderBy('date', 'desc');
         }
 
-        // Calcular totais do período filtrado
-        $totalIncome = (float) Auth::user()->transactions()
+        $user = Auth::user();
+
+        $totalIncome = (float) $user->transactions()
             ->where('type', 'income')
             ->when($this->dateFrom, fn ($q) => $q->where('date', '>=', $this->dateFrom))
             ->when($this->dateTo, fn ($q) => $q->where('date', '<=', $this->dateTo))
             ->sum('amount');
 
-        $totalExpenses = (float) Auth::user()->transactions()
+        $totalExpenses = (float) $user->transactions()
             ->where('type', 'expense')
             ->when($this->dateFrom, fn ($q) => $q->where('date', '>=', $this->dateFrom))
             ->when($this->dateTo, fn ($q) => $q->where('date', '<=', $this->dateTo))
             ->sum('amount');
 
-        // Calcular saldo disponível (mesma lógica do Dashboard)
-        $totalIncomeAllTime = (float) Auth::user()->transactions()
+        // Saldo disponível via SQL — sem carregar todas as linhas em memória
+        $totalIncomeAllTime = (float) $user->transactions()
             ->where('type', 'income')
             ->sum('amount');
 
-        // Excluir transações de depósito em metas
-        $allExpenses = Auth::user()->transactions()
+        // Exclui transações de depósito em metas via JSON SQL (sem carregar linhas em PHP)
+        $totalExpensesAllTime = (float) $user->transactions()
             ->where('type', 'expense')
-            ->get();
+            ->where(function ($q) {
+                $q->whereNull('metadata')
+                    ->orWhereRaw("JSON_EXTRACT(metadata, '$.savings_goal_deposit_id') IS NULL");
+            })
+            ->sum('amount');
 
-        $expensesWithoutSavings = $allExpenses->filter(function ($transaction) {
-            $metadata = $transaction->metadata ?? [];
+        $totalSavingsDeposits = (float) \App\Models\SavingsGoalDeposit::whereHas(
+            'savingsGoal',
+            fn ($q) => $q->where('user_id', $user->id)
+        )->sum('amount');
 
-            return ! isset($metadata['savings_goal_deposit_id']);
-        });
-
-        $totalExpensesAllTime = (float) $expensesWithoutSavings->sum('amount');
-
-        $totalSavingsDeposits = (float) Auth::user()->savingsGoals()
-            ->with('deposits')
-            ->get()
-            ->sum(fn ($goal) => $goal->deposits->sum('amount'));
 
         $availableBalance = $totalIncomeAllTime - $totalExpensesAllTime - $totalSavingsDeposits;
 
         return [
             'transactions' => $query->with('tags')->paginate(15),
-            'categories' => Auth::user()->categories()->orderBy('name')->get(),
-            'tags' => Auth::user()->tags()->orderBy('name')->get(),
+            'categories' => $user->categories()->orderBy('name')->get(),
+            'tags' => $user->tags()->orderBy('name')->get(),
             'totalIncome' => $totalIncome,
             'totalExpenses' => $totalExpenses,
             'availableBalance' => $availableBalance,
         ];
     }
 }; ?>
+
 
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
@@ -254,35 +251,35 @@ new class extends Component
                 icon="magnifying-glass"
             />
             
-            <flux:select wire:model.live="type" placeholder="Tipo">
+            <flux:select wire:model.live.debounce.150ms="type" placeholder="Tipo">
                 <option value="">Todos</option>
                 <option value="income">Receita</option>
                 <option value="expense">Despesa</option>
             </flux:select>
 
-            <flux:select wire:model.live="category" placeholder="Categoria">
+            <flux:select wire:model.live.debounce.150ms="category" placeholder="Categoria">
                 <option value="">Todas</option>
                 @foreach($categories as $cat)
                     <option value="{{ $cat->id }}">{{ $cat->name }}</option>
                 @endforeach
             </flux:select>
 
-            <flux:select wire:model.live="tagFilter" placeholder="Tag">
+            <flux:select wire:model.live.debounce.150ms="tagFilter" placeholder="Tag">
                 <option value="">Todas</option>
                 @foreach($tags as $tag)
                     <option value="{{ $tag->id }}">{{ $tag->name }}</option>
                 @endforeach
             </flux:select>
 
-            <flux:select wire:model.live="sortBy" placeholder="Ordenar por">
+            <flux:select wire:model.live.debounce.150ms="sortBy" placeholder="Ordenar por">
                 <option value="date">Data</option>
                 <option value="amount">Valor</option>
                 <option value="description">Descrição</option>
             </flux:select>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-            <flux:input type="date" wire:model.live="dateFrom" label="Data Inicial" />
-            <flux:input type="date" wire:model.live="dateTo" label="Data Final" />
+            <flux:input type="date" wire:model.live.debounce.300ms="dateFrom" label="Data Inicial" />
+            <flux:input type="date" wire:model.live.debounce.300ms="dateTo" label="Data Final" />
             <flux:input 
                 type="number" 
                 wire:model.live.debounce.300ms="amountMin" 

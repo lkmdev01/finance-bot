@@ -13,11 +13,11 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
     </style>
-    <body class="min-h-screen bg-space-950 text-slate-100 antialiased relative overflow-hidden">
+    <body class="min-h-screen bg-space-950 text-slate-100 antialiased relative overflow-x-hidden overflow-y-auto">
         {{-- Background Effects --}}
-        <div class="absolute inset-0 z-0 pointer-events-none">
-            <div class="absolute top-[-10%] left-[-10%] w-[100%] h-[100%] blur-gradient opacity-60"></div>
-            <div class="absolute bottom-[-10%] right-[-10%] w-[100%] h-[100%] blur-gradient opacity-40"></div>
+        <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+            <div class="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] blur-gradient opacity-60"></div>
+            <div class="absolute bottom-[-10%] right-[-10%] w-[120%] h-[120%] blur-gradient opacity-40"></div>
         </div>
 
         <div class="relative z-10 flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">

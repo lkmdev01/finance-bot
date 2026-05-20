@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
         $middleware->alias([
             'billing.writable' => \App\Http\Middleware\EnsureWritableFinancialAccess::class,
+            'whatsapp.activated' => \App\Http\Middleware\EnsureGoogleWhatsAppActivated::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

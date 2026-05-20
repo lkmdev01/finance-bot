@@ -12,7 +12,7 @@ test('users are redirected to google', function () {
     $response->assertRedirect();
 });
 
-test('new users can authenticate using google', function () {
+test('new google users are redirected to whatsapp activation before dashboard access', function () {
     Socialite::fake('google', (new SocialiteUser)->map([
         'id' => 'google-123',
         'name' => 'Lukas Martins',
@@ -22,7 +22,7 @@ test('new users can authenticate using google', function () {
 
     $response = $this->get(route('google.callback'));
 
-    $response->assertRedirect(route('dashboard'));
+    $response->assertRedirect(route('whatsapp.activation.show'));
 
     $this->assertAuthenticated();
 
@@ -33,12 +33,13 @@ test('new users can authenticate using google', function () {
     ]);
 });
 
-test('existing users are linked to google by email', function () {
+test('existing verified users can continue from google straight to the dashboard', function () {
     $user = User::factory()->create([
         'name' => 'Lukas Martins',
         'email' => 'lukas@example.com',
         'google_id' => null,
         'auth_provider' => null,
+        'whatsapp_verified_at' => now(),
     ]);
 
     Socialite::fake('google', (new SocialiteUser)->map([
@@ -57,4 +58,29 @@ test('existing users are linked to google by email', function () {
     expect($user->google_id)->toBe('google-456')
         ->and($user->auth_provider)->toBe('google')
         ->and($user->google_avatar)->toBe('https://example.com/avatar-2.png');
+});
+
+test('existing unverified users are also sent to whatsapp activation', function () {
+    $user = User::factory()->create([
+        'name' => 'Lukas Martins',
+        'email' => 'lukas@example.com',
+        'google_id' => null,
+        'auth_provider' => null,
+        'whatsapp_verified_at' => null,
+    ]);
+
+    Socialite::fake('google', (new SocialiteUser)->map([
+        'id' => 'google-789',
+        'name' => 'Lukas Martins',
+        'email' => 'lukas@example.com',
+        'avatar' => 'https://example.com/avatar-3.png',
+    ]));
+
+    $response = $this->get(route('google.callback'));
+
+    $response->assertRedirect(route('whatsapp.activation.show'));
+
+    $user->refresh();
+
+    expect($user->google_id)->toBe('google-789');
 });

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 return [
     'default_plan' => 'starter',

@@ -61,6 +61,43 @@ select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
 }
 
-/* \[:where(&)\]:size-4 {
+/* \ [:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/*
+  Smooth fade-in on the main content area after wire:navigate.
+  The sidebar is @persist-ed so it never flashes — only the main
+  content area gets this subtle entrance animation.
+*/
+[data-flux-main] {
+    animation: flux-page-in 0.15s ease-out;
+}
+
+@keyframes flux-page-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Fix Livewire wire:loading visibility issues with Tailwind v4 */
+[wire\:loading], [wire\:loading\.delay], [wire\:loading\.inline-block], [wire\:loading\.inline], [wire\:loading\.block], [wire\:loading\.flex], [wire\:loading\.table], [wire\:loading\.grid], [wire\:loading\.inline-flex] {
+    display: none !important;
+}
+
+/* Hide the logo link when sidebar is collapsed on desktop */
+[data-flux-sidebar-collapsed-desktop] [data-sidebar-logo] {
+    display: none !important;
+}
+
+/* Toggle button: always visible and centered when sidebar is collapsed */
+[data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-collapse] {
+    opacity: 1 !important;
+    position: relative !important;
+}
+
+/* Center the header content when collapsed (only toggle remains) */
+[data-flux-sidebar-collapsed-desktop] [data-flux-sidebar-header] {
+    justify-content: center !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}

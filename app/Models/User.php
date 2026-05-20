@@ -53,6 +53,7 @@ class User extends Authenticatable
         'email',
         'password',
         'phone_number',
+        'whatsapp_verified_at',
         'tax_id',
         'auth_provider',
         'google_id',
@@ -92,6 +93,7 @@ class User extends Authenticatable
             'trial_started_at' => 'datetime',
             'trial_ends_at' => 'datetime',
             'onboarding_tutorial_seen_at' => 'datetime',
+            'whatsapp_verified_at' => 'datetime',
         ];
     }
 

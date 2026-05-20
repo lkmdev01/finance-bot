@@ -49,11 +49,20 @@ Route::middleware('guest')->group(function () {
         ->name('google.callback');
 });
 
+Route::middleware('auth')->group(function () {
+    Route::get('/auth/whatsapp-activation', [App\Http\Controllers\Auth\WhatsAppActivationController::class, 'show'])
+        ->name('whatsapp.activation.show');
+    Route::post('/auth/whatsapp-activation/phone', [App\Http\Controllers\Auth\WhatsAppActivationController::class, 'updatePhone'])
+        ->name('whatsapp.activation.phone');
+    Route::post('/auth/whatsapp-activation/complete', [App\Http\Controllers\Auth\WhatsAppActivationController::class, 'complete'])
+        ->name('whatsapp.activation.complete');
+});
+
 Route::view('dashboard', 'pages.dashboard')
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'whatsapp.activated'])
     ->name('dashboard');
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::get('billing/plans', [App\Http\Controllers\BillingPlanController::class, 'index'])->name('billing.plans');
     Route::get('billing/plans/{planCode}/checkout-data', [App\Http\Controllers\BillingPlanController::class, 'showCheckoutData'])->name('billing.checkout-data.show');
     Route::post('billing/plans/{planCode}/checkout-data', [App\Http\Controllers\BillingPlanController::class, 'storeCheckoutData'])->name('billing.checkout-data.store');

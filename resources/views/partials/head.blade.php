@@ -1,4 +1,4 @@
-﻿@php
+@php
     $seoSiteName = config('seo.site_name', config('app.name', 'InovaFinance'));
     $seoDefaultTitle = config('seo.default_title', $seoSiteName);
     $seoSeparator = config('seo.title_separator', ' | ');
@@ -54,6 +54,69 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+    html {
+        background: #070b14;
+        color-scheme: dark;
+    }
+
+    body {
+        margin: 0;
+        background: #070b14;
+        color: #f1f5f9;
+    }
+
+    [data-sidebar-logo] {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 0;
+        color: #f8fafc;
+        text-decoration: none;
+    }
+
+    [data-sidebar-logo] > :first-child {
+        display: inline-flex;
+        width: 2.5rem;
+        height: 2.5rem;
+        flex: 0 0 2.5rem;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 0.75rem;
+        background: #6366f1;
+        box-shadow: 0 0 15px rgba(99, 102, 241, 0.35);
+    }
+
+    [data-sidebar-logo] img {
+        display: block;
+        width: 1.25rem;
+        height: 1.25rem;
+        object-fit: contain;
+    }
+
+    [data-sidebar-logo] > :last-child {
+        display: grid;
+        overflow: hidden;
+    }
+
+    [data-sidebar-logo] > :last-child > * {
+        margin: 0;
+        color: #fff;
+        font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.125rem;
+        font-weight: 700;
+        line-height: 1.1;
+        text-decoration: none;
+    }
+
+    [data-flux-sidebar-header] {
+        min-height: 5rem;
+        padding: 1.5rem 1rem;
+        box-sizing: border-box;
+    }
+</style>
 
 @foreach($seoStructuredData as $schema)
 <script type="application/ld+json">{!! json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) !!}</script>
