@@ -139,7 +139,7 @@ class FinancialDataCalculator
         $exceededBudgets = $user->budgets()
             ->with('category')
             ->get()
-            ->filter(function ($budget) use ($startOfMonth, $endOfMonth) {
+            ->filter(function ($budget) use ($user, $startOfMonth, $endOfMonth) {
                 $spent = $user->transactions()
                     ->where('category_id', $budget->category_id)
                     ->where('type', 'expense')
@@ -148,7 +148,7 @@ class FinancialDataCalculator
 
                 return $spent > $budget->amount;
             })
-            ->map(function ($budget) use ($startOfMonth, $endOfMonth) {
+            ->map(function ($budget) use ($user, $startOfMonth, $endOfMonth) {
                 $spent = $user->transactions()
                     ->where('category_id', $budget->category_id)
                     ->where('type', 'expense')
