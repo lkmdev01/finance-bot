@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\AuditLog;
+use App\Models\Budget;
 use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
@@ -125,6 +126,16 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 $result['reply'] = $this->buildGreetingReply($user);
             }
 
+            if ($this->looksLikeBudgetCreateIntent()) {
+                $inferredBudgetData = $this->inferBudgetDataFromMessage();
+
+                if ($inferredBudgetData !== null) {
+                    $action = 'create_budget';
+                    $result['action'] = 'create_budget';
+                    $result['transaction_data'] = array_merge($result['transaction_data'] ?? [], $inferredBudgetData);
+                }
+            }
+
             // Se for confirmação de transação grande, processa
             if ($action === 'confirm_large_transaction' && isset($result['transaction_data'])) {
                 // Verifica se a mensagem é uma confirmação
@@ -223,6 +234,42 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'description' => $result['transaction_data']['description'] ?? null,
                     'processing_time_ms' => $processingTime,
                     'message_length' => strlen($this->message),
+                ]);
+            } elseif ($action === 'create_budget' && isset($result['transaction_data'])) {
+                if (! $billingPlanService->userCanCreateRecords($user)) {
+                    $this->sendResponse(
+                        $baileysService,
+                        $phoneNumberService,
+                        $this->buildSubscriptionRequiredReply($user, $billingPlanService),
+                        $user
+                    );
+
+                    return;
+                }
+
+                $budgetData = $this->normalizeBudgetData($result['transaction_data']);
+                $validation = $this->validateBudgetData($budgetData, $user);
+
+                if ($validation->fails()) {
+                    $errorMessage = $this->buildBudgetValidationGuidanceReply($validation->errors()->all());
+                    $this->sendErrorMessage($baileysService, $phoneNumberService, $errorMessage);
+
+                    return;
+                }
+
+                $budget = $this->upsertBudget($user, $budgetData);
+                $result['reply'] = $this->buildBudgetCreatedReply($budget);
+
+                Cache::forget("user.{$user->id}.financial_data");
+
+                Log::info('Orcamento criado ou atualizado via WhatsApp', [
+                    'user_id' => $user->id,
+                    'budget_id' => $budget->id,
+                    'category_id' => $budget->category_id,
+                    'period' => $budget->period,
+                    'year' => $budget->year,
+                    'month' => $budget->month,
+                    'amount' => $budget->amount,
                 ]);
             } elseif ($action === 'edit_transaction' && isset($result['transaction_id'])) {
                 $updatedTransaction = $this->editTransaction($user, $result['transaction_id'], $result['transaction_data'] ?? []);
@@ -366,6 +413,102 @@ class ProcessWhatsAppMessage implements ShouldQueue
     }
 
     /**
+     * Normaliza dados de orçamento recebidos da IA ou inferidos localmente.
+     */
+    private function normalizeBudgetData(array $data): array
+    {
+        $period = in_array(($data['period'] ?? 'monthly'), ['monthly', 'yearly'], true)
+            ? $data['period']
+            : 'monthly';
+
+        return [
+            'amount' => isset($data['amount']) ? (float) $data['amount'] : null,
+            'period' => $period,
+            'year' => (int) ($data['year'] ?? now()->year),
+            'month' => $period === 'monthly' ? (int) ($data['month'] ?? now()->month) : null,
+            'category_id' => isset($data['category_id']) ? (int) $data['category_id'] : null,
+            'category_name' => isset($data['category_name']) ? trim((string) $data['category_name']) : null,
+        ];
+    }
+
+    /**
+     * Valida dados de orçamento antes de persistir.
+     */
+    private function validateBudgetData(array $data, User $user): \Illuminate\Contracts\Validation\Validator
+    {
+        $validator = Validator::make($data, [
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:999999.99'],
+            'period' => ['required', 'in:monthly,yearly'],
+            'year' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'month' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'category_id' => ['nullable', 'integer'],
+            'category_name' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $validator->after(function ($validator) use ($data, $user) {
+            if (empty($data['category_id']) && blank($data['category_name'] ?? null)) {
+                $validator->errors()->add('category', 'Informe uma categoria para o orcamento.');
+            }
+
+            if (($data['period'] ?? 'monthly') === 'monthly' && empty($data['month'])) {
+                $validator->errors()->add('month', 'Informe o mes do orcamento mensal.');
+            }
+
+            if (! empty($data['category_id'])) {
+                $category = Category::query()
+                    ->where('id', $data['category_id'])
+                    ->where('user_id', $user->id)
+                    ->where('type', 'expense')
+                    ->first();
+
+                if (! $category) {
+                    $validator->errors()->add('category_id', 'A categoria informada nao e uma categoria de despesa valida.');
+                }
+            }
+        });
+
+        return $validator;
+    }
+
+    /**
+     * Cria ou atualiza um orcamento para a mesma categoria e periodo.
+     */
+    private function upsertBudget(User $user, array $data): Budget
+    {
+        $categoryRecognition = app(CategoryRecognitionService::class);
+        $category = null;
+
+        if (! empty($data['category_id'])) {
+            $category = Category::query()
+                ->where('id', $data['category_id'])
+                ->where('user_id', $user->id)
+                ->where('type', 'expense')
+                ->first();
+        }
+
+        if (! $category && ! empty($data['category_name'])) {
+            $category = $categoryRecognition->findExistingCategoryByName($user, $data['category_name'], 'expense');
+        }
+
+        if (! $category && ! empty($data['category_name'])) {
+            $category = $categoryRecognition->findOrCreateCategory($user, $data['category_name'], 'expense');
+        }
+
+        return Budget::query()->updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'category_id' => $category->id,
+                'period' => $data['period'],
+                'year' => $data['year'],
+                'month' => $data['period'] === 'monthly' ? $data['month'] : null,
+            ],
+            [
+                'amount' => $data['amount'],
+            ]
+        )->load('category');
+    }
+
+    /**
      * Cria uma transação baseada nos dados da IA
      */
     private function createTransaction(User $user, WhatsAppContact $contact, array $data): Transaction
@@ -501,6 +644,125 @@ class ProcessWhatsAppMessage implements ShouldQueue
         return "✅ Gasto de R$ {$amount} registrado!";
     }
 
+    private function buildBudgetCreatedReply(Budget $budget): string
+    {
+        $amount = number_format((float) $budget->amount, 2, ',', '.');
+        $category = $budget->category?->name ?? 'Sem categoria';
+
+        if ($budget->period === 'yearly') {
+            return "✅ Orcamento anual de R$ {$amount} criado para {$category} em {$budget->year}.";
+        }
+
+        $monthLabel = str_pad((string) $budget->month, 2, '0', STR_PAD_LEFT).'/'.$budget->year;
+
+        return "✅ Orcamento de R$ {$amount} criado para {$category} em {$monthLabel}.";
+    }
+
+    private function buildBudgetValidationGuidanceReply(array $errors = []): string
+    {
+        $details = empty($errors) ? '' : "\n\nDetalhes: ".implode(' | ', $errors);
+
+        return "⚠️ Nao consegui criar o orcamento com essa mensagem.\n\n"
+            ."Tente assim:\n"
+            ."• criar orcamento de 800 para mercado\n"
+            ."• definir orcamento de 300 para transporte\n"
+            ."• criar orcamento anual de 5000 para saude"
+            .$details;
+    }
+
+    private function looksLikeBudgetCreateIntent(): bool
+    {
+        $message = mb_strtolower($this->message);
+
+        if (! str_contains($message, 'orcamento') && ! str_contains($message, 'orçamento')) {
+            return false;
+        }
+
+        foreach (['criar', 'crie', 'definir', 'defina', 'cadastrar', 'cadastre', 'adicionar', 'adicione'] as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function inferBudgetDataFromMessage(): ?array
+    {
+        if (! preg_match('/(?:r\\$\\s*)?(\\d+(?:[\\.,]\\d{1,2})?)/u', $this->message, $amountMatches)) {
+            return null;
+        }
+
+        $rawAmount = str_replace('.', '', $amountMatches[1]);
+        $amount = (float) str_replace(',', '.', $rawAmount);
+
+        if ($amount <= 0) {
+            return null;
+        }
+
+        [$period, $year, $month] = $this->extractBudgetPeriodFromMessage();
+
+        $categoryName = null;
+        if (preg_match('/(?:para|pra)\s+(.+)$/iu', $this->message, $categoryMatches)) {
+            $categoryName = trim($categoryMatches[1]);
+        }
+
+        if ($categoryName === null || $categoryName === '') {
+            return null;
+        }
+
+        return [
+            'amount' => $amount,
+            'period' => $period,
+            'year' => $year,
+            'month' => $month,
+            'category_name' => $categoryName,
+        ];
+    }
+
+    private function extractBudgetPeriodFromMessage(): array
+    {
+        $message = mb_strtolower($this->message);
+        $year = now()->year;
+        $month = now()->month;
+        $period = 'monthly';
+
+        if (preg_match('/\b(anual|ano)\b/u', $message)) {
+            $period = 'yearly';
+            $month = null;
+        }
+
+        if (preg_match('/\b(20\d{2})\b/u', $message, $yearMatches)) {
+            $year = (int) $yearMatches[1];
+        }
+
+        $months = [
+            'janeiro' => 1,
+            'fevereiro' => 2,
+            'marco' => 3,
+            'março' => 3,
+            'abril' => 4,
+            'maio' => 5,
+            'junho' => 6,
+            'julho' => 7,
+            'agosto' => 8,
+            'setembro' => 9,
+            'outubro' => 10,
+            'novembro' => 11,
+            'dezembro' => 12,
+        ];
+
+        foreach ($months as $name => $number) {
+            if (str_contains($message, $name)) {
+                $period = 'monthly';
+                $month = $number;
+                break;
+            }
+        }
+
+        return [$period, $year, $month];
+    }
+
     private function buildSubscriptionRequiredReply(User $user, BillingPlanService $billingPlanService): string
     {
         $plansUrl = rtrim((string) config('app.url'), '/').'/billing/plans';
@@ -591,8 +853,47 @@ class ProcessWhatsAppMessage implements ShouldQueue
         return match ($action) {
             'query_transactions' => $this->buildTransactionsReply($user),
             'query_category' => $this->buildCategoryReply($user, $fallbackReply),
+            'query_budgets' => $this->buildBudgetsReply($user),
             default => $fallbackReply,
         };
+    }
+
+    /**
+     * Resume os orcamentos ativos do periodo atual.
+     */
+    private function buildBudgetsReply(User $user): string
+    {
+        $budgets = Budget::query()
+            ->with('category')
+            ->where('user_id', $user->id)
+            ->where('year', now()->year)
+            ->where(function ($query) {
+                $query->where(function ($monthly) {
+                    $monthly->where('period', 'monthly')
+                        ->where('month', now()->month);
+                })->orWhere('period', 'yearly');
+            })
+            ->orderBy('period')
+            ->orderByDesc('amount')
+            ->get();
+
+        if ($budgets->isEmpty()) {
+            return 'Voce ainda nao tem orcamentos cadastrados para este periodo.';
+        }
+
+        $periodLabel = now()->translatedFormat('F/Y');
+
+        $lines = $budgets->map(function (Budget $budget) {
+            $amount = number_format((float) $budget->amount, 2, ',', '.');
+            $spent = number_format((float) $budget->spent, 2, ',', '.');
+            $remaining = number_format((float) $budget->remaining, 2, ',', '.');
+            $period = $budget->period === 'yearly' ? 'anual' : 'mensal';
+            $category = $budget->category?->name ?? 'Sem categoria';
+
+            return "- {$category}: limite R$ {$amount} | gasto R$ {$spent} | restante R$ {$remaining} ({$period})";
+        })->implode("\n");
+
+        return "Seus orcamentos de {$periodLabel}:\n{$lines}";
     }
 
     /**

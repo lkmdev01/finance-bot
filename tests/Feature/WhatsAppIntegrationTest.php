@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\ProcessWhatsAppMessage;
+use App\Models\Budget;
 use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
@@ -753,6 +754,167 @@ it('resume gastos por contexto especifico sem resposta vaga', function () {
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Tenho gastos com uber?',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
+it('cria orcamento via WhatsApp e salva no banco', function () {
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => 'Vou criar esse orçamento para você.',
+                            'action' => 'create_budget',
+                            'transaction_data' => [
+                                'category_id' => $this->category->id,
+                                'amount' => 500.00,
+                                'period' => 'monthly',
+                                'year' => now()->year,
+                                'month' => now()->month,
+                            ],
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Orcamento de R$ 500,00 criado');
+            }))
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'criar orçamento de 500 para supermercado',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    assertDatabaseHas('budgets', [
+        'user_id' => $this->user->id,
+        'category_id' => $this->category->id,
+        'amount' => 500.00,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+});
+
+it('cria orcamento pelo texto do usuario mesmo sem acao especifica da IA', function () {
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => 'Entendi seu pedido.',
+                            'action' => null,
+                            'transaction_data' => null,
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Orcamento de R$ 650,00 criado')
+                    && str_contains($message, 'Supermercado');
+            }))
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'criar orçamento de 650 para supermercado',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    assertDatabaseHas('budgets', [
+        'user_id' => $this->user->id,
+        'category_id' => $this->category->id,
+        'amount' => 650.00,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+});
+
+it('consulta orcamentos via WhatsApp com dados reais do banco', function () {
+    Budget::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->category->id,
+        'amount' => 800.00,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => 'Vou verificar seus orçamentos atuais.',
+                            'action' => 'query_budgets',
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Seus orcamentos de')
+                    && str_contains($message, 'Supermercado')
+                    && str_contains($message, 'limite R$ 800,00');
+            }))
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'quais são meus orçamentos?',
         userId: $this->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
