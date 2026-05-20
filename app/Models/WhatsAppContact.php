@@ -24,7 +24,7 @@ class WhatsAppContact extends Model
     {
         return [
             'context' => 'encrypted:array',
-            'conversation_state' => 'encrypted:array',
+            'conversation_state' => 'array',
         ];
     }
 
