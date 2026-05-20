@@ -1063,3 +1063,161 @@ it('consulta orcamento por categoria via WhatsApp', function () {
     );
 });
 
+
+it('responde de forma neutra para ok sem contexto pendente', function () {
+    Http::preventStrayRequests();
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_budgets',
+            'last_entities' => ['topic' => 'budget'],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Perfeito')
+                    && ! str_contains($message, 'Bem-vindo');
+            }))
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'ok',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['last_action'] ?? null)->toBe('query_budgets');
+});
+
+it('confirma transacao grande usando estado pendente sem depender da IA', function () {
+    Http::preventStrayRequests();
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'awaiting_confirmation',
+            'pending_intent' => 'confirm_large_transaction',
+            'pending_payload' => [
+                'transaction_data' => [
+                    'type' => 'expense',
+                    'amount' => 1500.00,
+                    'description' => 'Notebook',
+                    'category_id' => null,
+                    'date' => now()->format('Y-m-d'),
+                ],
+            ],
+            'last_action' => 'confirm_large_transaction',
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'R$ 1.500,00');
+            }))
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'ok',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'amount' => 1500.00,
+        'description' => 'Notebook',
+    ]);
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['mode'] ?? null)->toBe('idle');
+});
+
+it('entende follow up de orcamento apos consulta geral', function () {
+    $compras = Category::create([
+        'user_id' => $this->user->id,
+        'name' => 'Compras',
+        'type' => 'expense',
+        'color' => '#E67E22',
+        'icon' => '??',
+    ]);
+
+    Budget::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->category->id,
+        'amount' => 800.00,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+
+    Budget::create([
+        'user_id' => $this->user->id,
+        'category_id' => $compras->id,
+        'amount' => 500.00,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_budgets',
+            'last_entities' => ['topic' => 'budget'],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Compras')
+                    && str_contains($message, 'R$ 500,00')
+                    && ! str_contains($message, 'Alimentação');
+            }))
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'e compras?',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});

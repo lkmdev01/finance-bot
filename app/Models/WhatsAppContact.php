@@ -17,12 +17,14 @@ class WhatsAppContact extends Model
         'phone_number',
         'name',
         'context',
+        'conversation_state',
     ];
 
     protected function casts(): array
     {
         return [
-            'context' => 'encrypted:array', // Criptografa dados sensíveis do contexto
+            'context' => 'encrypted:array',
+            'conversation_state' => 'encrypted:array',
         ];
     }
 

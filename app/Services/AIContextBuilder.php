@@ -13,7 +13,7 @@ class AIContextBuilder
     ) {}
 
     /**
-     * Constrói o contexto completo para a IA
+     * Constr�i o contexto completo para a IA
      */
     public function build(User $user, ?WhatsAppContact $contact): array
     {
@@ -32,14 +32,12 @@ class AIContextBuilder
             ])
             ->toArray();
 
-        // Calcula dados financeiros para contexto (com cache de 5 minutos)
         $financialData = Cache::remember(
             "user.{$user->id}.financial_data",
-            300, // 5 minutos
-            fn() => $this->financialCalculator->calculate($user)
+            300,
+            fn () => $this->financialCalculator->calculate($user)
         );
-        
-        // Adiciona contexto de conversa recente (últimas 5 interações)
+
         $recentContext = $contact?->context ?? [];
         $lastInteractions = array_slice($recentContext, -5);
 
@@ -47,7 +45,7 @@ class AIContextBuilder
             'user_id' => $user->id,
             'user_name' => $user->name,
             'recent_transactions' => $recentTransactions->map(fn ($t) => [
-                'id' => $t->id, // Adiciona ID para edição/exclusão
+                'id' => $t->id,
                 'type' => $t->type,
                 'amount' => $t->amount,
                 'description' => $t->description,
@@ -58,6 +56,7 @@ class AIContextBuilder
             'categories' => $categories,
             'financial_data' => $financialData,
             'contact_context' => $lastInteractions,
+            'conversation_state' => $contact?->conversation_state ?? [],
         ];
     }
 }

@@ -2,56 +2,52 @@
 
 namespace App\Jobs;
 
-use App\Models\AuditLog;
-use App\Models\Budget;
-use App\Models\Category;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
 use App\Services\BaileysService;
-use App\Services\BillingPlanService;
-use App\Services\CategoryRecognitionService;
 use App\Services\PhoneNumberService;
 use App\Services\PerformanceMetricsService;
+use App\Services\WhatsApp\ActionHandlerFactory;
+use App\Services\WhatsApp\ConversationOrchestrator;
+use App\Services\WhatsApp\ConversationStateService;
 use App\Services\WhatsAppFormatter;
 use App\Services\WhatsAppMessageProcessor;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 
 class ProcessWhatsAppMessage implements ShouldQueue
 {
     use Queueable;
 
-    /**
-     * Create a new job instance.
-     */
+    private ?string $finalReply = null;
+
     public function __construct(
-        public readonly string $phoneNumber, // Número real do usuário
+        public readonly string $phoneNumber,
         public readonly string $message,
         public readonly int $userId,
-        public readonly ?string $pushName = null, // Nome do WhatsApp
-        public readonly ?string $remoteJid = null, // JID original para referência
-        public readonly ?string $imageUrl = null, // URL da imagem se houver (para OCR)
+        public readonly ?string $pushName = null,
+        public readonly ?string $remoteJid = null,
+        public readonly ?string $imageUrl = null,
     ) {}
 
-    /**
-     * Get the middleware the job should pass through.
-     *
-     * @return array<int, object>
-     */
     public function middleware(): array
     {
         return [(new WithoutOverlapping($this->userId))->releaseAfter(30)];
     }
 
-    /**
-     * Envia resposta via WhatsApp
-     */
+    public function rememberFinalReply(string $reply): void
+    {
+        $this->finalReply = $reply;
+    }
+
+    public function getFinalReply(): ?string
+    {
+        return $this->finalReply;
+    }
+
     public function sendResponse(
         BaileysService $baileysService,
         PhoneNumberService $phoneNumberService,
@@ -87,57 +83,60 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
     }
 
-    /**
-     * Execute the job.
-     */
     public function handle(
         AIService $aiService,
         BaileysService $baileysService,
         PhoneNumberService $phoneNumberService,
         PerformanceMetricsService $metricsService
     ): void {
-        try {
-            $user = User::findOrFail($this->userId);
-            $billingPlanService = app(BillingPlanService::class);
+        $contact = null;
 
-            // Cria ou atualiza o contato usando o número REAL do usuário
-            // O phoneNumber aqui é o número real do usuário (users.phone_number)
+        try {
+            $this->finalReply = null;
+            $user = User::findOrFail($this->userId);
+
             $contact = WhatsAppContact::firstOrCreate(
                 [
                     'user_id' => $user->id,
-                    'phone_number' => $this->phoneNumber, // Número real do usuário
+                    'phone_number' => $this->phoneNumber,
                 ],
                 [
-                    'name' => $this->pushName, // Nome do WhatsApp se disponível
+                    'name' => $this->pushName,
                     'context' => [],
+                    'conversation_state' => [],
                 ]
             );
 
-            // Atualiza o nome do contato se tiver pushName e ainda não tiver nome
             if ($this->pushName && ! $contact->name) {
                 $contact->update(['name' => $this->pushName]);
             }
 
-            // Envia feedback visual imediato (processando)
-            // $this->sendResponse($baileysService, $phoneNumberService, '⏳ Processando sua mensagem...', $user);
+            $stateService = app(ConversationStateService::class);
+            $orchestrator = app(ConversationOrchestrator::class);
 
-            // Processa a mensagem usando o processador (separação de responsabilidades)
-            $startTime = microtime(true);
-            $processor = new WhatsAppMessageProcessor($aiService);
-            $result = $processor->process($this->message, $user, $contact);
-            $processingTime = round((microtime(true) - $startTime) * 1000, 2); // em milissegundos
+            $preflight = $orchestrator->beforeAI($this->message, $user, $contact);
 
-            // Registra métrica de tempo de resposta da IA
-            $metricsService->recordAITime($processingTime, $result['action'] ?? null);
-
-            // Processa ação retornada pela IA
-            $action = $result['action'] ?? null;
-
-            if ($action === null && $this->isGreetingMessage()) {
-                $result['reply'] = $this->buildGreetingReply($user);
+            if (($preflight['handled'] ?? false) === true) {
+                $reply = $preflight['reply'] ?? '';
+                $this->rememberFinalReply($reply);
+                $this->sendResponse($baileysService, $phoneNumberService, $reply, $user);
+                $stateService->applyHandledResult($contact, $this->message, $preflight['action'] ?? null, $reply, $preflight['metadata'] ?? []);
+                return;
             }
 
-            if ($this->looksLikeBudgetCreateIntent()) {
+            if (isset($preflight['result'])) {
+                $result = $preflight['result'];
+            } else {
+                $startTime = microtime(true);
+                $processor = new WhatsAppMessageProcessor($aiService);
+                $result = $processor->process($this->message, $user, $contact);
+                $processingTime = round((microtime(true) - $startTime) * 1000, 2);
+                $metricsService->recordAITime($processingTime, $result['action'] ?? null);
+            }
+
+            $action = $result['action'] ?? null;
+
+            if ($action === null && $this->looksLikeBudgetCreateIntent()) {
                 $inferredBudgetData = $this->inferBudgetDataFromMessage();
 
                 if ($inferredBudgetData !== null) {
@@ -147,20 +146,25 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 }
             }
 
-            // Delega toda a lógica de ação para a Factory de Handlers.
-            // Cada handler é responsável por enviar a própria resposta e retornar true.
-            $handlerFactory = new \App\Services\WhatsApp\ActionHandlerFactory();
+            $handlerFactory = new ActionHandlerFactory();
             $handled = $handlerFactory->process($action, $result, $user, $contact, $this);
 
             if ($handled) {
+                $reply = $this->getFinalReply() ?? ($result['reply'] ?? '');
+                if ($reply !== '') {
+                    $metadata = $orchestrator->metadataForResult($this->message, $action, $result, $contact);
+                    $stateService->applyHandledResult($contact, $this->message, $action, $reply, $metadata);
+                }
                 return;
             }
 
-            // Nenhum handler reconheceu a ação — envia o reply da IA diretamente (fallback)
             $formattedReply = WhatsAppFormatter::format($result['reply'] ?? '');
+            $this->rememberFinalReply($formattedReply);
             $this->sendResponse($baileysService, $phoneNumberService, $formattedReply, $user);
+
+            $metadata = $orchestrator->metadataForResult($this->message, $action, $result, $contact);
+            $stateService->applyHandledResult($contact, $this->message, $action, $formattedReply, $metadata);
         } catch (\Exception $e) {
-            // Registra métrica de erro
             $metricsService->recordError('exception', $e->getMessage());
 
             Log::error('Erro ao processar mensagem do WhatsApp', [
@@ -172,46 +176,20 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'error_type' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => substr($e->getTraceAsString(), 0, 500), // Primeiros 500 caracteres do trace
+                'trace' => substr($e->getTraceAsString(), 0, 500),
             ]);
 
-            // Envia mensagem de erro amigável com contexto específico
             $errorMessage = $this->getErrorMessage($e);
+            $this->rememberFinalReply($errorMessage);
             $this->sendErrorMessage($baileysService, $phoneNumberService, $errorMessage);
+
+            if ($contact) {
+                app(ConversationStateService::class)->applyHandledResult($contact, $this->message, null, $errorMessage, [
+                    'clear_pending' => false,
+                    'reply_kind' => 'error',
+                ]);
+            }
         }
-    }
-
-    /**
-     * Detecta saudações curtas para responder de forma consistente.
-     */
-    private function isGreetingMessage(): bool
-    {
-        $normalized = mb_strtolower(trim($this->message));
-        $normalized = preg_replace('/[!?.]+/u', '', $normalized);
-
-        return in_array($normalized, [
-            'oi',
-            'olá',
-            'ola',
-            'bom dia',
-            'boa tarde',
-            'boa noite',
-            'e ai',
-            'e aí',
-            'hey',
-            'opa',
-        ], true);
-    }
-
-    /**
-     * Resposta padrão para saudações.
-     */
-    private function buildGreetingReply(User $user): string
-    {
-        $firstName = trim((string) explode(' ', trim($user->name))[0]);
-        $namePart = $firstName !== '' ? " {$firstName}" : '';
-
-        return "Olá{$namePart}! Eu sou o InovaFinance. Posso registrar gastos e receitas, consultar seu saldo, listar suas últimas transações e gerar relatórios.";
     }
 
     private function looksLikeBudgetCreateIntent(): bool
@@ -233,7 +211,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
     private function inferBudgetDataFromMessage(): ?array
     {
-        if (! preg_match('/(?:r\\$\\s*)?(\\d+(?:[\\.,]\\d{1,2})?)/u', $this->message, $amountMatches)) {
+        if (! preg_match('/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/u', $this->message, $amountMatches)) {
             return null;
         }
 
@@ -316,23 +294,14 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
 
         $amountMatches = [];
-        preg_match_all('/(?:r\\$\\s*)?\\d+(?:[.,]\\d{1,2})?/u', $message, $amountMatches);
+        preg_match_all('/(?:r\$\s*)?\d+(?:[.,]\d{1,2})?/u', $message, $amountMatches);
         $amountCount = count($amountMatches[0] ?? []);
 
         if ($amountCount < 2) {
             return false;
         }
 
-        $connectors = [
-            ' e ',
-            ',',
-            ';',
-            "\n",
-            ' depois ',
-            ' também ',
-            ' tambem ',
-            ' mais ',
-        ];
+        $connectors = [' e ', ',', ';', "\n", ' depois ', ' também ', ' tambem ', ' mais '];
 
         foreach ($connectors as $connector) {
             if (str_contains($message, $connector)) {
@@ -365,12 +334,12 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
     private function buildCompoundTransactionReply(): string
     {
-        return "⚠️ Eu ainda não consigo registrar vários lançamentos na mesma mensagem.\n\n".
-            "Manda um por vez, assim:\n".
-            "• Gastei 32 no Uber\n".
-            "• Gastei 48 no mercado\n".
-            "• Recebi 420 de freelance\n\n".
-            "Se quiser, pode me enviar uma mensagem atrás da outra que eu registro tudo.";
+        return "Atenção: eu ainda não consigo registrar vários lançamentos na mesma mensagem.\n\n"
+            ."Manda um por vez, assim:\n"
+            ."• Gastei 32 no Uber\n"
+            ."• Gastei 48 no mercado\n"
+            ."• Recebi 420 de freelance\n\n"
+            ."Se quiser, pode me enviar uma mensagem atrás da outra que eu registro tudo.";
     }
 
     private function buildValidationGuidanceReply(array $errors = []): string
@@ -382,38 +351,35 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
 
         if (str_contains($message, 'apaga') || str_contains($message, 'apagar') || str_contains($message, 'exclui') || str_contains($message, 'remove')) {
-            return "⚠️ Não consegui entender qual transação você quer apagar.\n\n".
-                "Tente assim:\n".
-                "• apagar última transação\n".
-                "• apagar Uber de 18 reais\n".
-                "• apagar mercado de ontem";
+            return "Atenção: não consegui entender qual transação você quer apagar.\n\n"
+                ."Tente assim:\n"
+                ."• apagar última transação\n"
+                ."• apagar Uber de 18 reais\n"
+                ."• apagar mercado de ontem";
         }
 
         if (str_contains($message, 'relatorio') || str_contains($message, 'relatório')) {
-            return "⚠️ Não consegui entender qual relatório você quer gerar.\n\n".
-                "Tente assim:\n".
-                "• me gera um relatório do mês\n".
-                "• me manda o relatório em PDF\n".
-                "• relatório anual em Excel";
+            return "Atenção: não consegui entender qual relatório você quer gerar.\n\n"
+                ."Tente assim:\n"
+                ."• me gera um relatório do mês\n"
+                ."• me manda o relatório em PDF\n"
+                ."• relatório anual em Excel";
         }
 
         if (str_contains($message, 'saldo') || str_contains($message, 'gastos') || str_contains($message, 'receitas') || str_contains($message, 'ultimos') || str_contains($message, 'últimos')) {
-            return "⚠️ Não consegui entender essa consulta do jeito que ela veio.\n\n".
-                "Você pode tentar assim:\n".
-                "• qual é o meu saldo?\n".
-                "• quais foram meus últimos gastos?\n".
-                "• quanto eu gastei esse mês?";
+            return "Atenção: não consegui entender essa consulta do jeito que ela veio.\n\n"
+                ."Você pode tentar assim:\n"
+                ."• qual é o meu saldo?\n"
+                ."• quais foram meus últimos gastos?\n"
+                ."• quanto eu gastei esse mês?";
         }
 
-        $details = collect($errors)
-            ->filter()
-            ->implode(' ');
-
-        $base = "⚠️ Não consegui entender essa mensagem do jeito que ela veio.\n\n".
-            "Tente mandar em um destes formatos:\n".
-            "• Gastei 50 no supermercado\n".
-            "• Recebi 1000 de salário\n".
-            "• Qual é o meu saldo?";
+        $details = collect($errors)->filter()->implode(' ');
+        $base = "Atenção: não consegui entender essa mensagem do jeito que ela veio.\n\n"
+            ."Tente mandar em um destes formatos:\n"
+            ."• Gastei 50 no supermercado\n"
+            ."• Recebi 1000 de salário\n"
+            ."• Qual é o meu saldo?";
 
         return $details !== '' ? $base."\n\nDetalhe: {$details}" : $base;
     }
@@ -456,24 +422,24 @@ class ProcessWhatsAppMessage implements ShouldQueue
             }
 
             if (str_contains($errorMessage, 'mais de uma transação')) {
-                return '⚠️ '.$errorMessage;
+                return 'Atenção: '.$errorMessage;
             }
 
             if (
                 str_contains($errorMessage, 'Não consegui identificar qual transação deletar')
                 || str_contains($errorMessage, 'Transação não encontrada para exclusão')
             ) {
-                return '⚠️ '.$errorMessage;
+                return 'Atenção: '.$errorMessage;
             }
         }
 
         $messages = [
             \Illuminate\Validation\ValidationException::class => $this->buildValidationGuidanceReply(),
-            \Illuminate\Database\QueryException::class => '❌ Ocorreu um erro ao salvar os dados. Tente novamente em alguns instantes.',
+            \Illuminate\Database\QueryException::class => 'Erro ao salvar os dados. Tente novamente em alguns instantes.',
         ];
 
-        return $messages[$errorType] ??
-            "❌ Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente em alguns instantes.\n\n".
-            'Se o problema persistir, entre em contato com o suporte.';
+        return $messages[$errorType]
+            ?? "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente em alguns instantes.\n\nSe o problema persistir, entre em contato com o suporte.";
     }
 }
+

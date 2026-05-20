@@ -32,48 +32,47 @@ class QueryHandler extends BaseHandler
 
     public function handle(?string $action, array &$result, User $user, WhatsAppContact $contact, ProcessWhatsAppMessage $job): bool
     {
-        $reply = $this->buildQueryReply($user, $action, $result['reply'] ?? '', $job->message);
+        $rawMessage = $result['_resolved_message'] ?? $job->message;
+        $reply = $this->buildQueryReply($user, $action, $result['reply'] ?? '', $rawMessage);
+
+        $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
+            'reply_kind' => 'query',
+            'entities' => $this->extractConversationEntities($action, $rawMessage),
+        ]);
 
         Log::info('Consulta processada via WhatsApp', [
-            'user_id'      => $user->id,
-            'action'       => $action,
+            'user_id' => $user->id,
+            'action' => $action,
             'reply_length' => strlen($reply),
         ]);
 
         $this->sendResponse($job, $reply, $user);
+
         return true;
     }
-
-    // -------------------------------------------------------------------------
-    // Roteamento de consultas
-    // -------------------------------------------------------------------------
 
     private function buildQueryReply(User $user, ?string $action, string $fallbackReply, string $rawMessage): string
     {
         return match ($action) {
             'query_transactions' => $this->buildTransactionsReply($user, $rawMessage),
-            'query_category'     => $this->buildCategoryReply($user, $fallbackReply, $rawMessage),
-            'query_budgets'      => $this->buildBudgetsReply($user, $rawMessage),
-            default              => $fallbackReply,
+            'query_category' => $this->buildCategoryReply($user, $fallbackReply, $rawMessage),
+            'query_budgets' => $this->buildBudgetsReply($user, $rawMessage),
+            default => $fallbackReply,
         };
     }
-
-    // -------------------------------------------------------------------------
-    // Ãšltimas transaÃ§Ãµes
-    // -------------------------------------------------------------------------
 
     private function buildTransactionsReply(User $user, string $rawMessage): string
     {
         $message = mb_strtolower($rawMessage);
-        $type    = null;
-        $title   = 'Ãšltimas transaÃ§Ãµes';
+        $type = null;
+        $title = 'Últimas transações';
 
         if (str_contains($message, 'gasto') || str_contains($message, 'despesa')) {
-            $type  = 'expense';
-            $title = 'Seus Ãºltimos gastos';
+            $type = 'expense';
+            $title = 'Seus últimos gastos';
         } elseif (str_contains($message, 'receita') || str_contains($message, 'ganho') || str_contains($message, 'entrada')) {
-            $type  = 'income';
-            $title = 'Suas Ãºltimas receitas';
+            $type = 'income';
+            $title = 'Suas últimas receitas';
         }
 
         $transactions = Transaction::query()
@@ -87,27 +86,23 @@ class QueryHandler extends BaseHandler
 
         if ($transactions->isEmpty()) {
             return match ($type) {
-                'expense' => 'VocÃª ainda nÃ£o tem gastos registrados.',
-                'income'  => 'VocÃª ainda nÃ£o tem receitas registradas.',
-                default   => 'VocÃª ainda nÃ£o tem transaÃ§Ãµes registradas.',
+                'expense' => 'Você ainda não tem gastos registrados.',
+                'income' => 'Você ainda não tem receitas registradas.',
+                default => 'Você ainda não tem transações registradas.',
             };
         }
 
-        $lines = $transactions->map(function (Transaction $t) {
-            $date     = $t->date?->format('d/m') ?? now()->format('d/m');
-            $label    = $t->description ?: ($t->type === 'income' ? 'Receita' : 'Gasto');
-            $category = $t->category?->name ? " ({$t->category->name})" : '';
-            $amount   = number_format((float) $t->amount, 2, ',', '.');
+        $lines = $transactions->map(function (Transaction $transaction) {
+            $date = $transaction->date?->format('d/m') ?? now()->format('d/m');
+            $label = $transaction->description ?: ($transaction->type === 'income' ? 'Receita' : 'Gasto');
+            $category = $transaction->category?->name ? " ({$transaction->category->name})" : '';
+            $amount = number_format((float) $transaction->amount, 2, ',', '.');
 
-            return "â€¢ {$date} - {$label}{$category}: R$ {$amount}";
+            return "• {$date} - {$label}{$category}: R$ {$amount}";
         })->implode("\n");
 
         return "{$title}:\n{$lines}";
     }
-
-    // -------------------------------------------------------------------------
-    // Gastos por categoria
-    // -------------------------------------------------------------------------
 
     private function buildCategoryReply(User $user, string $fallbackReply, string $rawMessage): string
     {
@@ -121,23 +116,23 @@ class QueryHandler extends BaseHandler
             ->with('category')
             ->where('user_id', $user->id)
             ->where('type', 'expense')
-            ->where(function ($q) use ($searchTerm) {
-                $q->whereRaw('LOWER(description) LIKE ?', ['%' . $searchTerm . '%'])
-                  ->orWhereHas('category', fn ($cq) => $cq->whereRaw('LOWER(name) LIKE ?', ['%' . $searchTerm . '%']));
+            ->where(function ($query) use ($searchTerm) {
+                $query->whereRaw('LOWER(description) LIKE ?', ['%' . $searchTerm . '%'])
+                    ->orWhereHas('category', fn ($categoryQuery) => $categoryQuery->whereRaw('LOWER(name) LIKE ?', ['%' . $searchTerm . '%']));
             })
             ->latest('date')
             ->latest('id')
             ->get();
 
         if ($transactions->isEmpty()) {
-            return "NÃ£o encontrei gastos com {$searchTerm} ainda.";
+            return "Não encontrei gastos com {$searchTerm} ainda.";
         }
 
-        $count      = $transactions->count();
-        $total      = number_format((float) $transactions->sum('amount'), 2, ',', '.');
-        $latest     = $transactions->first();
+        $count = $transactions->count();
+        $total = number_format((float) $transactions->sum('amount'), 2, ',', '.');
+        $latest = $transactions->first();
         $latestDate = $latest->date?->format('d/m') ?? now()->format('d/m');
-        $label      = $latest->description ?: $latest->category?->name ?: ucfirst($searchTerm);
+        $label = $latest->description ?: $latest->category?->name ?: ucfirst($searchTerm);
 
         if ($count === 1) {
             return "Encontrei 1 gasto com {$label}, no valor de R$ {$total}, em {$latestDate}.";
@@ -162,7 +157,7 @@ class QueryHandler extends BaseHandler
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $message, $matches)) {
                 $term = trim($matches[1]);
-                $term = preg_replace('/\b(hoje|ontem|esse mes|este mes|mÃªs|mes|ultimos?|Ãºltimos?)\b/u', '', $term);
+                $term = preg_replace('/\b(hoje|ontem|esse mes|este mes|mês|mes|ultimos?|últimos?)\b/u', '', $term);
                 $term = trim($term);
 
                 if ($term !== '') {
@@ -174,18 +169,14 @@ class QueryHandler extends BaseHandler
         return null;
     }
 
-    // -------------------------------------------------------------------------
-    // OrÃ§amentos
-    // -------------------------------------------------------------------------
-
     private function buildBudgetsReply(User $user, string $rawMessage): string
     {
         $budgets = Budget::query()
             ->with('category')
             ->where('user_id', $user->id)
             ->where('year', now()->year)
-            ->where(function ($q) {
-                $q->where(function ($monthly) {
+            ->where(function ($query) {
+                $query->where(function ($monthly) {
                     $monthly->where('period', 'monthly')->where('month', now()->month);
                 })->orWhere('period', 'yearly');
             })
@@ -194,7 +185,7 @@ class QueryHandler extends BaseHandler
             ->get();
 
         if ($budgets->isEmpty()) {
-            return 'Voce ainda nao tem orcamentos cadastrados para este periodo.';
+            return 'Você ainda não tem orçamentos cadastrados para este período.';
         }
 
         $searchTerm = $this->extractBudgetSearchTerm($rawMessage);
@@ -209,23 +200,23 @@ class QueryHandler extends BaseHandler
             })->values();
 
             if ($budgets->isEmpty()) {
-                return "Nao encontrei orcamento para {$searchTerm} neste periodo.";
+                return "Não encontrei orçamento para {$searchTerm} neste período.";
             }
         }
 
         $periodLabel = now()->translatedFormat('F/Y');
 
         $lines = $budgets->map(function (Budget $budget) {
-            $amount    = number_format((float) $budget->amount, 2, ',', '.');
-            $spent     = number_format((float) $budget->spent, 2, ',', '.');
+            $amount = number_format((float) $budget->amount, 2, ',', '.');
+            $spent = number_format((float) $budget->spent, 2, ',', '.');
             $remaining = number_format((float) $budget->remaining, 2, ',', '.');
-            $period    = $budget->period === 'yearly' ? 'anual' : 'mensal';
-            $category  = $budget->category?->name ?? 'Sem categoria';
+            $period = $budget->period === 'yearly' ? 'anual' : 'mensal';
+            $category = $budget->category?->name ?? 'Sem categoria';
 
             return "- {$category}: limite R$ {$amount} | gasto R$ {$spent} | restante R$ {$remaining} ({$period})";
         })->implode("\n");
 
-        return "Seus orcamentos de {$periodLabel}:\n{$lines}";
+        return "Seus orçamentos de {$periodLabel}:\n{$lines}";
     }
 
     private function extractBudgetSearchTerm(string $rawMessage): ?string
@@ -235,15 +226,15 @@ class QueryHandler extends BaseHandler
 
         $patterns = [
             '/orcamento\s+(?:para|de)\s+(.+)$/u',
-            '/orÃ§amento\s+(?:para|de)\s+(.+)$/u',
+            '/orçamento\s+(?:para|de)\s+(.+)$/u',
             '/meu\s+orcamento\s+(?:para|de)\s+(.+)$/u',
-            '/meu\s+orÃ§amento\s+(?:para|de)\s+(.+)$/u',
+            '/meu\s+orçamento\s+(?:para|de)\s+(.+)$/u',
         ];
 
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $message, $matches)) {
                 $term = trim($matches[1]);
-                $term = preg_replace('/\b(geral|gerais|do mes|do mÃªs|desse mes|desse mÃªs|este mes|este mÃªs)\b/u', '', $term);
+                $term = preg_replace('/\b(geral|gerais|do mes|do mês|desse mes|desse mês|este mes|este mês)\b/u', '', $term);
                 $term = trim($term);
 
                 if ($term !== '') {
@@ -253,5 +244,21 @@ class QueryHandler extends BaseHandler
         }
 
         return null;
+    }
+
+    private function extractConversationEntities(?string $action, string $rawMessage): array
+    {
+        return match ($action) {
+            'query_budgets' => array_filter([
+                'topic' => 'budget',
+                'category_name' => $this->extractBudgetSearchTerm($rawMessage),
+            ]),
+            'query_category' => array_filter([
+                'topic' => 'expense_category',
+                'category_name' => $this->extractCategorySearchTerm($rawMessage),
+            ]),
+            'query_transactions' => ['topic' => 'transactions'],
+            default => [],
+        };
     }
 }
