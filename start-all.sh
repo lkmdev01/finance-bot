@@ -1,7 +1,14 @@
 #!/bin/bash
 
-# Script para rodar múltiplos processos em um único serviço no Coolify
+# Script para rodar multiplos processos em um unico servico no Coolify
 set -e
+
+QUEUE_CONNECTION_NAME="${QUEUE_CONNECTION:-database}"
+QUEUE_NAME="${QUEUE_NAME:-${REDIS_QUEUE:-default}}"
+QUEUE_WORKERS="${QUEUE_WORKERS:-2}"
+QUEUE_WORKER_TRIES="${QUEUE_WORKER_TRIES:-3}"
+QUEUE_WORKER_TIMEOUT="${QUEUE_WORKER_TIMEOUT:-120}"
+QUEUE_WORKER_SLEEP="${QUEUE_WORKER_SLEEP:-0}"
 
 echo "--- 1. Preparando Ambiente ---"
 mkdir -p storage/logs
@@ -11,23 +18,31 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-echo "--- 2. Iniciando Worker e Scheduler ---"
-# Rodar worker e scheduler em background
-php artisan queue:work --tries=3 --timeout=120 > storage/logs/worker.log 2>&1 &
+echo "--- 2. Iniciando Workers e Scheduler ---"
+echo "Conexao da fila: $QUEUE_CONNECTION_NAME"
+echo "Fila: $QUEUE_NAME"
+echo "Workers: $QUEUE_WORKERS"
+
+i=1
+while [ "$i" -le "$QUEUE_WORKERS" ]; do
+  php artisan queue:work "$QUEUE_CONNECTION_NAME" \
+    --queue="$QUEUE_NAME" \
+    --tries="$QUEUE_WORKER_TRIES" \
+    --timeout="$QUEUE_WORKER_TIMEOUT" \
+    --sleep="$QUEUE_WORKER_SLEEP" \
+    > "storage/logs/worker-$i.log" 2>&1 &
+  i=$((i + 1))
+done
+
 php artisan schedule:work > storage/logs/scheduler.log 2>&1 &
 
 echo "--- 3. Iniciando WhatsApp Service ---"
-# Entrar na pasta do WhatsApp, garantir dependências e iniciar
 cd whatsapp-service
-echo "Instalando dependências do WhatsApp..."
+echo "Instalando dependencias do WhatsApp..."
 npm install --quiet
-# Garante que o Node rode na porta correta internally se necessário
-# Exibe os logs do WhatsApp diretamente no console para facilitar ver o QR Code
 npm start &
 cd ..
 
 echo "--- 4. Iniciando Servidor Web Principal ---"
-# O Nixpacks exige que o processo principal rode na porta definida pela variável $PORT
-# Se a porta original no painel foi 3000, o $PORT será 3000. Se mudamos para 8000, será 8000.
 echo "Rodando na porta: $PORT"
 php artisan serve --host=0.0.0.0 --port=$PORT
