@@ -18,6 +18,7 @@ use App\Services\WhatsAppFormatter;
 use App\Services\WhatsAppMessageProcessor;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -39,9 +40,19 @@ class ProcessWhatsAppMessage implements ShouldQueue
     ) {}
 
     /**
+     * Get the middleware the job should pass through.
+     *
+     * @return array<int, object>
+     */
+    public function middleware(): array
+    {
+        return [(new WithoutOverlapping($this->userId))->releaseAfter(30)];
+    }
+
+    /**
      * Envia resposta via WhatsApp
      */
-    private function sendResponse(
+    public function sendResponse(
         BaileysService $baileysService,
         PhoneNumberService $phoneNumberService,
         string $message,
@@ -136,228 +147,17 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 }
             }
 
-            // Se for confirmação de transação grande, processa
-            if ($action === 'confirm_large_transaction' && isset($result['transaction_data'])) {
-                // Verifica se a mensagem é uma confirmação
-                $isConfirmation = preg_match('/\b(sim|s|yes|y|confirmo|confirmar|pode|pode sim|ok|tudo bem|claro)\b/i', strtolower($this->message));
+            // Delega toda a lógica de ação para a Factory de Handlers.
+            // Cada handler é responsável por enviar a própria resposta e retornar true.
+            $handlerFactory = new \App\Services\WhatsApp\ActionHandlerFactory();
+            $handled = $handlerFactory->process($action, $result, $user, $contact, $this);
 
-                if ($isConfirmation) {
-                    // Usuário confirmou, cria a transação
-                    $action = 'create_transaction';
-                } else {
-                    // Usuário não confirmou, apenas responde
-                    $this->sendResponse($baileysService, $phoneNumberService, $result['reply'], $user);
-
-                    return;
-                }
-            }
-
-            if ($action === 'create_transaction' && isset($result['transaction_data'])) {
-                if ($this->isCompoundFinancialMessage()) {
-                    $this->sendResponse(
-                        $baileysService,
-                        $phoneNumberService,
-                        $this->buildCompoundTransactionReply(),
-                        $user
-                    );
-
-                    return;
-                }
-
-                if (! $billingPlanService->userCanCreateRecords($user)) {
-                    $this->sendResponse(
-                        $baileysService,
-                        $phoneNumberService,
-                        $this->buildSubscriptionRequiredReply($user, $billingPlanService),
-                        $user
-                    );
-
-                    return;
-                }
-
-                $result['transaction_data'] = $this->normalizeTransactionData($result['transaction_data']);
-
-                // Valida dados antes de criar transação
-                $validation = $this->validateTransactionData($result['transaction_data'], $user);
-
-                if ($validation->fails()) {
-                    $errors = $validation->errors();
-
-                    // Se o único erro for a categoria, removemos o category_id e tentamos prosseguir
-                    if ($errors->has('category_id') && $errors->count() === 1) {
-                        Log::info('Ignorando erro de categoria da IA e prosseguindo sem categoria', [
-                            'user_id' => $user->id,
-                            'invalid_category_id' => $result['transaction_data']['category_id'] ?? null,
-                        ]);
-                        $result['transaction_data']['category_id'] = null;
-                    } else {
-                        // Se houver outros erros (valor, tipo, data), cancelamos
-                        $metricsService->recordError('validation', 'Dados de transação inválidos');
-                        $metricsService->recordTransactionSuccess(false, 'whatsapp');
-
-                        Log::warning('Dados de transação inválidos da IA', [
-                            'user_id' => $user->id,
-                            'phone' => $this->phoneNumber,
-                            'errors' => $errors->all(),
-                            'data' => $result['transaction_data'],
-                        ]);
-
-                        $errorMessage = $this->buildValidationGuidanceReply($errors->all());
-                        $this->sendErrorMessage($baileysService, $phoneNumberService, $errorMessage);
-
-                        return;
-                    }
-                }
-
-                $createdTransaction = $this->createTransaction($user, $contact, $result['transaction_data']);
-
-                if ($this->shouldUseGenericTransactionReply($result['transaction_data'])) {
-                    $result['reply'] = $this->buildGenericTransactionReply($result['transaction_data']);
-                } else {
-                    $result['reply'] = $this->buildCreatedTransactionReply($createdTransaction);
-                }
-
-                // Registra métrica de sucesso
-                $metricsService->recordTransactionSuccess(true, 'whatsapp');
-
-                // Invalida cache de dados financeiros e projeções após criar transação
-                Cache::forget("user.{$user->id}.financial_data");
-                Cache::forget("user.{$user->id}.financial_projections");
-
-                Log::info('Transação criada via WhatsApp', [
-                    'user_id' => $user->id,
-                    'user_name' => $user->name,
-                    'phone' => $this->phoneNumber,
-                    'amount' => $result['transaction_data']['amount'] ?? null,
-                    'type' => $result['transaction_data']['type'] ?? null,
-                    'category_id' => $result['transaction_data']['category_id'] ?? null,
-                    'description' => $result['transaction_data']['description'] ?? null,
-                    'processing_time_ms' => $processingTime,
-                    'message_length' => strlen($this->message),
-                ]);
-            } elseif ($action === 'create_budget' && isset($result['transaction_data'])) {
-                if (! $billingPlanService->userCanCreateRecords($user)) {
-                    $this->sendResponse(
-                        $baileysService,
-                        $phoneNumberService,
-                        $this->buildSubscriptionRequiredReply($user, $billingPlanService),
-                        $user
-                    );
-
-                    return;
-                }
-
-                $budgetData = $this->normalizeBudgetData($result['transaction_data']);
-                $validation = $this->validateBudgetData($budgetData, $user);
-
-                if ($validation->fails()) {
-                    $errorMessage = $this->buildBudgetValidationGuidanceReply($validation->errors()->all());
-                    $this->sendErrorMessage($baileysService, $phoneNumberService, $errorMessage);
-
-                    return;
-                }
-
-                $budget = $this->upsertBudget($user, $budgetData);
-                $result['reply'] = $this->buildBudgetCreatedReply($budget);
-
-                Cache::forget("user.{$user->id}.financial_data");
-
-                Log::info('Orcamento criado ou atualizado via WhatsApp', [
-                    'user_id' => $user->id,
-                    'budget_id' => $budget->id,
-                    'category_id' => $budget->category_id,
-                    'period' => $budget->period,
-                    'year' => $budget->year,
-                    'month' => $budget->month,
-                    'amount' => $budget->amount,
-                ]);
-            } elseif ($action === 'edit_transaction' && isset($result['transaction_id'])) {
-                $updatedTransaction = $this->editTransaction($user, $result['transaction_id'], $result['transaction_data'] ?? []);
-                $result['reply'] = $this->buildEditReply($updatedTransaction);
-
-                // Invalida cache após editar transação
-                Cache::forget("user.{$user->id}.financial_data");
-                Cache::forget("user.{$user->id}.financial_projections");
-
-                Log::info('Transação editada via WhatsApp', [
-                    'user_id' => $user->id,
-                    'transaction_id' => $result['transaction_id'],
-                ]);
-            } elseif ($action === 'delete_transaction' && isset($result['transaction_id'])) {
-                $deletedTransaction = $this->deleteTransaction($user, $result['transaction_id']);
-                $result['reply'] = $this->buildDeleteReply($deletedTransaction);
-
-                // Invalida cache após deletar transação
-                Cache::forget("user.{$user->id}.financial_data");
-                Cache::forget("user.{$user->id}.financial_projections");
-
-                // Registra métrica de sucesso
-                $metricsService->recordTransactionSuccess(true, 'whatsapp');
-
-                Log::info('Transação deletada via WhatsApp', [
-                    'user_id' => $user->id,
-                    'transaction_id' => $result['transaction_id'],
-                ]);
-
-            } elseif ($action === 'delete_transaction') {
-                // Se não tiver transaction_id, tenta buscar pela descrição ou última transação
-                $transactionId = $result['transaction_id'] ?? null;
-
-                if (!$transactionId && isset($result['transaction_data']['description'])) {
-                    // Busca pela descrição
-                    $description = $result['transaction_data']['description'];
-                    $transaction = Transaction::where('user_id', $user->id)
-                        ->where('description', 'like', "%{$description}%")
-                        ->latest()
-                        ->first();
-
-                    if ($transaction) {
-                        $transactionId = $transaction->id;
-                    }
-                }
-
-                if (!$transactionId) {
-                    throw new \Exception('Não consegui identificar qual transação deletar. Tente especificar melhor (ex: "apagar última compra" ou "apagar gasto de R$ 50").');
-                }
-
-                Log::info('Tentando deletar transação', [
-                    'transaction_id' => $transactionId,
-                    'user_id' => $user->id,
-                ]);
-
-                $deletedTransaction = $this->deleteTransaction($user, $transactionId);
-                $result['reply'] = $this->buildDeleteReply($deletedTransaction);
-
-                // Registra métrica de sucesso
-                $metricsService->recordTransactionSuccess(true, 'whatsapp');
-
-                Log::info('Transação deletada via WhatsApp', [
-                    'user_id' => $user->id,
-                    'transaction_id' => $transactionId,
-                ]);
-            } elseif (in_array($action, ['query_report', 'query_report_pdf', 'query_report_csv', 'query_report_excel'])) {
-                // Gera e envia relatório via WhatsApp
-                $this->generateAndSendReport($user, $action, $baileysService, $phoneNumberService);
+            if ($handled) {
                 return;
-            } elseif (in_array($action, ['query_balance', 'query_expenses', 'query_income', 'query_transactions', 'query_category', 'query_savings', 'query_budgets', 'query_evolution', 'query_projections', 'query_income_source', 'query_categories'])) {
-                $result['reply'] = $this->buildQueryReply($user, $action, $result['reply'] ?? '');
-
-                Log::info('Consulta processada via WhatsApp', [
-                    'user_id' => $user->id,
-                    'user_name' => $user->name,
-                    'phone' => $this->phoneNumber,
-                    'action' => $action,
-                    'message' => substr($this->message, 0, 100), // Primeiros 100 caracteres
-                    'message_length' => strlen($this->message),
-                    'reply_length' => strlen($result['reply'] ?? ''),
-                    'processing_time_ms' => $processingTime,
-                ]);
             }
 
-            // Formata resposta com formatação rica do WhatsApp
-            $formattedReply = WhatsAppFormatter::format($result['reply']);
-
-            // Envia resposta via WhatsApp
+            // Nenhum handler reconheceu a ação — envia o reply da IA diretamente (fallback)
+            $formattedReply = WhatsAppFormatter::format($result['reply'] ?? '');
             $this->sendResponse($baileysService, $phoneNumberService, $formattedReply, $user);
         } catch (\Exception $e) {
             // Registra métrica de erro
@@ -382,292 +182,36 @@ class ProcessWhatsAppMessage implements ShouldQueue
     }
 
     /**
-     * Valida dados de transação da IA
+     * Detecta saudações curtas para responder de forma consistente.
      */
-    private function validateTransactionData(array $data, User $user): \Illuminate\Contracts\Validation\Validator
+    private function isGreetingMessage(): bool
     {
-        $rules = [
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:999999.99'],
-            'description' => ['nullable', 'string', 'max:255'],
-            'type' => ['required', 'in:income,expense'],
-            'category_id' => ['nullable', 'integer'],
-            'date' => ['nullable', 'date', 'before_or_equal:today'],
-        ];
+        $normalized = mb_strtolower(trim($this->message));
+        $normalized = preg_replace('/[!?.]+/u', '', $normalized);
 
-        // Valida se a categoria pertence ao usuário
-        if (isset($data['category_id']) && $data['category_id'] !== null) {
-            $rules['category_id'][] = function ($attribute, $value, $fail) use ($user) {
-                if (empty($value)) return;
-
-                $category = Category::where('id', $value)
-                    ->where('user_id', $user->id)
-                    ->first();
-
-                if (! $category) {
-                    $fail('A categoria selecionada não existe ou não pertence a você.');
-                }
-            };
-        }
-
-        return Validator::make($data, $rules);
+        return in_array($normalized, [
+            'oi',
+            'olá',
+            'ola',
+            'bom dia',
+            'boa tarde',
+            'boa noite',
+            'e ai',
+            'e aí',
+            'hey',
+            'opa',
+        ], true);
     }
 
     /**
-     * Normaliza dados de orçamento recebidos da IA ou inferidos localmente.
+     * Resposta padrão para saudações.
      */
-    private function normalizeBudgetData(array $data): array
+    private function buildGreetingReply(User $user): string
     {
-        $period = in_array(($data['period'] ?? 'monthly'), ['monthly', 'yearly'], true)
-            ? $data['period']
-            : 'monthly';
+        $firstName = trim((string) explode(' ', trim($user->name))[0]);
+        $namePart = $firstName !== '' ? " {$firstName}" : '';
 
-        return [
-            'amount' => isset($data['amount']) ? (float) $data['amount'] : null,
-            'period' => $period,
-            'year' => (int) ($data['year'] ?? now()->year),
-            'month' => $period === 'monthly' ? (int) ($data['month'] ?? now()->month) : null,
-            'category_id' => isset($data['category_id']) ? (int) $data['category_id'] : null,
-            'category_name' => isset($data['category_name']) ? trim((string) $data['category_name']) : null,
-        ];
-    }
-
-    /**
-     * Valida dados de orçamento antes de persistir.
-     */
-    private function validateBudgetData(array $data, User $user): \Illuminate\Contracts\Validation\Validator
-    {
-        $validator = Validator::make($data, [
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:999999.99'],
-            'period' => ['required', 'in:monthly,yearly'],
-            'year' => ['required', 'integer', 'min:2020', 'max:2100'],
-            'month' => ['nullable', 'integer', 'min:1', 'max:12'],
-            'category_id' => ['nullable', 'integer'],
-            'category_name' => ['nullable', 'string', 'max:100'],
-        ]);
-
-        $validator->after(function ($validator) use ($data, $user) {
-            if (empty($data['category_id']) && blank($data['category_name'] ?? null)) {
-                $validator->errors()->add('category', 'Informe uma categoria para o orcamento.');
-            }
-
-            if (($data['period'] ?? 'monthly') === 'monthly' && empty($data['month'])) {
-                $validator->errors()->add('month', 'Informe o mes do orcamento mensal.');
-            }
-
-            if (! empty($data['category_id'])) {
-                $category = Category::query()
-                    ->where('id', $data['category_id'])
-                    ->where('user_id', $user->id)
-                    ->where('type', 'expense')
-                    ->first();
-
-                if (! $category) {
-                    $validator->errors()->add('category_id', 'A categoria informada nao e uma categoria de despesa valida.');
-                }
-            }
-        });
-
-        return $validator;
-    }
-
-    /**
-     * Cria ou atualiza um orcamento para a mesma categoria e periodo.
-     */
-    private function upsertBudget(User $user, array $data): Budget
-    {
-        $categoryRecognition = app(CategoryRecognitionService::class);
-        $category = null;
-
-        if (! empty($data['category_id'])) {
-            $category = Category::query()
-                ->where('id', $data['category_id'])
-                ->where('user_id', $user->id)
-                ->where('type', 'expense')
-                ->first();
-        }
-
-        if (! $category && ! empty($data['category_name'])) {
-            $category = $categoryRecognition->findExistingCategoryByName($user, $data['category_name'], 'expense');
-        }
-
-        if (! $category && ! empty($data['category_name'])) {
-            $category = $categoryRecognition->findOrCreateCategory($user, $data['category_name'], 'expense');
-        }
-
-        return Budget::query()->updateOrCreate(
-            [
-                'user_id' => $user->id,
-                'category_id' => $category->id,
-                'period' => $data['period'],
-                'year' => $data['year'],
-                'month' => $data['period'] === 'monthly' ? $data['month'] : null,
-            ],
-            [
-                'amount' => $data['amount'],
-            ]
-        )->load('category');
-    }
-
-    /**
-     * Cria uma transação baseada nos dados da IA
-     */
-    private function createTransaction(User $user, WhatsAppContact $contact, array $data): Transaction
-    {
-        $categoryRecognition = app(CategoryRecognitionService::class);
-        $category = null;
-
-        // 1. Prioridade: ID enviado pela IA
-        if (isset($data['category_id'])) {
-            $category = Category::where('id', $data['category_id'])
-                ->where('user_id', $user->id)
-                ->first();
-        }
-
-        // 2. IA sugeriu uma nova categoria
-        if (!$category && !empty($data['category_name'])) {
-            $category = $categoryRecognition->findExistingCategoryByName(
-                $user,
-                $data['category_name'],
-                $data['type'] ?? 'expense'
-            );
-
-            if (! $category) {
-                $category = $categoryRecognition->findOrCreateCategory(
-                    $user,
-                    $data['category_name'],
-                    $data['type'] ?? 'expense'
-                );
-
-                // Se a IA também sugeriu um ícone, atualiza se necessário
-                if (!empty($data['category_icon']) && $category->icon === '📦') {
-                    $category->update(['icon' => $data['category_icon']]);
-                }
-            }
-        }
-
-        // 3. Fallback: Reconhecimento Inteligente (Keywords/Histórico)
-        // Só tenta reconhecer pela descrição quando ela realmente existe.
-        if (!$category && !empty($data['description'])) {
-            $recognitionText = $data['description'];
-            $category = $categoryRecognition->recognizeCategory(
-                $user,
-                $recognitionText,
-                (float) ($data['amount'] ?? 0)
-            );
-        }
-
-        // Descrição padrão baseada no tipo se não houver descrição específica
-        $defaultDescription = ($data['type'] ?? 'expense') === 'income' ? 'Receita' : 'Gasto';
-        $finalDescription = !empty($data['description']) ? $data['description'] : $defaultDescription;
-
-        $transaction = Transaction::create([
-            'user_id' => $user->id,
-            'whatsapp_contact_id' => $contact->id,
-            'category_id' => $category?->id,
-            'type' => $data['type'] ?? 'expense',
-            'amount' => (float) $data['amount'],
-            'description' => $finalDescription,
-            'date' => $data['date'] ?? now()->format('Y-m-d'),
-            'metadata' => [
-                'source' => 'whatsapp',
-                'original_message' => $this->message,
-            ],
-        ]);
-
-        // Registra log de auditoria
-        AuditLog::log(
-            'transaction.created',
-            $user->id,
-            Transaction::class,
-            $transaction->id,
-            [
-                'source' => 'whatsapp',
-                'amount' => $data['amount'],
-                'type' => $data['type'] ?? 'expense',
-                'category_id' => $category?->id,
-                'category_name' => $category?->name,
-            ]
-        );
-
-        return $transaction->loadMissing('category');
-    }
-
-    /**
-     * Evita categorias inventadas quando a mensagem só informa tipo + valor.
-     */
-    private function normalizeTransactionData(array $data): array
-    {
-        $description = trim((string) ($data['description'] ?? ''));
-
-        if ($this->isPlaceholderDescription($description)) {
-            $data['description'] = null;
-            $description = '';
-        }
-
-        if ($description !== '') {
-            return $data;
-        }
-
-        if (! $this->isAmountOnlyMessage($this->message)) {
-            return $data;
-        }
-
-        $data['description'] = null;
-        $data['category_id'] = null;
-        unset($data['category_name'], $data['category_icon']);
-
-        return $data;
-    }
-
-    /**
-     * Para mensagens vagas, a resposta deve refletir exatamente o que foi salvo.
-     */
-    private function shouldUseGenericTransactionReply(array $data): bool
-    {
-        $description = trim((string) ($data['description'] ?? ''));
-
-        return ($description === '' || $this->isPlaceholderDescription($description))
-            && $this->isAmountOnlyMessage($this->message);
-    }
-
-    /**
-     * Gera uma resposta consistente para lançamentos sem contexto.
-     */
-    private function buildGenericTransactionReply(array $data): string
-    {
-        $amount = number_format((float) ($data['amount'] ?? 0), 2, ',', '.');
-
-        if (($data['type'] ?? 'expense') === 'income') {
-            return "✅ Receita de R$ {$amount} registrada!";
-        }
-
-        return "✅ Gasto de R$ {$amount} registrado!";
-    }
-
-    private function buildBudgetCreatedReply(Budget $budget): string
-    {
-        $amount = number_format((float) $budget->amount, 2, ',', '.');
-        $category = $budget->category?->name ?? 'Sem categoria';
-
-        if ($budget->period === 'yearly') {
-            return "✅ Orcamento anual de R$ {$amount} criado para {$category} em {$budget->year}.";
-        }
-
-        $monthLabel = str_pad((string) $budget->month, 2, '0', STR_PAD_LEFT).'/'.$budget->year;
-
-        return "✅ Orcamento de R$ {$amount} criado para {$category} em {$monthLabel}.";
-    }
-
-    private function buildBudgetValidationGuidanceReply(array $errors = []): string
-    {
-        $details = empty($errors) ? '' : "\n\nDetalhes: ".implode(' | ', $errors);
-
-        return "⚠️ Nao consegui criar o orcamento com essa mensagem.\n\n"
-            ."Tente assim:\n"
-            ."• criar orcamento de 800 para mercado\n"
-            ."• definir orcamento de 300 para transporte\n"
-            ."• criar orcamento anual de 5000 para saude"
-            .$details;
+        return "Olá{$namePart}! Eu sou o InovaFinance. Posso registrar gastos e receitas, consultar seu saldo, listar suas últimas transações e gerar relatórios.";
     }
 
     private function looksLikeBudgetCreateIntent(): bool
@@ -763,297 +307,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
         return [$period, $year, $month];
     }
 
-    private function buildSubscriptionRequiredReply(User $user, BillingPlanService $billingPlanService): string
-    {
-        $plansUrl = rtrim((string) config('app.url'), '/').'/billing/plans';
-
-        return $billingPlanService->writeAccessMessage($user)
-            ."\n\nAssine um plano para voltar a registrar novas informações:\n"
-            .$plansUrl;
-    }
-
-    /**
-     * Gera uma resposta consistente para lançamentos com contexto.
-     */
-    private function buildCreatedTransactionReply(Transaction $transaction): string
-    {
-        $amount = number_format((float) $transaction->amount, 2, ',', '.');
-        $description = trim((string) $transaction->description);
-        $category = trim((string) ($transaction->category?->name ?? ''));
-
-        if ($transaction->type === 'income') {
-            if ($description !== '' && $description !== 'Receita' && $category !== '') {
-                return "✅ Receita de R$ {$amount} registrada em {$category} ({$description}).";
-            }
-
-            if ($description !== '' && $description !== 'Receita') {
-                return "✅ Receita de R$ {$amount} registrada como {$description}.";
-            }
-
-            if ($category !== '') {
-                return "✅ Receita de R$ {$amount} registrada em {$category}.";
-            }
-
-            return "✅ Receita de R$ {$amount} registrada!";
-        }
-
-        if ($description !== '' && $description !== 'Gasto' && $category !== '') {
-            return "✅ Registrei R$ {$amount} em {$category} ({$description}).";
-        }
-
-        if ($description !== '' && $description !== 'Gasto') {
-            return "✅ Registrei R$ {$amount} em {$description}.";
-        }
-
-        if ($category !== '') {
-            return "✅ Registrei R$ {$amount} em {$category}.";
-        }
-
-        return "✅ Gasto de R$ {$amount} registrado!";
-    }
-
-    /**
-     * Detecta saudações curtas para responder de forma consistente.
-     */
-    private function isGreetingMessage(): bool
-    {
-        $normalized = mb_strtolower(trim($this->message));
-        $normalized = preg_replace('/[!?.]+/u', '', $normalized);
-
-        return in_array($normalized, [
-            'oi',
-            'olá',
-            'ola',
-            'bom dia',
-            'boa tarde',
-            'boa noite',
-            'e ai',
-            'e aí',
-            'hey',
-            'opa',
-        ], true);
-    }
-
-    /**
-     * Resposta padrão para saudações.
-     */
-    private function buildGreetingReply(User $user): string
-    {
-        $firstName = trim((string) explode(' ', trim($user->name))[0]);
-        $namePart = $firstName !== '' ? " {$firstName}" : '';
-
-        return "Olá{$namePart}! Eu sou o InovaFinance. Posso registrar gastos e receitas, consultar seu saldo, listar suas últimas transações e gerar relatórios.";
-    }
-
-    /**
-     * Torna respostas de consulta consistentes e úteis.
-     */
-    private function buildQueryReply(User $user, string $action, string $fallbackReply): string
-    {
-        return match ($action) {
-            'query_transactions' => $this->buildTransactionsReply($user),
-            'query_category' => $this->buildCategoryReply($user, $fallbackReply),
-            'query_budgets' => $this->buildBudgetsReply($user),
-            default => $fallbackReply,
-        };
-    }
-
-    /**
-     * Resume os orcamentos ativos do periodo atual.
-     */
-    private function buildBudgetsReply(User $user): string
-    {
-        $budgets = Budget::query()
-            ->with('category')
-            ->where('user_id', $user->id)
-            ->where('year', now()->year)
-            ->where(function ($query) {
-                $query->where(function ($monthly) {
-                    $monthly->where('period', 'monthly')
-                        ->where('month', now()->month);
-                })->orWhere('period', 'yearly');
-            })
-            ->orderBy('period')
-            ->orderByDesc('amount')
-            ->get();
-
-        if ($budgets->isEmpty()) {
-            return 'Voce ainda nao tem orcamentos cadastrados para este periodo.';
-        }
-
-        $periodLabel = now()->translatedFormat('F/Y');
-
-        $lines = $budgets->map(function (Budget $budget) {
-            $amount = number_format((float) $budget->amount, 2, ',', '.');
-            $spent = number_format((float) $budget->spent, 2, ',', '.');
-            $remaining = number_format((float) $budget->remaining, 2, ',', '.');
-            $period = $budget->period === 'yearly' ? 'anual' : 'mensal';
-            $category = $budget->category?->name ?? 'Sem categoria';
-
-            return "- {$category}: limite R$ {$amount} | gasto R$ {$spent} | restante R$ {$remaining} ({$period})";
-        })->implode("\n");
-
-        return "Seus orcamentos de {$periodLabel}:\n{$lines}";
-    }
-
-    /**
-     * Lista as últimas transações com contexto real.
-     */
-    private function buildTransactionsReply(User $user): string
-    {
-        $message = mb_strtolower($this->message);
-        $type = null;
-        $title = 'Últimas transações';
-
-        if (str_contains($message, 'gasto') || str_contains($message, 'despesa')) {
-            $type = 'expense';
-            $title = 'Seus últimos gastos';
-        } elseif (str_contains($message, 'receita') || str_contains($message, 'ganho') || str_contains($message, 'entrada')) {
-            $type = 'income';
-            $title = 'Suas últimas receitas';
-        }
-
-        $transactions = Transaction::query()
-            ->with('category')
-            ->where('user_id', $user->id)
-            ->when($type, fn ($query) => $query->where('type', $type))
-            ->latest('date')
-            ->latest('id')
-            ->limit(5)
-            ->get();
-
-        if ($transactions->isEmpty()) {
-            return match ($type) {
-                'expense' => 'Você ainda não tem gastos registrados.',
-                'income' => 'Você ainda não tem receitas registradas.',
-                default => 'Você ainda não tem transações registradas.',
-            };
-        }
-
-        $lines = $transactions->map(function (Transaction $transaction) {
-            $date = $transaction->date?->format('d/m') ?? now()->format('d/m');
-            $label = $transaction->description ?: ($transaction->type === 'income' ? 'Receita' : 'Gasto');
-            $category = $transaction->category?->name ? " ({$transaction->category->name})" : '';
-            $amount = number_format((float) $transaction->amount, 2, ',', '.');
-
-            return "• {$date} - {$label}{$category}: R$ {$amount}";
-        })->implode("\n");
-
-        return "{$title}:\n{$lines}";
-    }
-
-    /**
-     * Resume gastos de uma categoria/termo específico.
-     */
-    private function buildCategoryReply(User $user, string $fallbackReply): string
-    {
-        $searchTerm = $this->extractCategorySearchTerm();
-
-        if ($searchTerm === null) {
-            return $fallbackReply;
-        }
-
-        $transactions = Transaction::query()
-            ->with('category')
-            ->where('user_id', $user->id)
-            ->where('type', 'expense')
-            ->where(function ($query) use ($searchTerm) {
-                $query->whereRaw('LOWER(description) LIKE ?', ['%'.$searchTerm.'%'])
-                    ->orWhereHas('category', function ($categoryQuery) use ($searchTerm) {
-                        $categoryQuery->whereRaw('LOWER(name) LIKE ?', ['%'.$searchTerm.'%']);
-                    });
-            })
-            ->latest('date')
-            ->latest('id')
-            ->get();
-
-        if ($transactions->isEmpty()) {
-            return "Não encontrei gastos com {$searchTerm} ainda.";
-        }
-
-        $count = $transactions->count();
-        $total = number_format((float) $transactions->sum('amount'), 2, ',', '.');
-        $latest = $transactions->first();
-        $latestDate = $latest->date?->format('d/m') ?? now()->format('d/m');
-        $label = $latest->description ?: $latest->category?->name ?: ucfirst($searchTerm);
-
-        if ($count === 1) {
-            return "Encontrei 1 gasto com {$label}, no valor de R$ {$total}, em {$latestDate}.";
-        }
-
-        return "Encontrei {$count} gastos com {$label}, somando R$ {$total}. O mais recente foi em {$latestDate}.";
-    }
-
-    /**
-     * Extrai o termo principal de uma consulta por categoria.
-     */
-    private function extractCategorySearchTerm(): ?string
-    {
-        $message = mb_strtolower(trim($this->message));
-        $message = preg_replace('/[?!.]+/u', '', $message);
-
-        $patterns = [
-            '/gastos?\s+com\s+(.+)$/u',
-            '/despesas?\s+com\s+(.+)$/u',
-            '/gastei\s+com\s+(.+)$/u',
-            '/com\s+(.+)$/u',
-            '/de\s+(.+)$/u',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $message, $matches)) {
-                $term = trim($matches[1]);
-                $term = preg_replace('/\b(hoje|ontem|esse mes|este mes|mês|mes|ultimos?|últimos?)\b/u', '', $term);
-                $term = trim($term);
-
-                if ($term !== '') {
-                    return $term;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Detecta mensagens vagas como "gastei 1" ou "recebi 420".
-     */
-    private function isAmountOnlyMessage(string $message): bool
-    {
-        $normalized = mb_strtolower($message);
-        $normalized = preg_replace('/[\d\p{P}\p{Sc}]+/u', ' ', $normalized);
-        $normalized = preg_replace('/\b(r\$|rs|reais?|real|pix|cart[aã]o|credito|cr[eé]dito|d[eé]bito|no|na|de|do|da|em|por|para|com|um|uma|uns|umas|foi|era|s[oó]|apenas)\b/u', ' ', $normalized);
-        $normalized = preg_replace('/\b(gastei|gasto|paguei|pago|recebi|recebido|ganhei|ganho|entrou|entrada|sa[ií]da)\b/u', ' ', $normalized);
-        $normalized = preg_replace('/\s+/u', ' ', trim($normalized));
-
-        return $normalized === '';
-    }
-
-    /**
-     * Trata descricoes artificiais da IA como ausencia de contexto real.
-     */
-    private function isPlaceholderDescription(string $description): bool
-    {
-        $normalized = mb_strtolower(trim($description));
-        $normalized = str_replace(['*', '_'], '', $normalized);
-
-        return in_array($normalized, [
-            'n/a',
-            'na',
-            'n a',
-            'sem descricao',
-            'sem descrição',
-            'sem detalhes',
-            'sem detalhe',
-            'nao informado',
-            'não informado',
-            'indefinido',
-        ], true);
-    }
-
-    /**
-     * Detecta quando o usuário tenta registrar mais de uma transação na mesma mensagem.
-     */
     private function isCompoundFinancialMessage(): bool
     {
         $message = mb_strtolower(trim($this->message));
@@ -1099,9 +352,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
         return $verbHits >= 2;
     }
 
-    /**
-     * Detecta mensagens que parecem tentar registrar uma transação.
-     */
     private function looksLikeTransactionIntent(string $message): bool
     {
         foreach (['gastei', 'gasto', 'paguei', 'recebi', 'ganhei', 'entrou'] as $keyword) {
@@ -1113,9 +363,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
         return false;
     }
 
-    /**
-     * Resposta guiada para mensagens com múltiplos lançamentos.
-     */
     private function buildCompoundTransactionReply(): string
     {
         return "⚠️ Eu ainda não consigo registrar vários lançamentos na mesma mensagem.\n\n".
@@ -1126,9 +373,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
             "Se quiser, pode me enviar uma mensagem atrás da outra que eu registro tudo.";
     }
 
-    /**
-     * Resposta de ajuda para erros de validação no WhatsApp.
-     */
     private function buildValidationGuidanceReply(array $errors = []): string
     {
         $message = mb_strtolower($this->message);
@@ -1174,229 +418,18 @@ class ProcessWhatsAppMessage implements ShouldQueue
         return $details !== '' ? $base."\n\nDetalhe: {$details}" : $base;
     }
 
-    /**
-     * Edita uma transação existente
-     */
-    private function editTransaction(User $user, $transactionId, array $data): Transaction
-    {
-        // Se o transactionId não for numérico, tenta buscar por descrição/valor
-        if (! is_numeric($transactionId)) {
-            $transaction = Transaction::findByDescriptionOrAmount($user, (string) $transactionId);
-        } else {
-            $transaction = Transaction::where('id', $transactionId)
-                ->where('user_id', $user->id)
-                ->first();
-        }
-
-        if (! $transaction) {
-            throw new \Exception('Transação não encontrada para edição.');
-        }
-
-        $updateData = [];
-
-        if (isset($data['amount'])) {
-            $updateData['amount'] = (float) $data['amount'];
-        }
-
-        if (isset($data['description'])) {
-            $updateData['description'] = $data['description'];
-        }
-
-        if (isset($data['category_id'])) {
-            $category = Category::where('id', $data['category_id'])
-                ->where('user_id', $user->id)
-                ->first();
-            $updateData['category_id'] = $category?->id;
-        }
-
-        if (isset($data['date'])) {
-            $updateData['date'] = $data['date'];
-        }
-
-        if (isset($data['type'])) {
-            $updateData['type'] = $data['type'];
-        }
-
-        $transaction->update($updateData);
-
-        // Registra log de auditoria
-        AuditLog::log(
-            'transaction.updated',
-            $user->id,
-            Transaction::class,
-            $transaction->id,
-            [
-                'source' => 'whatsapp',
-                'changes' => $updateData,
-            ]
-        );
-
-        return $transaction->fresh(['category']);
-    }
-
-    /**
-     * Deleta uma transação existente
-     */
-    private function deleteTransaction(User $user, $transactionId): array
-    {
-
-        Log::info('Iniciando deleção de transação', [
-            'user_id' => $user->id,
-            'input_transaction_id' => $transactionId,
-        ]);
-
-        $transaction = $this->resolveTransactionForDeletion($user, $transactionId);
-
-        if (! $transaction) {
-            Log::warning('Transação não encontrada para exclusão', [
-                'user_id' => $user->id,
-                'input_transaction_id' => $transactionId,
-            ]);
-            throw new \Exception('Transação não encontrada para exclusão.');
-        }
-
-        $transactionData = [
-            'id' => $transaction->id,
-            'amount' => $transaction->amount,
-            'type' => $transaction->type,
-            'description' => $transaction->description,
-            'category_name' => $transaction->category?->name,
-        ];
-
-        Log::info('Deletando transação', [
-            'user_id' => $user->id,
-            'transaction_id' => $transaction->id,
-            'description' => $transaction->description,
-            'amount' => $transaction->amount,
-        ]);
-
-        $transaction->delete();
-
-        // Registra log de auditoria
-        AuditLog::log(
-            'transaction.deleted',
-            $user->id,
-            Transaction::class,
-            $transaction->id,
-            [
-                'source' => 'whatsapp',
-                'deleted_transaction' => $transactionData,
-            ]
-        );
-
-        return $transactionData;
-    }
-
-    /**
-     * Resolve qual transação deve ser apagada sem chutar em caso ambíguo.
-     */
-    private function resolveTransactionForDeletion(User $user, $transactionId): ?Transaction
-    {
-        if (is_numeric($transactionId)) {
-            Log::info('Buscando transação por ID', [
-                'id' => $transactionId,
-            ]);
-
-            return Transaction::query()
-                ->with('category')
-                ->where('id', $transactionId)
-                ->where('user_id', $user->id)
-                ->first();
-        }
-
-        $query = mb_strtolower(trim((string) $transactionId));
-        $query = str_replace(['*', '_'], '', $query);
-
-        if ($query === '' || in_array($query, ['ultima', 'última', 'ultima transacao', 'última transação', 'ultima compra', 'última compra'], true)) {
-            return Transaction::query()
-                ->with('category')
-                ->where('user_id', $user->id)
-                ->latest('date')
-                ->latest('id')
-                ->first();
-        }
-
-        Log::info('Buscando transação por descrição/valor', [
-            'busca' => $query,
-        ]);
-
-        $candidates = Transaction::query()
-            ->with('category')
-            ->where('user_id', $user->id)
-            ->where(function ($builder) use ($query) {
-                $builder->whereRaw('LOWER(description) LIKE ?', ['%'.$query.'%'])
-                    ->orWhereHas('category', function ($categoryQuery) use ($query) {
-                        $categoryQuery->whereRaw('LOWER(name) LIKE ?', ['%'.$query.'%']);
-                    });
-            })
-            ->latest('date')
-            ->latest('id')
-            ->limit(5)
-            ->get();
-
-        if ($candidates->isEmpty()) {
-            return null;
-        }
-
-        if ($candidates->count() > 1) {
-            throw new \Exception('Encontrei mais de uma transação com esse contexto. Me diga o valor ou a data da que você quer apagar.');
-        }
-
-        return $candidates->first();
-    }
-
-    /**
-     * Monta uma resposta de exclusão mais humana.
-     */
-    private function buildDeleteReply(array $transaction): string
-    {
-        $amount = number_format((float) ($transaction['amount'] ?? 0), 2, ',', '.');
-        $description = trim((string) ($transaction['description'] ?? ''));
-        $category = trim((string) ($transaction['category_name'] ?? ''));
-        $label = $description !== '' && ! $this->isPlaceholderDescription($description)
-            ? $description
-            : ($category !== '' ? $category : 'transação');
-
-        return "✅ Apaguei {$label} de R$ {$amount}.";
-    }
-
-    /**
-     * Monta uma resposta objetiva para edições.
-     */
-    private function buildEditReply(Transaction $transaction): string
-    {
-        $amount = number_format((float) $transaction->amount, 2, ',', '.');
-        $description = trim((string) $transaction->description);
-        $category = trim((string) ($transaction->category?->name ?? ''));
-        $label = $description !== '' ? $description : ($category !== '' ? $category : 'transação');
-
-        if ($category !== '' && $description !== '' && $description !== $category) {
-            return "✅ Atualizei {$label} em {$category} para R$ {$amount}.";
-        }
-
-        return "✅ Atualizei {$label} para R$ {$amount}.";
-    }
-
-    /**
-     * Obtém o JID do destinatário para envio de mensagem
-     */
     private function getRecipientJid(PhoneNumberService $phoneNumberService): string
     {
-        // Prioridade 1: JID original (garante entrega para @lid ou @s.whatsapp.net exato)
         if ($this->remoteJid) {
             return $this->remoteJid;
         }
 
-        // Prioridade 2: Número real do usuário (convertido para JID com prefixo 55 se necessário)
         $cleanNumber = $phoneNumberService->clean($this->phoneNumber);
 
         return $phoneNumberService->toWhatsAppJid($cleanNumber);
     }
 
-    /**
-     * Envia mensagem de erro ao usuário
-     */
-    private function sendErrorMessage(
+    public function sendErrorMessage(
         BaileysService $baileysService,
         PhoneNumberService $phoneNumberService,
         string $message
@@ -1412,9 +445,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
     }
 
-    /**
-     * Gera mensagem de erro amigável baseada na exceção
-     */
     private function getErrorMessage(\Exception $e): string
     {
         $errorType = get_class($e);
@@ -1437,122 +467,13 @@ class ProcessWhatsAppMessage implements ShouldQueue
             }
         }
 
-        // Mensagens específicas por tipo de erro
         $messages = [
             \Illuminate\Validation\ValidationException::class => $this->buildValidationGuidanceReply(),
-
             \Illuminate\Database\QueryException::class => '❌ Ocorreu um erro ao salvar os dados. Tente novamente em alguns instantes.',
         ];
 
-        // Retorna mensagem específica ou mensagem padrão
         return $messages[$errorType] ??
             "❌ Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente em alguns instantes.\n\n".
             'Se o problema persistir, entre em contato com o suporte.';
-    }
-
-    /**
-     * Gera e envia relatório via WhatsApp
-     */
-    private function generateAndSendReport(
-        User $user,
-        string $action,
-        BaileysService $baileysService,
-        PhoneNumberService $phoneNumberService
-    ): void {
-        try {
-            $period = 'monthly'; // Por padrão, mês atual
-            $selectedMonth = now()->format('Y-m');
-            $year = now()->year;
-
-            // Extrai período da mensagem se mencionado
-            if (preg_match('/\b(ano|anual|yearly)\b/i', $this->message)) {
-                $period = 'yearly';
-            }
-
-            // Extrai mês/ano específico se mencionado
-            if (preg_match('/\b(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(\d{4})\b/i', $this->message, $matches)) {
-                $monthNames = [
-                    'janeiro' => '01', 'fevereiro' => '02', 'março' => '03', 'abril' => '04',
-                    'maio' => '05', 'junho' => '06', 'julho' => '07', 'agosto' => '08',
-                    'setembro' => '09', 'outubro' => '10', 'novembro' => '11', 'dezembro' => '12',
-                ];
-                $month = $monthNames[strtolower($matches[1])] ?? null;
-                $year = (int) $matches[2];
-                if ($month) {
-                    $selectedMonth = "{$year}-{$month}";
-                }
-            }
-
-            // Determina formato do relatório
-            $format = match ($action) {
-                'query_report_pdf' => 'pdf',
-                'query_report_csv' => 'csv',
-                'query_report_excel' => 'excel',
-                default => 'pdf',
-            };
-
-            // Gera URL do relatório
-            $reportUrl = match ($format) {
-                'pdf' => route('reports.export.pdf', [
-                    'period' => $period,
-                    'selectedMonth' => $selectedMonth,
-                    'year' => $year,
-                ]),
-                'excel' => route('reports.export.excel', [
-                    'period' => $period,
-                    'selectedMonth' => $selectedMonth,
-                    'year' => $year,
-                ]),
-                'csv' => route('transactions.export.csv', [
-                    'period' => $period,
-                    'selectedMonth' => $selectedMonth,
-                    'year' => $year,
-                ]),
-                default => route('reports.export.pdf', [
-                    'period' => $period,
-                    'selectedMonth' => $selectedMonth,
-                    'year' => $year,
-                ]),
-            };
-
-            $formatName = match ($format) {
-                'pdf' => 'PDF',
-                'csv' => 'CSV',
-                'excel' => 'Excel',
-                default => 'PDF',
-            };
-
-            $periodName = $period === 'monthly'
-                ? 'mês atual'
-                : "ano de {$year}";
-
-            if ($selectedMonth !== now()->format('Y-m') && $period === 'monthly') {
-                $periodName = 'mês '.\Carbon\Carbon::createFromFormat('Y-m', $selectedMonth)->translatedFormat('m/Y');
-            }
-
-            $message = "📊 Seu relatório {$formatName} está pronto.\n\n".
-                "📅 Período: {$periodName}\n".
-                "🔗 Link para abrir ou baixar:\n{$reportUrl}\n\n".
-                'Se quiser, eu também posso gerar esse relatório em outro formato.';
-
-            $this->sendResponse($baileysService, $phoneNumberService, $message, $user);
-
-            Log::info('Relatório gerado via WhatsApp', [
-                'user_id' => $user->id,
-                'format' => $format,
-                'period' => $period,
-                'selectedMonth' => $selectedMonth,
-                'year' => $year,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Erro ao gerar relatório via WhatsApp', [
-                'user_id' => $user->id,
-                'action' => $action,
-                'error' => $e->getMessage(),
-            ]);
-
-            $errorMessage = '❌ Não consegui gerar o relatório. Tente novamente em alguns instantes.';
-            $this->sendErrorMessage($baileysService, $phoneNumberService, $errorMessage);
-        }
     }
 }
