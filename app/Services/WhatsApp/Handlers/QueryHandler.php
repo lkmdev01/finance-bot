@@ -3,10 +3,11 @@
 namespace App\Services\WhatsApp\Handlers;
 
 use App\Jobs\ProcessWhatsAppMessage;
-use App\Models\Budget;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use App\Services\WhatsApp\BudgetConversationService;
+use App\Services\WhatsApp\ConversationStateService;
 use Illuminate\Support\Facades\Log;
 
 class QueryHandler extends BaseHandler
@@ -33,9 +34,10 @@ class QueryHandler extends BaseHandler
     public function handle(?string $action, array &$result, User $user, WhatsAppContact $contact, ProcessWhatsAppMessage $job): bool
     {
         $rawMessage = $result['_resolved_message'] ?? $job->message;
+        $entities = [];
 
         try {
-            $reply = $this->buildQueryReply($user, $action, $result['reply'] ?? '', $rawMessage);
+            [$reply, $entities] = $this->buildQueryReply($user, $contact, $action, $result['reply'] ?? '', $rawMessage);
         } catch (\Throwable $exception) {
             Log::error('Falha ao montar resposta de consulta via WhatsApp', [
                 'user_id' => $user->id,
@@ -49,7 +51,7 @@ class QueryHandler extends BaseHandler
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'query',
-            'entities' => $this->extractConversationEntities($action, $rawMessage),
+            'entities' => array_merge($this->extractConversationEntities($action, $rawMessage), $entities),
         ]);
 
         Log::info('Consulta processada via WhatsApp', [
@@ -63,13 +65,13 @@ class QueryHandler extends BaseHandler
         return true;
     }
 
-    private function buildQueryReply(User $user, ?string $action, string $fallbackReply, string $rawMessage): string
+    private function buildQueryReply(User $user, WhatsAppContact $contact, ?string $action, string $fallbackReply, string $rawMessage): array
     {
         return match ($action) {
-            'query_transactions' => $this->buildTransactionsReply($user, $rawMessage),
-            'query_category' => $this->buildCategoryReply($user, $fallbackReply, $rawMessage),
-            'query_budgets' => $this->buildBudgetsReply($user, $rawMessage),
-            default => $fallbackReply,
+            'query_transactions' => [$this->buildTransactionsReply($user, $rawMessage), []],
+            'query_category' => [$this->buildCategoryReply($user, $fallbackReply, $rawMessage), []],
+            'query_budgets' => $this->buildBudgetReplyData($user, $contact, $rawMessage),
+            default => [$fallbackReply, []],
         };
     }
 
@@ -90,7 +92,7 @@ class QueryHandler extends BaseHandler
         $transactions = Transaction::query()
             ->with('category')
             ->where('user_id', $user->id)
-            ->when($type, fn ($q) => $q->where('type', $type))
+            ->when($type, fn ($query) => $query->where('type', $type))
             ->latest('date')
             ->latest('id')
             ->limit(5)
@@ -111,11 +113,9 @@ class QueryHandler extends BaseHandler
             $amount = number_format((float) $transaction->amount, 2, ',', '.');
 
             return "- {$date} - {$label}{$category}: R$ {$amount}";
-        })->implode("
-");
+        })->implode("\n");
 
-        return "{$title}:
-{$lines}";
+        return "{$title}:\n{$lines}";
     }
 
     private function buildCategoryReply(User $user, string $fallbackReply, string $rawMessage): string
@@ -155,6 +155,14 @@ class QueryHandler extends BaseHandler
         return "Encontrei {$count} gastos com {$label}, somando R$ {$total}. O mais recente foi em {$latestDate}.";
     }
 
+    private function buildBudgetReplyData(User $user, WhatsAppContact $contact, string $rawMessage): array
+    {
+        $state = app(ConversationStateService::class)->getState($contact);
+        $data = app(BudgetConversationService::class)->buildReply($user, $rawMessage, $state);
+
+        return [$data['reply'], $data['entities'] ?? []];
+    }
+
     private function extractCategorySearchTerm(string $rawMessage): ?string
     {
         $message = mb_strtolower(trim($rawMessage));
@@ -172,7 +180,7 @@ class QueryHandler extends BaseHandler
             if (preg_match($pattern, $message, $matches)) {
                 $term = trim($matches[1]);
                 $term = preg_replace('/\b(hoje|ontem|esse mes|este mes|mês|mes|ultimos?|últimos?)\b/u', '', $term);
-                $term = trim($term);
+                $term = trim((string) $term);
 
                 if ($term !== '') {
                     return $term;
@@ -183,92 +191,10 @@ class QueryHandler extends BaseHandler
         return null;
     }
 
-    private function buildBudgetsReply(User $user, string $rawMessage): string
-    {
-        $budgets = Budget::query()
-            ->with('category')
-            ->where('user_id', $user->id)
-            ->where('year', now()->year)
-            ->where(function ($query) {
-                $query->where(function ($monthly) {
-                    $monthly->where('period', 'monthly')->where('month', now()->month);
-                })->orWhere('period', 'yearly');
-            })
-            ->orderBy('period')
-            ->orderByDesc('amount')
-            ->get();
-
-        if ($budgets->isEmpty()) {
-            return 'Você ainda não tem orçamentos cadastrados para este período.';
-        }
-
-        $searchTerm = $this->extractBudgetSearchTerm($rawMessage);
-
-        if ($searchTerm !== null) {
-            $normalizedTerm = mb_strtolower($searchTerm);
-
-            $budgets = $budgets->filter(function (Budget $budget) use ($normalizedTerm) {
-                $categoryName = mb_strtolower((string) ($budget->category?->name ?? ''));
-
-                return $categoryName !== '' && str_contains($categoryName, $normalizedTerm);
-            })->values();
-
-            if ($budgets->isEmpty()) {
-                return "Não encontrei orçamento para {$searchTerm} neste período.";
-            }
-        }
-
-        $periodLabel = now()->translatedFormat('F/Y');
-
-        $lines = $budgets->map(function (Budget $budget) {
-            $amount = number_format((float) $budget->amount, 2, ',', '.');
-            $spent = number_format((float) $budget->spent, 2, ',', '.');
-            $remaining = number_format((float) $budget->remaining, 2, ',', '.');
-            $period = $budget->period === 'yearly' ? 'anual' : 'mensal';
-            $category = $budget->category?->name ?? 'Sem categoria';
-
-            return "- {$category}: limite R$ {$amount} | gasto R$ {$spent} | restante R$ {$remaining} ({$period})";
-        })->implode("
-");
-
-        return "Seus orçamentos de {$periodLabel}:
-{$lines}";
-    }
-
-    private function extractBudgetSearchTerm(string $rawMessage): ?string
-    {
-        $message = mb_strtolower(trim($rawMessage));
-        $message = preg_replace('/[?!.]+/u', '', $message);
-
-        $patterns = [
-            '/orcamento\s+(?:para|de)\s+(.+)$/u',
-            '/orçamento\s+(?:para|de)\s+(.+)$/u',
-            '/meu\s+orcamento\s+(?:para|de)\s+(.+)$/u',
-            '/meu\s+orçamento\s+(?:para|de)\s+(.+)$/u',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $message, $matches)) {
-                $term = trim($matches[1]);
-                $term = preg_replace('/\b(geral|gerais|do mes|do mês|desse mes|desse mês|este mes|este mês)\b/u', '', $term);
-                $term = trim($term);
-
-                if ($term !== '') {
-                    return ucfirst($term);
-                }
-            }
-        }
-
-        return null;
-    }
-
     private function extractConversationEntities(?string $action, string $rawMessage): array
     {
         return match ($action) {
-            'query_budgets' => array_filter([
-                'topic' => 'budget',
-                'category_name' => $this->extractBudgetSearchTerm($rawMessage),
-            ]),
+            'query_budgets' => ['topic' => 'budget'],
             'query_category' => array_filter([
                 'topic' => 'expense_category',
                 'category_name' => $this->extractCategorySearchTerm($rawMessage),

@@ -27,7 +27,7 @@ class ConversationOrchestrator
             ],
             'acknowledgement' => [
                 'handled' => true,
-                'reply' => $this->composer->composeNeutralAcknowledgement($state['last_action'] ?? null),
+                'reply' => $this->composer->composeNeutralAcknowledgement($state['last_action'] ?? null, $state['last_entities'] ?? []),
                 'action' => null,
                 'metadata' => ['clear_pending' => false, 'reply_kind' => 'message'],
             ],
@@ -43,20 +43,6 @@ class ConversationOrchestrator
                     '_conversation_metadata' => [
                         'clear_pending' => true,
                         'reply_kind' => 'query',
-                    ],
-                ],
-            ],
-            'budget_follow_up' => [
-                'handled' => false,
-                'result' => [
-                    'reply' => '',
-                    'action' => 'query_budgets',
-                    'transaction_data' => null,
-                    '_resolved_message' => 'qual meu orcamento para '.$classification['category_name'].'?',
-                    '_conversation_metadata' => [
-                        'clear_pending' => true,
-                        'reply_kind' => 'query',
-                        'entities' => ['category_name' => $classification['category_name']],
                     ],
                 ],
             ],
@@ -116,7 +102,7 @@ class ConversationOrchestrator
         if (($state['mode'] ?? 'idle') !== 'awaiting_confirmation') {
             return [
                 'handled' => true,
-                'reply' => $this->composer->composeNeutralAcknowledgement($state['last_action'] ?? null),
+                'reply' => $this->composer->composeNeutralAcknowledgement($state['last_action'] ?? null, $state['last_entities'] ?? []),
                 'action' => null,
                 'metadata' => ['clear_pending' => false, 'reply_kind' => 'message'],
             ];

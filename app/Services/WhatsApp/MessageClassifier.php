@@ -6,9 +6,8 @@ class MessageClassifier
 {
     public function classify(string $message, array $state = []): array
     {
-        $normalized = mb_strtolower(trim($message));
-        $normalized = preg_replace('/\s+/u', ' ', $normalized);
-        $stripped = preg_replace('/[!?.]+/u', '', $normalized);
+        $normalized = $this->normalize($message);
+        $stripped = preg_replace('/[!?.]+/u', '', $normalized) ?? $normalized;
 
         if ($this->isGreeting($stripped)) {
             return ['kind' => 'greeting', 'normalized' => $stripped];
@@ -26,12 +25,8 @@ class MessageClassifier
             return ['kind' => $kind, 'normalized' => $stripped];
         }
 
-        if ($this->looksLikeBudgetQuery($stripped)) {
+        if ($this->looksLikeBudgetQuery($stripped, $state)) {
             return ['kind' => 'budget_query', 'normalized' => $stripped];
-        }
-
-        if ($followUp = $this->extractFollowUpBudgetCategory($stripped, $state)) {
-            return ['kind' => 'budget_follow_up', 'category_name' => $followUp, 'normalized' => $stripped];
         }
 
         return ['kind' => 'default', 'normalized' => $stripped];
@@ -39,7 +34,7 @@ class MessageClassifier
 
     private function isGreeting(string $message): bool
     {
-        return in_array($message, ['oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e ai', 'e aí', 'hey', 'opa'], true);
+        return in_array($message, ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e ai', 'hey', 'opa'], true);
     }
 
     private function isShortAcknowledgement(string $message): bool
@@ -49,12 +44,12 @@ class MessageClassifier
 
     private function isCancellation(string $message): bool
     {
-        if (in_array($message, ['cancelar', 'cancela', 'deixa', 'deixa pra la', 'deixa pra lá', 'não', 'nao'], true)) {
+        if (in_array($message, ['cancelar', 'cancela', 'deixa', 'deixa pra la', 'nao', 'não'], true)) {
             return true;
         }
 
-        foreach (['não quero', 'nao quero', 'agora não', 'agora nao', 'não precisa', 'nao precisa'] as $phrase) {
-            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
+        foreach (['nao quero', 'não quero', 'agora nao', 'agora não', 'nao precisa', 'não precisa'] as $phrase) {
+            if ($message === $phrase || str_starts_with($message, $phrase . ' ')) {
                 return true;
             }
         }
@@ -62,14 +57,36 @@ class MessageClassifier
         return false;
     }
 
-    private function looksLikeBudgetQuery(string $message): bool
+    private function looksLikeBudgetQuery(string $message, array $state): bool
     {
-        if (! str_contains($message, 'orcamento') && ! str_contains($message, 'orçamento')) {
+        if ((str_contains($message, 'orcamento') || str_contains($message, 'orçamento')) && $this->containsBudgetQueryCue($message)) {
+            return true;
+        }
+
+        if (($state['last_action'] ?? null) !== 'query_budgets') {
             return false;
         }
 
-        foreach (['qual', 'quais', 'mostrar', 'mostra', 'meu', 'meus', 'listar', 'liste'] as $keyword) {
-            if (str_contains($message, $keyword)) {
+        if ($this->containsAny($message, ['mes passado', 'mês passado', 'esse mes', 'esse mês', 'este mes', 'este mês', 'ano passado'])) {
+            return true;
+        }
+
+        if ($this->containsAny($message, ['mais apertad', 'mais folga', 'mais livre', 'compar', 'vs', 'versus'])) {
+            return true;
+        }
+
+        return $this->looksLikeBudgetCategoryFollowUp($message);
+    }
+
+    private function containsBudgetQueryCue(string $message): bool
+    {
+        return $this->containsAny($message, ['qual', 'quais', 'mostrar', 'mostra', 'meu', 'meus', 'listar', 'liste', 'compare', 'comparar']);
+    }
+
+    private function containsAny(string $message, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if (str_contains($message, $this->normalize($needle))) {
                 return true;
             }
         }
@@ -77,20 +94,36 @@ class MessageClassifier
         return false;
     }
 
-    private function extractFollowUpBudgetCategory(string $message, array $state): ?string
+    private function looksLikeBudgetCategoryFollowUp(string $message): bool
     {
-        if (($state['last_action'] ?? null) !== 'query_budgets') {
-            return null;
-        }
-
         if (! preg_match('/^(?:e\s+)?(?:o|a|os|as)?\s*([\p{L}\p{N} _-]+)$/u', $message, $matches)) {
-            return null;
+            return false;
         }
 
         $term = trim($matches[1] ?? '');
-        $term = preg_replace('/\b(orcamento|orçamento|mes|mês|geral|gerais|tambem|também)\b/u', '', $term);
-        $term = trim((string) $term);
 
-        return $term !== '' ? ucfirst($term) : null;
+        if ($term === '') {
+            return false;
+        }
+
+        $term = preg_replace('/\b(orcamento|orçamento|mes|mês|geral|gerais|tambem|também)\b/u', '', $term) ?? $term;
+        $term = trim($term);
+
+        if ($term === '') {
+            return false;
+        }
+
+        $wordCount = count(array_filter(explode(' ', $term)));
+
+        return $wordCount <= 3 && ! $this->containsAny($term, ['saldo', 'gasto', 'receita', 'relatorio', 'relatório']);
+    }
+
+    private function normalize(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+        $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+        return $converted !== false ? $converted : $value;
     }
 }
