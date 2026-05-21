@@ -48,7 +48,7 @@ class SubscriptionConversationService
             'normalized_message' => $normalized,
             'subscription_names' => $this->resolveSubscriptions($normalized, $available, $lastEntities),
             'due_filter' => $this->resolveDueFilter($normalized),
-            'include_inactive' => $this->containsAny($normalized, ['inativa', 'inativas', 'cancelada', 'canceladas', 'todas']),
+            'status_filter' => $this->resolveStatusFilter($normalized),
         ];
     }
 
@@ -99,12 +99,31 @@ class SubscriptionConversationService
         return null;
     }
 
+    private function resolveStatusFilter(string $message): string
+    {
+        if ($this->containsAny($message, ['canceladas', 'cancelados', 'cancelada', 'inativas', 'inativa'])) {
+            return 'inactive';
+        }
+
+        if ($this->containsAny($message, ['ativas', 'ativa'])) {
+            return 'active';
+        }
+
+        if ($this->containsAny($message, ['todas', 'todas elas', 'todas as assinaturas'])) {
+            return 'all';
+        }
+
+        return 'active';
+    }
+
     private function loadSubscriptions(User $user, array $context): Collection
     {
         $query = $user->subscriptions()->with(['category', 'bankAccount', 'creditCard'])->orderBy('next_due_date')->orderBy('name');
 
-        if (! $context['include_inactive']) {
+        if (($context['status_filter'] ?? 'active') === 'active') {
             $query->where('is_active', true);
+        } elseif (($context['status_filter'] ?? 'active') === 'inactive') {
+            $query->where('is_active', false);
         }
 
         $subscriptions = $query->get();
@@ -127,6 +146,14 @@ class SubscriptionConversationService
     {
         if (! empty($context['subscription_names'])) {
             return 'Nao encontrei essa assinatura ativa. Se quiser, eu posso listar suas assinaturas ou olhar as proximas cobrancas.';
+        }
+
+        if (($context['status_filter'] ?? 'active') === 'inactive') {
+            return 'Voce nao tem assinaturas canceladas no momento.';
+        }
+
+        if (($context['status_filter'] ?? 'active') === 'active') {
+            return 'Voce nao tem assinaturas ativas no momento.';
         }
 
         if ($context['due_filter'] === 'overdue') {
@@ -154,7 +181,13 @@ class SubscriptionConversationService
             ->filter(fn (Subscription $subscription) => $subscription->is_active && $subscription->billing_cycle === 'monthly')
             ->sum('amount');
 
-        $reply = "Suas assinaturas atuais:\n{$lines}\n\nTotal mensal ativo: R$ {$this->formatMoney($monthlyTotal)}.";
+        $title = match ($context['status_filter'] ?? 'active') {
+            'inactive' => 'Suas assinaturas canceladas:',
+            'all' => 'Suas assinaturas:',
+            default => 'Suas assinaturas atuais:',
+        };
+
+        $reply = "{$title}\n{$lines}\n\nTotal mensal ativo: R$ {$this->formatMoney($monthlyTotal)}.";
         $advisor = app(FinancialConversationAdvisor::class);
 
         if (($insight = $advisor->subscriptionSummaryInsight($subscriptions)) !== null) {
@@ -206,6 +239,7 @@ class SubscriptionConversationService
             'subscription_name' => count($context['subscription_names']) === 1 ? $context['subscription_names'][0] : null,
             'subscription_names' => count($context['subscription_names']) > 1 ? $context['subscription_names'] : null,
             'subscription_due_filter' => $context['due_filter'],
+            'subscription_status_filter' => $context['status_filter'] ?? 'active',
         ], $extra), fn ($value) => $value !== null && $value !== [] && $value !== '');
     }
 

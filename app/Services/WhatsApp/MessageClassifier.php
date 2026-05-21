@@ -42,6 +42,12 @@ class MessageClassifier
             return ['kind' => $kind, 'normalized' => $stripped];
         }
 
+        if (($state['last_action'] ?? null) === 'query_subscriptions'
+            && in_array($stripped, ['ativas', 'ativa', 'cancelados', 'canceladas', 'cancelada', 'inativas', 'inativa', 'impacto'], true)
+        ) {
+            return ['kind' => 'subscription_query', 'normalized' => $stripped];
+        }
+
         if ($this->looksLikeSavingsCreate($message, $stripped)) {
             return ['kind' => 'savings_create', 'normalized' => $stripped];
         }
@@ -89,11 +95,11 @@ class MessageClassifier
 
     private function isCancellation(string $message): bool
     {
-        if (in_array($message, ['cancelar', 'cancela', 'deixa', 'deixa pra la', 'nao', 'não'], true)) {
+        if (in_array($message, ['cancelar', 'cancela', 'deixa', 'deixa pra la', 'nao', 'nÃƒÂ£o'], true)) {
             return true;
         }
 
-        foreach (['nao quero', 'não quero', 'agora nao', 'agora não', 'nao precisa', 'não precisa'] as $phrase) {
+        foreach (['nao quero', 'nÃƒÂ£o quero', 'agora nao', 'agora nÃƒÂ£o', 'nao precisa', 'nÃƒÂ£o precisa'] as $phrase) {
             if ($message === $phrase || str_starts_with($message, $phrase . ' ')) {
                 return true;
             }
@@ -174,7 +180,7 @@ class MessageClassifier
 
     private function looksLikeBudgetQuery(string $message, array $state): bool
     {
-        if ((str_contains($message, 'orcamento') || str_contains($message, 'orçamento')) && $this->containsBudgetQueryCue($message)) {
+        if ((str_contains($message, 'orcamento') || str_contains($message, 'orÃƒÂ§amento')) && $this->containsBudgetQueryCue($message)) {
             return true;
         }
 
@@ -182,7 +188,7 @@ class MessageClassifier
             return false;
         }
 
-        if ($this->containsAny($message, ['mes passado', 'mês passado', 'esse mes', 'esse mês', 'este mes', 'este mês', 'ano passado'])) {
+        if ($this->containsAny($message, ['mes passado', 'mÃƒÂªs passado', 'esse mes', 'esse mÃƒÂªs', 'este mes', 'este mÃƒÂªs', 'ano passado'])) {
             return true;
         }
 
@@ -195,7 +201,7 @@ class MessageClassifier
 
     private function looksLikeSavingsQuery(string $message, array $state): bool
     {
-        if ($this->containsAny($message, ['meta', 'metas', 'objetivo', 'objetivos', 'poupanca', 'poupança'])) {
+        if ($this->containsAny($message, ['meta', 'metas', 'objetivo', 'objetivos', 'poupanca', 'poupanÃƒÂ§a'])) {
             return ! $this->containsAny($message, ['criar', 'crie', 'nova', 'novo', 'definir', 'defina', 'cadastrar', 'cadastre']);
         }
 
@@ -203,12 +209,12 @@ class MessageClassifier
             return false;
         }
 
-        if ($this->containsAny($message, ['assinatura', 'assinaturas', 'mensalidade', 'mensalidades', 'projecao', 'projeção', 'projecoes', 'projeções', 'orcamento', 'orçamento'])) {
+        if ($this->containsAny($message, ['assinatura', 'assinaturas', 'mensalidade', 'mensalidades', 'projecao', 'projeÃƒÂ§ÃƒÂ£o', 'projecoes', 'projeÃƒÂ§ÃƒÂµes', 'orcamento', 'orÃƒÂ§amento'])) {
             return false;
         }
 
-        if (preg_match('/\b(quais|qual|me mostra|mostrar|listar|liste|quero ver)\b/u', $message)) {
-            return false;
+        if (preg_match('/\b(quais|qual|me mostra|mostrar|listar|liste|lista|quero ver)\b/u', $message)) {
+            return true;
         }
 
         return $this->looksLikeNamedFollowUp($message);
@@ -231,12 +237,16 @@ class MessageClassifier
             return false;
         }
 
+        if ($this->containsAny($message, ['ativas', 'ativa', 'canceladas', 'cancelados', 'cancelada', 'inativas', 'inativa', 'impacto'])) {
+            return true;
+        }
+
         if ($this->containsAny($message, ['projecao', 'projeção', 'projecoes', 'projeções', 'daqui a', 'proximo mes', 'próximo mês', 'saldo futuro'])) {
             return false;
         }
 
-        if (preg_match('/\b(quais|qual|me mostra|mostrar|listar|liste|quero ver)\b/u', $message)) {
-            return false;
+        if (preg_match('/\b(quais|qual|me mostra|mostrar|listar|liste|lista|quero ver)\b/u', $message)) {
+            return true;
         }
 
         return $this->looksLikeNamedFollowUp($message) || $this->containsAny($message, ['vence', 'vencem', 'proxima', 'proximo vencimento']);
@@ -244,7 +254,7 @@ class MessageClassifier
 
     private function looksLikeProjectionQuery(string $message, array $state): bool
     {
-        if ($this->containsAny($message, ['projecao', 'projeção', 'projecoes', 'projeções', 'futuro', 'daqui a', 'proximo mes', 'próximo mês'])) {
+        if ($this->containsAny($message, ['projecao', 'projeÃƒÂ§ÃƒÂ£o', 'projecoes', 'projeÃƒÂ§ÃƒÂµes', 'futuro', 'daqui a', 'proximo mes', 'prÃƒÂ³ximo mÃƒÂªs'])) {
             return true;
         }
 
@@ -252,7 +262,7 @@ class MessageClassifier
             return false;
         }
 
-        return $this->containsAny($message, ['daqui a', 'proximo', 'próximo', 'depois', 'seguinte']);
+        return $this->containsAny($message, ['daqui a', 'proximo', 'prÃƒÂ³ximo', 'depois', 'seguinte']);
     }
 
     private function looksLikeTransactionFollowUp(string $message, array $state): bool
@@ -263,7 +273,7 @@ class MessageClassifier
             return false;
         }
 
-        if ($this->containsAny($message, ['mes passado', 'mês passado', 'esse mes', 'esse mês', 'este mes', 'este mês', 'hoje', 'ontem'])) {
+        if ($this->containsAny($message, ['mes passado', 'mÃƒÂªs passado', 'esse mes', 'esse mÃƒÂªs', 'este mes', 'este mÃƒÂªs', 'hoje', 'ontem'])) {
             return true;
         }
 
@@ -301,7 +311,7 @@ class MessageClassifier
             return false;
         }
 
-        $term = preg_replace('/\b(orcamento|orçamento|mes|mês|geral|gerais|tambem|também)\b/u', '', $term) ?? $term;
+        $term = preg_replace('/\b(orcamento|orÃƒÂ§amento|mes|mÃƒÂªs|geral|gerais|tambem|tambÃƒÂ©m)\b/u', '', $term) ?? $term;
         $term = trim($term);
         if ($term === '') {
             return false;
@@ -309,7 +319,7 @@ class MessageClassifier
 
         $wordCount = count(array_filter(explode(' ', $term)));
 
-        return $wordCount <= 3 && ! $this->containsAny($term, ['saldo', 'gasto', 'receita', 'relatorio', 'relatório']);
+        return $wordCount <= 3 && ! $this->containsAny($term, ['saldo', 'gasto', 'receita', 'relatorio', 'relatÃƒÂ³rio']);
     }
 
     private function looksLikeCategoryFollowUpMessage(string $message): bool
@@ -325,7 +335,7 @@ class MessageClassifier
 
         $wordCount = count(array_filter(explode(' ', $term)));
 
-        return $wordCount <= 3 && ! $this->containsAny($term, ['saldo', 'orcamento', 'orçamento', 'relatorio', 'relatório']);
+        return $wordCount <= 3 && ! $this->containsAny($term, ['saldo', 'orcamento', 'orÃƒÂ§amento', 'relatorio', 'relatÃƒÂ³rio']);
     }
 
     private function looksLikeNamedFollowUp(string $message): bool

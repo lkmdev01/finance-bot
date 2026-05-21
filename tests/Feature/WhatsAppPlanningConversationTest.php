@@ -366,6 +366,115 @@ it('cancela assinatura via follow up com contexto recente', function () {
     expect(Subscription::query()->where('user_id', $this->user->id)->where('name', 'Netflix')->first()->is_active)->toBeFalse();
 });
 
+it('lista assinaturas canceladas e ativas sem cair no fallback da ia', function () {
+    Subscription::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->categoria->id,
+        'name' => 'Netflix',
+        'amount' => 19.00,
+        'billing_cycle' => 'monthly',
+        'due_day' => 10,
+        'start_date' => now()->toDateString(),
+        'auto_record' => false,
+        'is_active' => false,
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_subscriptions',
+            'last_entities' => ['topic' => 'subscriptions', 'subscription_name' => 'Netflix'],
+            'recent_contexts' => [[
+                'action' => 'query_subscriptions',
+                'entities' => ['topic' => 'subscriptions', 'subscription_name' => 'Netflix'],
+                'reply_kind' => 'query',
+                'timestamp' => now()->toIso8601String(),
+            ]],
+        ],
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Voce nao tem assinaturas ativas no momento.');
+            }))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'lista as ativas',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
+it('consulta assinaturas canceladas pelo contexto recente', function () {
+    Subscription::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->categoria->id,
+        'name' => 'Netflix',
+        'amount' => 19.00,
+        'billing_cycle' => 'monthly',
+        'due_day' => 10,
+        'start_date' => now()->toDateString(),
+        'auto_record' => false,
+        'is_active' => false,
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_subscriptions',
+            'last_entities' => ['topic' => 'subscriptions'],
+            'recent_contexts' => [[
+                'action' => 'query_subscriptions',
+                'entities' => ['topic' => 'subscriptions'],
+                'reply_kind' => 'query',
+                'timestamp' => now()->toIso8601String(),
+            ]],
+        ],
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Suas assinaturas canceladas')
+                    && str_contains($message, 'Netflix');
+            }))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'cancelados',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
 it('consulta projecoes e consegue abrir um horizonte especifico', function () {
     FinancialProjection::create([
         'user_id' => $this->user->id,
