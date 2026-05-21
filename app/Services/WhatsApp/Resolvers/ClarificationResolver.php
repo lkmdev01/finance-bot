@@ -18,6 +18,7 @@ class ClarificationResolver
             'update_budget_category', 'delete_budget_category' => in_array($classification, ['default', 'budget_query'], true),
             'edit_transaction_details' => in_array($classification, ['default', 'transaction_edit'], true),
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
+            'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
             default => false,
         };
     }
@@ -29,6 +30,7 @@ class ClarificationResolver
             'delete_budget_category' => $this->buildBudgetClarificationResult('delete_budget', $message, $state),
             'edit_transaction_details' => $this->buildTransactionEditClarificationResult($message, $state),
             'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
+            'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
             default => null,
         };
     }
@@ -104,5 +106,43 @@ class ClarificationResolver
                 ],
             ],
         ];
+    }
+
+    private function buildRecurringAmountClarificationResult(string $message, array $state): ?array
+    {
+        $amount = $this->extractAmount($message);
+        $pending = $state['pending_payload']['recurring_data'] ?? [];
+
+        if ($amount === null || empty($pending['description']) || empty($pending['frequency'])) {
+            return null;
+        }
+
+        $pending['amount'] = $amount;
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_recurring_transaction',
+                'recurring_data' => $pending,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function extractAmount(string $message): ?float
+    {
+        if (! preg_match('/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/u', $message, $matches)) {
+            return null;
+        }
+
+        $raw = str_replace('.', '', $matches[1]);
+        $amount = (float) str_replace(',', '.', $raw);
+
+        return $amount > 0 ? $amount : null;
     }
 }

@@ -81,12 +81,7 @@ class CreateRecurringTransactionHandler extends BaseHandler
 
         $this->sendResponse(
             $job,
-            sprintf(
-                'Recorrencia criada para %s: R$ %s com frequencia %s.',
-                $recurring->description,
-                number_format((float) $recurring->amount, 2, ',', '.'),
-                $recurring->frequency === 'weekly' ? 'semanal' : 'mensal'
-            ),
+            $this->buildSuccessMessage($recurring),
             $user
         );
 
@@ -106,5 +101,28 @@ class CreateRecurringTransactionHandler extends BaseHandler
             'bank_account_name' => isset($data['bank_account_name']) && trim((string) $data['bank_account_name']) !== '' ? trim((string) $data['bank_account_name']) : null,
             'credit_card_name' => isset($data['credit_card_name']) && trim((string) $data['credit_card_name']) !== '' ? trim((string) $data['credit_card_name']) : null,
         ];
+    }
+
+    private function buildSuccessMessage(RecurringTransaction $recurring): string
+    {
+        $amount = number_format((float) $recurring->amount, 2, ',', '.');
+        $frequency = $recurring->frequency === 'weekly' ? 'semanal' : 'mensal';
+
+        if ($recurring->frequency === 'monthly' && $recurring->day_of_month !== null) {
+            return sprintf(
+                'Recorrência criada para %s: R$ %s com frequência %s, no dia %d.',
+                $recurring->description,
+                $amount,
+                $frequency,
+                $recurring->day_of_month
+            );
+        }
+
+        return sprintf(
+            'Recorrência criada para %s: R$ %s com frequência %s.',
+            $recurring->description,
+            $amount,
+            $frequency
+        );
     }
 }

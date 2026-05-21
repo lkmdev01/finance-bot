@@ -42,6 +42,14 @@ class TransactionIntentClassifier
             return ['kind' => 'recurring_transaction_create', 'normalized' => $normalizedMessage];
         }
 
+        if ($this->looksLikeRecurringTransactionMissingAmount($originalMessage, $normalizedMessage)) {
+            return [
+                'kind' => 'recurring_transaction_needs_amount',
+                'normalized' => $normalizedMessage,
+                'payload' => $this->recurringTransactionMessageParser->parsePartialCreate($originalMessage) ?? [],
+            ];
+        }
+
         if ($this->looksLikeInstallmentTransactionCreate($originalMessage, $normalizedMessage)) {
             return ['kind' => 'installment_transaction_create', 'normalized' => $normalizedMessage];
         }
@@ -145,6 +153,15 @@ class TransactionIntentClassifier
     {
         return $this->recurringTransactionMessageParser->looksLikeCreateIntent($normalizedMessage)
             && $this->recurringTransactionMessageParser->parse($originalMessage) !== null;
+    }
+
+    private function looksLikeRecurringTransactionMissingAmount(string $originalMessage, string $normalizedMessage): bool
+    {
+        $partial = $this->recurringTransactionMessageParser->parsePartialCreate($originalMessage);
+
+        return $this->recurringTransactionMessageParser->looksLikeCreateIntent($normalizedMessage)
+            && $partial !== null
+            && ! array_key_exists('amount', $partial);
     }
 
     private function looksLikeRecurringTransactionEdit(string $originalMessage, string $normalizedMessage, array $state): bool

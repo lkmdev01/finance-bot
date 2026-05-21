@@ -25,6 +25,24 @@ class ConversationOrchestrator
         $state = $this->stateService->getState($contact);
         $classification = $this->classifier->classify($message, $state);
 
+        if (($classification['kind'] ?? null) === 'recurring_transaction_needs_amount') {
+            return [
+                'handled' => true,
+                'reply' => 'Entendi a recorrencia. Agora me diga o valor para eu terminar o cadastro.',
+                'action' => null,
+                'classification' => $classification['kind'],
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'create_recurring_transaction_amount',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'recurring_data' => $classification['payload'] ?? [],
+                    ],
+                ],
+            ];
+        }
+
         if (($state['mode'] ?? 'idle') === 'awaiting_clarification'
             && $this->clarificationResolver->shouldResolve($classification['kind'], $state)) {
             $clarification = $this->clarificationResolver->resolve($message, $state);

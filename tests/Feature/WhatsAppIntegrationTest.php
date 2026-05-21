@@ -1789,3 +1789,74 @@ it('prioriza criacao de assinatura sobre edicao mesmo com contexto anterior', fu
         'credit_card_id' => $creditCard->id,
     ]);
 });
+
+it('registra cartao de credito via whatsapp em fluxo local', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Registrar cartao de credito nubank limite de 5000',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    assertDatabaseHas('credit_cards', [
+        'user_id' => $this->user->id,
+        'name' => 'Nubank',
+        'credit_limit' => 5000.00,
+    ]);
+});
+
+it('consulta cartoes ativos via whatsapp', function () {
+    \App\Models\CreditCard::create([
+        'user_id' => $this->user->id,
+        'name' => 'Nubank',
+        'brand' => 'Mastercard',
+        'last_four' => '1234',
+        'credit_limit' => 5000,
+        'is_active' => true,
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Seus cartoes ativos:')
+                    && str_contains($message, 'Nubank');
+            }))
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Tenho cartoes ativos?',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+});

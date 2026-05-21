@@ -14,6 +14,7 @@ use App\Services\WhatsApp\ActionHandlerFactory;
 use App\Services\WhatsApp\Handlers\CancelSubscriptionHandler;
 use App\Services\WhatsApp\Handlers\CancelRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateBudgetHandler;
+use App\Services\WhatsApp\Handlers\CreateCreditCardHandler;
 use App\Services\WhatsApp\Handlers\CreateInstallmentTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateSavingsGoalHandler;
@@ -81,6 +82,7 @@ class AppServiceProvider extends ServiceProvider
                 CreateSavingsGoalHandler::class,
                 UpdateSavingsGoalHandler::class,
                 CreateSubscriptionHandler::class,
+                CreateCreditCardHandler::class,
                 UpdateSubscriptionHandler::class,
                 CancelSubscriptionHandler::class,
                 CreateRecurringTransactionHandler::class,

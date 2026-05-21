@@ -632,3 +632,39 @@ it('registra log estruturado da conversa', function () {
 
     expect(WhatsAppConversationLog::query()->latest()->first())->not->toBeNull();
 });
+
+it('pede o valor ao iniciar recorrencia sem valor e conclui no complemento', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $first = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Todo mes pagar academia dia 10',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $first->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_recurring_transaction_amount');
+
+    $second = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'O valor e 100',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $second->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('recurring_transactions', [
+        'user_id' => $this->user->id,
+        'description' => 'Academia',
+        'amount' => 100.00,
+        'day_of_month' => 10,
+    ]);
+});

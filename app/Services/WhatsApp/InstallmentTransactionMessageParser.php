@@ -133,7 +133,8 @@ class InstallmentTransactionMessageParser
                 $description = trim((string) ($matches[1] ?? ''));
                 $description = trim($description, " \t\n\r\0\x0B-:");
                 $description = preg_replace('/^(?:um|uma)\s+/iu', '', $description) ?? $description;
-                $description = preg_replace('/\s+(?:na conta|no cart[aã]o|no cartao|pela conta|pelo cart[aã]o|pelo cartao|via conta|via cart[aã]o|via cartao|na categoria)\s+.+$/iu', '', $description) ?? $description;
+                $description = preg_replace('/\\s+e\\s+a\\s+parcela\\b.*$/iu', '', $description) ?? $description;
+                $description = preg_replace('/\s+(?:na conta|no cart[aÃƒÆ’Ã‚Â£]o|no cartao|pela conta|pelo cart[aÃƒÆ’Ã‚Â£]o|pelo cartao|via conta|via cart[aÃƒÆ’Ã‚Â£]o|via cartao|na categoria)\s+.+$/iu', '', $description) ?? $description;
 
                 return $description !== '' ? mb_convert_case(trim($description), MB_CASE_TITLE, 'UTF-8') : null;
             }
@@ -144,7 +145,7 @@ class InstallmentTransactionMessageParser
 
     private function extractCategoryName(string $message): ?string
     {
-        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cart[aã]o|no cartao|pela conta|pelo cart[aã]o|pelo cartao)|[,.]|$)/iu', $message, $matches) === 1) {
+        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cart[aÃƒÆ’Ã‚Â£]o|no cartao|pela conta|pelo cart[aÃƒÆ’Ã‚Â£]o|pelo cartao)|[,.]|$)/iu', $message, $matches) === 1) {
             $category = trim((string) ($matches[1] ?? ''));
             return $category !== '' ? mb_convert_case($category, MB_CASE_TITLE, 'UTF-8') : null;
         }
@@ -161,7 +162,7 @@ class InstallmentTransactionMessageParser
             $bankAccountName = trim((string) ($matches[1] ?? ''));
         }
 
-        if (preg_match('/(?:no cart[aã]o|no cartao|pelo cart[aã]o|pelo cartao|via cart[aã]o|via cartao)\s+(.+?)(?:\s+(?:categoria|parcelad[oa]|em\s+\d{1,2}(?:x|\s+vezes))|[,.]|$)/iu', $message, $matches) === 1) {
+        if (preg_match('/(?:no cart[aÃƒÆ’Ã‚Â£]o|no cartao|pelo cart[aÃƒÆ’Ã‚Â£]o|pelo cartao|via cart[aÃƒÆ’Ã‚Â£]o|via cartao)\s+(.+?)(?:\s+(?:categoria|parcelad[oa]|em\s+\d{1,2}(?:x|\s+vezes))|[,.]|$)/iu', $message, $matches) === 1) {
             $creditCardName = trim((string) ($matches[1] ?? ''));
         }
 

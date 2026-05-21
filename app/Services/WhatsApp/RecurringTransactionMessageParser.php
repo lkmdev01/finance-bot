@@ -8,6 +8,17 @@ class RecurringTransactionMessageParser
 {
     public function parse(string $message): ?array
     {
+        $partial = $this->parsePartialCreate($message);
+
+        if ($partial === null || ($partial['amount'] ?? null) === null) {
+            return null;
+        }
+
+        return $partial;
+    }
+
+    public function parsePartialCreate(string $message): ?array
+    {
         $normalized = $this->normalize($message);
 
         if (! $this->looksLikeCreateIntent($normalized)) {
@@ -22,7 +33,7 @@ class RecurringTransactionMessageParser
         $categoryName = $this->extractCategoryName($message) ?? $description;
         $type = $this->extractType($normalized);
 
-        if ($amount === null || $description === null || $frequency === null) {
+        if ($description === null || $frequency === null) {
             return null;
         }
 
@@ -52,10 +63,7 @@ class RecurringTransactionMessageParser
             return false;
         }
 
-        return str_contains($message, 'pago')
-            || str_contains($message, 'gasto')
-            || str_contains($message, 'recebo')
-            || str_contains($message, 'ganho')
+        return $this->containsAny($message, ['pago', 'pagar', 'gasto', 'gastar', 'recebo', 'receber', 'ganho', 'ganhar', 'debito', 'debitar'])
             || str_contains($message, 'minha ')
             || str_contains($message, 'meu ');
     }
@@ -107,20 +115,33 @@ class RecurringTransactionMessageParser
         return ['description' => $description];
     }
 
+    public function looksLikeEditIntent(string $message): bool
+    {
+        return $this->hasRecurringCue($message) && $this->containsEditVerb($message);
+    }
+
+    public function looksLikeCancelIntent(string $message): bool
+    {
+        return $this->hasRecurringCue($message) && $this->containsCancelVerb($message);
+    }
+
     private function extractAmount(string $message): ?float
     {
         $patterns = [
             '/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)\s*(?:reais?|rs)\b/iu',
-            '/(?:de|por)\s+(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/iu',
+            '/(?:de|por|valor(?:\\s+(?:e|=))?|o valor(?:\\s+(?:e|=))?)\\s+(?:r\\$\\s*)?(\\d+(?:[\\.,]\\d{1,2})?)/iu',
         ];
 
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $message, $matches) === 1) {
                 $raw = str_replace('.', '', $matches[1]);
                 $amount = (float) str_replace(',', '.', $raw);
-
                 return $amount > 0 ? $amount : null;
             }
+        }
+
+        if (preg_match('/(?:todo dia|dia)\s+\d{1,2}\b/iu', $message) === 1) {
+            return null;
         }
 
         if (! preg_match_all('/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/u', $message, $matches) || empty($matches[1])) {
@@ -129,15 +150,14 @@ class RecurringTransactionMessageParser
 
         $raw = str_replace('.', '', end($matches[1]));
         $amount = (float) str_replace(',', '.', $raw);
-
         return $amount > 0 ? $amount : null;
     }
 
     private function extractDescription(string $message, ?string $frequency): ?string
     {
         $patterns = [
-            '/(?:todo dia\s+\d{1,2}|todo mes|cada mes|mensal|toda semana|semanal)\s+(?:eu\s+)?(?:pago|gasto|recebo|ganho)\s+(.+?)(?:\s+(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?|[,.]|$)/iu',
-            '/(?:pago|gasto|recebo|ganho)\s+(.+?)\s+(?:todo dia\s+\d{1,2}|todo mes|cada mes|mensal|toda semana|semanal)(?:\s|$)/iu',
+            '/(?:todo dia\s+\d{1,2}|todo mes|cada mes|mensal|toda semana|semanal)\s+(?:eu\s+)?(?:pago|pagar|gasto|gastar|recebo|receber|ganho|ganhar)\s+(.+?)(?:\s+(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?|\s+dia\s+\d{1,2}|[,.]|$)/iu',
+            '/(?:pago|pagar|gasto|gastar|recebo|receber|ganho|ganhar)\s+(.+?)\s+(?:todo dia\s+\d{1,2}|todo mes|cada mes|mensal|toda semana|semanal)(?:\s|$)/iu',
             '/(?:minha|meu)\s+(.+?)\s+e\s+(?:mensal|semanal)(?:\s*,?\s*dia\s+\d{1,2})?(?:\s*,?\s*(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?)?/iu',
         ];
 
@@ -153,24 +173,6 @@ class RecurringTransactionMessageParser
         }
 
         return null;
-    }
-
-    public function looksLikeEditIntent(string $message): bool
-    {
-        if (! $this->hasRecurringCue($message)) {
-            return false;
-        }
-
-        return $this->containsEditVerb($message);
-    }
-
-    public function looksLikeCancelIntent(string $message): bool
-    {
-        if (! $this->hasRecurringCue($message)) {
-            return false;
-        }
-
-        return $this->containsCancelVerb($message);
     }
 
     private function extractFrequency(string $message): ?string
@@ -190,7 +192,6 @@ class RecurringTransactionMessageParser
     {
         if (preg_match('/(?:todo dia|dia)\s+(\d{1,2})/u', $originalMessage, $matches) === 1) {
             $day = (int) $matches[1];
-
             return ($day >= 1 && $day <= 31) ? $day : null;
         }
 
@@ -203,17 +204,14 @@ class RecurringTransactionMessageParser
 
     private function extractType(string $message): string
     {
-        return str_contains($message, 'recebo') || str_contains($message, 'ganho')
-            ? 'income'
-            : 'expense';
+        return $this->containsAny($message, ['recebo', 'receber', 'ganho', 'ganhar']) ? 'income' : 'expense';
     }
 
     private function extractCategoryName(string $message): ?string
     {
-        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cartao|no cart[aã]o|pela conta|pelo cartao|pelo cart[aã]o|via conta|via cartao|via cart[aã]o)|[,.]|$)/iu', $message, $matches) === 1) {
+        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cartao|no cart[aÃ£]o|pela conta|pelo cartao|pelo cart[aÃ£]o|via conta|via cartao|via cart[aÃ£]o)|[,.]|$)/iu', $message, $matches) === 1) {
             $category = trim((string) ($matches[1] ?? ''));
             $category = $this->cleanupTrailingContext($category, null);
-
             return $category !== '' ? mb_convert_case($category, MB_CASE_TITLE, 'UTF-8') : null;
         }
 
@@ -229,7 +227,7 @@ class RecurringTransactionMessageParser
             $bankAccountName = $this->cleanupTrailingContext(trim((string) ($matches[1] ?? '')), null);
         }
 
-        if (preg_match('/(?:no cartao|no cart[aã]o|pelo cartao|pelo cart[aã]o|via cartao|via cart[aã]o)\s+(.+?)(?:\s+(?:categoria|mensal|semanal|todo dia|todo mes|cada mes|dia\s+\d{1,2})|[,.]|$)/iu', $message, $matches) === 1) {
+        if (preg_match('/(?:no cartao|no cart[aÃ£]o|pelo cartao|pelo cart[aÃ£]o|via cartao|via cart[aÃ£]o)\s+(.+?)(?:\s+(?:categoria|mensal|semanal|todo dia|todo mes|cada mes|dia\s+\d{1,2})|[,.]|$)/iu', $message, $matches) === 1) {
             $creditCardName = $this->cleanupTrailingContext(trim((string) ($matches[1] ?? '')), null);
         }
 
@@ -258,31 +256,19 @@ class RecurringTransactionMessageParser
 
     private function containsEditVerb(string $message): bool
     {
-        foreach (['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'] as $keyword) {
-            if (str_contains($message, $keyword)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->containsAny($message, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza']);
     }
 
     private function containsCancelVerb(string $message): bool
     {
-        foreach (['cancelar', 'cancela', 'desativar', 'desativa', 'parar', 'para', 'pausar', 'pausa'] as $keyword) {
-            if (str_contains($message, $keyword)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->containsAny($message, ['cancelar', 'cancela', 'desativar', 'desativa', 'parar', 'para', 'pausar', 'pausa']);
     }
 
     private function cleanupTrailingContext(string $value, ?string $frequency): string
     {
         $value = trim($value, " \t\n\r\0\x0B-:");
         $value = preg_replace('/^(?:um|uma|meu|minha)\s+/iu', '', $value) ?? $value;
-        $value = preg_replace('/\s+(?:na conta|no cartao|no cart[aã]o|pela conta|pelo cartao|pelo cart[aã]o|via conta|via cartao|via cart[aã]o)\s+.+$/iu', '', $value) ?? $value;
+        $value = preg_replace('/\s+(?:na conta|no cartao|no cart[aÃ£]o|pela conta|pelo cartao|pelo cart[aÃ£]o|via conta|via cartao|via cart[aÃ£]o)\s+.+$/iu', '', $value) ?? $value;
         $value = preg_replace('/\s+(?:categoria|na categoria)\s+.+$/iu', '', $value) ?? $value;
         $value = preg_replace('/\b(?:mensal|semanal|todo dia|todo mes|cada mes|toda semana)\b/iu', '', $value) ?? $value;
         $value = preg_replace('/\bdia\s+\d{1,2}\b/iu', '', $value) ?? $value;
@@ -296,11 +282,21 @@ class RecurringTransactionMessageParser
         return trim($value);
     }
 
+    private function containsAny(string $message, array $terms): bool
+    {
+        foreach ($terms as $term) {
+            if (str_contains($message, $term)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function normalize(string $value): string
     {
         $value = mb_strtolower(trim($value));
         $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
-
         return Str::ascii($value);
     }
 }

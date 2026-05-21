@@ -4,6 +4,7 @@ namespace App\Services\WhatsApp\Resolvers;
 
 use App\Services\WhatsApp\BudgetMessageParser;
 use App\Services\WhatsApp\ConversationContextResolver;
+use App\Services\WhatsApp\CreditCardMessageParser;
 use App\Services\WhatsApp\InstallmentTransactionMessageParser;
 use App\Services\WhatsApp\RecurringTransactionMessageParser;
 use App\Services\WhatsApp\SavingsGoalMessageParser;
@@ -19,6 +20,7 @@ class DomainRoutingResolver
         private readonly BudgetMessageParser $budgetMessageParser,
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
+        private readonly CreditCardMessageParser $creditCardMessageParser,
         private readonly SimpleTransactionMessageParser $simpleTransactionMessageParser,
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
         private readonly RecurringTransactionMessageParser $recurringTransactionMessageParser,
@@ -52,6 +54,7 @@ class DomainRoutingResolver
             ),
             'savings_query' => $this->queryResult('query_savings', $message),
             'subscription_query' => $this->queryResult('query_subscriptions', $message),
+            'credit_card_query' => $this->queryResult('query_credit_cards', $message),
             'projection_query' => $this->queryResult('query_projections', $message),
             'savings_create' => $this->actionResult(
                 'create_savings_goal',
@@ -72,6 +75,12 @@ class DomainRoutingResolver
                 'create_subscription',
                 'subscription_data',
                 $this->subscriptionMessageParser->parse($message) ?? [],
+                $message
+            ),
+            'credit_card_create' => $this->actionResult(
+                'create_credit_card',
+                'credit_card_data',
+                $this->creditCardMessageParser->parseCreate($message) ?? [],
                 $message
             ),
             'subscription_edit' => $this->actionResult(

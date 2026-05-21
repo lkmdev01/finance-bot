@@ -11,6 +11,7 @@ class PlanningIntentClassifier
     public function __construct(
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
+        private readonly CreditCardMessageParser $creditCardMessageParser,
         private readonly ConversationContextResolver $contextResolver,
     ) {}
 
@@ -18,6 +19,10 @@ class PlanningIntentClassifier
     {
         if ($this->looksLikeSubscriptionCreate($originalMessage, $normalizedMessage)) {
             return ['kind' => 'subscription_create', 'normalized' => $normalizedMessage];
+        }
+
+        if ($this->looksLikeCreditCardCreate($originalMessage, $normalizedMessage)) {
+            return ['kind' => 'credit_card_create', 'normalized' => $normalizedMessage];
         }
 
         if ($this->looksLikeSubscriptionCancel($originalMessage, $normalizedMessage, $state)) {
@@ -53,6 +58,10 @@ class PlanningIntentClassifier
             return ['kind' => 'projection_query', 'normalized' => $normalizedMessage];
         }
 
+        if ($this->looksLikeCreditCardQuery($originalMessage, $normalizedMessage)) {
+            return ['kind' => 'credit_card_query', 'normalized' => $normalizedMessage];
+        }
+
         return null;
     }
 
@@ -68,9 +77,17 @@ class PlanningIntentClassifier
             && $this->subscriptionMessageParser->parse($originalMessage) !== null;
     }
 
+    private function looksLikeCreditCardCreate(string $originalMessage, string $normalizedMessage): bool
+    {
+        return $this->creditCardMessageParser->looksLikeCreateIntent($normalizedMessage)
+            && $this->creditCardMessageParser->parseCreate($originalMessage) !== null;
+    }
+
     private function looksLikeSavingsEdit(string $originalMessage, string $normalizedMessage, array $state): bool
     {
-        $fallbackName = $this->contextResolver->recentEntityName($state, 'savings', 'goal_name');
+        $fallbackName = ($state['last_entities']['topic'] ?? null) === 'savings'
+            ? $this->contextResolver->recentEntityName($state, 'savings', 'goal_name')
+            : null;
 
         if ($this->savingsGoalMessageParser->looksLikeEditIntent($normalizedMessage)) {
             return $this->savingsGoalMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
@@ -90,13 +107,15 @@ class PlanningIntentClassifier
 
     private function looksLikeSubscriptionEdit(string $originalMessage, string $normalizedMessage, array $state): bool
     {
-        $fallbackName = $this->contextResolver->recentEntityName($state, 'subscriptions', 'subscription_name');
+        $fallbackName = ($state['last_entities']['topic'] ?? null) === 'subscriptions'
+            ? $this->contextResolver->recentEntityName($state, 'subscriptions', 'subscription_name')
+            : null;
 
         if ($this->subscriptionMessageParser->looksLikeEditIntent($normalizedMessage)) {
             return $this->subscriptionMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
         }
 
-        if (($state['last_entities']['topic'] ?? null) !== 'subscriptions' && $this->contextResolver->recentEntityName($state, 'subscriptions', 'subscription_name') === null) {
+        if (($state['last_entities']['topic'] ?? null) !== 'subscriptions') {
             return false;
         }
 
@@ -109,13 +128,15 @@ class PlanningIntentClassifier
 
     private function looksLikeSubscriptionCancel(string $originalMessage, string $normalizedMessage, array $state): bool
     {
-        $fallbackName = $this->contextResolver->recentEntityName($state, 'subscriptions', 'subscription_name');
+        $fallbackName = ($state['last_entities']['topic'] ?? null) === 'subscriptions'
+            ? $this->contextResolver->recentEntityName($state, 'subscriptions', 'subscription_name')
+            : null;
 
         if ($this->subscriptionMessageParser->looksLikeCancelIntent($normalizedMessage)) {
             return $this->subscriptionMessageParser->parseCancel($originalMessage, $fallbackName) !== null;
         }
 
-        if (($state['last_entities']['topic'] ?? null) !== 'subscriptions' && $this->contextResolver->recentEntityName($state, 'subscriptions', 'subscription_name') === null) {
+        if (($state['last_entities']['topic'] ?? null) !== 'subscriptions') {
             return false;
         }
 
@@ -191,6 +212,11 @@ class PlanningIntentClassifier
         }
 
         return $this->containsAnyText($message, ['daqui a', 'proximo', 'depois', 'seguinte']);
+    }
+
+    private function looksLikeCreditCardQuery(string $originalMessage, string $normalizedMessage): bool
+    {
+        return $this->creditCardMessageParser->looksLikeQueryIntent($normalizedMessage);
     }
 
     private function looksLikeNamedFollowUp(string $message): bool
