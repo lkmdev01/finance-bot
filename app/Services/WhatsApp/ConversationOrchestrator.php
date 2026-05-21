@@ -46,6 +46,19 @@ class ConversationOrchestrator
                     ],
                 ],
             ],
+            'transaction_follow_up' => [
+                'handled' => false,
+                'result' => [
+                    'reply' => '',
+                    'action' => $classification['target_action'] ?? 'query_transactions',
+                    'transaction_data' => null,
+                    '_resolved_message' => $message,
+                    '_conversation_metadata' => [
+                        'clear_pending' => true,
+                        'reply_kind' => 'query',
+                    ],
+                ],
+            ],
             default => ['handled' => false],
         };
     }

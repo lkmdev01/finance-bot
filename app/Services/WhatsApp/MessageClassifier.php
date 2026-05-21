@@ -29,6 +29,14 @@ class MessageClassifier
             return ['kind' => 'budget_query', 'normalized' => $stripped];
         }
 
+        if ($this->looksLikeTransactionFollowUp($stripped, $state)) {
+            return [
+                'kind' => 'transaction_follow_up',
+                'target_action' => $state['last_action'] ?? 'query_transactions',
+                'normalized' => $stripped,
+            ];
+        }
+
         return ['kind' => 'default', 'normalized' => $stripped];
     }
 
@@ -78,6 +86,25 @@ class MessageClassifier
         return $this->looksLikeBudgetCategoryFollowUp($message);
     }
 
+    private function looksLikeTransactionFollowUp(string $message, array $state): bool
+    {
+        $lastAction = $state['last_action'] ?? null;
+
+        if (! in_array($lastAction, ['query_transactions', 'query_category'], true)) {
+            return false;
+        }
+
+        if ($this->containsAny($message, ['mes passado', 'mês passado', 'esse mes', 'esse mês', 'este mes', 'este mês', 'hoje', 'ontem'])) {
+            return true;
+        }
+
+        if ($this->containsAny($message, ['compare', 'comparar', 'versus', 'vs', 'mais pesou', 'mais pesa'])) {
+            return true;
+        }
+
+        return $this->looksLikeCategoryFollowUpMessage($message);
+    }
+
     private function containsBudgetQueryCue(string $message): bool
     {
         return $this->containsAny($message, ['qual', 'quais', 'mostrar', 'mostra', 'meu', 'meus', 'listar', 'liste', 'compare', 'comparar']);
@@ -116,6 +143,23 @@ class MessageClassifier
         $wordCount = count(array_filter(explode(' ', $term)));
 
         return $wordCount <= 3 && ! $this->containsAny($term, ['saldo', 'gasto', 'receita', 'relatorio', 'relatório']);
+    }
+
+    private function looksLikeCategoryFollowUpMessage(string $message): bool
+    {
+        if (! preg_match('/^(?:e\s+)?(?:o|a|os|as)?\s*([\p{L}\p{N} _-]+)$/u', $message, $matches)) {
+            return false;
+        }
+
+        $term = trim($matches[1] ?? '');
+
+        if ($term === '') {
+            return false;
+        }
+
+        $wordCount = count(array_filter(explode(' ', $term)));
+
+        return $wordCount <= 3 && ! $this->containsAny($term, ['saldo', 'orcamento', 'orçamento', 'relatorio', 'relatório']);
     }
 
     private function normalize(string $value): string
