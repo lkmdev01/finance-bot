@@ -5,7 +5,8 @@ namespace App\Services\WhatsApp;
 class MessageClassifier
 {
     public function __construct(
-        private readonly SavingsGoalMessageParser $savingsGoalMessageParser
+        private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
+        private readonly SubscriptionMessageParser $subscriptionMessageParser
     ) {}
 
     public function classify(string $message, array $state = []): array
@@ -31,6 +32,10 @@ class MessageClassifier
 
         if ($this->looksLikeSavingsCreate($message, $stripped)) {
             return ['kind' => 'savings_create', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeSubscriptionCreate($message, $stripped)) {
+            return ['kind' => 'subscription_create', 'normalized' => $stripped];
         }
 
         if ($this->looksLikeBudgetQuery($stripped, $state)) {
@@ -91,6 +96,12 @@ class MessageClassifier
             && $this->savingsGoalMessageParser->parse($originalMessage) !== null;
     }
 
+    private function looksLikeSubscriptionCreate(string $originalMessage, string $normalizedMessage): bool
+    {
+        return $this->subscriptionMessageParser->looksLikeCreateIntent($normalizedMessage)
+            && $this->subscriptionMessageParser->parse($originalMessage) !== null;
+    }
+
     private function looksLikeBudgetQuery(string $message, array $state): bool
     {
         if ((str_contains($message, 'orcamento') || str_contains($message, 'orçamento')) && $this->containsBudgetQueryCue($message)) {
@@ -136,7 +147,7 @@ class MessageClassifier
     private function looksLikeSubscriptionQuery(string $message, array $state): bool
     {
         if ($this->containsAny($message, ['assinatura', 'assinaturas', 'mensalidade', 'mensalidades'])) {
-            return true;
+            return ! $this->containsAny($message, ['criar', 'crie', 'nova', 'novo', 'definir', 'defina', 'cadastrar', 'cadastre']);
         }
 
         if (($state['last_action'] ?? null) !== 'query_subscriptions') {

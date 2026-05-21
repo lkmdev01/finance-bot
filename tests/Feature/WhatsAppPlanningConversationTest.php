@@ -146,6 +146,44 @@ it('consulta assinaturas com proximos vencimentos', function () {
     );
 });
 
+it('cria assinatura via whatsapp com frase natural', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Assinatura Netflix criada com valor de R$ 19,00');
+            }))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Criar assinatura Netflix mensal, dia 10. 19Reais',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    $subscription = Subscription::query()
+        ->where('user_id', $this->user->id)
+        ->where('name', 'Netflix')
+        ->first();
+
+    expect($subscription)->not->toBeNull();
+    expect((float) $subscription->amount)->toBe(19.0);
+    expect($subscription->billing_cycle)->toBe('monthly');
+    expect((int) $subscription->due_day)->toBe(10);
+});
+
 it('consulta projecoes e consegue abrir um horizonte especifico', function () {
     FinancialProjection::create([
         'user_id' => $this->user->id,
