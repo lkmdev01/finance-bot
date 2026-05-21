@@ -20,17 +20,18 @@ class RecurringTransactionMessageParser
     public function parsePartialCreate(string $message): ?array
     {
         $normalized = $this->normalize($message);
+        $sanitized = $this->sanitizePatternInput($message);
 
         if (! $this->looksLikeCreateIntent($normalized)) {
             return null;
         }
 
-        $amount = $this->extractAmount($message);
+        $amount = $this->extractAmount($sanitized);
         $frequency = $this->extractFrequency($normalized);
-        $description = $this->extractDescription($message, $frequency);
-        $dayOfMonth = $this->extractDayOfMonth($message, $normalized);
-        [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($message);
-        $categoryName = $this->extractCategoryName($message) ?? $description;
+        $description = $this->extractDescription($sanitized, $frequency);
+        $dayOfMonth = $this->extractDayOfMonth($sanitized, $normalized);
+        [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($sanitized);
+        $categoryName = $this->extractCategoryName($sanitized) ?? $description;
         $type = $this->extractType($normalized);
 
         if ($description === null || $frequency === null) {
@@ -73,17 +74,18 @@ class RecurringTransactionMessageParser
     public function parseEdit(string $message, ?string $fallbackDescription = null): ?array
     {
         $normalized = $this->normalize($message);
+        $sanitized = $this->sanitizePatternInput($message);
 
         if (! $this->looksLikeEditIntent($normalized) && ! ($fallbackDescription && $this->containsEditVerb($normalized))) {
             return null;
         }
 
-        $description = $this->extractRecurringName($message, $fallbackDescription);
-        $amount = $this->extractAmount($message);
+        $description = $this->extractRecurringName($sanitized, $fallbackDescription);
+        $amount = $this->extractAmount($sanitized);
         $frequency = $this->extractFrequency($normalized);
-        $dayOfMonth = $this->extractDayOfMonth($message, $normalized);
-        [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($message);
-        $categoryName = $this->extractCategoryName($message);
+        $dayOfMonth = $this->extractDayOfMonth($sanitized, $normalized);
+        [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($sanitized);
+        $categoryName = $this->extractCategoryName($sanitized);
 
         if ($description === null || ($amount === null && $frequency === null && $dayOfMonth === null && $bankAccountName === null && $creditCardName === null && $categoryName === null)) {
             return null;
@@ -103,12 +105,13 @@ class RecurringTransactionMessageParser
     public function parseCancel(string $message, ?string $fallbackDescription = null): ?array
     {
         $normalized = $this->normalize($message);
+        $sanitized = $this->sanitizePatternInput($message);
 
         if (! $this->looksLikeCancelIntent($normalized) && ! ($fallbackDescription && $this->containsCancelVerb($normalized))) {
             return null;
         }
 
-        $description = $this->extractRecurringName($message, $fallbackDescription);
+        $description = $this->extractRecurringName($sanitized, $fallbackDescription);
 
         if ($description === null || $description === '') {
             return null;
@@ -301,6 +304,18 @@ class RecurringTransactionMessageParser
     {
         $value = mb_strtolower(trim($value));
         $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
-        return Str::ascii($value);
+        $value = Str::ascii($value);
+
+        return str_replace(['?', '�'], '', $value);
+    }
+
+    private function sanitizePatternInput(string $value): string
+    {
+        $value = trim($value);
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+        $value = Str::ascii($value);
+        $value = str_replace(['?', '�'], '', $value);
+
+        return $value;
     }
 }
