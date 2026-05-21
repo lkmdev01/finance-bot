@@ -22,6 +22,9 @@ class ReminderMessageParser
             'todo dia',
             'cada mes',
             'cada ano',
+            'todo ano',
+            'anual',
+            'anualmente',
         ]);
     }
 
@@ -98,6 +101,33 @@ class ReminderMessageParser
 
     private function extractSchedule(string $normalized): ?array
     {
+        if (preg_match('/\bdia\s+(\d{1,2})\s+(?:do|de|no|na)\s+mes\s+(\d{1,2})\b/u', $normalized, $matches)
+            || preg_match('/\bmes\s+(\d{1,2})\s+(?:dia\s+)?(\d{1,2})\b/u', $normalized, $matches)) {
+            $day = max(1, min(31, (int) $matches[1]));
+            $month = max(1, min(12, (int) $matches[2]));
+
+            if (preg_match('/\bmes\s+(\d{1,2})\s+(?:dia\s+)?(\d{1,2})\b/u', $normalized)) {
+                $month = max(1, min(12, (int) $matches[1]));
+                $day = max(1, min(31, (int) $matches[2]));
+            }
+
+            if ($this->containsAnyText($normalized, ['desse ano', 'deste ano', 'este ano'])) {
+                return [
+                    'frequency' => 'once',
+                    'day_of_month' => null,
+                    'month_of_year' => null,
+                    'next_trigger_at' => $this->oneTimeThisYearTrigger($day, $month)->toIso8601String(),
+                ];
+            }
+
+            return [
+                'frequency' => 'yearly',
+                'day_of_month' => $day,
+                'month_of_year' => $month,
+                'next_trigger_at' => $this->nextYearlyTrigger($day, $month)->toIso8601String(),
+            ];
+        }
+
         if (preg_match('/(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+(\d{1,2})\b/u', $normalized, $matches)
             || preg_match('/\bdia\s+(\d{1,2})\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/u', $normalized, $matches)) {
             $day = max(1, min(31, (int) $matches[1]));
@@ -180,8 +210,11 @@ class ReminderMessageParser
     {
         $title = $cleanMessage;
         $title = preg_replace('/^\s*(?:todo\s+m\S*s|todo\s+mes|cada\s+m\S*s|todo\s+dia|cada\s+ano)\s*/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:anual|anualmente|todo\s+ano|cada\s+ano)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+\d{1,2}\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:do|de|no|na)\s+mes\s+\d{1,2}\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\bmes\s+\d{1,2}\s+(?:dia\s+)?\d{1,2}\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}(?:\/\d{1,2}(?:\/\d{4})?)?\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:desse|deste)\s+m\S*s\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+de\s+[[:alpha:]]+\b/iu', '', $title) ?? $title;
@@ -254,6 +287,19 @@ class ReminderMessageParser
         if ($candidate->lt($reference)) {
             $candidate = Carbon::create($year + 1, $month, 1, 9, 0, 0, config('app.timezone'));
             $candidate->day(min($day, $candidate->daysInMonth));
+        }
+
+        return $candidate;
+    }
+
+    private function oneTimeThisYearTrigger(int $day, int $month): Carbon
+    {
+        $reference = now(config('app.timezone'))->copy()->setTime(9, 0, 0);
+        $candidate = Carbon::create($reference->year, $month, 1, 9, 0, 0, config('app.timezone'));
+        $candidate->day(min($day, $candidate->daysInMonth));
+
+        if ($candidate->lt($reference)) {
+            $candidate->addYear();
         }
 
         return $candidate;

@@ -855,3 +855,28 @@ it('cria lembrete pontual para dia do mes que vem com preposicao', function () {
         'month_of_year' => null,
     ]);
 });
+
+it('cria lembrete anual com dia e mes numerico', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'me lembra de dar parabens para Paulo anualmente dia 17 do mes 8?',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('reminders', [
+        'user_id' => $this->user->id,
+        'title' => 'Dar Parabens Para Paulo',
+        'frequency' => 'yearly',
+        'day_of_month' => 17,
+        'month_of_year' => 8,
+    ]);
+});
