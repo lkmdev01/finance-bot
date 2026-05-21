@@ -12,6 +12,7 @@ use App\Services\BaileysService;
 use App\Services\BillingPlanService;
 use App\Services\WhatsApp\ActionHandlerFactory;
 use App\Services\WhatsApp\Handlers\CancelSubscriptionHandler;
+use App\Services\WhatsApp\Handlers\CancelRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateBudgetHandler;
 use App\Services\WhatsApp\Handlers\CreateInstallmentTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateRecurringTransactionHandler;
@@ -25,6 +26,7 @@ use App\Services\WhatsApp\Handlers\QueryHandler;
 use App\Services\WhatsApp\Handlers\ReportHandler;
 use App\Services\WhatsApp\Handlers\SplitTransactionHandler;
 use App\Services\WhatsApp\Handlers\UpdateBudgetHandler;
+use App\Services\WhatsApp\Handlers\UpdateRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\UpdateSavingsGoalHandler;
 use App\Services\WhatsApp\Handlers\UpdateSubscriptionHandler;
 use Illuminate\Support\Facades\URL;
@@ -82,6 +84,8 @@ class AppServiceProvider extends ServiceProvider
                 UpdateSubscriptionHandler::class,
                 CancelSubscriptionHandler::class,
                 CreateRecurringTransactionHandler::class,
+                UpdateRecurringTransactionHandler::class,
+                CancelRecurringTransactionHandler::class,
                 CreateInstallmentTransactionHandler::class,
                 CreateTransactionHandler::class,
                 EditTransactionHandler::class,

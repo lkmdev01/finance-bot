@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\BillingPlanService;
 use App\Services\CategoryRecognitionService;
+use App\Services\WhatsApp\FinancialSourceResolver;
 use Illuminate\Support\Facades\Validator;
 
 class CreateSubscriptionHandler extends BaseHandler
@@ -39,6 +40,8 @@ class CreateSubscriptionHandler extends BaseHandler
             'due_day' => ['required', 'integer', 'min:1', 'max:31'],
             'start_date' => ['required', 'date'],
             'category_name' => ['nullable', 'string', 'max:100'],
+            'bank_account_name' => ['nullable', 'string', 'max:120'],
+            'credit_card_name' => ['nullable', 'string', 'max:120'],
         ]);
 
         if ($validation->fails()) {
@@ -74,6 +77,8 @@ class CreateSubscriptionHandler extends BaseHandler
             'auto_record' => (bool) ($data['auto_record'] ?? false),
             'is_active' => (bool) ($data['is_active'] ?? true),
             'category_name' => trim((string) ($data['category_name'] ?? 'Assinaturas')),
+            'bank_account_name' => trim((string) ($data['bank_account_name'] ?? '')) ?: null,
+            'credit_card_name' => trim((string) ($data['credit_card_name'] ?? '')) ?: null,
         ];
     }
 
@@ -90,9 +95,13 @@ class CreateSubscriptionHandler extends BaseHandler
             $category = $categoryRecognition->findOrCreateCategory($user, $data['category_name'], 'expense');
         }
 
+        [$bankAccount, $creditCard] = app(FinancialSourceResolver::class)->resolve($user, $data);
+
         return Subscription::query()->create([
             'user_id' => $user->id,
             'category_id' => $category?->id,
+            'bank_account_id' => $bankAccount?->id,
+            'credit_card_id' => $creditCard?->id,
             'name' => $data['name'],
             'description' => 'Assinatura: '.$data['name'],
             'amount' => $data['amount'],

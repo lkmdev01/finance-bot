@@ -60,6 +60,53 @@ class RecurringTransactionMessageParser
             || str_contains($message, 'meu ');
     }
 
+    public function parseEdit(string $message, ?string $fallbackDescription = null): ?array
+    {
+        $normalized = $this->normalize($message);
+
+        if (! $this->looksLikeEditIntent($normalized) && ! ($fallbackDescription && $this->containsEditVerb($normalized))) {
+            return null;
+        }
+
+        $description = $this->extractRecurringName($message, $fallbackDescription);
+        $amount = $this->extractAmount($message);
+        $frequency = $this->extractFrequency($normalized);
+        $dayOfMonth = $this->extractDayOfMonth($message, $normalized);
+        [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($message);
+        $categoryName = $this->extractCategoryName($message);
+
+        if ($description === null || ($amount === null && $frequency === null && $dayOfMonth === null && $bankAccountName === null && $creditCardName === null && $categoryName === null)) {
+            return null;
+        }
+
+        return array_filter([
+            'description' => $description,
+            'amount' => $amount,
+            'frequency' => $frequency,
+            'day_of_month' => $dayOfMonth,
+            'category_name' => $categoryName,
+            'bank_account_name' => $bankAccountName,
+            'credit_card_name' => $creditCardName,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    public function parseCancel(string $message, ?string $fallbackDescription = null): ?array
+    {
+        $normalized = $this->normalize($message);
+
+        if (! $this->looksLikeCancelIntent($normalized) && ! ($fallbackDescription && $this->containsCancelVerb($normalized))) {
+            return null;
+        }
+
+        $description = $this->extractRecurringName($message, $fallbackDescription);
+
+        if ($description === null || $description === '') {
+            return null;
+        }
+
+        return ['description' => $description];
+    }
+
     private function extractAmount(string $message): ?float
     {
         $patterns = [
@@ -106,6 +153,24 @@ class RecurringTransactionMessageParser
         }
 
         return null;
+    }
+
+    public function looksLikeEditIntent(string $message): bool
+    {
+        if (! $this->hasRecurringCue($message)) {
+            return false;
+        }
+
+        return $this->containsEditVerb($message);
+    }
+
+    public function looksLikeCancelIntent(string $message): bool
+    {
+        if (! $this->hasRecurringCue($message)) {
+            return false;
+        }
+
+        return $this->containsCancelVerb($message);
     }
 
     private function extractFrequency(string $message): ?string
@@ -169,6 +234,48 @@ class RecurringTransactionMessageParser
         }
 
         return [$bankAccountName ?: null, $creditCardName ?: null];
+    }
+
+    private function extractRecurringName(string $message, ?string $fallbackDescription): ?string
+    {
+        if ($fallbackDescription !== null && $fallbackDescription !== '' && preg_match('/\b(ajusta|ajustar|editar|edita|mudar|muda|alterar|altera|cancelar|cancela|pausar|pausa|parar|para)\b/iu', $message) === 1) {
+            return $fallbackDescription;
+        }
+
+        return $this->extractDescription($message, null) ?? $fallbackDescription;
+    }
+
+    private function hasRecurringCue(string $message): bool
+    {
+        return str_contains($message, 'todo dia')
+            || str_contains($message, 'todo mes')
+            || str_contains($message, 'cada mes')
+            || str_contains($message, 'mensal')
+            || str_contains($message, 'toda semana')
+            || str_contains($message, 'semanal')
+            || str_contains($message, 'recorr');
+    }
+
+    private function containsEditVerb(string $message): bool
+    {
+        foreach (['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'] as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function containsCancelVerb(string $message): bool
+    {
+        foreach (['cancelar', 'cancela', 'desativar', 'desativa', 'parar', 'para', 'pausar', 'pausa'] as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function cleanupTrailingContext(string $value, ?string $frequency): string

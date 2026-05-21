@@ -2,6 +2,7 @@
 
 namespace App\Services\WhatsApp;
 
+use Carbon\Carbon;
 use Illuminate\Support\Str;
 
 class InstallmentTransactionMessageParser
@@ -30,7 +31,7 @@ class InstallmentTransactionMessageParser
             'total_amount' => $amount,
             'installment_count' => $installments,
             'per_installment_amount' => round($amount / $installments, 2),
-            'date' => now()->toDateString(),
+            'date' => ($this->extractDate($message) ?? now())->toDateString(),
             'category_name' => $categoryName,
             'bank_account_name' => $bankAccountName,
             'credit_card_name' => $creditCardName,
@@ -141,6 +142,33 @@ class InstallmentTransactionMessageParser
         }
 
         return [$bankAccountName ?: null, $creditCardName ?: null];
+    }
+
+    private function extractDate(string $message): ?Carbon
+    {
+        $normalized = $this->normalize($message);
+
+        if (str_contains($normalized, 'ontem')) {
+            return now()->subDay();
+        }
+
+        if (str_contains($normalized, 'hoje')) {
+            return now();
+        }
+
+        if (preg_match('/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/u', $message, $matches) === 1) {
+            $day = (int) $matches[1];
+            $month = (int) $matches[2];
+            $year = (int) $matches[3];
+
+            if ($year < 100) {
+                $year += 2000;
+            }
+
+            return Carbon::create($year, $month, $day);
+        }
+
+        return null;
     }
 
     private function normalize(string $value): string

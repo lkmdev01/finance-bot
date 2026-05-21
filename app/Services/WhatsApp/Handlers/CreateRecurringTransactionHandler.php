@@ -74,6 +74,7 @@ class CreateRecurringTransactionHandler extends BaseHandler
             'entities' => [
                 'topic' => 'recurring_transactions',
                 'recurring_transaction_id' => $recurring->id,
+                'recurring_description' => $recurring->description,
                 'category_name' => $category?->name,
             ],
         ]);

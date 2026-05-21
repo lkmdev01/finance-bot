@@ -34,6 +34,14 @@ class TransactionIntentClassifier
             return ['kind' => 'recurring_transaction_create', 'normalized' => $normalizedMessage];
         }
 
+        if ($this->looksLikeRecurringTransactionEdit($originalMessage, $normalizedMessage, $state)) {
+            return ['kind' => 'recurring_transaction_edit', 'normalized' => $normalizedMessage];
+        }
+
+        if ($this->looksLikeRecurringTransactionDelete($originalMessage, $normalizedMessage, $state)) {
+            return ['kind' => 'recurring_transaction_delete', 'normalized' => $normalizedMessage];
+        }
+
         if ($this->looksLikeInstallmentTransactionCreate($originalMessage, $normalizedMessage)) {
             return ['kind' => 'installment_transaction_create', 'normalized' => $normalizedMessage];
         }
@@ -129,6 +137,24 @@ class TransactionIntentClassifier
     {
         return $this->recurringTransactionMessageParser->looksLikeCreateIntent($normalizedMessage)
             && $this->recurringTransactionMessageParser->parse($originalMessage) !== null;
+    }
+
+    private function looksLikeRecurringTransactionEdit(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        $fallback = ($state['last_entities']['topic'] ?? null) === 'recurring_transactions'
+            ? ($state['last_entities']['recurring_description'] ?? null)
+            : null;
+
+        return $this->recurringTransactionMessageParser->parseEdit($originalMessage, $fallback) !== null;
+    }
+
+    private function looksLikeRecurringTransactionDelete(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        $fallback = ($state['last_entities']['topic'] ?? null) === 'recurring_transactions'
+            ? ($state['last_entities']['recurring_description'] ?? null)
+            : null;
+
+        return $this->recurringTransactionMessageParser->parseCancel($originalMessage, $fallback) !== null;
     }
 
     private function looksLikeInstallmentTransactionCreate(string $originalMessage, string $normalizedMessage): bool

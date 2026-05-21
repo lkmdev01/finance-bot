@@ -1572,3 +1572,138 @@ it('processa recorrencia em linguagem mais humana com conta e categoria', functi
     expect($recurring->bank_account_id)->toBe($bankAccount->id);
     expect($recurring->category?->name)->toBe('Casa');
 });
+
+it('processa parcelado com data explicita', function () {
+    Http::fake([
+        'api.groq.com/*' => Http::response([], 500),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Comprei um celular por 2000 em 10x em 14/05/2026',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'description' => 'Celular (1/10)',
+        'date' => '2026-05-14',
+        'amount' => 200.00,
+    ]);
+});
+
+it('cria assinatura com cartao explicito em linguagem natural', function () {
+    $creditCard = \App\Models\CreditCard::create([
+        'user_id' => $this->user->id,
+        'name' => 'Nubank',
+        'brand' => 'Mastercard',
+        'last_four' => '1234',
+        'credit_limit' => 5000,
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Criar assinatura Netflix mensal, dia 10, 19 reais no cartao Nubank',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    assertDatabaseHas('subscriptions', [
+        'user_id' => $this->user->id,
+        'name' => 'Netflix',
+        'credit_card_id' => $creditCard->id,
+    ]);
+});
+
+it('atualiza assinatura com conta explicita em linguagem natural', function () {
+    $bankAccount = \App\Models\BankAccount::create([
+        'user_id' => $this->user->id,
+        'name' => 'Itau',
+        'institution' => 'Itaú',
+        'opening_balance' => 0,
+    ]);
+
+    \App\Models\Subscription::create([
+        'user_id' => $this->user->id,
+        'name' => 'Netflix',
+        'description' => 'Assinatura: Netflix',
+        'amount' => 19,
+        'billing_cycle' => 'monthly',
+        'due_day' => 10,
+        'start_date' => now()->toDateString(),
+        'auto_record' => false,
+        'is_active' => true,
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_subscriptions',
+            'last_entities' => [
+                'topic' => 'subscriptions',
+                'subscription_name' => 'Netflix',
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'ajusta ela para 25 reais na conta Itau',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    assertDatabaseHas('subscriptions', [
+        'user_id' => $this->user->id,
+        'name' => 'Netflix',
+        'amount' => 25.00,
+        'bank_account_id' => $bankAccount->id,
+    ]);
+});

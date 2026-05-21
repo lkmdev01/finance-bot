@@ -98,6 +98,24 @@ class DomainRoutingResolver
                 $this->recurringTransactionMessageParser->parse($message) ?? [],
                 $message
             ),
+            'recurring_transaction_edit' => $this->actionResult(
+                'update_recurring_transaction',
+                'recurring_data',
+                $this->recurringTransactionMessageParser->parseEdit(
+                    $message,
+                    $this->contextResolver->recentEntityName($state, 'recurring_transactions', 'recurring_description')
+                ) ?? [],
+                $message
+            ),
+            'recurring_transaction_delete' => $this->actionResult(
+                'cancel_recurring_transaction',
+                'recurring_data',
+                $this->recurringTransactionMessageParser->parseCancel(
+                    $message,
+                    $this->contextResolver->recentEntityName($state, 'recurring_transactions', 'recurring_description')
+                ) ?? [],
+                $message
+            ),
             'installment_transaction_create' => $this->actionResult(
                 'create_installment_transaction',
                 'installment_data',

@@ -6,6 +6,7 @@ use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use App\Services\WhatsApp\FinancialSourceResolver;
 use Illuminate\Support\Facades\Validator;
 
 class UpdateSubscriptionHandler extends BaseHandler
@@ -24,6 +25,8 @@ class UpdateSubscriptionHandler extends BaseHandler
             'amount' => ['nullable', 'numeric', 'min:0.01', 'max:999999.99'],
             'billing_cycle' => ['nullable', 'in:monthly,yearly'],
             'due_day' => ['nullable', 'integer', 'min:1', 'max:31'],
+            'bank_account_name' => ['nullable', 'string', 'max:120'],
+            'credit_card_name' => ['nullable', 'string', 'max:120'],
         ]);
 
         if ($validation->fails()) {
@@ -58,6 +61,21 @@ class UpdateSubscriptionHandler extends BaseHandler
             $changedSchedule = true;
         }
 
+        [$bankAccount, $creditCard] = app(FinancialSourceResolver::class)->resolve($user, $data);
+        if ($bankAccount !== null || $data['bank_account_name'] !== null) {
+            $subscription->bank_account_id = $bankAccount?->id;
+            if ($bankAccount !== null) {
+                $subscription->credit_card_id = null;
+            }
+        }
+
+        if ($creditCard !== null || $data['credit_card_name'] !== null) {
+            $subscription->credit_card_id = $creditCard?->id;
+            if ($creditCard !== null) {
+                $subscription->bank_account_id = null;
+            }
+        }
+
         if ($changedSchedule) {
             $subscription->next_due_date = $subscription->calculateNextDueDate();
         }
@@ -73,6 +91,11 @@ class UpdateSubscriptionHandler extends BaseHandler
         }
         if ($data['due_day'] !== null) {
             $parts[] = 'vencimento no dia '.(int) $subscription->due_day;
+        }
+        if ($bankAccount !== null) {
+            $parts[] = 'conta '.$bankAccount->name;
+        } elseif ($creditCard !== null) {
+            $parts[] = 'cartao '.$creditCard->name;
         }
 
         $reply = sprintf('Assinatura %s atualizada com %s.', $subscription->name, implode(', ', $parts));
@@ -97,6 +120,8 @@ class UpdateSubscriptionHandler extends BaseHandler
             'amount' => isset($data['amount']) ? (float) $data['amount'] : null,
             'billing_cycle' => $data['billing_cycle'] ?? null,
             'due_day' => isset($data['due_day']) ? (int) $data['due_day'] : null,
+            'bank_account_name' => trim((string) ($data['bank_account_name'] ?? '')) ?: null,
+            'credit_card_name' => trim((string) ($data['credit_card_name'] ?? '')) ?: null,
         ];
     }
 

@@ -4,6 +4,7 @@ use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Budget;
 use App\Models\Category;
 use App\Models\RecurringTransaction;
+use App\Models\Subscription;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppContact;
@@ -487,6 +488,98 @@ it('cria recorrencia via whatsapp', function () {
         'description' => 'Academia',
         'frequency' => 'monthly',
         'day_of_month' => 5,
+    ]);
+});
+
+it('edita recorrencia por contexto recente', function () {
+    Http::preventStrayRequests();
+
+    $recurring = RecurringTransaction::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->compras->id,
+        'type' => 'expense',
+        'amount' => 89.00,
+        'description' => 'Academia',
+        'frequency' => 'monthly',
+        'start_date' => now()->toDateString(),
+        'is_active' => true,
+        'day_of_month' => 5,
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'create_recurring_transaction',
+            'last_entities' => [
+                'topic' => 'recurring_transactions',
+                'recurring_transaction_id' => $recurring->id,
+                'recurring_description' => 'Academia',
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'ajusta para 99',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('recurring_transactions', [
+        'id' => $recurring->id,
+        'amount' => 99.00,
+    ]);
+});
+
+it('cancela recorrencia por contexto recente', function () {
+    Http::preventStrayRequests();
+
+    $recurring = RecurringTransaction::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->compras->id,
+        'type' => 'expense',
+        'amount' => 89.00,
+        'description' => 'Academia',
+        'frequency' => 'monthly',
+        'start_date' => now()->toDateString(),
+        'is_active' => true,
+        'day_of_month' => 5,
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'create_recurring_transaction',
+            'last_entities' => [
+                'topic' => 'recurring_transactions',
+                'recurring_transaction_id' => $recurring->id,
+                'recurring_description' => 'Academia',
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'cancela ela',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('recurring_transactions', [
+        'id' => $recurring->id,
+        'is_active' => false,
     ]);
 });
 

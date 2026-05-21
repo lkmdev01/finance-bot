@@ -148,6 +148,8 @@ class SubscriptionMessageParser
             'auto_record' => false,
             'is_active' => true,
             'category_name' => 'Assinaturas',
+            'bank_account_name' => $this->extractBankAccountName($originalMessage),
+            'credit_card_name' => $this->extractCreditCardName($originalMessage),
         ], fn ($value) => $value !== null && $value !== '');
     }
 
@@ -219,6 +221,32 @@ class SubscriptionMessageParser
         }
 
         return null;
+    }
+
+    private function extractBankAccountName(string $message): ?string
+    {
+        if (preg_match('/(?:na conta|pela conta|via conta)\s+(.+?)(?:\s+(?:dia\s+\d+|mensal|anual|com|valor|r\$|\d)|[,.]|$)/iu', $message, $matches) !== 1) {
+            return null;
+        }
+
+        $value = trim((string) ($matches[1] ?? ''));
+
+        return $value !== '' ? mb_convert_case($value, MB_CASE_TITLE, 'UTF-8') : null;
+    }
+
+    private function extractCreditCardName(string $message): ?string
+    {
+        if (preg_match('/(?:no cart(?:a[oã]))|(?:pelo cart(?:a[oã]))|(?:via cart(?:a[oã]))/iu', $message) !== 1) {
+            return null;
+        }
+
+        if (preg_match('/(?:no cart(?:a[oã])|pelo cart(?:a[oã])|via cart(?:a[oã]))\s+(.+?)(?:\s+(?:dia\s+\d+|mensal|anual|com|valor|r\$|\d)|[,.]|$)/iu', $message, $matches) !== 1) {
+            return null;
+        }
+
+        $value = trim((string) ($matches[1] ?? ''));
+
+        return $value !== '' ? mb_convert_case($value, MB_CASE_TITLE, 'UTF-8') : null;
     }
 
     private function normalize(string $value): string
