@@ -10,7 +10,6 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Models\WhatsAppConversationLog;
-use App\Services\AIService;
 use App\Services\BaileysService;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
@@ -18,6 +17,11 @@ use Illuminate\Support\Facades\Http;
 
 use function Pest\Laravel\assertDatabaseHas;
 use function Pest\Laravel\assertDatabaseMissing;
+
+function runWhatsAppJob(ProcessWhatsAppMessage $job): void
+{
+    app()->call([$job, 'handle']);
+}
 
 function fakeActionBaileysSuccessResponse(): Response
 {
@@ -83,9 +87,7 @@ it('edita orcamento por contexto recente', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('budgets', [
         'id' => $budget->id,
         'amount' => 700.00,
@@ -134,8 +136,7 @@ it('pede confirmacao antes de cancelar orcamento e apaga ao confirmar', function
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $firstJob->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($firstJob);
     $this->contact->refresh();
     expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('delete_budget');
 
@@ -146,8 +147,7 @@ it('pede confirmacao antes de cancelar orcamento e apaga ao confirmar', function
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $confirmJob->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($confirmJob);
     assertDatabaseMissing('budgets', [
         'id' => $budget->id,
     ]);
@@ -197,9 +197,7 @@ it('edita transacao por contexto recente', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('transactions', [
         'id' => $transaction->id,
         'amount' => 28.00,
@@ -250,8 +248,7 @@ it('pede confirmacao antes de apagar transacao contextual e remove ao confirmar'
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $firstJob->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($firstJob);
     $this->contact->refresh();
     expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('delete_transaction');
 
@@ -262,8 +259,7 @@ it('pede confirmacao antes de apagar transacao contextual e remove ao confirmar'
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $confirmJob->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($confirmJob);
     assertDatabaseMissing('transactions', [
         'id' => $transaction->id,
     ]);
@@ -307,9 +303,7 @@ it('registra lancamentos compostos na mesma mensagem', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     expect(Transaction::query()->where('user_id', $this->user->id)->count())->toBe(2);
     assertDatabaseHas('transactions', [
         'user_id' => $this->user->id,
@@ -369,8 +363,7 @@ it('apaga o penultimo gasto por referencia curta', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     $confirm = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'sim',
@@ -378,8 +371,7 @@ it('apaga o penultimo gasto por referencia curta', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $confirm->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($confirm);
     assertDatabaseMissing('transactions', ['id' => $first->id]);
     assertDatabaseHas('transactions', ['id' => $second->id]);
 });
@@ -408,8 +400,7 @@ it('permite completar edicao contextual de ontem em duas mensagens', function ()
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $first->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($first);
     $this->contact->refresh();
     expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('edit_transaction_details');
 
@@ -420,8 +411,7 @@ it('permite completar edicao contextual de ontem em duas mensagens', function ()
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $second->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($second);
     assertDatabaseHas('transactions', ['id' => $transaction->id, 'amount' => 28.00]);
 });
 
@@ -462,8 +452,7 @@ it('marca o ultimo gasto como debito por follow-up curto', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     expect(Transaction::find($transaction->id)?->metadata['payment_method'] ?? null)->toBe('debit');
 });
 
@@ -481,8 +470,7 @@ it('cria recorrencia via whatsapp', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('recurring_transactions', [
         'user_id' => $this->user->id,
         'amount' => 89.00,
@@ -506,8 +494,7 @@ it('cria recorrencia mensal com valor e dia sem confundir o dia com o valor', fu
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('recurring_transactions', [
         'user_id' => $this->user->id,
         'amount' => 100.00,
@@ -555,8 +542,7 @@ it('edita recorrencia por contexto recente', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('recurring_transactions', [
         'id' => $recurring->id,
         'amount' => 99.00,
@@ -601,8 +587,7 @@ it('cancela recorrencia por contexto recente', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('recurring_transactions', [
         'id' => $recurring->id,
         'is_active' => false,
@@ -623,8 +608,7 @@ it('cria parcelamento via whatsapp', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     expect(Transaction::query()->where('user_id', $this->user->id)->count())->toBe(10);
     assertDatabaseHas('transactions', [
         'user_id' => $this->user->id,
@@ -647,8 +631,7 @@ it('registra log estruturado da conversa', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('whats_app_conversation_logs', [
         'user_id' => $this->user->id,
         'message' => 'oi',
@@ -673,8 +656,7 @@ it('cria lembrete mensal quando a mensagem nao informa valor', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
         'user_id' => $this->user->id,
         'title' => 'Pagar Academia',
@@ -711,8 +693,7 @@ it('prioriza lembrete mesmo com contexto anterior de orcamento', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
         'user_id' => $this->user->id,
         'title' => 'Pagar Academia',
@@ -735,8 +716,7 @@ it('tolera texto degradado em recorrencia mensal', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('recurring_transactions', [
         'user_id' => $this->user->id,
         'amount' => 100.00,
@@ -754,13 +734,12 @@ it('trata frase acentuada de recorrencia antes de cair na IA', function () {
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
-        message: 'Todo mês pagar academia dia 10',
+        message: 'Todo mÃªs pagar academia dia 10',
         userId: $this->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
         'user_id' => $this->user->id,
         'title' => 'Pagar Academia',
@@ -783,8 +762,7 @@ it('pede a data quando o lembrete nao informa quando deve acontecer', function (
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $first->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($first);
     $this->contact->refresh();
     expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_reminder_schedule');
 
@@ -795,8 +773,7 @@ it('pede a data quando o lembrete nao informa quando deve acontecer', function (
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $second->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($second);
     assertDatabaseHas('reminders', [
         'user_id' => $this->user->id,
         'title' => 'Dar Parabens Para Maria',
@@ -820,8 +797,7 @@ it('cria lembrete pontual para mes que vem com dia informado', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
         'user_id' => $this->user->id,
         'title' => 'Pagar O Design',
@@ -845,8 +821,7 @@ it('cria lembrete pontual para dia do mes que vem com preposicao', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
         'user_id' => $this->user->id,
         'title' => 'Pagar O Programador',
@@ -870,8 +845,7 @@ it('cria lembrete anual com dia e mes numerico', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
+    runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
         'user_id' => $this->user->id,
         'title' => 'Dar Parabens Para Paulo',
@@ -880,3 +854,52 @@ it('cria lembrete anual com dia e mes numerico', function () {
         'month_of_year' => 8,
     ]);
 });
+
+it('cria lembrete diario com horario', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'me lembra todo dia as 08:30 de beber agua',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($job);
+    assertDatabaseHas('reminders', [
+        'user_id' => $this->user->id,
+        'title' => 'Beber Agua',
+        'frequency' => 'daily',
+        'trigger_time' => '08:30:00',
+    ]);
+});
+
+it('cria lembrete semanal com dia da semana e horario', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'me lembra toda segunda feira as 19h de treinar',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($job);
+    assertDatabaseHas('reminders', [
+        'user_id' => $this->user->id,
+        'title' => 'Treinar',
+        'frequency' => 'weekly',
+        'day_of_week' => 1,
+        'trigger_time' => '19:00:00',
+    ]);
+});
+
+

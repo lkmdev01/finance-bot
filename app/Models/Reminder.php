@@ -18,8 +18,10 @@ class Reminder extends Model
         'frequency',
         'timezone',
         'next_trigger_at',
+        'day_of_week',
         'day_of_month',
         'month_of_year',
+        'trigger_time',
         'last_sent_at',
         'is_active',
         'metadata',
@@ -30,6 +32,7 @@ class Reminder extends Model
         return [
             'next_trigger_at' => 'datetime',
             'last_sent_at' => 'datetime',
+            'day_of_week' => 'integer',
             'day_of_month' => 'integer',
             'month_of_year' => 'integer',
             'is_active' => 'boolean',
@@ -65,9 +68,35 @@ class Reminder extends Model
             return;
         }
 
+        $time = $this->trigger_time ?? '09:00:00';
+
+        if ($this->frequency === 'daily') {
+            $next = $sentAt->copy()->addDay();
+            $this->applyTime($next, $time);
+            $this->next_trigger_at = $next;
+            $this->save();
+
+            return;
+        }
+
+        if ($this->frequency === 'weekly' && $this->day_of_week !== null) {
+            $next = $sentAt->copy()->addDay();
+            $this->applyTime($next, $time);
+
+            while ($next->dayOfWeek !== $this->day_of_week) {
+                $next->addDay();
+            }
+
+            $this->next_trigger_at = $next;
+            $this->save();
+
+            return;
+        }
+
         if ($this->frequency === 'monthly' && $this->day_of_month !== null) {
             $next = $sentAt->copy()->addMonthNoOverflow()->startOfMonth();
-            $next->day(min($this->day_of_month, $next->daysInMonth))->setTime(9, 0, 0);
+            $next->day(min($this->day_of_month, $next->daysInMonth));
+            $this->applyTime($next, $time);
             $this->next_trigger_at = $next;
             $this->save();
 
@@ -75,8 +104,9 @@ class Reminder extends Model
         }
 
         if ($this->frequency === 'yearly' && $this->day_of_month !== null && $this->month_of_year !== null) {
-            $next = Carbon::create($sentAt->year + 1, $this->month_of_year, 1, 9, 0, 0, $this->timezone ?: config('app.timezone'));
+            $next = Carbon::create($sentAt->year + 1, $this->month_of_year, 1, 0, 0, 0, $this->timezone ?: config('app.timezone'));
             $next->day(min($this->day_of_month, $next->daysInMonth));
+            $this->applyTime($next, $time);
             $this->next_trigger_at = $next;
             $this->save();
 
@@ -84,5 +114,11 @@ class Reminder extends Model
         }
 
         $this->save();
+    }
+
+    private function applyTime(Carbon $date, string $time): void
+    {
+        [$hour, $minute, $second] = array_map('intval', explode(':', $time));
+        $date->setTime($hour, $minute, $second);
     }
 }

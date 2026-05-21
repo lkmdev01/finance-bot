@@ -25,6 +25,11 @@ class ReminderMessageParser
             'todo ano',
             'anual',
             'anualmente',
+            'semanal',
+            'toda semana',
+            'cada semana',
+            'diario',
+            'diariamente',
         ]);
     }
 
@@ -33,6 +38,10 @@ class ReminderMessageParser
         $partial = $this->parsePartialCreate($originalMessage);
 
         if ($partial === null || empty($partial['title']) || empty($partial['message']) || empty($partial['frequency'])) {
+            return null;
+        }
+
+        if ($partial['frequency'] === 'weekly' && ! isset($partial['day_of_week'])) {
             return null;
         }
 
@@ -60,16 +69,20 @@ class ReminderMessageParser
             return null;
         }
 
+        $time = $this->extractTriggerTime($clean, $normalized) ?? '09:00:00';
+
         $data = [
             'title' => $this->extractReminderTitle($clean),
             'message' => null,
             'frequency' => null,
+            'day_of_week' => null,
             'day_of_month' => null,
             'month_of_year' => null,
+            'trigger_time' => $time,
             'next_trigger_at' => null,
         ];
 
-        $data = array_merge($data, $this->extractSchedule($normalized) ?? []);
+        $data = array_merge($data, $this->extractSchedule($normalized, $time) ?? []);
 
         if ($data['title'] === null) {
             return null;
@@ -82,7 +95,11 @@ class ReminderMessageParser
 
     public function parseScheduleFollowUp(string $message, array $pendingReminder = []): ?array
     {
-        $schedule = $this->extractSchedule($this->normalizeText($this->cleanText($message)));
+        $clean = $this->cleanText($message);
+        $normalized = $this->normalizeText($clean);
+        $time = $this->extractTriggerTime($clean, $normalized) ?? ($pendingReminder['trigger_time'] ?? '09:00:00');
+
+        $schedule = $this->extractSchedule($normalized, $time);
         if ($schedule === null) {
             return null;
         }
@@ -94,13 +111,27 @@ class ReminderMessageParser
 
         $parsed = array_merge($pendingReminder, $schedule);
         $parsed['title'] = $title;
+        $parsed['trigger_time'] = $time;
         $parsed['message'] = $this->buildReminderMessage($title, $parsed['frequency'] ?? null);
 
         return $parsed;
     }
 
-    private function extractSchedule(string $normalized): ?array
+    private function extractSchedule(string $normalized, string $time): ?array
     {
+        if (preg_match('/(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+(\d{1,2})\b/u', $normalized, $matches)
+            || preg_match('/\bdia\s+(\d{1,2})\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/u', $normalized, $matches)) {
+            $day = max(1, min(31, (int) $matches[1]));
+
+            return [
+                'frequency' => 'once',
+                'day_of_week' => null,
+                'day_of_month' => null,
+                'month_of_year' => null,
+                'next_trigger_at' => $this->oneTimeNextMonthTrigger($day, $time)->toIso8601String(),
+            ];
+        }
+
         if (preg_match('/\bdia\s+(\d{1,2})\s+(?:do|de|no|na)\s+mes\s+(\d{1,2})\b/u', $normalized, $matches)
             || preg_match('/\bmes\s+(\d{1,2})\s+(?:dia\s+)?(\d{1,2})\b/u', $normalized, $matches)) {
             $day = max(1, min(31, (int) $matches[1]));
@@ -114,46 +145,20 @@ class ReminderMessageParser
             if ($this->containsAnyText($normalized, ['desse ano', 'deste ano', 'este ano'])) {
                 return [
                     'frequency' => 'once',
+                    'day_of_week' => null,
                     'day_of_month' => null,
                     'month_of_year' => null,
-                    'next_trigger_at' => $this->oneTimeThisYearTrigger($day, $month)->toIso8601String(),
+                    'next_trigger_at' => $this->oneTimeThisYearTrigger($day, $month, $time)->toIso8601String(),
                 ];
             }
 
             return [
                 'frequency' => 'yearly',
+                'day_of_week' => null,
                 'day_of_month' => $day,
                 'month_of_year' => $month,
-                'next_trigger_at' => $this->nextYearlyTrigger($day, $month)->toIso8601String(),
+                'next_trigger_at' => $this->nextYearlyTrigger($day, $month, $time)->toIso8601String(),
             ];
-        }
-
-        if (preg_match('/(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+(\d{1,2})\b/u', $normalized, $matches)
-            || preg_match('/\bdia\s+(\d{1,2})\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/u', $normalized, $matches)) {
-            $day = max(1, min(31, (int) $matches[1]));
-
-            return [
-                'frequency' => 'once',
-                'day_of_month' => null,
-                'month_of_year' => null,
-                'next_trigger_at' => $this->oneTimeNextMonthTrigger($day)->toIso8601String(),
-            ];
-        }
-
-        if (preg_match('/\b(todo|cada)\s+mes\b/u', $normalized) || str_contains($normalized, 'mensal')) {
-            $data = [
-                'frequency' => 'monthly',
-                'day_of_month' => null,
-                'month_of_year' => null,
-                'next_trigger_at' => null,
-            ];
-
-            if (preg_match('/\bdia\s+(\d{1,2})\b/u', $normalized, $matches)) {
-                $data['day_of_month'] = max(1, min(31, (int) $matches[1]));
-                $data['next_trigger_at'] = $this->nextMonthlyTrigger($data['day_of_month'])->toIso8601String();
-            }
-
-            return $data;
         }
 
         if (preg_match('/\bdia\s+(\d{1,2})\s+(?:desse|deste)\s+mes\b/u', $normalized, $matches)) {
@@ -161,9 +166,10 @@ class ReminderMessageParser
 
             return [
                 'frequency' => 'once',
+                'day_of_week' => null,
                 'day_of_month' => null,
                 'month_of_year' => null,
-                'next_trigger_at' => $this->oneTimeThisMonthTrigger($day)->toIso8601String(),
+                'next_trigger_at' => $this->oneTimeThisMonthTrigger($day, $time)->toIso8601String(),
             ];
         }
 
@@ -175,17 +181,19 @@ class ReminderMessageParser
             if ($year !== null) {
                 return [
                     'frequency' => 'once',
+                    'day_of_week' => null,
                     'day_of_month' => null,
                     'month_of_year' => null,
-                    'next_trigger_at' => Carbon::create($year, $month, min($day, Carbon::create($year, $month, 1)->daysInMonth), 9, 0, 0, config('app.timezone'))->toIso8601String(),
+                    'next_trigger_at' => $this->oneTimeSpecificDateTrigger($day, $month, $year, $time)->toIso8601String(),
                 ];
             }
 
             return [
                 'frequency' => 'yearly',
+                'day_of_week' => null,
                 'day_of_month' => $day,
                 'month_of_year' => $month,
-                'next_trigger_at' => $this->nextYearlyTrigger($day, $month)->toIso8601String(),
+                'next_trigger_at' => $this->nextYearlyTrigger($day, $month, $time)->toIso8601String(),
             ];
         }
 
@@ -196,11 +204,50 @@ class ReminderMessageParser
 
                 return [
                     'frequency' => 'yearly',
+                    'day_of_week' => null,
                     'day_of_month' => $day,
                     'month_of_year' => $month,
-                    'next_trigger_at' => $this->nextYearlyTrigger($day, $month)->toIso8601String(),
+                    'next_trigger_at' => $this->nextYearlyTrigger($day, $month, $time)->toIso8601String(),
                 ];
             }
+        }
+
+        $weekday = $this->extractWeekday($normalized);
+        if ($weekday !== null && $this->containsAnyText($normalized, ['semanal', 'semana', 'todo', 'toda', 'cada'])) {
+            return [
+                'frequency' => 'weekly',
+                'day_of_week' => $weekday,
+                'day_of_month' => null,
+                'month_of_year' => null,
+                'next_trigger_at' => $this->nextWeeklyTrigger($weekday, $time)->toIso8601String(),
+            ];
+        }
+
+        if ($this->containsAnyText($normalized, ['diario', 'diariamente', 'todo dia', 'cada dia'])) {
+            return [
+                'frequency' => 'daily',
+                'day_of_week' => null,
+                'day_of_month' => null,
+                'month_of_year' => null,
+                'next_trigger_at' => $this->nextDailyTrigger($time)->toIso8601String(),
+            ];
+        }
+
+        if (preg_match('/\b(todo|cada)\s+mes\b/u', $normalized) || str_contains($normalized, 'mensal')) {
+            $data = [
+                'frequency' => 'monthly',
+                'day_of_week' => null,
+                'day_of_month' => null,
+                'month_of_year' => null,
+                'next_trigger_at' => null,
+            ];
+
+            if (preg_match('/\bdia\s+(\d{1,2})\b/u', $normalized, $matches)) {
+                $data['day_of_month'] = max(1, min(31, (int) $matches[1]));
+                $data['next_trigger_at'] = $this->nextMonthlyTrigger($data['day_of_month'], $time)->toIso8601String();
+            }
+
+            return $data;
         }
 
         return null;
@@ -209,8 +256,8 @@ class ReminderMessageParser
     private function extractReminderTitle(string $cleanMessage): ?string
     {
         $title = $cleanMessage;
-        $title = preg_replace('/^\s*(?:todo\s+m\S*s|todo\s+mes|cada\s+m\S*s|todo\s+dia|cada\s+ano)\s*/iu', '', $title) ?? $title;
-        $title = preg_replace('/\b(?:anual|anualmente|todo\s+ano|cada\s+ano)\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/^\s*(?:todo\s+m\S*s|todo\s+mes|cada\s+m\S*s|todo\s+dia|cada\s+ano|todo\s+ano|diariamente|diario|semanal)\s*/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:anual|anualmente|todo\s+ano|cada\s+ano|semanal|diario|diariamente|todo\s+dia|cada\s+dia)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+\d{1,2}\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:do|de|no|na)\s+mes\s+\d{1,2}\b/iu', '', $title) ?? $title;
@@ -223,7 +270,12 @@ class ReminderMessageParser
         $title = preg_replace('/\bproximo\s+mes\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(todo|cada)\s+m\S*s\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bmensal\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:segunda|terca|quarta|quinta|sexta|sabado|domingo)(?:-feira)?\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\bfeira\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:as|a)\s*\d{1,2}(?::\d{2})?\s*h?\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b\d{1,2}h(?:\d{2})?\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:me\s+lembra(?:r)?(?:\s+de)?|me\s+lembre(?:\s+de)?|lembrete(?:\s+para)?|lembrar\s+de|lembra\s+de)\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/^\s*(?:todo|toda|cada)\s+/iu', '', $title) ?? $title;
         $title = preg_replace('/^\s*(?:(?:no|na|do|da|de)\s+)+/iu', '', $title) ?? $title;
         $title = preg_replace('/\s+/u', ' ', $title) ?? $title;
         $title = trim($title, " \t\n\r\0\x0B,.;:-?");
@@ -240,69 +292,176 @@ class ReminderMessageParser
         $base = trim($title);
 
         return match ($frequency) {
-            'yearly' => "Lembrete: hoje e dia de {$base}.",
-            'monthly' => "Lembrete do mes: {$base}.",
+            'daily' => "Lembrete diario: {$base}.",
+            'weekly' => "Lembrete semanal: {$base}.",
+            'monthly' => "Lembrete mensal: {$base}.",
+            'yearly' => "Lembrete anual: {$base}.",
             default => "Lembrete: {$base}.",
         };
     }
 
-    private function oneTimeThisMonthTrigger(int $day): Carbon
+    private function extractTriggerTime(string $clean, string $normalized): ?string
     {
-        $date = now(config('app.timezone'))->copy()->startOfMonth()->day(min($day, now(config('app.timezone'))->daysInMonth))->setTime(9, 0, 0);
+        if (preg_match('/\b(\d{1,2}):(\d{2})\b/u', $normalized, $matches)) {
+            return $this->formatTime((int) $matches[1], (int) $matches[2]);
+        }
+
+        if (preg_match('/\b(\d{1,2})h(?:\s*(\d{2}))?\b/u', $normalized, $matches)) {
+            return $this->formatTime((int) $matches[1], isset($matches[2]) ? (int) $matches[2] : 0);
+        }
+
+        if (preg_match('/\b(?:as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/iu', $clean, $matches)) {
+            return $this->formatTime((int) $matches[1], isset($matches[2]) ? (int) $matches[2] : 0);
+        }
+
+        return null;
+    }
+
+    private function formatTime(int $hour, int $minute): ?string
+    {
+        if ($hour < 0 || $hour > 23 || $minute < 0 || $minute > 59) {
+            return null;
+        }
+
+        return sprintf('%02d:%02d:00', $hour, $minute);
+    }
+
+    private function oneTimeThisMonthTrigger(int $day, string $time): Carbon
+    {
+        $date = now(config('app.timezone'))->copy()->startOfMonth()->day(min($day, now(config('app.timezone'))->daysInMonth));
+        $this->applyTime($date, $time);
 
         if ($date->isPast()) {
             $date->addMonthNoOverflow()->day(min($day, $date->daysInMonth));
+            $this->applyTime($date, $time);
         }
 
         return $date;
     }
 
-    private function oneTimeNextMonthTrigger(int $day): Carbon
+    private function oneTimeNextMonthTrigger(int $day, string $time): Carbon
     {
         $date = now(config('app.timezone'))->copy()->addMonthNoOverflow()->startOfMonth();
-        $date->day(min($day, $date->daysInMonth))->setTime(9, 0, 0);
+        $date->day(min($day, $date->daysInMonth));
+        $this->applyTime($date, $time);
 
         return $date;
     }
 
-    private function nextMonthlyTrigger(int $day): Carbon
+    private function oneTimeSpecificDateTrigger(int $day, int $month, int $year, string $time): Carbon
     {
-        $reference = now(config('app.timezone'))->copy()->setTime(9, 0, 0);
-        $candidate = $reference->copy()->startOfMonth()->day(min($day, $reference->daysInMonth));
+        $date = Carbon::create($year, $month, 1, 0, 0, 0, config('app.timezone'));
+        $date->day(min($day, $date->daysInMonth));
+        $this->applyTime($date, $time);
 
-        if ($candidate->lt($reference)) {
-            $candidate = $reference->copy()->addMonthNoOverflow()->startOfMonth()->day(min($day, $reference->copy()->addMonthNoOverflow()->daysInMonth));
-        }
-
-        return $candidate->setTime(9, 0, 0);
+        return $date;
     }
 
-    private function nextYearlyTrigger(int $day, int $month): Carbon
+    private function oneTimeThisYearTrigger(int $day, int $month, string $time): Carbon
     {
-        $reference = now(config('app.timezone'))->copy()->setTime(9, 0, 0);
-        $year = $reference->year;
-        $candidate = Carbon::create($year, $month, 1, 9, 0, 0, config('app.timezone'));
+        $reference = now(config('app.timezone'));
+        $candidate = Carbon::create($reference->year, $month, 1, 0, 0, 0, config('app.timezone'));
         $candidate->day(min($day, $candidate->daysInMonth));
-
-        if ($candidate->lt($reference)) {
-            $candidate = Carbon::create($year + 1, $month, 1, 9, 0, 0, config('app.timezone'));
-            $candidate->day(min($day, $candidate->daysInMonth));
-        }
-
-        return $candidate;
-    }
-
-    private function oneTimeThisYearTrigger(int $day, int $month): Carbon
-    {
-        $reference = now(config('app.timezone'))->copy()->setTime(9, 0, 0);
-        $candidate = Carbon::create($reference->year, $month, 1, 9, 0, 0, config('app.timezone'));
-        $candidate->day(min($day, $candidate->daysInMonth));
+        $this->applyTime($candidate, $time);
 
         if ($candidate->lt($reference)) {
             $candidate->addYear();
+            $this->applyTime($candidate, $time);
         }
 
         return $candidate;
+    }
+
+    private function nextDailyTrigger(string $time): Carbon
+    {
+        $reference = now(config('app.timezone'));
+        $candidate = $reference->copy();
+        $this->applyTime($candidate, $time);
+
+        if ($candidate->lte($reference)) {
+            $candidate->addDay();
+            $this->applyTime($candidate, $time);
+        }
+
+        return $candidate;
+    }
+
+    private function nextWeeklyTrigger(int $dayOfWeek, string $time): Carbon
+    {
+        $reference = now(config('app.timezone'));
+        $candidate = $reference->copy();
+        $this->applyTime($candidate, $time);
+
+        if ($candidate->dayOfWeek !== $dayOfWeek) {
+            $candidate = $candidate->next($dayOfWeek);
+            $this->applyTime($candidate, $time);
+        } elseif ($candidate->lte($reference)) {
+            $candidate = $candidate->addWeek();
+            $this->applyTime($candidate, $time);
+        }
+
+        return $candidate;
+    }
+
+    private function nextMonthlyTrigger(int $day, string $time): Carbon
+    {
+        $reference = now(config('app.timezone'));
+        $candidate = $reference->copy()->startOfMonth()->day(min($day, $reference->daysInMonth));
+        $this->applyTime($candidate, $time);
+
+        if ($candidate->lte($reference)) {
+            $candidate = $reference->copy()->addMonthNoOverflow()->startOfMonth();
+            $candidate->day(min($day, $candidate->daysInMonth));
+            $this->applyTime($candidate, $time);
+        }
+
+        return $candidate;
+    }
+
+    private function nextYearlyTrigger(int $day, int $month, string $time): Carbon
+    {
+        $reference = now(config('app.timezone'));
+        $candidate = Carbon::create($reference->year, $month, 1, 0, 0, 0, config('app.timezone'));
+        $candidate->day(min($day, $candidate->daysInMonth));
+        $this->applyTime($candidate, $time);
+
+        if ($candidate->lte($reference)) {
+            $candidate = Carbon::create($reference->year + 1, $month, 1, 0, 0, 0, config('app.timezone'));
+            $candidate->day(min($day, $candidate->daysInMonth));
+            $this->applyTime($candidate, $time);
+        }
+
+        return $candidate;
+    }
+
+    private function extractWeekday(string $normalized): ?int
+    {
+        foreach ([
+            'domingo' => 0,
+            'segunda-feira' => 1,
+            'segunda' => 1,
+            'terca-feira' => 2,
+            'terca' => 2,
+            'quarta-feira' => 3,
+            'quarta' => 3,
+            'quinta-feira' => 4,
+            'quinta' => 4,
+            'sexta-feira' => 5,
+            'sexta' => 5,
+            'sabado' => 6,
+        ] as $name => $value) {
+            if (str_contains($normalized, $name)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function applyTime(Carbon $date, string $time): void
+    {
+        [$hour, $minute, $second] = array_map('intval', explode(':', $time));
+        $date->setTime($hour, $minute, $second);
     }
 
     private function resolveMonthNumber(string $monthName): ?int

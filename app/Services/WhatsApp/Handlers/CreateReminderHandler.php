@@ -22,15 +22,31 @@ class CreateReminderHandler extends BaseHandler
         $validation = Validator::make($data, [
             'title' => ['required', 'string', 'min:3', 'max:120'],
             'message' => ['required', 'string', 'min:3', 'max:255'],
-            'frequency' => ['required', 'in:once,monthly,yearly'],
+            'frequency' => ['required', 'in:once,daily,weekly,monthly,yearly'],
             'timezone' => ['required', 'string', 'max:60'],
             'next_trigger_at' => ['required', 'date'],
+            'day_of_week' => ['nullable', 'integer', 'min:0', 'max:6'],
             'day_of_month' => ['nullable', 'integer', 'min:1', 'max:31'],
             'month_of_year' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'trigger_time' => ['nullable', 'regex:/^\d{2}:\d{2}:\d{2}$/'],
         ]);
 
+        $validation->after(function ($validator) use ($data) {
+            if ($data['frequency'] === 'weekly' && $data['day_of_week'] === null) {
+                $validator->errors()->add('day_of_week', 'Informe o dia da semana para lembrete semanal.');
+            }
+
+            if ($data['frequency'] === 'monthly' && $data['day_of_month'] === null) {
+                $validator->errors()->add('day_of_month', 'Informe o dia do mes para lembrete mensal.');
+            }
+
+            if ($data['frequency'] === 'yearly' && ($data['day_of_month'] === null || $data['month_of_year'] === null)) {
+                $validator->errors()->add('yearly_schedule', 'Informe dia e mes para lembrete anual.');
+            }
+        });
+
         if ($validation->fails()) {
-            $this->sendErrorMessage($job, "Nao consegui criar esse lembrete.\n\nTente assim:\n* dia 10 desse mes me lembra de pagar Joao\n* me lembra de dar parabens para Maria dia 10/06");
+            $this->sendErrorMessage($job, "Nao consegui criar esse lembrete.\n\nTente assim:\n* me lembra no dia 5 do mes que vem de pagar Joao\n* me lembra de dar parabens para Maria anualmente dia 10 do mes 6\n* me lembra todo dia as 08:30 de tomar agua");
             return true;
         }
 
@@ -62,31 +78,62 @@ class CreateReminderHandler extends BaseHandler
             'frequency' => (string) ($data['frequency'] ?? ''),
             'timezone' => (string) ($data['timezone'] ?? config('app.timezone')),
             'next_trigger_at' => (string) ($data['next_trigger_at'] ?? ''),
+            'day_of_week' => isset($data['day_of_week']) ? (int) $data['day_of_week'] : null,
             'day_of_month' => isset($data['day_of_month']) ? (int) $data['day_of_month'] : null,
             'month_of_year' => isset($data['month_of_year']) ? (int) $data['month_of_year'] : null,
+            'trigger_time' => isset($data['trigger_time']) ? (string) $data['trigger_time'] : '09:00:00',
             'metadata' => $data['metadata'] ?? [],
         ];
     }
 
     private function buildSuccessMessage(Reminder $reminder): string
     {
+        $time = $reminder->trigger_time ? substr($reminder->trigger_time, 0, 5) : '09:00';
+
         return match ($reminder->frequency) {
-            'monthly' => sprintf(
-                'Lembrete mensal criado para %s, todo dia %d.',
+            'daily' => sprintf(
+                'Lembrete diario criado para %s, todos os dias as %s.',
                 $reminder->title,
-                (int) $reminder->day_of_month
+                $time
             ),
-            'yearly' => sprintf(
-                'Lembrete anual criado para %s, todo dia %02d/%02d.',
+            'weekly' => sprintf(
+                'Lembrete semanal criado para %s, toda %s as %s.',
+                $reminder->title,
+                $this->weekdayLabel((int) $reminder->day_of_week),
+                $time
+            ),
+            'monthly' => sprintf(
+                'Lembrete mensal criado para %s, todo dia %d as %s.',
                 $reminder->title,
                 (int) $reminder->day_of_month,
-                (int) $reminder->month_of_year
+                $time
+            ),
+            'yearly' => sprintf(
+                'Lembrete anual criado para %s, todo dia %02d/%02d as %s.',
+                $reminder->title,
+                (int) $reminder->day_of_month,
+                (int) $reminder->month_of_year,
+                $time
             ),
             default => sprintf(
-                'Lembrete criado para %s em %s.',
+                'Lembrete criado para %s em %s as %s.',
                 $reminder->title,
-                $reminder->next_trigger_at?->format('d/m/Y')
+                $reminder->next_trigger_at?->format('d/m/Y'),
+                $time
             ),
         };
+    }
+
+    private function weekdayLabel(int $dayOfWeek): string
+    {
+        return [
+            0 => 'domingo',
+            1 => 'segunda-feira',
+            2 => 'terca-feira',
+            3 => 'quarta-feira',
+            4 => 'quinta-feira',
+            5 => 'sexta-feira',
+            6 => 'sabado',
+        ][$dayOfWeek] ?? 'dia da semana';
     }
 }

@@ -43,9 +43,31 @@ class ReminderIntentClassifier
     {
         $partial = $this->reminderMessageParser->parsePartialCreate($originalMessage);
 
-        return $this->reminderMessageParser->looksLikeCreateIntent($normalizedMessage)
-            && $partial !== null
-            && empty($partial['frequency']);
+        if (! $this->reminderMessageParser->looksLikeCreateIntent($normalizedMessage) || $partial === null) {
+            return false;
+        }
+
+        if (empty($partial['frequency'])) {
+            return true;
+        }
+
+        if (($partial['frequency'] ?? null) === 'weekly' && ! isset($partial['day_of_week'])) {
+            return true;
+        }
+
+        if (($partial['frequency'] ?? null) === 'monthly' && empty($partial['day_of_month'])) {
+            return true;
+        }
+
+        if (($partial['frequency'] ?? null) === 'yearly' && (empty($partial['day_of_month']) || empty($partial['month_of_year']))) {
+            return true;
+        }
+
+        if (($partial['frequency'] ?? null) === 'once' && empty($partial['next_trigger_at'])) {
+            return true;
+        }
+
+        return false;
     }
 
     private function looksLikeReminderQuery(string $normalizedMessage, array $state): bool

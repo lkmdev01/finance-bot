@@ -23,8 +23,16 @@ class ReminderConversationService
 
         $lines = $reminders->map(function ($reminder) {
             $nextDate = $reminder->next_trigger_at?->format('d/m/Y') ?? 'sem data';
+            $time = $reminder->trigger_time ? substr($reminder->trigger_time, 0, 5) : '09:00';
+            $frequency = match ($reminder->frequency) {
+                'daily' => 'diario',
+                'weekly' => 'semanal',
+                'monthly' => 'mensal',
+                'yearly' => 'anual',
+                default => 'pontual',
+            };
 
-            return sprintf('- %s: proximo lembrete em %s', $reminder->title, $nextDate);
+            return sprintf('- %s: %s, proximo em %s as %s', $reminder->title, $frequency, $nextDate, $time);
         })->implode("\n");
 
         return [
