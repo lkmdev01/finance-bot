@@ -24,7 +24,7 @@ class BudgetConversationService
 
         if ($context['comparison_mode'] === 'single') {
             return [
-                'reply' => $this->buildPortfolioComparisonReply($budgets, $context),
+                'reply' => $this->buildPortfolioComparisonReply($user, $budgets, $context),
                 'entities' => $this->buildEntities($context, [
                     'comparison_mode' => 'single',
                     'category_count' => $budgets->count(),
@@ -53,7 +53,7 @@ class BudgetConversationService
         }
 
         return [
-            'reply' => $this->buildSummaryReply($budgets, $context),
+            'reply' => $this->buildSummaryReply($user, $budgets, $context),
             'entities' => $this->buildEntities($context, [
                 'category_count' => $budgets->count(),
             ]),
@@ -253,15 +253,16 @@ class BudgetConversationService
         return "Você ainda não tem orçamentos cadastrados para {$periodLabel}. Se quiser, eu posso criar um orçamento por categoria ou comparar outro período.";
     }
 
-    private function buildSummaryReply(Collection $budgets, array $context): string
+    private function buildSummaryReply(User $user, Collection $budgets, array $context): string
     {
         $periodLabel = $context['period']['label'];
         $lines = $budgets->map(fn (Budget $budget) => $this->formatBudgetLine($budget))->implode("\n");
         $tightest = $this->findTightestBudget($budgets);
         $widest = $this->findMostComfortableBudget($budgets);
+        $advisor = app(FinancialConversationAdvisor::class);
 
         $insight = [];
-        if ($tightest) {
+        if ($tightest && $tightest->percentage_used > 0) {
             $insight[] = sprintf(
                 'Hoje, %s é a categoria mais apertada, com %s do limite usado.',
                 $tightest->category?->name,
@@ -269,7 +270,7 @@ class BudgetConversationService
             );
         }
 
-        if ($widest && $widest->id !== $tightest?->id) {
+        if ($widest && $widest->id !== $tightest?->id && $widest->remaining > 0) {
             $insight[] = sprintf(
                 '%s é a que tem mais folga, com R$ %s restantes.',
                 $widest->category?->name,
@@ -278,8 +279,12 @@ class BudgetConversationService
         }
 
         $suggestion = 'Se quiser, eu posso abrir uma categoria específica, comparar com o mês passado ou te dizer qual está mais apertada.';
+        $proactive = $advisor->budgetSummaryInsight($user, $budgets);
 
-        return trim("Seus orçamentos de {$periodLabel}:\n{$lines}\n\n".implode(' ', $insight).' '.$suggestion);
+        return trim(
+            "Seus orçamentos de {$periodLabel}:\n{$lines}\n\n" .
+            implode(' ', array_filter([implode(' ', $insight), $proactive, $suggestion]))
+        );
     }
 
     private function buildCategoryReply(Collection $budgets, array $context): string
@@ -295,6 +300,8 @@ class BudgetConversationService
         $budget = $budgets->first();
         $category = $budget->category?->name ?? 'essa categoria';
         $periodLabel = $context['period']['label'];
+        $advisor = app(FinancialConversationAdvisor::class);
+
         $reply = sprintf(
             'Seu orçamento de %s em %s é R$ %s. Você usou R$ %s e ainda tem R$ %s livres.',
             $category,
@@ -312,29 +319,49 @@ class BudgetConversationService
             $reply .= ' Ainda há uma folga confortável nesse orçamento.';
         }
 
+        $proactive = $advisor->budgetCategoryInsight($budget);
+        if ($proactive !== null) {
+            $reply .= ' '.$proactive;
+        }
+
         $reply .= "\n\nSe quiser, eu posso comparar {$category} com o mês passado, com outra categoria ou listar os gastos que entram nesse orçamento.";
 
         return $reply;
     }
 
-    private function buildPortfolioComparisonReply(Collection $budgets, array $context): string
+    private function buildPortfolioComparisonReply(User $user, Collection $budgets, array $context): string
     {
         $tightest = $this->findTightestBudget($budgets);
         $widest = $this->findMostComfortableBudget($budgets);
         $periodLabel = $context['period']['label'];
+        $advisor = app(FinancialConversationAdvisor::class);
 
         if (! $tightest || ! $widest) {
-            return $this->buildSummaryReply($budgets, $context);
+            return $this->buildSummaryReply($user, $budgets, $context);
         }
 
-        $reply = sprintf(
-            'Comparando seus orçamentos de %s, %s é a categoria mais apertada, com %s do limite usado, e %s é a que tem mais folga, com R$ %s restantes.',
-            $periodLabel,
-            $tightest->category?->name,
-            $this->formatPercentage($tightest->percentage_used),
-            $widest->category?->name,
-            $this->formatMoney($widest->remaining)
-        );
+        if ($tightest->percentage_used <= 0 && $widest->remaining > 0) {
+            $reply = sprintf(
+                'Comparando seus orçamentos de %s, ainda não houve consumo registrado. Hoje, %s é a categoria com mais folga disponível, com R$ %s restantes.',
+                $periodLabel,
+                $widest->category?->name,
+                $this->formatMoney($widest->remaining)
+            );
+        } else {
+            $reply = sprintf(
+                'Comparando seus orçamentos de %s, %s é a categoria mais apertada, com %s do limite usado, e %s é a que tem mais folga, com R$ %s restantes.',
+                $periodLabel,
+                $tightest->category?->name,
+                $this->formatPercentage($tightest->percentage_used),
+                $widest->category?->name,
+                $this->formatMoney($widest->remaining)
+            );
+        }
+
+        $proactive = $advisor->budgetSummaryInsight($user, $budgets);
+        if ($proactive !== null) {
+            $reply .= ' '.$proactive;
+        }
 
         $reply .= "\n\nSe quiser, eu posso detalhar qualquer uma dessas categorias ou comparar com outro período.";
 
@@ -363,7 +390,7 @@ class BudgetConversationService
         })->implode("\n");
 
         $reply = sprintf(
-            'Comparando essas categorias em %s:'."\n".'%s'."\n\n".'Hoje, %s está mais perto do limite do que %s.',
+            "Comparando essas categorias em %s:\n%s\n\nHoje, %s está mais perto do limite do que %s.",
             $periodLabel,
             $lines,
             $first->category?->name,

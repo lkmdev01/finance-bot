@@ -225,3 +225,61 @@ it('traz sugestão útil depois de listar gastos', function () {
         app(\App\Services\PerformanceMetricsService::class)
     );
 });
+
+it('traz insight proativo sobre categoria que mais pesou ao consultar gastos', function () {
+    Transaction::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->alimentacao->id,
+        'type' => 'expense',
+        'amount' => 320.00,
+        'description' => 'Mercado',
+        'date' => now()->toDateString(),
+    ]);
+
+    Transaction::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->compras->id,
+        'type' => 'expense',
+        'amount' => 90.00,
+        'description' => 'Loja',
+        'date' => now()->toDateString(),
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [[
+                'message' => [
+                    'content' => json_encode([
+                        'reply' => 'Vou listar seus gastos.',
+                        'action' => 'query_transactions',
+                    ]),
+                ],
+            ]],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Alimentação é a categoria que mais pesou')
+                    && str_contains($message, 'comparar com o mês passado');
+            }))
+            ->andReturn(fakeTransactionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'quais foram meus gastos?',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});

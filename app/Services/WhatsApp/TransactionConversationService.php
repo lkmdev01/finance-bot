@@ -31,13 +31,13 @@ class TransactionConversationService
 
         if ($context['mode'] === 'category') {
             return [
-                'reply' => $this->buildCategoryReply($transactions, $context),
+                'reply' => $this->buildCategoryReply($user, $transactions, $context),
                 'entities' => $this->buildEntities($context),
             ];
         }
 
         return [
-            'reply' => $this->buildTransactionListReply($transactions, $context),
+            'reply' => $this->buildTransactionListReply($user, $transactions, $context),
             'entities' => $this->buildEntities($context),
         ];
     }
@@ -125,7 +125,7 @@ class TransactionConversationService
         return [
             'scope' => $scope,
             'year' => $reference->year,
-            'month' => in_array($scope, ['today', 'yesterday'], true) ? $reference->month : $reference->month,
+            'month' => $reference->month,
             'day' => in_array($scope, ['today', 'yesterday'], true) ? $reference->day : null,
             'label' => match ($scope) {
                 'today' => 'hoje',
@@ -203,13 +203,14 @@ class TransactionConversationService
     {
         if ($context['mode'] === 'category' && ! empty($context['category_names'])) {
             $category = $context['category_names'][0];
+
             return "Não encontrei {$this->labelForType($context['type'])} em {$category} para {$context['period']['label']}. Se quiser, eu posso comparar outra categoria ou olhar outro período.";
         }
 
         return "Não encontrei {$this->labelForType($context['type'])} para {$context['period']['label']}. Se quiser, eu posso filtrar por categoria ou comparar com o mês passado.";
     }
 
-    private function buildTransactionListReply(Collection $transactions, array $context): string
+    private function buildTransactionListReply(User $user, Collection $transactions, array $context): string
     {
         $title = match ($context['type']) {
             'income' => 'Suas receitas',
@@ -227,13 +228,20 @@ class TransactionConversationService
         })->implode("\n");
 
         $total = number_format((float) $transactions->sum('amount'), 2, ',', '.');
+        $advisor = app(FinancialConversationAdvisor::class);
+        $insight = $advisor->transactionSummaryInsight($user, $transactions, $context);
         $reply = "{$title} de {$context['period']['label']}:\n{$lines}\n\nTotal no período: R$ {$total}.";
+
+        if ($insight !== null) {
+            $reply .= ' '.$insight;
+        }
+
         $reply .= ' Se quiser, eu posso filtrar por categoria, comparar com o mês passado ou te mostrar o que mais pesou.';
 
         return $reply;
     }
 
-    private function buildCategoryReply(Collection $transactions, array $context): string
+    private function buildCategoryReply(User $user, Collection $transactions, array $context): string
     {
         $grouped = $transactions->groupBy(fn (Transaction $transaction) => $transaction->category?->name ?? 'Sem categoria');
 
@@ -245,6 +253,7 @@ class TransactionConversationService
         $total = (float) $transactions->sum('amount');
         $count = $transactions->count();
         $periodLabel = $context['period']['label'];
+        $advisor = app(FinancialConversationAdvisor::class);
 
         $reply = sprintf(
             'Em %s, você teve %d %s em %s, somando R$ %s.',
@@ -260,9 +269,9 @@ class TransactionConversationService
             $reply .= ' '.$previousPeriod;
         }
 
-        $topHint = $this->buildTopCategoryHint($transactions, $context, $categoryName, $total);
-        if ($topHint !== null) {
-            $reply .= ' '.$topHint;
+        $proactive = $advisor->transactionCategoryInsight($user, $transactions, $context);
+        if ($proactive !== null) {
+            $reply .= ' '.$proactive;
         }
 
         $reply .= " Se quiser, eu posso comparar {$categoryName} com outra categoria, listar os lançamentos ou olhar o mês passado.";
@@ -341,43 +350,12 @@ class TransactionConversationService
         $direction = $variation >= 0 ? 'acima' : 'abaixo';
 
         return sprintf(
-            'Isso ficou %s de %s, que é %s do que em %s.',
-            'R$ '.$this->formatMoney(abs($currentTotal - (float) $previousTotal)),
+            'Isso ficou R$ %s %s, o que representa %s em relação a %s.',
+            $this->formatMoney(abs($currentTotal - (float) $previousTotal)),
             $direction,
             $this->formatPercentage(abs($variation)),
             $previousDate->locale('pt_BR')->translatedFormat('F/Y')
         );
-    }
-
-    private function buildTopCategoryHint(Collection $transactions, array $context, string $categoryName, float $total): ?string
-    {
-        if (($context['type'] ?? 'expense') !== 'expense') {
-            return null;
-        }
-
-        $period = $context['period'];
-        $monthlyTotals = Transaction::query()
-            ->with('category')
-            ->where('user_id', $transactions->first()->user_id)
-            ->where('type', 'expense')
-            ->whereYear('date', $period['year'])
-            ->whereMonth('date', $period['month'])
-            ->get()
-            ->groupBy('category_id')
-            ->map(fn (Collection $items) => [
-                'name' => $items->first()->category?->name ?? 'Sem categoria',
-                'total' => (float) $items->sum('amount'),
-            ])
-            ->sortByDesc('total')
-            ->values();
-
-        $top = $monthlyTotals->first();
-
-        if (! $top || $top['name'] !== $categoryName) {
-            return null;
-        }
-
-        return "{$categoryName} é a categoria que mais pesou nas suas despesas nesse período.";
     }
 
     private function buildEntities(array $context): array

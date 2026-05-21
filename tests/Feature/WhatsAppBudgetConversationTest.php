@@ -245,3 +245,50 @@ it('traz sugestão útil depois de listar orçamentos', function () {
         app(\App\Services\PerformanceMetricsService::class)
     );
 });
+
+it('não chama categoria de apertada quando ainda não houve consumo', function () {
+    Budget::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->categoriaBase->id,
+        'amount' => 800.00,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+
+    Budget::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->compras->id,
+        'amount' => 500.00,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'nenhum orçamento teve consumo registrado')
+                    && ! str_contains($message, 'mais apertada, com 0%');
+            }))
+            ->andReturn(fakeBudgetBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'quais são meus orçamentos?',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
