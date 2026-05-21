@@ -215,9 +215,15 @@ class MessageClassifier
             return false;
         }
 
-        return $fallbackCategory !== null
-            && $this->containsAny($normalizedMessage, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'])
-            && $this->budgetMessageParser->parseEdit('orcamento '.$fallbackCategory.' '.$originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
+        if (! $this->containsAny($normalizedMessage, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'])) {
+            return false;
+        }
+
+        if ($fallbackCategory !== null) {
+            return $this->budgetMessageParser->parseEdit('orcamento '.$fallbackCategory.' '.$originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
+        }
+
+        return true;
     }
 
     private function looksLikeBudgetDelete(string $originalMessage, string $normalizedMessage, array $state): bool
@@ -237,9 +243,15 @@ class MessageClassifier
             return false;
         }
 
-        return $fallbackCategory !== null
-            && $this->containsAny($normalizedMessage, ['cancelar', 'cancela', 'apagar', 'apaga', 'remover', 'remove', 'excluir', 'exclui'])
-            && $this->budgetMessageParser->parseDelete('orcamento '.$fallbackCategory.' '.$originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
+        if (! $this->containsAny($normalizedMessage, ['cancelar', 'cancela', 'apagar', 'apaga', 'remover', 'remove', 'excluir', 'exclui'])) {
+            return false;
+        }
+
+        if ($fallbackCategory !== null) {
+            return $this->budgetMessageParser->parseDelete('orcamento '.$fallbackCategory.' '.$originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
+        }
+
+        return true;
     }
 
     private function looksLikeTransactionEdit(string $originalMessage, string $normalizedMessage, array $state): bool

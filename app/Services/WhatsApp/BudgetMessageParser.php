@@ -10,7 +10,7 @@ class BudgetMessageParser
     {
         $normalized = $this->normalize($message);
 
-        if (! $this->looksLikeEditIntent($normalized) && ! ($fallbackCategoryName && $this->containsEditVerb($normalized))) {
+        if (! $this->looksLikeEditIntent($normalized) && ! $this->containsEditVerb($normalized)) {
             return null;
         }
 
@@ -35,7 +35,7 @@ class BudgetMessageParser
     {
         $normalized = $this->normalize($message);
 
-        if (! $this->looksLikeDeleteIntent($normalized) && ! ($fallbackCategoryName && $this->containsDeleteVerb($normalized))) {
+        if (! $this->looksLikeDeleteIntent($normalized) && ! $this->containsDeleteVerb($normalized)) {
             return null;
         }
 
@@ -117,6 +117,7 @@ class BudgetMessageParser
     private function extractCategoryName(string $message): ?string
     {
         $normalized = $this->normalize($message);
+        $asciiMessage = Str::ascii($message);
 
         if (preg_match('/or.*?amento\s+de\s+([\p{L}\p{N} _?-]+?)(?:\s+(?:para|pra|com|no|na|em)\b|[,.]|$)/iu', $normalized, $matches)) {
             return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
@@ -131,6 +132,14 @@ class BudgetMessageParser
         }
 
         if (preg_match('/o\s+or.*?amento\s+de\s+([\p{L}\p{N} _?-]+)$/iu', $normalized, $matches)) {
+            return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
+        }
+
+        if (preg_match('/\ba\s+de\s+([a-z0-9 _-]+)$/i', Str::ascii(mb_strtolower($message)), $matches)) {
+            return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
+        }
+
+        if (preg_match('/\bde\s+([a-z0-9 _-]+)$/i', Str::ascii(mb_strtolower($message)), $matches)) {
             return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
         }
 
@@ -150,6 +159,7 @@ class BudgetMessageParser
         $name = trim($name, " \t\n\r\0\x0B-:");
         $name = preg_replace('/\b(mensal|anual|hoje|amanha)\b.*$/iu', '', $name) ?? $name;
         $name = trim($name, " \t\n\r\0\x0B-:");
+        $name = Str::ascii($name);
 
         if ($name === '' || in_array($this->normalize($name), ['orcamento', 'limite'], true)) {
             return null;

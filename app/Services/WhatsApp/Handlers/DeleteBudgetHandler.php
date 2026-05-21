@@ -29,10 +29,18 @@ class DeleteBudgetHandler extends BaseHandler
 
         $category = $user->categories()
             ->where('type', 'expense')
-            ->get()
-            ->first(function (Category $category) use ($categoryName) {
-                return $this->normalizeText($category->name) === $this->normalizeText($categoryName);
-            });
+            ->get();
+
+        $category = $category->first(function (Category $item) use ($categoryName) {
+            return $this->normalizeText($item->name) === $this->normalizeText($categoryName);
+        }) ?? $category->first(function (Category $item) use ($categoryName) {
+            $candidate = $this->normalizeText($item->name);
+            $target = $this->normalizeText($categoryName);
+
+            return str_starts_with($candidate, $target)
+                || str_starts_with($target, $candidate)
+                || levenshtein($candidate, $target) <= 3;
+        });
 
         if (! $category instanceof Category) {
             $this->sendErrorMessage($job, 'Nao encontrei essa categoria de despesa para cancelar o orcamento.');
@@ -100,6 +108,8 @@ class DeleteBudgetHandler extends BaseHandler
 
     private function normalizeText(string $value): string
     {
-        return mb_strtolower(Str::ascii(trim($value)));
+        $value = mb_strtolower(Str::ascii(trim($value)));
+
+        return preg_replace('/[^a-z0-9]/', '', $value) ?? $value;
     }
 }

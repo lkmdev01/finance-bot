@@ -22,12 +22,17 @@ class UpdateBudgetHandler extends BaseHandler
         $data = $this->normalizeData($result['budget_data'] ?? []);
 
         $validation = Validator::make($data, [
-            'category_name' => ['required', 'string', 'min:2', 'max:120'],
+            'category_name' => ['nullable', 'string', 'min:2', 'max:120'],
             'amount' => ['nullable', 'numeric', 'min:0.01', 'max:99999999.99'],
             'period' => ['nullable', 'in:monthly,yearly'],
             'year' => ['nullable', 'integer', 'min:2000', 'max:2100'],
             'month' => ['nullable', 'integer', 'min:1', 'max:12'],
         ]);
+
+        if ($data['category_name'] === '') {
+            $this->sendErrorMessage($job, 'Preciso saber qual categoria de orcamento voce quer ajustar. Exemplo: ajustar orcamento de Alimentacao para 700.');
+            return true;
+        }
 
         if ($validation->fails() || $data['amount'] === null) {
             $this->sendErrorMessage($job, $this->buildGuidanceReply($validation->errors()->all()));
@@ -92,12 +97,24 @@ class UpdateBudgetHandler extends BaseHandler
     {
         $normalizedTarget = $this->normalizeText($categoryName);
 
-        return $user->categories()
+        $categories = $user->categories()
             ->where('type', 'expense')
-            ->get()
-            ->first(function (Category $category) use ($normalizedTarget) {
-                return $this->normalizeText($category->name) === $normalizedTarget;
-            });
+            ->get();
+
+        $exactMatch = $categories->first(function (Category $category) use ($normalizedTarget) {
+            return $this->normalizeText($category->name) === $normalizedTarget;
+        });
+
+        if ($exactMatch instanceof Category) {
+            return $exactMatch;
+        }
+
+        return $categories->first(function (Category $category) use ($normalizedTarget) {
+            $candidate = $this->normalizeText($category->name);
+            return str_starts_with($candidate, $normalizedTarget)
+                || str_starts_with($normalizedTarget, $candidate)
+                || levenshtein($candidate, $normalizedTarget) <= 3;
+        });
     }
 
     private function findBudget(User $user, Category $category, array $data): ?Budget
@@ -128,6 +145,8 @@ class UpdateBudgetHandler extends BaseHandler
 
     private function normalizeText(string $value): string
     {
-        return mb_strtolower(Str::ascii(trim($value)));
+        $value = mb_strtolower(Str::ascii(trim($value)));
+
+        return preg_replace('/[^a-z0-9]/', '', $value) ?? $value;
     }
 }
