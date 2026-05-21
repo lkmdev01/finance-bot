@@ -24,8 +24,8 @@ class MessageClassifier
         }
 
         foreach ([
-            $this->planningIntentClassifier,
             $this->transactionIntentClassifier,
+            $this->planningIntentClassifier,
             $this->budgetIntentClassifier,
         ] as $classifier) {
             $result = $classifier->classify($message, $stripped, $state);
