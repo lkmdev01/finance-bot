@@ -23,7 +23,26 @@ class DeleteBudgetHandler extends BaseHandler
         $categoryName = trim((string) ($data['category_name'] ?? ''));
 
         if ($categoryName === '') {
-            $this->sendErrorMessage($job, 'Preciso da categoria do orcamento para cancelar. Exemplo: cancelar orcamento compras.');
+            $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
+                'pending_intent' => 'delete_budget_category',
+                'pending_mode' => 'awaiting_clarification',
+                'pending_payload' => [
+                    'budget_data' => array_filter([
+                        'period' => $data['period'] ?? null,
+                        'year' => $data['year'] ?? now()->year,
+                        'month' => $data['month'] ?? now()->month,
+                    ], fn ($value) => $value !== null && $value !== ''),
+                ],
+                'clear_pending' => false,
+                'reply_kind' => 'message',
+                'entities' => [
+                    'topic' => 'budget',
+                    'year' => $data['year'] ?? now()->year,
+                    'month' => $data['month'] ?? now()->month,
+                ],
+            ]);
+
+            $this->sendErrorMessage($job, 'Preciso da categoria do orcamento para cancelar. Me diga so a categoria, por exemplo: Compras.');
             return true;
         }
 

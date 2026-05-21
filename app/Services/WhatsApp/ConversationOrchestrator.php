@@ -22,6 +22,15 @@ class ConversationOrchestrator
         $state = $this->stateService->getState($contact);
         $classification = $this->classifier->classify($message, $state);
 
+        if (($state['mode'] ?? 'idle') === 'awaiting_clarification'
+            && in_array($classification['kind'], ['default', 'budget_query'], true)
+        ) {
+            $clarification = $this->handleClarification($message, $state);
+            if ($clarification !== null) {
+                return $clarification;
+            }
+        }
+
         return match ($classification['kind']) {
             'greeting' => [
                 'handled' => true,
@@ -48,6 +57,7 @@ class ConversationOrchestrator
             'subscription_create' => $this->buildSubscriptionCreateResult($message),
             'subscription_edit' => $this->buildSubscriptionEditResult($message, $state),
             'subscription_cancel' => $this->buildSubscriptionCancelResult($message, $state),
+            'compound_transaction_create' => $this->buildCompoundTransactionCreateResult($message),
             'transaction_edit' => $this->buildTransactionEditResult($message, $state),
             'transaction_delete' => $this->buildTransactionDeleteResult($message, $state),
             'transaction_follow_up' => $this->buildQueryResult($classification['target_action'] ?? 'query_transactions', $message),
@@ -319,6 +329,23 @@ class ConversationOrchestrator
         ];
     }
 
+    private function buildCompoundTransactionCreateResult(string $message): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_transaction',
+                'transaction_data' => [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
     private function buildTransactionDeleteResult(string $message, array $state): array
     {
         return [
@@ -371,6 +398,40 @@ class ConversationOrchestrator
             'period' => ($entities['month'] ?? null) ? 'monthly' : 'yearly',
             'year' => $entities['year'] ?? now()->year,
             'month' => $entities['month'] ?? now()->month,
+        ];
+    }
+
+    private function handleClarification(string $message, array $state): ?array
+    {
+        return match ($state['pending_intent'] ?? null) {
+            'update_budget_category' => $this->buildBudgetClarificationResult('update_budget', $message, $state),
+            'delete_budget_category' => $this->buildBudgetClarificationResult('delete_budget', $message, $state),
+            default => null,
+        };
+    }
+
+    private function buildBudgetClarificationResult(string $action, string $message, array $state): ?array
+    {
+        $categoryName = trim($message, " \t\n\r\0\x0B .,:;!?");
+        if ($categoryName === '') {
+            return null;
+        }
+
+        $budgetData = $state['pending_payload']['budget_data'] ?? [];
+        $budgetData['category_name'] = $categoryName;
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => $action,
+                'budget_data' => $budgetData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
         ];
     }
 }

@@ -76,6 +76,10 @@ class MessageClassifier
             return ['kind' => 'subscription_create', 'normalized' => $stripped];
         }
 
+        if ($this->looksLikeCompoundTransactionCreate($stripped)) {
+            return ['kind' => 'compound_transaction_create', 'normalized' => $stripped];
+        }
+
         if ($this->looksLikeBudgetQuery($stripped, $state)) {
             return ['kind' => 'budget_query', 'normalized' => $stripped];
         }
@@ -392,6 +396,20 @@ class MessageClassifier
         }
 
         return $this->looksLikeCategoryFollowUpMessage($message);
+    }
+
+    private function looksLikeCompoundTransactionCreate(string $message): bool
+    {
+        if (! $this->containsAny($message, ['gastei', 'paguei', 'recebi', 'ganhei', 'entrou'])) {
+            return false;
+        }
+
+        preg_match_all('/(?:r\\$\\s*)?\\d+(?:[\\.,]\\d{1,2})?/u', $message, $amountMatches);
+        if (count($amountMatches[0] ?? []) < 2) {
+            return false;
+        }
+
+        return $this->containsAny($message, [' e ', ',', ';', ' depois ', ' tambem ', ' tambem', ' também ', ' mais ']);
     }
 
     private function containsBudgetQueryCue(string $message): bool

@@ -30,7 +30,27 @@ class UpdateBudgetHandler extends BaseHandler
         ]);
 
         if ($data['category_name'] === '') {
-            $this->sendErrorMessage($job, 'Preciso saber qual categoria de orcamento voce quer ajustar. Exemplo: ajustar orcamento de Alimentacao para 700.');
+            $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
+                'pending_intent' => 'update_budget_category',
+                'pending_mode' => 'awaiting_clarification',
+                'pending_payload' => [
+                    'budget_data' => array_filter([
+                        'amount' => $data['amount'],
+                        'period' => $data['period'],
+                        'year' => $data['year'],
+                        'month' => $data['month'],
+                    ], fn ($value) => $value !== null && $value !== ''),
+                ],
+                'clear_pending' => false,
+                'reply_kind' => 'message',
+                'entities' => [
+                    'topic' => 'budget',
+                    'year' => $data['year'] ?? now()->year,
+                    'month' => $data['month'] ?? now()->month,
+                ],
+            ]);
+
+            $this->sendErrorMessage($job, 'Preciso saber qual categoria de orcamento voce quer ajustar. Me diga so a categoria, por exemplo: Alimentacao ou Compras.');
             return true;
         }
 

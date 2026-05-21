@@ -34,6 +34,16 @@ class ConversationStateService
         $this->persistState($contact, $state);
     }
 
+    public function markAwaitingClarification(WhatsAppContact $contact, string $intent, array $payload = []): void
+    {
+        $state = $this->getState($contact);
+        $state['mode'] = 'awaiting_clarification';
+        $state['pending_intent'] = $intent;
+        $state['pending_payload'] = $payload;
+        $state['updated_at'] = now()->toIso8601String();
+        $this->persistState($contact, $state);
+    }
+
     public function rememberLastAction(WhatsAppContact $contact, ?string $action, array $entities = [], ?string $replyKind = null): void
     {
         $state = $this->getState($contact);
@@ -109,7 +119,13 @@ class ConversationStateService
         $entities = $metadata['entities'] ?? [];
 
         if (($metadata['pending_intent'] ?? null) !== null) {
-            $this->markAwaitingConfirmation($contact, $metadata['pending_intent'], $metadata['pending_payload'] ?? []);
+            $pendingMode = $metadata['pending_mode'] ?? 'awaiting_confirmation';
+
+            if ($pendingMode === 'awaiting_clarification') {
+                $this->markAwaitingClarification($contact, $metadata['pending_intent'], $metadata['pending_payload'] ?? []);
+            } else {
+                $this->markAwaitingConfirmation($contact, $metadata['pending_intent'], $metadata['pending_payload'] ?? []);
+            }
         } elseif (($metadata['clear_pending'] ?? true) === true) {
             $this->clearPending($contact);
         }
