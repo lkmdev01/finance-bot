@@ -99,7 +99,7 @@ class ReminderMessageParser
     private function extractSchedule(string $normalized): ?array
     {
         if (preg_match('/(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+(\d{1,2})\b/u', $normalized, $matches)
-            || preg_match('/\bdia\s+(\d{1,2})\s+(?:mes\s+que\s+vem|proximo\s+mes)\b/u', $normalized, $matches)) {
+            || preg_match('/\bdia\s+(\d{1,2})\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/u', $normalized, $matches)) {
             $day = max(1, min(31, (int) $matches[1]));
 
             return [
@@ -181,7 +181,7 @@ class ReminderMessageParser
         $title = $cleanMessage;
         $title = preg_replace('/^\s*(?:todo\s+m\S*s|todo\s+mes|cada\s+m\S*s|todo\s+dia|cada\s+ano)\s*/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+\d{1,2}\b/iu', '', $title) ?? $title;
-        $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:mes\s+que\s+vem|proximo\s+mes)\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}(?:\/\d{1,2}(?:\/\d{4})?)?\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:desse|deste)\s+m\S*s\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+de\s+[[:alpha:]]+\b/iu', '', $title) ?? $title;
@@ -191,6 +191,7 @@ class ReminderMessageParser
         $title = preg_replace('/\b(todo|cada)\s+m\S*s\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bmensal\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:me\s+lembra(?:r)?(?:\s+de)?|me\s+lembre(?:\s+de)?|lembrete(?:\s+para)?|lembrar\s+de|lembra\s+de)\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/^\s*(?:(?:no|na|do|da|de)\s+)+/iu', '', $title) ?? $title;
         $title = preg_replace('/\s+/u', ' ', $title) ?? $title;
         $title = trim($title, " \t\n\r\0\x0B,.;:-?");
 
