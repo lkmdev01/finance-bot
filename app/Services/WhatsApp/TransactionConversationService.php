@@ -25,20 +25,20 @@ class TransactionConversationService
         if ($context['mode'] === 'category' && $context['comparison_mode'] === 'pair') {
             return [
                 'reply' => $this->buildCategoryComparisonReply($transactions, $context),
-                'entities' => $this->buildEntities($context),
+                'entities' => $this->buildEntities($context, $transactions),
             ];
         }
 
         if ($context['mode'] === 'category') {
             return [
                 'reply' => $this->buildCategoryReply($user, $transactions, $context),
-                'entities' => $this->buildEntities($context),
+                'entities' => $this->buildEntities($context, $transactions),
             ];
         }
 
         return [
             'reply' => $this->buildTransactionListReply($user, $transactions, $context),
-            'entities' => $this->buildEntities($context),
+            'entities' => $this->buildEntities($context, $transactions),
         ];
     }
 
@@ -358,8 +358,10 @@ class TransactionConversationService
         );
     }
 
-    private function buildEntities(array $context): array
+    private function buildEntities(array $context, ?Collection $transactions = null): array
     {
+        $latestTransaction = $transactions?->first();
+
         return array_filter([
             'topic' => $context['mode'] === 'category' ? 'expense_category' : 'transactions',
             'transaction_type' => $context['type'],
@@ -371,6 +373,10 @@ class TransactionConversationService
             'category_name' => count($context['category_names']) === 1 ? $context['category_names'][0] : null,
             'category_names' => count($context['category_names']) > 1 ? $context['category_names'] : null,
             'comparison_mode' => $context['comparison_mode'],
+            'transaction_id' => $transactions?->count() === 1 ? $latestTransaction?->id : null,
+            'latest_transaction_id' => $latestTransaction?->id,
+            'latest_transaction_ids' => $transactions?->take(5)->pluck('id')->values()->all(),
+            'latest_transaction_description' => $latestTransaction?->description,
         ], fn ($value) => $value !== null && $value !== [] && $value !== '');
     }
 

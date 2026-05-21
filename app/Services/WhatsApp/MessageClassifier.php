@@ -5,8 +5,10 @@ namespace App\Services\WhatsApp;
 class MessageClassifier
 {
     public function __construct(
+        private readonly BudgetMessageParser $budgetMessageParser,
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
-        private readonly SubscriptionMessageParser $subscriptionMessageParser
+        private readonly SubscriptionMessageParser $subscriptionMessageParser,
+        private readonly TransactionActionMessageParser $transactionActionMessageParser,
     ) {}
 
     public function classify(string $message, array $state = []): array
@@ -22,12 +24,28 @@ class MessageClassifier
             return ['kind' => 'subscription_cancel', 'normalized' => $stripped];
         }
 
+        if ($this->looksLikeBudgetDelete($message, $stripped, $state)) {
+            return ['kind' => 'budget_delete', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeTransactionDelete($message, $stripped, $state)) {
+            return ['kind' => 'transaction_delete', 'normalized' => $stripped];
+        }
+
         if ($this->looksLikeSavingsEdit($message, $stripped, $state)) {
             return ['kind' => 'savings_edit', 'normalized' => $stripped];
         }
 
+        if ($this->looksLikeBudgetEdit($message, $stripped, $state)) {
+            return ['kind' => 'budget_edit', 'normalized' => $stripped];
+        }
+
         if ($this->looksLikeSubscriptionEdit($message, $stripped, $state)) {
             return ['kind' => 'subscription_edit', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeTransactionEdit($message, $stripped, $state)) {
+            return ['kind' => 'transaction_edit', 'normalized' => $stripped];
         }
 
         if ($this->isCancellation($stripped)) {
@@ -176,6 +194,68 @@ class MessageClassifier
         }
 
         return $fallbackName !== null;
+    }
+
+    private function looksLikeBudgetEdit(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        $fallbackCategory = $this->recentEntityName($state, 'budget', 'category_name');
+        $fallbackPeriod = $this->recentBudgetPeriod($state);
+
+        if ($this->budgetMessageParser->looksLikeEditIntent($normalizedMessage)) {
+            return $this->budgetMessageParser->parseEdit($originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
+        }
+
+        if (($state['last_action'] ?? null) !== 'query_budgets') {
+            return false;
+        }
+
+        return $fallbackCategory !== null
+            && $this->containsAny($normalizedMessage, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'])
+            && $this->budgetMessageParser->parseEdit('orcamento '.$fallbackCategory.' '.$originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
+    }
+
+    private function looksLikeBudgetDelete(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        $fallbackCategory = $this->recentEntityName($state, 'budget', 'category_name');
+        $fallbackPeriod = $this->recentBudgetPeriod($state);
+
+        if ($this->budgetMessageParser->looksLikeDeleteIntent($normalizedMessage)) {
+            return $this->budgetMessageParser->parseDelete($originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
+        }
+
+        if (($state['last_action'] ?? null) !== 'query_budgets') {
+            return false;
+        }
+
+        return $fallbackCategory !== null
+            && $this->containsAny($normalizedMessage, ['cancelar', 'cancela', 'apagar', 'apaga', 'remover', 'remove', 'excluir', 'exclui'])
+            && $this->budgetMessageParser->parseDelete('orcamento '.$fallbackCategory.' '.$originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
+    }
+
+    private function looksLikeTransactionEdit(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        if ($this->transactionActionMessageParser->looksLikeEditIntent($normalizedMessage)) {
+            return $this->transactionActionMessageParser->parseEdit($originalMessage, $state) !== null;
+        }
+
+        if (! in_array($state['last_action'] ?? null, ['query_transactions', 'query_category'], true)) {
+            return false;
+        }
+
+        return $this->containsAny($normalizedMessage, ['ajusta', 'ajustar', 'corrige', 'corrigir', 'muda', 'mudar', 'edita', 'editar']);
+    }
+
+    private function looksLikeTransactionDelete(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        if ($this->transactionActionMessageParser->looksLikeDeleteIntent($normalizedMessage)) {
+            return $this->transactionActionMessageParser->parseDelete($originalMessage, $state) !== null;
+        }
+
+        if (! in_array($state['last_action'] ?? null, ['query_transactions', 'query_category'], true)) {
+            return false;
+        }
+
+        return $this->containsAny($normalizedMessage, ['apaga', 'apagar', 'remove', 'remover', 'deleta', 'deletar', 'exclui', 'excluir']);
     }
 
     private function looksLikeBudgetQuery(string $message, array $state): bool
@@ -371,5 +451,28 @@ class MessageClassifier
         }
 
         return null;
+    }
+
+    private function recentBudgetPeriod(array $state): array
+    {
+        $entities = ($state['last_entities']['topic'] ?? null) === 'budget'
+            ? ($state['last_entities'] ?? [])
+            : [];
+
+        if ($entities === []) {
+            foreach (($state['recent_contexts'] ?? []) as $context) {
+                $candidate = $context['entities'] ?? [];
+                if (($candidate['topic'] ?? null) === 'budget') {
+                    $entities = $candidate;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'period' => ($entities['month'] ?? null) ? 'monthly' : 'yearly',
+            'year' => $entities['year'] ?? now()->year,
+            'month' => $entities['month'] ?? now()->month,
+        ];
     }
 }

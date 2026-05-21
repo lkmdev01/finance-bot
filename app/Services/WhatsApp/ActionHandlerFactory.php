@@ -6,6 +6,7 @@ use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\WhatsApp\Handlers\ActionHandlerInterface;
+use Illuminate\Support\Facades\Log;
 
 class ActionHandlerFactory
 {
@@ -15,6 +16,8 @@ class ActionHandlerFactory
     public function __construct(iterable $handlers = [])
     {
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateBudgetHandler());
+        $this->registerHandler(new \App\Services\WhatsApp\Handlers\UpdateBudgetHandler());
+        $this->registerHandler(new \App\Services\WhatsApp\Handlers\DeleteBudgetHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateSavingsGoalHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\UpdateSavingsGoalHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateSubscriptionHandler());
@@ -45,6 +48,12 @@ class ActionHandlerFactory
     ): bool {
         foreach ($this->handlers as $handler) {
             if ($handler->canHandle($action)) {
+                Log::info('WhatsApp handler selecionado', [
+                    'action' => $action,
+                    'handler' => $handler::class,
+                    'user_id' => $user->id,
+                ]);
+
                 $shouldStop = $handler->handle($action, $result, $user, $contact, $job);
                 if ($shouldStop) {
                     return true;

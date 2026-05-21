@@ -46,6 +46,7 @@ class BudgetConversationService
             return [
                 'reply' => $this->buildCategoryReply($budgets, $context),
                 'entities' => $this->buildEntities($context, [
+                    'budget_id' => $budgets->count() === 1 ? $budgets->first()->id : null,
                     'category_name' => $budgets->count() === 1 ? $budgets->first()->category?->name : null,
                     'category_names' => $budgets->pluck('category.name')->filter()->values()->all(),
                 ]),

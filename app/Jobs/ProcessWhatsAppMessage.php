@@ -119,6 +119,13 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
             $preflight = $orchestrator->beforeAI($this->message, $user, $contact);
 
+            Log::info('WhatsApp preflight processado', [
+                'user_id' => $user->id,
+                'message' => mb_substr($this->message, 0, 160),
+                'handled' => $preflight['handled'] ?? false,
+                'action' => $preflight['action'] ?? ($preflight['result']['action'] ?? null),
+            ]);
+
             if (($preflight['handled'] ?? false) === true) {
                 $reply = $preflight['reply'] ?? '';
                 $this->rememberFinalReply($reply);
@@ -136,6 +143,14 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 $result = $processor->process($this->message, $user, $contact);
                 $processingTime = round((microtime(true) - $startTime) * 1000, 2);
                 $metricsService->recordAITime($processingTime, $result['action'] ?? null);
+
+                Log::info('WhatsApp resposta da IA recebida', [
+                    'user_id' => $user->id,
+                    'action' => $result['action'] ?? null,
+                    'has_transaction_data' => ! empty($result['transaction_data'] ?? []),
+                    'has_goal_data' => ! empty($result['goal_data'] ?? []),
+                    'has_subscription_data' => ! empty($result['subscription_data'] ?? []),
+                ]);
             }
 
             $action = $result['action'] ?? null;
@@ -152,6 +167,13 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
             $handlerFactory = new ActionHandlerFactory();
             $handled = $handlerFactory->process($action, $result, $user, $contact, $this);
+
+            Log::info('WhatsApp pos-handler', [
+                'user_id' => $user->id,
+                'action' => $action,
+                'handled' => $handled,
+                'reply_preview' => mb_substr((string) ($this->getFinalReply() ?? $result['reply'] ?? ''), 0, 120),
+            ]);
 
             if ($handled) {
                 $reply = $this->getFinalReply() ?? ($result['reply'] ?? '');

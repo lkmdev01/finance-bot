@@ -11,8 +11,10 @@ class ConversationOrchestrator
         private readonly MessageClassifier $classifier,
         private readonly ResponseComposer $composer,
         private readonly ConversationStateService $stateService,
+        private readonly BudgetMessageParser $budgetMessageParser,
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
+        private readonly TransactionActionMessageParser $transactionActionMessageParser,
     ) {}
 
     public function beforeAI(string $message, User $user, WhatsAppContact $contact): array
@@ -36,6 +38,8 @@ class ConversationOrchestrator
             'cancellation' => $this->handleCancellation($state),
             'confirmation' => $this->handleConfirmation($state),
             'budget_query' => $this->buildQueryResult('query_budgets', $message),
+            'budget_edit' => $this->buildBudgetEditResult($message, $state),
+            'budget_delete' => $this->buildBudgetDeleteResult($message, $state),
             'savings_query' => $this->buildQueryResult('query_savings', $message),
             'subscription_query' => $this->buildQueryResult('query_subscriptions', $message),
             'projection_query' => $this->buildQueryResult('query_projections', $message),
@@ -44,6 +48,8 @@ class ConversationOrchestrator
             'subscription_create' => $this->buildSubscriptionCreateResult($message),
             'subscription_edit' => $this->buildSubscriptionEditResult($message, $state),
             'subscription_cancel' => $this->buildSubscriptionCancelResult($message, $state),
+            'transaction_edit' => $this->buildTransactionEditResult($message, $state),
+            'transaction_delete' => $this->buildTransactionDeleteResult($message, $state),
             'transaction_follow_up' => $this->buildQueryResult($classification['target_action'] ?? 'query_transactions', $message),
             default => ['handled' => false],
         };
@@ -114,6 +120,36 @@ class ConversationOrchestrator
                     'reply' => 'Perfeito, vou confirmar esse lancamento para voce.',
                     'action' => 'confirm_large_transaction',
                     'transaction_data' => $state['pending_payload']['transaction_data'],
+                    '_conversation_metadata' => [
+                        'clear_pending' => true,
+                        'reply_kind' => 'action',
+                    ],
+                ],
+            ];
+        }
+
+        if (($state['pending_intent'] ?? null) === 'delete_transaction' && ! empty($state['pending_payload']['transaction_data'])) {
+            return [
+                'handled' => false,
+                'result' => [
+                    'reply' => 'Perfeito, vou apagar essa transacao para voce.',
+                    'action' => 'delete_transaction',
+                    'transaction_data' => array_merge($state['pending_payload']['transaction_data'], ['confirmed' => true]),
+                    '_conversation_metadata' => [
+                        'clear_pending' => true,
+                        'reply_kind' => 'action',
+                    ],
+                ],
+            ];
+        }
+
+        if (($state['pending_intent'] ?? null) === 'delete_budget' && ! empty($state['pending_payload']['budget_data'])) {
+            return [
+                'handled' => false,
+                'result' => [
+                    'reply' => 'Perfeito, vou cancelar esse orcamento para voce.',
+                    'action' => 'delete_budget',
+                    'budget_data' => array_merge($state['pending_payload']['budget_data'], ['confirmed' => true]),
                     '_conversation_metadata' => [
                         'clear_pending' => true,
                         'reply_kind' => 'action',
@@ -232,6 +268,74 @@ class ConversationOrchestrator
         ];
     }
 
+    private function buildBudgetEditResult(string $message, array $state): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'update_budget',
+                'budget_data' => $this->budgetMessageParser->parseEdit($message, $this->recentEntityName($state, 'budget', 'category_name'), $this->recentBudgetPeriod($state)) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildBudgetDeleteResult(string $message, array $state): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'delete_budget',
+                'budget_data' => $this->budgetMessageParser->parseDelete($message, $this->recentEntityName($state, 'budget', 'category_name'), $this->recentBudgetPeriod($state)) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildTransactionEditResult(string $message, array $state): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'edit_transaction',
+                'transaction_data' => $this->transactionActionMessageParser->parseEdit($message, $state) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildTransactionDeleteResult(string $message, array $state): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'delete_transaction',
+                'transaction_data' => $this->transactionActionMessageParser->parseDelete($message, $state) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
     private function recentEntityName(array $state, string $topic, string $field): ?string
     {
         if (($state['last_entities']['topic'] ?? null) === $topic && ! empty($state['last_entities'][$field])) {
@@ -245,5 +349,28 @@ class ConversationOrchestrator
         }
 
         return null;
+    }
+
+    private function recentBudgetPeriod(array $state): array
+    {
+        $entities = ($state['last_entities']['topic'] ?? null) === 'budget'
+            ? ($state['last_entities'] ?? [])
+            : [];
+
+        if ($entities === []) {
+            foreach (($state['recent_contexts'] ?? []) as $context) {
+                $candidate = $context['entities'] ?? [];
+                if (($candidate['topic'] ?? null) === 'budget') {
+                    $entities = $candidate;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'period' => ($entities['month'] ?? null) ? 'monthly' : 'yearly',
+            'year' => $entities['year'] ?? now()->year,
+            'month' => $entities['month'] ?? now()->month,
+        ];
     }
 }
