@@ -531,6 +531,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
     private function sanitizeUtf8(string $value): string
     {
+        $value = WhatsAppFormatter::normalizeTextEncoding($value);
         $sanitized = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
 
         if ($sanitized === false) {

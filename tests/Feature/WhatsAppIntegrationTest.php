@@ -220,6 +220,72 @@ it('processa mensagem de receita via WhatsApp', function () {
     ]);
 });
 
+
+it('corrige mojibake na resposta de receita via WhatsApp', function () {
+    $incomeCategory = Category::factory()->create([
+        'user_id' => $this->user->id,
+        'type' => 'income',
+        'name' => 'Sal?rio',
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'reply' => '? Registrei sua receita!',
+                            'action' => 'create_transaction',
+                            'transaction_data' => [
+                                'type' => 'income',
+                                'amount' => 1200.00,
+                                'description' => 'Servi??o',
+                                'category_id' => $incomeCategory->id,
+                                'date' => now()->format('Y-m-d'),
+                            ],
+                        ]),
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(
+                \Mockery::type('string'),
+                \Mockery::on(function ($message) {
+                    return str_contains($message, 'Servi?o')
+                        && ! str_contains($message, 'Servi??o');
+                })
+            )
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Tive um ganho de 1200 em um servi?o',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'type' => 'income',
+        'amount' => 1200.00,
+        'description' => 'Servi?o',
+        'category_id' => $incomeCategory->id,
+    ]);
+});
 it('cria receita via WhatsApp mesmo quando a IA retorna descricao vazia', function () {
     Http::fake([
         'api.groq.com/*' => Http::response([

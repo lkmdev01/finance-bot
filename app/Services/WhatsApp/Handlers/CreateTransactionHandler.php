@@ -12,6 +12,7 @@ use App\Services\BillingPlanService;
 use App\Services\CategoryRecognitionService;
 use App\Services\PerformanceMetricsService;
 use App\Services\WhatsApp\CompoundTransactionMessageParser;
+use App\Services\WhatsAppFormatter;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -246,6 +247,7 @@ class CreateTransactionHandler extends BaseHandler
 
     private function normalizeTransactionData(array $data, string $rawMessage): array
     {
+        $data = $this->normalizeStringValues($data);
         $description = trim((string) ($data['description'] ?? ''));
 
         if ($this->isPlaceholderDescription($description)) {
@@ -264,6 +266,17 @@ class CreateTransactionHandler extends BaseHandler
         $data['description'] = null;
         $data['category_id'] = null;
         unset($data['category_name'], $data['category_icon']);
+
+        return $data;
+    }
+
+    private function normalizeStringValues(array $data): array
+    {
+        foreach ($data as $key => $value) {
+            if (is_string($value)) {
+                $data[$key] = WhatsAppFormatter::normalizeTextEncoding($value);
+            }
+        }
 
         return $data;
     }
