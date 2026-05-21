@@ -3,9 +3,12 @@
 namespace App\Services\WhatsApp;
 
 use App\Models\Budget;
+use App\Models\SavingsGoal;
+use App\Models\Subscription;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FinancialDataCalculator;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 class FinancialConversationAdvisor
@@ -144,6 +147,187 @@ class FinancialConversationAdvisor
                 'Atenção natural: %s lidera seus gastos no período atual.',
                 $currentCategory
             );
+        }
+
+        return null;
+    }
+
+    public function savingsSummaryInsight(Collection $goals): ?string
+    {
+        if ($goals->isEmpty()) {
+            return null;
+        }
+
+        $nearestTarget = $goals
+            ->filter(fn (SavingsGoal $goal) => ! $goal->is_completed && $goal->target_date !== null)
+            ->sortBy('target_date')
+            ->first();
+
+        if ($nearestTarget instanceof SavingsGoal) {
+            $daysLeft = now()->startOfDay()->diffInDays($nearestTarget->target_date->copy()->startOfDay(), false);
+
+            if ($daysLeft <= 60 && $nearestTarget->progress_percentage < 50) {
+                return sprintf(
+                    'Insight rapido: %s vence em %d dias e ainda esta com %s da meta.',
+                    $nearestTarget->name,
+                    max(0, $daysLeft),
+                    $this->formatPercentage((float) $nearestTarget->progress_percentage)
+                );
+            }
+        }
+
+        $closestGoal = $goals->sortByDesc(fn (SavingsGoal $goal) => $goal->progress_percentage)->first();
+
+        if ($closestGoal instanceof SavingsGoal && $closestGoal->progress_percentage >= 75) {
+            return sprintf(
+                '%s ja esta com %s da meta e parece bem encaminhada.',
+                $closestGoal->name,
+                $this->formatPercentage((float) $closestGoal->progress_percentage)
+            );
+        }
+
+        return null;
+    }
+
+    public function savingsGoalInsight(SavingsGoal $goal): ?string
+    {
+        if ($goal->is_completed) {
+            return 'Boa noticia: essa meta ja foi concluida.';
+        }
+
+        if ($goal->target_date instanceof CarbonInterface) {
+            $daysLeft = now()->startOfDay()->diffInDays($goal->target_date->copy()->startOfDay(), false);
+
+            if ($daysLeft <= 45 && $goal->progress_percentage < 60) {
+                return sprintf(
+                    'Vale reforcar essa meta: faltam %d dias e ela esta com %s de progresso.',
+                    max(0, $daysLeft),
+                    $this->formatPercentage((float) $goal->progress_percentage)
+                );
+            }
+        }
+
+        if ($goal->progress_percentage >= 80) {
+            return 'Ela ja esta bem perto de ser concluida.';
+        }
+
+        return null;
+    }
+
+    public function subscriptionSummaryInsight(Collection $subscriptions): ?string
+    {
+        if ($subscriptions->isEmpty()) {
+            return null;
+        }
+
+        $dueSoon = $subscriptions
+            ->filter(fn (Subscription $subscription) => $subscription->is_active && $subscription->next_due_date !== null)
+            ->sortBy('next_due_date')
+            ->first(function (Subscription $subscription) {
+                return $subscription->next_due_date->copy()->startOfDay()->lte(now()->addDays(7)->startOfDay());
+            });
+
+        if ($dueSoon instanceof Subscription) {
+            $daysLeft = now()->startOfDay()->diffInDays($dueSoon->next_due_date->copy()->startOfDay(), false);
+
+            if ($daysLeft < 0) {
+                return sprintf(
+                    'Alerta rapido: %s ja esta vencida e pede atencao.',
+                    $dueSoon->name
+                );
+            }
+
+            return sprintf(
+                'Lembrete rapido: %s vence em %d dias.',
+                $dueSoon->name,
+                $daysLeft
+            );
+        }
+
+        $monthlyTotal = $subscriptions
+            ->filter(fn (Subscription $subscription) => $subscription->is_active && $subscription->billing_cycle === 'monthly')
+            ->sum('amount');
+
+        if ($monthlyTotal >= 300) {
+            return sprintf(
+                'Suas assinaturas mensais somam R$ %s neste momento.',
+                $this->formatMoney($monthlyTotal)
+            );
+        }
+
+        return null;
+    }
+
+    public function subscriptionItemInsight(Subscription $subscription): ?string
+    {
+        if (! $subscription->is_active) {
+            return 'Ela esta inativa no momento.';
+        }
+
+        if ($subscription->next_due_date instanceof CarbonInterface) {
+            $daysLeft = now()->startOfDay()->diffInDays($subscription->next_due_date->copy()->startOfDay(), false);
+
+            if ($daysLeft < 0) {
+                return 'Ela ja passou da data prevista de cobranca.';
+            }
+
+            if ($daysLeft <= 5) {
+                return sprintf('Ela vence em %d dias.', $daysLeft);
+            }
+        }
+
+        return null;
+    }
+
+    public function projectionSummaryInsight(Collection $projections): ?string
+    {
+        if ($projections->isEmpty()) {
+            return null;
+        }
+
+        $negativeProjection = $projections->first(function ($projection) {
+            return (float) ($projection['projected_balance'] ?? 0) < 0;
+        });
+
+        if (is_array($negativeProjection)) {
+            return sprintf(
+                'Alerta rapido: a projecao de %s fica negativa em R$ %s.',
+                $negativeProjection['month'] ?? ($negativeProjection['date'] ?? 'um periodo futuro'),
+                $this->formatMoney(abs((float) $negativeProjection['projected_balance']))
+            );
+        }
+
+        $lowestProjection = $projections->sortBy('projected_balance')->first();
+        if (is_array($lowestProjection)) {
+            return sprintf(
+                'Seu menor saldo projetado aparece em %s, com R$ %s.',
+                $lowestProjection['month'] ?? ($lowestProjection['date'] ?? 'um periodo futuro'),
+                $this->formatMoney((float) $lowestProjection['projected_balance'])
+            );
+        }
+
+        return null;
+    }
+
+    public function projectionPointInsight(array $projection): ?string
+    {
+        $balance = (float) ($projection['projected_balance'] ?? 0);
+        $income = (float) ($projection['projected_income'] ?? 0);
+        $expenses = (float) ($projection['projected_expenses'] ?? 0);
+
+        if ($balance < 0) {
+            return sprintf(
+                'Esse cenario projeta saldo negativo de R$ %s.',
+                $this->formatMoney(abs($balance))
+            );
+        }
+
+        if ($expenses > $income && $income > 0) {
+            return 'Nesse periodo, as despesas projetadas passam das entradas previstas.';
+        }
+
+        if ($balance > 0 && $expenses <= $income) {
+            return 'Nesse ritmo, o saldo segue positivo nesse horizonte.';
         }
 
         return null;

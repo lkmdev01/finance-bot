@@ -33,32 +33,11 @@ class ConversationOrchestrator
             ],
             'cancellation' => $this->handleCancellation($state),
             'confirmation' => $this->handleConfirmation($state),
-            'budget_query' => [
-                'handled' => false,
-                'result' => [
-                    'reply' => '',
-                    'action' => 'query_budgets',
-                    'transaction_data' => null,
-                    '_resolved_message' => $message,
-                    '_conversation_metadata' => [
-                        'clear_pending' => true,
-                        'reply_kind' => 'query',
-                    ],
-                ],
-            ],
-            'transaction_follow_up' => [
-                'handled' => false,
-                'result' => [
-                    'reply' => '',
-                    'action' => $classification['target_action'] ?? 'query_transactions',
-                    'transaction_data' => null,
-                    '_resolved_message' => $message,
-                    '_conversation_metadata' => [
-                        'clear_pending' => true,
-                        'reply_kind' => 'query',
-                    ],
-                ],
-            ],
+            'budget_query' => $this->buildQueryResult('query_budgets', $message),
+            'savings_query' => $this->buildQueryResult('query_savings', $message),
+            'subscription_query' => $this->buildQueryResult('query_subscriptions', $message),
+            'projection_query' => $this->buildQueryResult('query_projections', $message),
+            'transaction_follow_up' => $this->buildQueryResult($classification['target_action'] ?? 'query_transactions', $message),
             default => ['handled' => false],
         };
     }
@@ -104,7 +83,7 @@ class ConversationOrchestrator
 
         return [
             'handled' => true,
-            'reply' => 'Sem problema. Se quiser, posso te mostrar seus orçamentos, saldo ou registrar um gasto.',
+            'reply' => 'Sem problema. Se quiser, posso te mostrar seus orcamentos, saldo, metas ou registrar um gasto.',
             'action' => null,
             'metadata' => ['clear_pending' => false, 'reply_kind' => 'message'],
         ];
@@ -125,7 +104,7 @@ class ConversationOrchestrator
             return [
                 'handled' => false,
                 'result' => [
-                    'reply' => 'Perfeito, vou confirmar esse lançamento para você.',
+                    'reply' => 'Perfeito, vou confirmar esse lancamento para voce.',
                     'action' => 'confirm_large_transaction',
                     'transaction_data' => $state['pending_payload']['transaction_data'],
                     '_conversation_metadata' => [
@@ -141,6 +120,23 @@ class ConversationOrchestrator
             'reply' => $this->composer->composePendingConfirmationPrompt(),
             'action' => null,
             'metadata' => ['clear_pending' => false, 'reply_kind' => 'message'],
+        ];
+    }
+
+    private function buildQueryResult(string $action, string $message): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => $action,
+                'transaction_data' => null,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'query',
+                ],
+            ],
         ];
     }
 }

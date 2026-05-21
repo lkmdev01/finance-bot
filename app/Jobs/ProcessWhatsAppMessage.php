@@ -11,6 +11,7 @@ use App\Services\PerformanceMetricsService;
 use App\Services\WhatsApp\ActionHandlerFactory;
 use App\Services\WhatsApp\ConversationOrchestrator;
 use App\Services\WhatsApp\ConversationStateService;
+use App\Services\WhatsApp\ProactiveConversationTrigger;
 use App\Services\WhatsAppFormatter;
 use App\Services\WhatsAppMessageProcessor;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -114,6 +115,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
             $stateService = app(ConversationStateService::class);
             $orchestrator = app(ConversationOrchestrator::class);
+            $proactiveTrigger = app(ProactiveConversationTrigger::class);
 
             $preflight = $orchestrator->beforeAI($this->message, $user, $contact);
 
@@ -122,6 +124,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 $this->rememberFinalReply($reply);
                 $this->sendResponse($baileysService, $phoneNumberService, $reply, $user);
                 $stateService->applyHandledResult($contact, $this->message, $preflight['action'] ?? null, $reply, $preflight['metadata'] ?? []);
+                $proactiveTrigger->dispatch($user, $contact, $preflight['action'] ?? null, $preflight, $this);
                 return;
             }
 
@@ -155,6 +158,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 if ($reply !== '') {
                     $metadata = $orchestrator->metadataForResult($this->message, $action, $result, $contact);
                     $stateService->applyHandledResult($contact, $this->message, $action, $reply, $metadata);
+                    $proactiveTrigger->dispatch($user, $contact, $action, $result, $this);
                 }
                 return;
             }
@@ -165,6 +169,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
             $metadata = $orchestrator->metadataForResult($this->message, $action, $result, $contact);
             $stateService->applyHandledResult($contact, $this->message, $action, $formattedReply, $metadata);
+            $proactiveTrigger->dispatch($user, $contact, $action, $result, $this);
         } catch (\Exception $e) {
             $metricsService->recordError('exception', $e->getMessage());
 

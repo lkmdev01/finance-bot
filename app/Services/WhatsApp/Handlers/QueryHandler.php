@@ -7,6 +7,9 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\WhatsApp\BudgetConversationService;
 use App\Services\WhatsApp\ConversationStateService;
+use App\Services\WhatsApp\ProjectionConversationService;
+use App\Services\WhatsApp\SavingsConversationService;
+use App\Services\WhatsApp\SubscriptionConversationService;
 use App\Services\WhatsApp\TransactionConversationService;
 use Illuminate\Support\Facades\Log;
 
@@ -22,6 +25,7 @@ class QueryHandler extends BaseHandler
         'query_budgets',
         'query_evolution',
         'query_projections',
+        'query_subscriptions',
         'query_income_source',
         'query_categories',
     ];
@@ -46,7 +50,7 @@ class QueryHandler extends BaseHandler
                 'error' => $exception->getMessage(),
             ]);
 
-            $reply = 'Não consegui consultar esses dados agora. Tente novamente em instantes.';
+            $reply = 'Nao consegui consultar esses dados agora. Tente novamente em instantes.';
         }
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
@@ -70,6 +74,9 @@ class QueryHandler extends BaseHandler
         return match ($action) {
             'query_transactions', 'query_category' => $this->buildTransactionReplyData($user, $contact, $rawMessage, $action),
             'query_budgets' => $this->buildBudgetReplyData($user, $contact, $rawMessage),
+            'query_savings' => $this->buildSavingsReplyData($user, $contact, $rawMessage),
+            'query_subscriptions' => $this->buildSubscriptionReplyData($user, $contact, $rawMessage),
+            'query_projections' => $this->buildProjectionReplyData($user, $contact, $rawMessage),
             default => [$fallbackReply, []],
         };
     }
@@ -90,12 +97,39 @@ class QueryHandler extends BaseHandler
         return [$data['reply'], $data['entities'] ?? []];
     }
 
+    private function buildSavingsReplyData(User $user, WhatsAppContact $contact, string $rawMessage): array
+    {
+        $state = app(ConversationStateService::class)->getState($contact);
+        $data = app(SavingsConversationService::class)->buildReply($user, $rawMessage, $state);
+
+        return [$data['reply'], $data['entities'] ?? []];
+    }
+
+    private function buildSubscriptionReplyData(User $user, WhatsAppContact $contact, string $rawMessage): array
+    {
+        $state = app(ConversationStateService::class)->getState($contact);
+        $data = app(SubscriptionConversationService::class)->buildReply($user, $rawMessage, $state);
+
+        return [$data['reply'], $data['entities'] ?? []];
+    }
+
+    private function buildProjectionReplyData(User $user, WhatsAppContact $contact, string $rawMessage): array
+    {
+        $state = app(ConversationStateService::class)->getState($contact);
+        $data = app(ProjectionConversationService::class)->buildReply($user, $rawMessage, $state);
+
+        return [$data['reply'], $data['entities'] ?? []];
+    }
+
     private function extractConversationEntities(?string $action, string $rawMessage): array
     {
         return match ($action) {
             'query_budgets' => ['topic' => 'budget'],
             'query_category' => ['topic' => 'expense_category'],
             'query_transactions' => ['topic' => 'transactions'],
+            'query_savings' => ['topic' => 'savings'],
+            'query_subscriptions' => ['topic' => 'subscriptions'],
+            'query_projections' => ['topic' => 'projections'],
             default => [],
         };
     }

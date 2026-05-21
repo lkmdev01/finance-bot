@@ -3,6 +3,7 @@
 namespace App\Services\WhatsApp;
 
 use App\Models\WhatsAppContact;
+use Illuminate\Support\Carbon;
 
 class ConversationStateService
 {
@@ -60,6 +61,34 @@ class ConversationStateService
         $contact->forceFill(['context' => $this->sanitizeValue($context)])->save();
     }
 
+    public function recordProactiveMessage(WhatsAppContact $contact, string $message, string $reply, string $key): void
+    {
+        $this->rememberInteraction($contact, $message, $reply, null, [
+            'reply_kind' => 'proactive',
+            'proactive_key' => $key,
+        ]);
+
+        $state = $this->getState($contact);
+        $state['last_proactive_key'] = $key;
+        $state['last_proactive_at'] = now()->toIso8601String();
+        $this->persistState($contact, $state);
+    }
+
+    public function wasRecentlyDispatched(WhatsAppContact $contact, string $key, int $minutes = 60): bool
+    {
+        $state = $this->getState($contact);
+
+        if (($state['last_proactive_key'] ?? null) !== $key) {
+            return false;
+        }
+
+        if (blank($state['last_proactive_at'] ?? null)) {
+            return false;
+        }
+
+        return Carbon::parse($state['last_proactive_at'])->greaterThanOrEqualTo(now()->subMinutes($minutes));
+    }
+
     public function applyHandledResult(WhatsAppContact $contact, string $message, ?string $action, string $reply, array $metadata = []): void
     {
         $replyKind = $metadata['reply_kind'] ?? $this->inferReplyKind($action, $reply);
@@ -111,6 +140,8 @@ class ConversationStateService
             'last_action' => $state['last_action'] ?? null,
             'last_entities' => is_array($state['last_entities'] ?? null) ? $state['last_entities'] : [],
             'last_reply_kind' => $state['last_reply_kind'] ?? null,
+            'last_proactive_key' => $state['last_proactive_key'] ?? null,
+            'last_proactive_at' => $state['last_proactive_at'] ?? null,
             'updated_at' => $state['updated_at'] ?? null,
         ];
     }

@@ -29,6 +29,18 @@ class MessageClassifier
             return ['kind' => 'budget_query', 'normalized' => $stripped];
         }
 
+        if ($this->looksLikeSavingsQuery($stripped, $state)) {
+            return ['kind' => 'savings_query', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeSubscriptionQuery($stripped, $state)) {
+            return ['kind' => 'subscription_query', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeProjectionQuery($stripped, $state)) {
+            return ['kind' => 'projection_query', 'normalized' => $stripped];
+        }
+
         if ($this->looksLikeTransactionFollowUp($stripped, $state)) {
             return [
                 'kind' => 'transaction_follow_up',
@@ -86,6 +98,45 @@ class MessageClassifier
         return $this->looksLikeBudgetCategoryFollowUp($message);
     }
 
+    private function looksLikeSavingsQuery(string $message, array $state): bool
+    {
+        if ($this->containsAny($message, ['meta', 'metas', 'objetivo', 'objetivos', 'poupanca', 'poupança'])) {
+            return true;
+        }
+
+        if (($state['last_action'] ?? null) !== 'query_savings') {
+            return false;
+        }
+
+        return $this->looksLikeNamedFollowUp($message);
+    }
+
+    private function looksLikeSubscriptionQuery(string $message, array $state): bool
+    {
+        if ($this->containsAny($message, ['assinatura', 'assinaturas', 'mensalidade', 'mensalidades'])) {
+            return true;
+        }
+
+        if (($state['last_action'] ?? null) !== 'query_subscriptions') {
+            return false;
+        }
+
+        return $this->looksLikeNamedFollowUp($message) || $this->containsAny($message, ['vence', 'vencem', 'proxima', 'proximo vencimento']);
+    }
+
+    private function looksLikeProjectionQuery(string $message, array $state): bool
+    {
+        if ($this->containsAny($message, ['projecao', 'projeção', 'projecoes', 'projeções', 'futuro', 'daqui a', 'proximo mes', 'próximo mês'])) {
+            return true;
+        }
+
+        if (($state['last_action'] ?? null) !== 'query_projections') {
+            return false;
+        }
+
+        return $this->containsAny($message, ['daqui a', 'proximo', 'próximo', 'depois', 'seguinte']);
+    }
+
     private function looksLikeTransactionFollowUp(string $message, array $state): bool
     {
         $lastAction = $state['last_action'] ?? null;
@@ -128,14 +179,12 @@ class MessageClassifier
         }
 
         $term = trim($matches[1] ?? '');
-
         if ($term === '') {
             return false;
         }
 
         $term = preg_replace('/\b(orcamento|orçamento|mes|mês|geral|gerais|tambem|também)\b/u', '', $term) ?? $term;
         $term = trim($term);
-
         if ($term === '') {
             return false;
         }
@@ -152,7 +201,6 @@ class MessageClassifier
         }
 
         $term = trim($matches[1] ?? '');
-
         if ($term === '') {
             return false;
         }
@@ -160,6 +208,17 @@ class MessageClassifier
         $wordCount = count(array_filter(explode(' ', $term)));
 
         return $wordCount <= 3 && ! $this->containsAny($term, ['saldo', 'orcamento', 'orçamento', 'relatorio', 'relatório']);
+    }
+
+    private function looksLikeNamedFollowUp(string $message): bool
+    {
+        if (! preg_match('/^(?:e\s+)?(?:o|a|os|as)?\s*([\p{L}\p{N} _-]+)$/u', $message, $matches)) {
+            return false;
+        }
+
+        $term = trim($matches[1] ?? '');
+
+        return $term !== '' && count(array_filter(explode(' ', $term))) <= 4;
     }
 
     private function normalize(string $value): string
