@@ -54,7 +54,9 @@ class RecurringTransactionMessageParser
     {
         $hasCadence = str_contains($message, 'todo dia')
             || str_contains($message, 'todo mes')
+            || str_contains($message, 'todo ms')
             || str_contains($message, 'cada mes')
+            || str_contains($message, 'cada ms')
             || str_contains($message, 'mensal')
             || str_contains($message, 'toda semana')
             || str_contains($message, 'semanal');
@@ -156,8 +158,8 @@ class RecurringTransactionMessageParser
     private function extractDescription(string $message, ?string $frequency): ?string
     {
         $patterns = [
-            '/(?:todo dia\s+\d{1,2}|todo mes|cada mes|mensal|toda semana|semanal)\s+(?:eu\s+)?(?:pago|pagar|gasto|gastar|recebo|receber|ganho|ganhar)\s+(.+?)(?:\s+(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?|\s+dia\s+\d{1,2}|[,.]|$)/iu',
-            '/(?:pago|pagar|gasto|gastar|recebo|receber|ganho|ganhar)\s+(.+?)\s+(?:todo dia\s+\d{1,2}|todo mes|cada mes|mensal|toda semana|semanal)(?:\s|$)/iu',
+            '/(?:todo dia\s+\d{1,2}|todo mes|todo ms|cada mes|cada ms|mensal|toda semana|semanal)\s+(?:eu\s+)?(?:pago|pagar|gasto|gastar|recebo|receber|ganho|ganhar)\s+(.+?)(?:\s+(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?|\s+dia\s+\d{1,2}|[,.]|$)/iu',
+            '/(?:pago|pagar|gasto|gastar|recebo|receber|ganho|ganhar)\s+(.+?)\s+(?:todo dia\s+\d{1,2}|todo mes|todo ms|cada mes|cada ms|mensal|toda semana|semanal)(?:\s|$)/iu',
             '/(?:minha|meu)\s+(.+?)\s+e\s+(?:mensal|semanal)(?:\s*,?\s*dia\s+\d{1,2})?(?:\s*,?\s*(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?)?/iu',
         ];
 
@@ -181,7 +183,7 @@ class RecurringTransactionMessageParser
             return 'weekly';
         }
 
-        if (str_contains($message, 'todo dia') || str_contains($message, 'todo mes') || str_contains($message, 'cada mes') || str_contains($message, 'mensal')) {
+        if (str_contains($message, 'todo dia') || str_contains($message, 'todo mes') || str_contains($message, 'todo ms') || str_contains($message, 'cada mes') || str_contains($message, 'cada ms') || str_contains($message, 'mensal')) {
             return 'monthly';
         }
 
@@ -195,7 +197,7 @@ class RecurringTransactionMessageParser
             return ($day >= 1 && $day <= 31) ? $day : null;
         }
 
-        if (str_contains($message, 'mensal') || str_contains($message, 'todo mes') || str_contains($message, 'cada mes')) {
+        if (str_contains($message, 'mensal') || str_contains($message, 'todo mes') || str_contains($message, 'todo ms') || str_contains($message, 'cada mes') || str_contains($message, 'cada ms')) {
             return now()->day;
         }
 
@@ -247,7 +249,9 @@ class RecurringTransactionMessageParser
     {
         return str_contains($message, 'todo dia')
             || str_contains($message, 'todo mes')
+            || str_contains($message, 'todo ms')
             || str_contains($message, 'cada mes')
+            || str_contains($message, 'cada ms')
             || str_contains($message, 'mensal')
             || str_contains($message, 'toda semana')
             || str_contains($message, 'semanal')
@@ -270,7 +274,7 @@ class RecurringTransactionMessageParser
         $value = preg_replace('/^(?:um|uma|meu|minha)\s+/iu', '', $value) ?? $value;
         $value = preg_replace('/\s+(?:na conta|no cartao|no cart[aÃ£]o|pela conta|pelo cartao|pelo cart[aÃ£]o|via conta|via cartao|via cart[aÃ£]o)\s+.+$/iu', '', $value) ?? $value;
         $value = preg_replace('/\s+(?:categoria|na categoria)\s+.+$/iu', '', $value) ?? $value;
-        $value = preg_replace('/\b(?:mensal|semanal|todo dia|todo mes|cada mes|toda semana)\b/iu', '', $value) ?? $value;
+        $value = preg_replace('/\b(?:mensal|semanal|todo dia|todo mes|todo ms|cada mes|cada ms|toda semana)\b/iu', '', $value) ?? $value;
         $value = preg_replace('/\bdia\s+\d{1,2}\b/iu', '', $value) ?? $value;
         $value = preg_replace('/(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?/u', '', $value) ?? $value;
         $value = preg_replace('/\s+/u', ' ', trim($value)) ?? $value;

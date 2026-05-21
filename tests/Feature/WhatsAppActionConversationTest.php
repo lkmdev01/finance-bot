@@ -727,3 +727,27 @@ it('prioriza recorrencia sem valor mesmo com contexto anterior de orcamento', fu
     $this->contact->refresh();
     expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_recurring_transaction_amount');
 });
+
+it('tolera texto degradado em recorrencia mensal', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Todo ms pagar academia 100 reais dia 10',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('recurring_transactions', [
+        'user_id' => $this->user->id,
+        'amount' => 100.00,
+        'description' => 'Academia',
+        'day_of_month' => 10,
+    ]);
+});

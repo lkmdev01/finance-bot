@@ -40,7 +40,7 @@ class CreditCardMessageParser
 
     private function extractName(string $message): ?string
     {
-        if (preg_match('/(?:cartao(?:\s+de\s+credito)?|credito)\s+(.+?)(?:\s+(?:limite|com|de|r\$|\d)|[,.]|$)/i', $message, $matches) !== 1) {
+        if (preg_match('/(?:cartao|carto|credito|crdito)(?:\s+de\s+(?:credito|crdito))?\s+(.+?)(?:\s+(?:limite|com|de|r\$|\d)|[,.]|$)/i', $message, $matches) !== 1) {
             return null;
         }
 
@@ -64,7 +64,7 @@ class CreditCardMessageParser
 
     private function hasCardCue(string $message): bool
     {
-        return $this->containsAny($message, ['cartao', 'cartoes', 'cartao de credito', 'cartoes de credito', 'credito']);
+        return $this->containsAny($message, ['cartao', 'carto', 'cartoes', 'cartes', 'cartao de credito', 'cartoes de credito', 'credito', 'crdito']);
     }
 
     private function containsAny(string $message, array $terms): bool
