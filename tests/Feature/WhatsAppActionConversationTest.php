@@ -491,6 +491,31 @@ it('cria recorrencia via whatsapp', function () {
     ]);
 });
 
+it('cria recorrencia mensal com valor e dia sem confundir o dia com o valor', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Todo mes pagar academia 100 reais dia 10',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('recurring_transactions', [
+        'user_id' => $this->user->id,
+        'amount' => 100.00,
+        'description' => 'Academia',
+        'frequency' => 'monthly',
+        'day_of_month' => 10,
+    ]);
+});
+
 it('edita recorrencia por contexto recente', function () {
     Http::preventStrayRequests();
 
@@ -667,4 +692,38 @@ it('pede o valor ao iniciar recorrencia sem valor e conclui no complemento', fun
         'amount' => 100.00,
         'day_of_month' => 10,
     ]);
+});
+
+it('prioriza recorrencia sem valor mesmo com contexto anterior de orcamento', function () {
+    Http::preventStrayRequests();
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_budgets',
+            'last_entities' => [
+                'topic' => 'budget',
+                'category_name' => 'Alimentacao',
+                'period' => 'monthly',
+                'year' => now()->year,
+                'month' => now()->month,
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Todo mes pagar academia dia 10',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_recurring_transaction_amount');
 });
