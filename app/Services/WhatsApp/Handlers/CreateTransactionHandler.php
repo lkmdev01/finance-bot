@@ -205,6 +205,7 @@ class CreateTransactionHandler extends BaseHandler
             'metadata' => [
                 'source' => 'whatsapp',
                 'original_message' => $rawMessage,
+                'payment_method' => $data['payment_method'] ?? null,
             ],
         ]);
 

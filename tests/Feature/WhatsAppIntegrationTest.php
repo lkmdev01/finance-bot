@@ -336,6 +336,87 @@ it('processa receita simples via parser local sem depender da IA', function () {
         'category_id' => $incomeCategory->id,
     ]);
 });
+
+it('processa despesa simples com forma de pagamento e data explicita', function () {
+    Http::fake([
+        'api.groq.com/*' => Http::response([], 500),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(
+                \Mockery::type('string'),
+                \Mockery::on(function ($message) {
+                    return str_contains($message, 'Registrei R$ 32,00 em Uber');
+                })
+            )
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Gastei 32 no Uber no d?bito ontem',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    $transaction = Transaction::query()->where('user_id', $this->user->id)->latest('id')->first();
+
+    expect($transaction)->not->toBeNull();
+    expect((float) $transaction->amount)->toBe(32.0);
+    expect($transaction->description)->toBe('Uber');
+    expect($transaction->type)->toBe('expense');
+    expect($transaction->date->toDateString())->toBe(now()->subDay()->toDateString());
+    expect($transaction->metadata['payment_method'] ?? null)->toBe('debit');
+});
+
+it('processa despesa simples com data absoluta', function () {
+    Http::fake([
+        'api.groq.com/*' => Http::response([], 500),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Paguei 45 no mercado em 14/05/2026',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'type' => 'expense',
+        'amount' => 45.00,
+        'description' => 'mercado',
+        'date' => '2026-05-14',
+    ]);
+});
 it('cria receita via WhatsApp mesmo quando a IA retorna descricao vazia', function () {
     Http::fake([
         'api.groq.com/*' => Http::response([
