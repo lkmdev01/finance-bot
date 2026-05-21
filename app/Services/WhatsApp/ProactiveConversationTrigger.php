@@ -28,6 +28,10 @@ class ProactiveConversationTrigger
             return;
         }
 
+        if ($this->replyAlreadyContainsMessage((string) ($result['reply'] ?? ''), $payload['message'])) {
+            return;
+        }
+
         if ($this->stateService->wasRecentlyDispatched($contact, $payload['key'], 90)) {
             return;
         }
@@ -201,5 +205,23 @@ class ProactiveConversationTrigger
     private function formatPercentage(float $value): string
     {
         return number_format($value, 0, ',', '.').'%';
+    }
+
+    private function replyAlreadyContainsMessage(string $reply, string $message): bool
+    {
+        if ($reply === '' || $message === '') {
+            return false;
+        }
+
+        return str_contains($this->normalize($reply), $this->normalize($message));
+    }
+
+    private function normalize(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+        $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+        return $converted !== false ? $converted : $value;
     }
 }
