@@ -11,6 +11,7 @@ class ConversationOrchestrator
         private readonly MessageClassifier $classifier,
         private readonly ResponseComposer $composer,
         private readonly ConversationStateService $stateService,
+        private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
     ) {}
 
     public function beforeAI(string $message, User $user, WhatsAppContact $contact): array
@@ -37,6 +38,7 @@ class ConversationOrchestrator
             'savings_query' => $this->buildQueryResult('query_savings', $message),
             'subscription_query' => $this->buildQueryResult('query_subscriptions', $message),
             'projection_query' => $this->buildQueryResult('query_projections', $message),
+            'savings_create' => $this->buildSavingsCreateResult($message),
             'transaction_follow_up' => $this->buildQueryResult($classification['target_action'] ?? 'query_transactions', $message),
             default => ['handled' => false],
         };
@@ -135,6 +137,23 @@ class ConversationOrchestrator
                 '_conversation_metadata' => [
                     'clear_pending' => true,
                     'reply_kind' => 'query',
+                ],
+            ],
+        ];
+    }
+
+    private function buildSavingsCreateResult(string $message): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_savings_goal',
+                'goal_data' => $this->savingsGoalMessageParser->parse($message) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
                 ],
             ],
         ];

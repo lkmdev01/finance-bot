@@ -4,6 +4,10 @@ namespace App\Services\WhatsApp;
 
 class MessageClassifier
 {
+    public function __construct(
+        private readonly SavingsGoalMessageParser $savingsGoalMessageParser
+    ) {}
+
     public function classify(string $message, array $state = []): array
     {
         $normalized = $this->normalize($message);
@@ -23,6 +27,10 @@ class MessageClassifier
                 : 'acknowledgement';
 
             return ['kind' => $kind, 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeSavingsCreate($message, $stripped)) {
+            return ['kind' => 'savings_create', 'normalized' => $stripped];
         }
 
         if ($this->looksLikeBudgetQuery($stripped, $state)) {
@@ -77,6 +85,12 @@ class MessageClassifier
         return false;
     }
 
+    private function looksLikeSavingsCreate(string $originalMessage, string $normalizedMessage): bool
+    {
+        return $this->savingsGoalMessageParser->looksLikeCreateIntent($normalizedMessage)
+            && $this->savingsGoalMessageParser->parse($originalMessage) !== null;
+    }
+
     private function looksLikeBudgetQuery(string $message, array $state): bool
     {
         if ((str_contains($message, 'orcamento') || str_contains($message, 'orçamento')) && $this->containsBudgetQueryCue($message)) {
@@ -101,7 +115,7 @@ class MessageClassifier
     private function looksLikeSavingsQuery(string $message, array $state): bool
     {
         if ($this->containsAny($message, ['meta', 'metas', 'objetivo', 'objetivos', 'poupanca', 'poupança'])) {
-            return true;
+            return ! $this->containsAny($message, ['criar', 'crie', 'nova', 'novo', 'definir', 'defina', 'cadastrar', 'cadastre']);
         }
 
         if (($state['last_action'] ?? null) !== 'query_savings') {

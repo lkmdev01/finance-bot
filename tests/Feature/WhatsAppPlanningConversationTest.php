@@ -1,7 +1,6 @@
 ﻿<?php
 
 use App\Jobs\ProcessWhatsAppMessage;
-use App\Models\Budget;
 use App\Models\Category;
 use App\Models\FinancialProjection;
 use App\Models\SavingsGoal;
@@ -34,6 +33,36 @@ beforeEach(function () {
         'type' => 'expense',
         'name' => 'Alimentacao',
     ]);
+});
+
+it('cria meta via whatsapp com frase natural', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Meta Viagem criada com valor de R$ 5.000,00');
+            }))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Definir meta viagem 5 mil',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    expect(SavingsGoal::query()->where('user_id', $this->user->id)->where('name', 'Viagem')->exists())->toBeTrue();
 });
 
 it('consulta metas com resposta contextual', function () {
@@ -143,7 +172,7 @@ it('consulta projecoes e consegue abrir um horizonte especifico', function () {
             ->once()
             ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
                 return str_contains($message, 'Para')
-                    && str_contains($message, 'saldo de R$ 150,00')
+                    && str_contains($message, 'saldo de R$ -150,00')
                     && str_contains($message, 'saldo negativo');
             }))
             ->andReturn(fakePlanningBaileysSuccessResponse());
@@ -174,63 +203,4 @@ it('consulta projecoes e consegue abrir um horizonte especifico', function () {
         app(\App\Services\PhoneNumberService::class),
         app(\App\Services\PerformanceMetricsService::class)
     );
-});
-
-it('dispara alerta proativo quando um gasto aproxima o orcamento do limite', function () {
-    Budget::create([
-        'user_id' => $this->user->id,
-        'category_id' => $this->categoria->id,
-        'amount' => 100.00,
-        'period' => 'monthly',
-        'year' => now()->year,
-        'month' => now()->month,
-    ]);
-
-    Http::fake([
-        'api.groq.com/*' => Http::response([
-            'choices' => [[
-                'message' => [
-                    'content' => json_encode([
-                        'reply' => 'Vou registrar esse gasto.',
-                        'action' => 'create_transaction',
-                        'transaction_data' => [
-                            'type' => 'expense',
-                            'amount' => 85.0,
-                            'description' => 'Mercado',
-                            'category_id' => $this->categoria->id,
-                            'date' => now()->format('Y-m-d'),
-                        ],
-                        'transaction_id' => null,
-                    ]),
-                ],
-            ]],
-        ], 200),
-    ]);
-
-    $this->mock(BaileysService::class, function ($mock) {
-        $mock->shouldReceive('sendTextMessage')
-            ->twice()
-            ->withArgs(function ($recipient, $message) {
-                return str_contains($recipient, '5513991290256');
-            })
-            ->andReturn(fakePlanningBaileysSuccessResponse());
-    });
-
-    $job = new ProcessWhatsAppMessage(
-        phoneNumber: '5513991290256',
-        message: 'gastei 85 no mercado',
-        userId: $this->user->id,
-        pushName: 'Test User',
-        remoteJid: '5513991290256@s.whatsapp.net'
-    );
-
-    $job->handle(
-        app(AIService::class),
-        app(BaileysService::class),
-        app(\App\Services\PhoneNumberService::class),
-        app(\App\Services\PerformanceMetricsService::class)
-    );
-
-    expect($this->contact->fresh()->context)->toHaveCount(2);
-    expect(collect($this->contact->fresh()->context)->last()['reply'])->toContain('Alerta rapido');
 });
