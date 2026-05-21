@@ -65,6 +65,87 @@ it('cria meta via whatsapp com frase natural', function () {
     expect(SavingsGoal::query()->where('user_id', $this->user->id)->where('name', 'Viagem')->exists())->toBeTrue();
 });
 
+it('cria meta via linguagem natural de poupanca', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Meta Viagem criada com valor de R$ 5.000,00');
+            }))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Quero guardar 5 mil para viagem',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    expect(SavingsGoal::query()->where('user_id', $this->user->id)->where('name', 'Viagem')->exists())->toBeTrue();
+});
+
+it('edita meta via follow up com contexto recente', function () {
+    SavingsGoal::create([
+        'user_id' => $this->user->id,
+        'name' => 'Viagem',
+        'target_amount' => 5000,
+        'is_completed' => false,
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_savings',
+            'last_entities' => ['topic' => 'savings', 'goal_name' => 'Viagem'],
+            'recent_contexts' => [[
+                'action' => 'query_savings',
+                'entities' => ['topic' => 'savings', 'goal_name' => 'Viagem'],
+                'reply_kind' => 'query',
+                'timestamp' => now()->toIso8601String(),
+            ]],
+        ],
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Meta Viagem atualizada');
+            }))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'ajusta para 7000',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    expect((float) SavingsGoal::query()->where('user_id', $this->user->id)->where('name', 'Viagem')->first()->target_amount)->toBe(7000.0);
+});
+
 it('consulta metas com resposta contextual', function () {
     SavingsGoal::create([
         'user_id' => $this->user->id,
@@ -182,6 +263,107 @@ it('cria assinatura via whatsapp com frase natural', function () {
     expect((float) $subscription->amount)->toBe(19.0);
     expect($subscription->billing_cycle)->toBe('monthly');
     expect((int) $subscription->due_day)->toBe(10);
+});
+
+it('edita assinatura via whatsapp com frase natural', function () {
+    Subscription::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->categoria->id,
+        'name' => 'Netflix',
+        'amount' => 19.00,
+        'billing_cycle' => 'monthly',
+        'due_day' => 10,
+        'start_date' => now()->toDateString(),
+        'auto_record' => false,
+        'is_active' => true,
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Assinatura Netflix atualizada');
+            }))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Ajustar assinatura Netflix para 25 reais dia 12',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    $subscription = Subscription::query()->where('user_id', $this->user->id)->where('name', 'Netflix')->first();
+
+    expect((float) $subscription->amount)->toBe(25.0);
+    expect((int) $subscription->due_day)->toBe(12);
+});
+
+it('cancela assinatura via follow up com contexto recente', function () {
+    Subscription::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->categoria->id,
+        'name' => 'Netflix',
+        'amount' => 19.00,
+        'billing_cycle' => 'monthly',
+        'due_day' => 10,
+        'start_date' => now()->toDateString(),
+        'auto_record' => false,
+        'is_active' => true,
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_subscriptions',
+            'last_entities' => ['topic' => 'subscriptions', 'subscription_name' => 'Netflix'],
+            'recent_contexts' => [[
+                'action' => 'query_subscriptions',
+                'entities' => ['topic' => 'subscriptions', 'subscription_name' => 'Netflix'],
+                'reply_kind' => 'query',
+                'timestamp' => now()->toIso8601String(),
+            ]],
+        ],
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Assinatura Netflix cancelada');
+            }))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'cancela ela',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    expect(Subscription::query()->where('user_id', $this->user->id)->where('name', 'Netflix')->first()->is_active)->toBeFalse();
 });
 
 it('consulta projecoes e consegue abrir um horizonte especifico', function () {

@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 class ConversationStateService
 {
     private const MAX_CONTEXT_ITEMS = 12;
+    private const MAX_RECENT_CONTEXTS = 8;
 
     public function getState(?WhatsAppContact $contact): array
     {
@@ -40,6 +41,19 @@ class ConversationStateService
         $state['last_entities'] = $this->sanitizeValue($entities);
         $state['last_reply_kind'] = $replyKind;
         $state['updated_at'] = now()->toIso8601String();
+
+        if ($action !== null || $entities !== []) {
+            $recentContexts = is_array($state['recent_contexts'] ?? null) ? $state['recent_contexts'] : [];
+            array_unshift($recentContexts, [
+                'action' => $action,
+                'entities' => $this->sanitizeValue($entities),
+                'reply_kind' => $replyKind,
+                'timestamp' => now()->toIso8601String(),
+            ]);
+
+            $state['recent_contexts'] = array_slice($recentContexts, 0, self::MAX_RECENT_CONTEXTS);
+        }
+
         $this->persistState($contact, $state);
     }
 
@@ -140,6 +154,7 @@ class ConversationStateService
             'last_action' => $state['last_action'] ?? null,
             'last_entities' => is_array($state['last_entities'] ?? null) ? $state['last_entities'] : [],
             'last_reply_kind' => $state['last_reply_kind'] ?? null,
+            'recent_contexts' => is_array($state['recent_contexts'] ?? null) ? array_slice($state['recent_contexts'], 0, self::MAX_RECENT_CONTEXTS) : [],
             'last_proactive_key' => $state['last_proactive_key'] ?? null,
             'last_proactive_at' => $state['last_proactive_at'] ?? null,
             'updated_at' => $state['updated_at'] ?? null,

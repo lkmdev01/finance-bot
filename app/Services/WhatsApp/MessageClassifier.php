@@ -18,6 +18,18 @@ class MessageClassifier
             return ['kind' => 'greeting', 'normalized' => $stripped];
         }
 
+        if ($this->looksLikeSubscriptionCancel($message, $stripped, $state)) {
+            return ['kind' => 'subscription_cancel', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeSavingsEdit($message, $stripped, $state)) {
+            return ['kind' => 'savings_edit', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeSubscriptionEdit($message, $stripped, $state)) {
+            return ['kind' => 'subscription_edit', 'normalized' => $stripped];
+        }
+
         if ($this->isCancellation($stripped)) {
             return ['kind' => 'cancellation', 'normalized' => $stripped];
         }
@@ -100,6 +112,64 @@ class MessageClassifier
     {
         return $this->subscriptionMessageParser->looksLikeCreateIntent($normalizedMessage)
             && $this->subscriptionMessageParser->parse($originalMessage) !== null;
+    }
+
+    private function looksLikeSavingsEdit(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        $fallbackName = $this->recentEntityName($state, 'savings', 'goal_name');
+
+        if ($this->savingsGoalMessageParser->looksLikeEditIntent($normalizedMessage)) {
+            return $this->savingsGoalMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
+        }
+
+        if (($state['last_action'] ?? null) !== 'query_savings') {
+            return false;
+        }
+
+        if (! $this->containsAny($normalizedMessage, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'])) {
+            return false;
+        }
+
+        return $fallbackName !== null
+            && $this->savingsGoalMessageParser->parseEdit('meta '.($fallbackName ?? '').' '.$originalMessage, $fallbackName) !== null;
+    }
+
+    private function looksLikeSubscriptionEdit(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        $fallbackName = $this->recentEntityName($state, 'subscriptions', 'subscription_name');
+
+        if ($this->subscriptionMessageParser->looksLikeEditIntent($normalizedMessage)) {
+            return $this->subscriptionMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
+        }
+
+        if (($state['last_action'] ?? null) !== 'query_subscriptions') {
+            return false;
+        }
+
+        if (! $this->containsAny($normalizedMessage, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'])) {
+            return false;
+        }
+
+        return $this->subscriptionMessageParser->parseEdit('assinatura '.($fallbackName ?? '').' '.$originalMessage, $fallbackName) !== null;
+    }
+
+    private function looksLikeSubscriptionCancel(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        $fallbackName = $this->recentEntityName($state, 'subscriptions', 'subscription_name');
+
+        if ($this->subscriptionMessageParser->looksLikeCancelIntent($normalizedMessage)) {
+            return $this->subscriptionMessageParser->parseCancel($originalMessage, $fallbackName) !== null;
+        }
+
+        if (($state['last_action'] ?? null) !== 'query_subscriptions') {
+            return false;
+        }
+
+        if (! $this->containsAny($normalizedMessage, ['cancelar', 'cancela', 'desativar', 'desativa', 'pausar', 'pausa'])) {
+            return false;
+        }
+
+        return $fallbackName !== null;
     }
 
     private function looksLikeBudgetQuery(string $message, array $state): bool
@@ -269,5 +339,20 @@ class MessageClassifier
         $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
 
         return $converted !== false ? $converted : $value;
+    }
+
+    private function recentEntityName(array $state, string $topic, string $field): ?string
+    {
+        if (($state['last_entities']['topic'] ?? null) === $topic && ! empty($state['last_entities'][$field])) {
+            return (string) $state['last_entities'][$field];
+        }
+
+        foreach (($state['recent_contexts'] ?? []) as $context) {
+            if (($context['entities']['topic'] ?? null) === $topic && ! empty($context['entities'][$field])) {
+                return (string) $context['entities'][$field];
+            }
+        }
+
+        return null;
     }
 }

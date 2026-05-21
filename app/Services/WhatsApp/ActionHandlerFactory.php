@@ -16,7 +16,10 @@ class ActionHandlerFactory
     {
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateBudgetHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateSavingsGoalHandler());
+        $this->registerHandler(new \App\Services\WhatsApp\Handlers\UpdateSavingsGoalHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateSubscriptionHandler());
+        $this->registerHandler(new \App\Services\WhatsApp\Handlers\UpdateSubscriptionHandler());
+        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CancelSubscriptionHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateTransactionHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\EditTransactionHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\DeleteTransactionHandler());

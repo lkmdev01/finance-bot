@@ -42,7 +42,7 @@ class SavingsConversationService
     {
         $normalized = $this->normalize($message);
         $availableGoals = $this->buildGoalIndex($user);
-        $lastEntities = $state['last_entities'] ?? [];
+        $lastEntities = $this->resolveRelevantEntities($state);
 
         return [
             'normalized_message' => $normalized,
@@ -240,5 +240,24 @@ class SavingsConversationService
     private function formatPercentage(float $value): string
     {
         return number_format($value, 0, ',', '.').'%';
+    }
+
+    private function resolveRelevantEntities(array $state): array
+    {
+        $lastEntities = $state['last_entities'] ?? [];
+
+        if (($lastEntities['topic'] ?? null) === 'savings') {
+            return $lastEntities;
+        }
+
+        foreach (($state['recent_contexts'] ?? []) as $context) {
+            $entities = $context['entities'] ?? [];
+
+            if (($entities['topic'] ?? null) === 'savings') {
+                return $entities;
+            }
+        }
+
+        return $lastEntities;
     }
 }

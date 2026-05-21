@@ -46,7 +46,7 @@ class TransactionConversationService
     {
         $normalized = $this->normalize($message);
         $availableCategories = $this->buildCategoryIndex($user);
-        $lastEntities = $state['last_entities'] ?? [];
+        $lastEntities = $this->resolveRelevantEntities($state);
 
         $mode = $action === 'query_category' ? 'category' : 'transactions';
         if ($mode !== 'category' && ! empty($lastEntities['category_name']) && $this->looksLikeCategoryFollowUp($normalized, $lastEntities)) {
@@ -421,5 +421,24 @@ class TransactionConversationService
     private function formatPercentage(float $value): string
     {
         return number_format($value, 0, ',', '.').'%';
+    }
+
+    private function resolveRelevantEntities(array $state): array
+    {
+        $lastEntities = $state['last_entities'] ?? [];
+
+        if (in_array($lastEntities['topic'] ?? null, ['transactions', 'expense_category'], true)) {
+            return $lastEntities;
+        }
+
+        foreach (($state['recent_contexts'] ?? []) as $context) {
+            $entities = $context['entities'] ?? [];
+
+            if (in_array($entities['topic'] ?? null, ['transactions', 'expense_category'], true)) {
+                return $entities;
+            }
+        }
+
+        return $lastEntities;
     }
 }

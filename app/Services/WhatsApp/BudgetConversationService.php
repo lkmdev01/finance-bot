@@ -64,9 +64,10 @@ class BudgetConversationService
     {
         $normalized = $this->normalize($message);
         $anchor = CarbonImmutable::now();
-        $period = $this->resolvePeriod($normalized, $state['last_entities'] ?? [], $anchor);
+        $lastEntities = $this->resolveRelevantEntities($state);
+        $period = $this->resolvePeriod($normalized, $lastEntities, $anchor);
         $availableCategories = $this->buildCategoryIndex($user);
-        $categoryNames = $this->resolveCategories($normalized, $availableCategories, $state['last_entities'] ?? []);
+        $categoryNames = $this->resolveCategories($normalized, $availableCategories, $lastEntities);
 
         return [
             'original_message' => $message,
@@ -472,5 +473,24 @@ class BudgetConversationService
     private function isTemporalFollowUp(string $message): bool
     {
         return $this->containsAny($message, ['mes passado', 'mês passado', 'esse mes', 'esse mês', 'este mes', 'este mês', 'ano passado']);
+    }
+
+    private function resolveRelevantEntities(array $state): array
+    {
+        $lastEntities = $state['last_entities'] ?? [];
+
+        if (($lastEntities['topic'] ?? null) === 'budget') {
+            return $lastEntities;
+        }
+
+        foreach (($state['recent_contexts'] ?? []) as $context) {
+            $entities = $context['entities'] ?? [];
+
+            if (($entities['topic'] ?? null) === 'budget') {
+                return $entities;
+            }
+        }
+
+        return $lastEntities;
     }
 }

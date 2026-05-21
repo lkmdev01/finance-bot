@@ -42,7 +42,7 @@ class SubscriptionConversationService
     {
         $normalized = $this->normalize($message);
         $available = $this->buildIndex($user);
-        $lastEntities = $state['last_entities'] ?? [];
+        $lastEntities = $this->resolveRelevantEntities($state);
 
         return [
             'normalized_message' => $normalized,
@@ -243,5 +243,24 @@ class SubscriptionConversationService
     private function formatMoney(float|string $value): string
     {
         return number_format((float) $value, 2, ',', '.');
+    }
+
+    private function resolveRelevantEntities(array $state): array
+    {
+        $lastEntities = $state['last_entities'] ?? [];
+
+        if (($lastEntities['topic'] ?? null) === 'subscriptions') {
+            return $lastEntities;
+        }
+
+        foreach (($state['recent_contexts'] ?? []) as $context) {
+            $entities = $context['entities'] ?? [];
+
+            if (($entities['topic'] ?? null) === 'subscriptions') {
+                return $entities;
+            }
+        }
+
+        return $lastEntities;
     }
 }

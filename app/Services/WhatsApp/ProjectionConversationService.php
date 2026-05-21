@@ -43,7 +43,7 @@ class ProjectionConversationService
     private function buildContext(string $message, array $state): array
     {
         $normalized = $this->normalize($message);
-        $lastEntities = $state['last_entities'] ?? [];
+        $lastEntities = $this->resolveRelevantEntities($state);
         $targetMonth = $this->resolveTargetMonth($normalized, $lastEntities);
 
         return [
@@ -186,5 +186,24 @@ class ProjectionConversationService
     private function formatMoney(float|string $value): string
     {
         return number_format((float) $value, 2, ',', '.');
+    }
+
+    private function resolveRelevantEntities(array $state): array
+    {
+        $lastEntities = $state['last_entities'] ?? [];
+
+        if (($lastEntities['topic'] ?? null) === 'projections') {
+            return $lastEntities;
+        }
+
+        foreach (($state['recent_contexts'] ?? []) as $context) {
+            $entities = $context['entities'] ?? [];
+
+            if (($entities['topic'] ?? null) === 'projections') {
+                return $entities;
+            }
+        }
+
+        return $lastEntities;
     }
 }

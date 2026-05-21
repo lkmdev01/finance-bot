@@ -40,7 +40,10 @@ class ConversationOrchestrator
             'subscription_query' => $this->buildQueryResult('query_subscriptions', $message),
             'projection_query' => $this->buildQueryResult('query_projections', $message),
             'savings_create' => $this->buildSavingsCreateResult($message),
+            'savings_edit' => $this->buildSavingsEditResult($message, $state),
             'subscription_create' => $this->buildSubscriptionCreateResult($message),
+            'subscription_edit' => $this->buildSubscriptionEditResult($message, $state),
+            'subscription_cancel' => $this->buildSubscriptionCancelResult($message, $state),
             'transaction_follow_up' => $this->buildQueryResult($classification['target_action'] ?? 'query_transactions', $message),
             default => ['handled' => false],
         };
@@ -161,6 +164,23 @@ class ConversationOrchestrator
         ];
     }
 
+    private function buildSavingsEditResult(string $message, array $state): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'update_savings_goal',
+                'goal_data' => $this->savingsGoalMessageParser->parseEdit($message, $this->recentEntityName($state, 'savings', 'goal_name')) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
     private function buildSubscriptionCreateResult(string $message): array
     {
         return [
@@ -176,5 +196,54 @@ class ConversationOrchestrator
                 ],
             ],
         ];
+    }
+
+    private function buildSubscriptionEditResult(string $message, array $state): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'update_subscription',
+                'subscription_data' => $this->subscriptionMessageParser->parseEdit($message, $this->recentEntityName($state, 'subscriptions', 'subscription_name')) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildSubscriptionCancelResult(string $message, array $state): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'cancel_subscription',
+                'subscription_data' => $this->subscriptionMessageParser->parseCancel($message, $this->recentEntityName($state, 'subscriptions', 'subscription_name')) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function recentEntityName(array $state, string $topic, string $field): ?string
+    {
+        if (($state['last_entities']['topic'] ?? null) === $topic && ! empty($state['last_entities'][$field])) {
+            return (string) $state['last_entities'][$field];
+        }
+
+        foreach (($state['recent_contexts'] ?? []) as $context) {
+            if (($context['entities']['topic'] ?? null) === $topic && ! empty($context['entities'][$field])) {
+                return (string) $context['entities'][$field];
+            }
+        }
+
+        return null;
     }
 }
