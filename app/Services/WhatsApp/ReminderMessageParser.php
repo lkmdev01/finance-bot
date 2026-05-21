@@ -58,13 +58,14 @@ class ReminderMessageParser
         }
 
         $data = [
-            'title' => $this->extractReminderTitle($clean, $normalized),
+            'title' => $this->extractReminderTitle($clean),
             'message' => null,
             'frequency' => null,
             'day_of_month' => null,
             'month_of_year' => null,
             'next_trigger_at' => null,
         ];
+
         $data = array_merge($data, $this->extractSchedule($normalized) ?? []);
 
         if ($data['title'] === null) {
@@ -97,6 +98,18 @@ class ReminderMessageParser
 
     private function extractSchedule(string $normalized): ?array
     {
+        if (preg_match('/(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+(\d{1,2})\b/u', $normalized, $matches)
+            || preg_match('/\bdia\s+(\d{1,2})\s+(?:mes\s+que\s+vem|proximo\s+mes)\b/u', $normalized, $matches)) {
+            $day = max(1, min(31, (int) $matches[1]));
+
+            return [
+                'frequency' => 'once',
+                'day_of_month' => null,
+                'month_of_year' => null,
+                'next_trigger_at' => $this->oneTimeNextMonthTrigger($day)->toIso8601String(),
+            ];
+        }
+
         if (preg_match('/\b(todo|cada)\s+mes\b/u', $normalized) || str_contains($normalized, 'mensal')) {
             $data = [
                 'frequency' => 'monthly',
@@ -163,19 +176,23 @@ class ReminderMessageParser
         return null;
     }
 
-    private function extractReminderTitle(string $cleanMessage, string $normalizedMessage): ?string
+    private function extractReminderTitle(string $cleanMessage): ?string
     {
         $title = $cleanMessage;
-        $title = preg_replace('/^\s*(?:todo\s+m[eê]s|todo\s+mes|cada\s+m[eê]s|todo\s+dia|cada\s+ano)\s*/iu', '', $title) ?? $title;
+        $title = preg_replace('/^\s*(?:todo\s+m\S*s|todo\s+mes|cada\s+m\S*s|todo\s+dia|cada\s+ano)\s*/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+\d{1,2}\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:mes\s+que\s+vem|proximo\s+mes)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}(?:\/\d{1,2}(?:\/\d{4})?)?\b/iu', '', $title) ?? $title;
-        $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:desse|deste)\s+m[eê]s\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:desse|deste)\s+m\S*s\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+de\s+[[:alpha:]]+\b/iu', '', $title) ?? $title;
-        $title = preg_replace('/\b(?:desse|deste)\s+m[eê]s\b/iu', '', $title) ?? $title;
-        $title = preg_replace('/\b(todo|cada)\s+m[eê]?s\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:desse|deste)\s+m\S*s\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\bmes\s+que\s+vem\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\bproximo\s+mes\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(todo|cada)\s+m\S*s\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bmensal\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:me\s+lembra(?:r)?(?:\s+de)?|me\s+lembre(?:\s+de)?|lembrete(?:\s+para)?|lembrar\s+de|lembra\s+de)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\s+/u', ' ', $title) ?? $title;
-        $title = trim($title, " \t\n\r\0\x0B,.;:-");
+        $title = trim($title, " \t\n\r\0\x0B,.;:-?");
 
         if ($title === '') {
             return null;
@@ -189,8 +206,8 @@ class ReminderMessageParser
         $base = trim($title);
 
         return match ($frequency) {
-            'yearly' => "Lembrete: hoje é dia de {$base}.",
-            'monthly' => "Lembrete do mês: {$base}.",
+            'yearly' => "Lembrete: hoje e dia de {$base}.",
+            'monthly' => "Lembrete do mes: {$base}.",
             default => "Lembrete: {$base}.",
         };
     }
@@ -202,6 +219,14 @@ class ReminderMessageParser
         if ($date->isPast()) {
             $date->addMonthNoOverflow()->day(min($day, $date->daysInMonth));
         }
+
+        return $date;
+    }
+
+    private function oneTimeNextMonthTrigger(int $day): Carbon
+    {
+        $date = now(config('app.timezone'))->copy()->addMonthNoOverflow()->startOfMonth();
+        $date->day(min($day, $date->daysInMonth))->setTime(9, 0, 0);
 
         return $date;
     }
