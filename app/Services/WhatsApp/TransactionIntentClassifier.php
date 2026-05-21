@@ -18,6 +18,14 @@ class TransactionIntentClassifier
 
     public function classify(string $originalMessage, string $normalizedMessage, array $state): ?array
     {
+        if ($this->looksLikeRecurringTransactionEdit($originalMessage, $normalizedMessage, $state)) {
+            return ['kind' => 'recurring_transaction_edit', 'normalized' => $normalizedMessage];
+        }
+
+        if ($this->looksLikeRecurringTransactionDelete($originalMessage, $normalizedMessage, $state)) {
+            return ['kind' => 'recurring_transaction_delete', 'normalized' => $normalizedMessage];
+        }
+
         if ($this->looksLikeTransactionSplit($normalizedMessage, $state)) {
             return ['kind' => 'transaction_split', 'normalized' => $normalizedMessage];
         }
@@ -32,14 +40,6 @@ class TransactionIntentClassifier
 
         if ($this->looksLikeRecurringTransactionCreate($originalMessage, $normalizedMessage)) {
             return ['kind' => 'recurring_transaction_create', 'normalized' => $normalizedMessage];
-        }
-
-        if ($this->looksLikeRecurringTransactionEdit($originalMessage, $normalizedMessage, $state)) {
-            return ['kind' => 'recurring_transaction_edit', 'normalized' => $normalizedMessage];
-        }
-
-        if ($this->looksLikeRecurringTransactionDelete($originalMessage, $normalizedMessage, $state)) {
-            return ['kind' => 'recurring_transaction_delete', 'normalized' => $normalizedMessage];
         }
 
         if ($this->looksLikeInstallmentTransactionCreate($originalMessage, $normalizedMessage)) {
@@ -67,6 +67,10 @@ class TransactionIntentClassifier
 
     private function looksLikeTransactionEdit(string $originalMessage, string $normalizedMessage, array $state): bool
     {
+        if (($state['last_entities']['topic'] ?? null) === 'recurring_transactions') {
+            return false;
+        }
+
         if ($this->containsBudgetCue($originalMessage, $normalizedMessage)) {
             return false;
         }
@@ -99,6 +103,10 @@ class TransactionIntentClassifier
 
     private function looksLikeTransactionDelete(string $originalMessage, string $normalizedMessage, array $state): bool
     {
+        if (($state['last_entities']['topic'] ?? null) === 'recurring_transactions') {
+            return false;
+        }
+
         if ($this->containsBudgetCue($originalMessage, $normalizedMessage)) {
             return false;
         }

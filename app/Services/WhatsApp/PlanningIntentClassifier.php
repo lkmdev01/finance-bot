@@ -16,6 +16,10 @@ class PlanningIntentClassifier
 
     public function classify(string $originalMessage, string $normalizedMessage, array $state): ?array
     {
+        if ($this->looksLikeSubscriptionCreate($originalMessage, $normalizedMessage)) {
+            return ['kind' => 'subscription_create', 'normalized' => $normalizedMessage];
+        }
+
         if ($this->looksLikeSubscriptionCancel($originalMessage, $normalizedMessage, $state)) {
             return ['kind' => 'subscription_cancel', 'normalized' => $normalizedMessage];
         }
@@ -35,10 +39,6 @@ class PlanningIntentClassifier
 
         if ($this->looksLikeSavingsCreate($originalMessage, $normalizedMessage)) {
             return ['kind' => 'savings_create', 'normalized' => $normalizedMessage];
-        }
-
-        if ($this->looksLikeSubscriptionCreate($originalMessage, $normalizedMessage)) {
-            return ['kind' => 'subscription_create', 'normalized' => $normalizedMessage];
         }
 
         if ($this->looksLikeSavingsQuery($normalizedMessage, $state)) {
@@ -96,7 +96,7 @@ class PlanningIntentClassifier
             return $this->subscriptionMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
         }
 
-        if (($state['last_action'] ?? null) !== 'query_subscriptions') {
+        if (($state['last_entities']['topic'] ?? null) !== 'subscriptions' && $this->contextResolver->recentEntityName($state, 'subscriptions', 'subscription_name') === null) {
             return false;
         }
 
@@ -115,7 +115,7 @@ class PlanningIntentClassifier
             return $this->subscriptionMessageParser->parseCancel($originalMessage, $fallbackName) !== null;
         }
 
-        if (($state['last_action'] ?? null) !== 'query_subscriptions') {
+        if (($state['last_entities']['topic'] ?? null) !== 'subscriptions' && $this->contextResolver->recentEntityName($state, 'subscriptions', 'subscription_name') === null) {
             return false;
         }
 

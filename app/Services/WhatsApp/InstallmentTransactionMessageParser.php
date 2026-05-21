@@ -16,21 +16,21 @@ class InstallmentTransactionMessageParser
         }
 
         $installments = $this->extractInstallmentCount($normalized);
-        $amount = $this->extractAmount($message);
+        $amountData = $this->extractAmountData($message, $installments);
         $description = $this->extractDescription($message);
         [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($message);
         $categoryName = $this->extractCategoryName($message) ?? $description;
 
-        if ($installments === null || $amount === null || $description === null) {
+        if ($installments === null || $amountData === null || $description === null) {
             return null;
         }
 
         return array_filter([
             'type' => 'expense',
             'description' => $description,
-            'total_amount' => $amount,
+            'total_amount' => $amountData['total_amount'],
             'installment_count' => $installments,
-            'per_installment_amount' => round($amount / $installments, 2),
+            'per_installment_amount' => $amountData['per_installment_amount'],
             'date' => ($this->extractDate($message) ?? now())->toDateString(),
             'category_name' => $categoryName,
             'bank_account_name' => $bankAccountName,
@@ -72,8 +72,20 @@ class InstallmentTransactionMessageParser
         return null;
     }
 
-    private function extractAmount(string $message): ?float
+    private function extractAmountData(string $message, int $installments): ?array
     {
+        if (preg_match('/(?:em\s+)?\d{1,2}(?:x|\s+vezes)\s+de\s+(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/iu', $message, $matches) === 1) {
+            $raw = str_replace('.', '', $matches[1]);
+            $perInstallment = (float) str_replace(',', '.', $raw);
+
+            if ($perInstallment > 0) {
+                return [
+                    'total_amount' => round($perInstallment * $installments, 2),
+                    'per_installment_amount' => round($perInstallment, 2),
+                ];
+            }
+        }
+
         $patterns = [
             '/(?:por|de)\s+(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/iu',
             '/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)\s+(?:em\s+\d{1,2}(?:x|\s+vezes)|parcelad[oa]|dividido\s+em)/iu',
@@ -84,7 +96,12 @@ class InstallmentTransactionMessageParser
                 $raw = str_replace('.', '', $matches[1]);
                 $amount = (float) str_replace(',', '.', $raw);
 
-                return $amount > 0 ? $amount : null;
+                if ($amount > 0) {
+                    return [
+                        'total_amount' => round($amount, 2),
+                        'per_installment_amount' => round($amount / $installments, 2),
+                    ];
+                }
             }
         }
 
@@ -95,7 +112,14 @@ class InstallmentTransactionMessageParser
         $raw = str_replace('.', '', $matches[1][0]);
         $amount = (float) str_replace(',', '.', $raw);
 
-        return $amount > 0 ? $amount : null;
+        if ($amount <= 0) {
+            return null;
+        }
+
+        return [
+            'total_amount' => round($amount, 2),
+            'per_installment_amount' => round($amount / $installments, 2),
+        ];
     }
 
     private function extractDescription(string $message): ?string

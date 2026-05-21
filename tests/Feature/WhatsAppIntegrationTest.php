@@ -1707,3 +1707,85 @@ it('atualiza assinatura com conta explicita em linguagem natural', function () {
         'bank_account_id' => $bankAccount->id,
     ]);
 });
+
+it('interpreta valor por parcela em parcelado mais solto', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Comprei uma moto em 12 vezes de 599',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'description' => 'Moto (1/12)',
+        'amount' => 599.00,
+    ]);
+});
+
+it('prioriza criacao de assinatura sobre edicao mesmo com contexto anterior', function () {
+    $creditCard = \App\Models\CreditCard::create([
+        'user_id' => $this->user->id,
+        'name' => 'Nubank',
+        'brand' => 'Mastercard',
+        'last_four' => '1234',
+        'credit_limit' => 5000,
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_subscriptions',
+            'last_entities' => [
+                'topic' => 'subscriptions',
+                'subscription_name' => 'Spotify',
+            ],
+        ],
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Criar assinatura Netflix mensal, dia 10, 19 reais no cartao Nubank',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    assertDatabaseHas('subscriptions', [
+        'user_id' => $this->user->id,
+        'name' => 'Netflix',
+        'amount' => 19.00,
+        'credit_card_id' => $creditCard->id,
+    ]);
+});
