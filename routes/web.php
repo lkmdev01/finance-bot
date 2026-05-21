@@ -69,7 +69,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::post('billing/plans/{planCode}/subscribe', [App\Http\Controllers\BillingPlanController::class, 'subscribe'])->name('billing.subscribe');
     Route::post('billing/abacatepay/transparents/pix', [App\Http\Controllers\AbacatePayChargeController::class, 'createTransparentPix'])
         ->name('billing.abacatepay.transparents.pix');
-    // TransaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes
+    // Transações
     Route::get('transactions', function () {
         return view('pages.transactions.index');
     })->name('transactions.index');
@@ -103,7 +103,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.categories.edit', ['category' => $category]);
     })->name('categories.edit');
 
-    // OrÃƒÆ’Ã‚Â§amentos
+    // Orçamentos
     Route::get('budgets', function () {
         return view('pages.budgets.index');
     })->name('budgets.index');
@@ -116,12 +116,12 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.budgets.edit', ['budget' => $budget]);
     })->name('budgets.edit');
 
-    // RelatÃƒÆ’Ã‚Â³rios
+    // Relatórios
     Route::get('reports', function () {
         return view('pages.reports.index');
     })->name('reports.index');
 
-    // ProjeÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes Financeiras
+    // Projeções Financeiras
     Route::get('financial-projections', function () {
         return view('pages.financial-projections.index');
     })->name('financial-projections.index');
@@ -136,7 +136,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::get('reports/export/pdf', [App\Http\Controllers\ReportsExportController::class, 'exportPdf'])->name('reports.export.pdf');
     Route::get('reports/export/excel', [App\Http\Controllers\ReportsExportController::class, 'exportExcel'])->name('reports.export.excel');
     
-    // ExportaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o de TransaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes
+    // Exportação de Transações
     Route::get('transactions/export/csv', [App\Http\Controllers\TransactionExportController::class, 'exportCsv'])->name('transactions.export.csv');
     Route::get('transactions/export/excel', [App\Http\Controllers\TransactionExportController::class, 'exportExcel'])->name('transactions.export.excel');
     Route::get('transactions/export/pdf', [App\Http\Controllers\TransactionExportController::class, 'exportPdf'])->name('transactions.export.pdf');
@@ -159,7 +159,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.savings-goals.deposit', ['savingsGoal' => $savingsGoal]);
     })->middleware('billing.writable')->name('savings-goals.deposit');
 
-    // TransaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes Recorrentes
+    // Transações Recorrentes
     Route::get('recurring-transactions', function () {
         return view('pages.recurring-transactions.index');
     })->name('recurring-transactions.index');
@@ -172,7 +172,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.recurring-transactions.edit', ['recurringTransaction' => $recurringTransaction]);
     })->name('recurring-transactions.edit');
 
-    // Contas bancÃƒÆ’Ã‚Â¡rias
+    // Contas bancárias
     Route::get('bank-accounts', function () {
         return view('pages.bank-accounts.index');
     })->name('bank-accounts.index');
@@ -183,7 +183,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.bank-accounts.edit', ['bankAccount' => $bankAccount]);
     })->name('bank-accounts.edit');
 
-    // CartÃƒÆ’Ã‚Âµes de crÃƒÆ’Ã‚Â©dito
+    // Cartões de crédito
     Route::get('credit-cards', function () {
         return view('pages.credit-cards.index');
     })->name('credit-cards.index');
@@ -219,16 +219,14 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Volt::route('webhooks/{webhook}/edit', 'webhooks.edit')->name('webhooks.edit');
 
     // Monitoramento
-    Route::get('monitoring', function () {
-        return view('pages.monitoring.index');
-    })->name('monitoring.index');
+    Route::get('monitoring', [App\Http\Controllers\MonitoringController::class, 'index'])->name('monitoring.index');
 
     // Gerenciamento WhatsApp
     Route::get('whatsapp', function () {
         return view('pages.whatsapp.index');
     })->name('whatsapp.index');
 
-    // ConfiguraÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes
+    // Configurações
     Route::redirect('settings', 'settings/profile');
 
     Volt::route('settings/profile', 'settings.profile')->name('profile.edit');
@@ -248,9 +246,9 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         ->name('two-factor.show');
 });
 
-// Webhook da Evolution API (sem autenticaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o)
+// Webhook do WhatsApp (sem autenticação)
 Route::post('/webhook/whatsapp', [App\Http\Controllers\WhatsAppWebhookController::class, 'handle'])
-    ->middleware('throttle:60,1') // 60 requisiÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes por minuto
+    ->middleware('throttle:60,1') // 60 requisições por minuto
     ->name('webhook.whatsapp');
 
 Route::post('/webhook/abacatepay', [App\Http\Controllers\AbacatePayWebhookController::class, 'handle'])

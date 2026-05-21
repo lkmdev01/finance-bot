@@ -16,6 +16,14 @@ class WhatsAppMessageProcessor
      */
     public function process(string $message, User $user, WhatsAppContact $contact): array
     {
-        return $this->aiService->processMessage($message, $user, $contact);
+        $result = $this->aiService->processMessage($message, $user, $contact);
+
+        if (($result['action'] ?? null) === 'create_budget'
+            && ! isset($result['budget_data'])
+            && isset($result['transaction_data'])) {
+            $result['budget_data'] = $result['transaction_data'];
+        }
+
+        return $result;
     }
 }

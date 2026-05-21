@@ -15,23 +15,6 @@ class ActionHandlerFactory
 
     public function __construct(iterable $handlers = [])
     {
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateBudgetHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\UpdateBudgetHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\DeleteBudgetHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateSavingsGoalHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\UpdateSavingsGoalHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateSubscriptionHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\UpdateSubscriptionHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CancelSubscriptionHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateRecurringTransactionHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateInstallmentTransactionHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateTransactionHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\EditTransactionHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\DeleteTransactionHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\SplitTransactionHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\QueryHandler());
-        $this->registerHandler(new \App\Services\WhatsApp\Handlers\ReportHandler());
-
         foreach ($handlers as $handler) {
             $this->registerHandler($handler);
         }

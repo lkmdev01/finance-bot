@@ -20,7 +20,7 @@ class CreateBudgetHandler extends BaseHandler
 
     public function handle(?string $action, array &$result, User $user, WhatsAppContact $contact, ProcessWhatsAppMessage $job): bool
     {
-        if (!isset($result['transaction_data'])) {
+        if (! isset($result['budget_data'])) {
             return false;
         }
 
@@ -28,21 +28,23 @@ class CreateBudgetHandler extends BaseHandler
 
         if (! $billingPlanService->userCanCreateRecords($user)) {
             $this->sendResponse($job, $this->buildSubscriptionRequiredReply($user, $billingPlanService), $user);
+
             return true;
         }
 
-        $budgetData = $this->normalizeBudgetData($result['transaction_data']);
+        $budgetData = $this->normalizeBudgetData($result['budget_data']);
         $validation = $this->validateBudgetData($budgetData, $user);
 
         if ($validation->fails()) {
             $errorMessage = $this->buildBudgetValidationGuidanceReply($validation->errors()->all());
             $this->sendErrorMessage($job, $errorMessage);
+
             return true;
         }
 
         $budget = $this->upsertBudget($user, $budgetData);
         $reply = $this->buildBudgetCreatedReply($budget);
-        
+
         $this->sendResponse($job, $reply, $user);
 
         return true;
@@ -78,11 +80,11 @@ class CreateBudgetHandler extends BaseHandler
 
         $validator->after(function ($validator) use ($data, $user) {
             if (empty($data['category_id']) && blank($data['category_name'] ?? null)) {
-                $validator->errors()->add('category', 'Informe uma categoria para o orcamento.');
+                $validator->errors()->add('category', 'Informe uma categoria para o orçamento.');
             }
 
             if (($data['period'] ?? 'monthly') === 'monthly' && empty($data['month'])) {
-                $validator->errors()->add('month', 'Informe o mes do orcamento mensal.');
+                $validator->errors()->add('month', 'Informe o mês do orçamento mensal.');
             }
 
             if (! empty($data['category_id'])) {
@@ -93,7 +95,7 @@ class CreateBudgetHandler extends BaseHandler
                     ->first();
 
                 if (! $category && blank($data['category_name'] ?? null)) {
-                    $validator->errors()->add('category_id', 'A categoria informada nao e uma categoria de despesa valida.');
+                    $validator->errors()->add('category_id', 'A categoria informada não é uma categoria de despesa válida.');
                 }
             }
         });
@@ -142,24 +144,24 @@ class CreateBudgetHandler extends BaseHandler
         $category = $budget->category?->name ?? 'Sem categoria';
 
         if ($budget->period === 'yearly') {
-            return "✅ Orcamento anual de R$ {$amount} criado para {$category} em {$budget->year}.";
+            return "✅ Orçamento anual de R$ {$amount} criado para {$category} em {$budget->year}.";
         }
 
         $monthLabel = str_pad((string) $budget->month, 2, '0', STR_PAD_LEFT).'/'.$budget->year;
 
-        return "✅ Orcamento de R$ {$amount} criado para {$category} em {$monthLabel}.";
+        return "✅ Orçamento de R$ {$amount} criado para {$category} em {$monthLabel}.";
     }
 
     private function buildBudgetValidationGuidanceReply(array $errors = []): string
     {
         $details = empty($errors) ? '' : "\n\nDetalhes: ".implode(' | ', $errors);
 
-        return "⚠️ Nao consegui criar o orcamento com essa mensagem.\n\n"
+        return "⚠️ Não consegui criar o orçamento com essa mensagem.\n\n"
             ."Tente assim:\n"
-            ."• criar orcamento de 800 para mercado\n"
-            ."• definir orcamento de 300 para transporte\n"
-            ."• registrar orcamento de 500 para compras\n"
-            ."• criar orcamento anual de 5000 para saude"
+            ."• criar orçamento de 800 para mercado\n"
+            ."• definir orçamento de 300 para transporte\n"
+            ."• registrar orçamento de 500 para compras\n"
+            ."• criar orçamento anual de 5000 para saúde"
             .$details;
     }
 
@@ -172,4 +174,3 @@ class CreateBudgetHandler extends BaseHandler
             .$plansUrl;
     }
 }
-

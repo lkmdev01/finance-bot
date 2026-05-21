@@ -90,7 +90,9 @@ class ProcessWhatsAppMessage implements ShouldQueue
         AIService $aiService,
         BaileysService $baileysService,
         PhoneNumberService $phoneNumberService,
-        PerformanceMetricsService $metricsService
+        PerformanceMetricsService $metricsService,
+        WhatsAppMessageProcessor $processor,
+        ActionHandlerFactory $handlerFactory,
     ): void {
         $contact = null;
         $telemetry = null;
@@ -154,7 +156,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 $result = $preflight['result'];
             } else {
                 $startTime = microtime(true);
-                $processor = new WhatsAppMessageProcessor($aiService);
                 $result = $processor->process($this->message, $user, $contact);
                 $processingTime = round((microtime(true) - $startTime) * 1000, 2);
                 $metricsService->recordAITime($processingTime, $result['action'] ?? null);
@@ -176,11 +177,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 if ($inferredBudgetData !== null) {
                     $action = 'create_budget';
                     $result['action'] = 'create_budget';
-                    $result['transaction_data'] = array_merge($result['transaction_data'] ?? [], $inferredBudgetData);
+                    $result['budget_data'] = array_merge($result['budget_data'] ?? [], $inferredBudgetData);
                 }
             }
 
-            $handlerFactory = new ActionHandlerFactory();
             $handled = $handlerFactory->process($action, $result, $user, $contact, $this);
 
             Log::info('WhatsApp pos-handler', [
