@@ -87,7 +87,12 @@ class ProjectionConversationService
             'projected_balance' => (float) $projection->projected_balance,
             'projected_income' => (float) $projection->projected_income,
             'projected_expenses' => (float) $projection->projected_expenses,
-        ]);
+        ])
+            ->groupBy('month')
+            ->map(function (Collection $items) {
+                return $items->sortByDesc('date')->first();
+            })
+            ->values();
 
         if ($context['target_month'] !== null) {
             return $projections->filter(fn (array $projection) => $projection['month'] === $context['target_month'])->values();
@@ -111,7 +116,7 @@ class ProjectionConversationService
 
         if (is_array($lowest)) {
             $reply .= sprintf(
-                '\n\nO ponto mais sensivel aparece em %s, com saldo projetado de R$ %s.',
+                "\n\nO ponto mais sensivel aparece em %s, com saldo projetado de R$ %s.",
                 $lowest['label'],
                 $this->formatMoney($lowest['projected_balance'])
             );

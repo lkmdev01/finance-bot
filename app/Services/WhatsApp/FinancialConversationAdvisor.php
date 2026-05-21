@@ -292,7 +292,7 @@ class FinancialConversationAdvisor
         if (is_array($negativeProjection)) {
             return sprintf(
                 'Alerta rapido: a projecao de %s fica negativa em R$ %s.',
-                $negativeProjection['month'] ?? ($negativeProjection['date'] ?? 'um periodo futuro'),
+                $negativeProjection['label'] ?? $negativeProjection['month'] ?? ($negativeProjection['date'] ?? 'um periodo futuro'),
                 $this->formatMoney(abs((float) $negativeProjection['projected_balance']))
             );
         }
@@ -301,7 +301,7 @@ class FinancialConversationAdvisor
         if (is_array($lowestProjection)) {
             return sprintf(
                 'Seu menor saldo projetado aparece em %s, com R$ %s.',
-                $lowestProjection['month'] ?? ($lowestProjection['date'] ?? 'um periodo futuro'),
+                $lowestProjection['label'] ?? $lowestProjection['month'] ?? ($lowestProjection['date'] ?? 'um periodo futuro'),
                 $this->formatMoney((float) $lowestProjection['projected_balance'])
             );
         }

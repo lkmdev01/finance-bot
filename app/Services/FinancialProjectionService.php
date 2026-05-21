@@ -16,7 +16,7 @@ class FinancialProjectionService
         $currentDate = now();
 
         for ($i = 1; $i <= $months; $i++) {
-            $projectionDate = $currentDate->copy()->addMonths($i);
+            $projectionDate = $currentDate->copy()->addMonths($i)->startOfMonth();
             $projectedIncome = $this->calculateProjectedIncome($user, $projectionDate);
             $projectedExpenses = $this->calculateProjectedExpenses($user, $projectionDate);
             $projectedBalance = $currentBalance + $projectedIncome - $projectedExpenses;
