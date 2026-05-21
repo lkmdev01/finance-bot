@@ -9,6 +9,8 @@ class MessageClassifier
     use NormalizesWhatsAppText;
 
     public function __construct(
+        private readonly DomainGate $domainGate,
+        private readonly ReminderIntentClassifier $reminderIntentClassifier,
         private readonly BudgetIntentClassifier $budgetIntentClassifier,
         private readonly PlanningIntentClassifier $planningIntentClassifier,
         private readonly TransactionIntentClassifier $transactionIntentClassifier,
@@ -23,13 +25,13 @@ class MessageClassifier
             return ['kind' => 'greeting', 'normalized' => $stripped];
         }
 
-        foreach ([
-            $this->transactionIntentClassifier,
-            $this->planningIntentClassifier,
-            $this->budgetIntentClassifier,
-        ] as $classifier) {
+        $domain = $this->domainGate->detect($message, $state);
+
+        foreach ($this->classifiersForDomain($domain) as $classifier) {
             $result = $classifier->classify($message, $stripped, $state);
             if ($result !== null) {
+                $result['domain'] = $domain;
+
                 return $result;
             }
         }
@@ -47,6 +49,22 @@ class MessageClassifier
         }
 
         return ['kind' => 'default', 'normalized' => $stripped];
+    }
+
+    private function classifiersForDomain(string $domain): array
+    {
+        return match ($domain) {
+            'reminder' => [$this->reminderIntentClassifier],
+            'transaction' => [$this->transactionIntentClassifier],
+            'planning' => [$this->planningIntentClassifier],
+            'budget' => [$this->budgetIntentClassifier],
+            default => [
+                $this->reminderIntentClassifier,
+                $this->transactionIntentClassifier,
+                $this->planningIntentClassifier,
+                $this->budgetIntentClassifier,
+            ],
+        };
     }
 
     private function isGreeting(string $message): bool

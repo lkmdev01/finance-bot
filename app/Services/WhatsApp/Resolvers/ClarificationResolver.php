@@ -3,12 +3,14 @@
 namespace App\Services\WhatsApp\Resolvers;
 
 use App\Services\WhatsApp\TransactionActionMessageParser;
+use App\Services\WhatsApp\ReminderMessageParser;
 use App\Services\WhatsApp\TransactionSplitMessageParser;
 
 class ClarificationResolver
 {
     public function __construct(
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
+        private readonly ReminderMessageParser $reminderMessageParser,
         private readonly TransactionSplitMessageParser $transactionSplitMessageParser,
     ) {}
 
@@ -19,6 +21,7 @@ class ClarificationResolver
             'edit_transaction_details' => in_array($classification, ['default', 'transaction_edit'], true),
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
+            'create_reminder_schedule' => in_array($classification, ['default', 'reminder_create', 'reminder_needs_schedule'], true),
             default => false,
         };
     }
@@ -31,6 +34,7 @@ class ClarificationResolver
             'edit_transaction_details' => $this->buildTransactionEditClarificationResult($message, $state),
             'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
+            'create_reminder_schedule' => $this->buildReminderScheduleClarificationResult($message, $state),
             default => null,
         };
     }
@@ -125,6 +129,30 @@ class ClarificationResolver
                 'reply' => '',
                 'action' => 'create_recurring_transaction',
                 'recurring_data' => $pending,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildReminderScheduleClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['reminder_data'] ?? [];
+        $reminderData = $this->reminderMessageParser->parseScheduleFollowUp($message, $pending);
+
+        if ($reminderData === null) {
+            return null;
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_reminder',
+                'reminder_data' => $reminderData,
                 '_resolved_message' => $message,
                 '_conversation_metadata' => [
                     'clear_pending' => true,

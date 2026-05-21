@@ -4,6 +4,7 @@ use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Budget;
 use App\Models\Category;
 use App\Models\RecurringTransaction;
+use App\Models\Reminder;
 use App\Models\Subscription;
 use App\Models\Transaction;
 use App\Models\User;
@@ -658,43 +659,31 @@ it('registra log estruturado da conversa', function () {
     expect(WhatsAppConversationLog::query()->latest()->first())->not->toBeNull();
 });
 
-it('pede o valor ao iniciar recorrencia sem valor e conclui no complemento', function () {
+it('cria lembrete mensal quando a mensagem nao informa valor', function () {
     Http::preventStrayRequests();
 
     $this->mock(BaileysService::class, function ($mock) {
-        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
-    $first = new ProcessWhatsAppMessage(
+    $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Todo mes pagar academia dia 10',
         userId: $this->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    $first->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
 
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_recurring_transaction_amount');
-
-    $second = new ProcessWhatsAppMessage(
-        phoneNumber: '5513991290256',
-        message: 'O valor e 100',
-        userId: $this->user->id,
-        pushName: 'Test User',
-        remoteJid: '5513991290256@s.whatsapp.net'
-    );
-    $second->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
-
-    assertDatabaseHas('recurring_transactions', [
+    assertDatabaseHas('reminders', [
         'user_id' => $this->user->id,
-        'description' => 'Academia',
-        'amount' => 100.00,
+        'title' => 'Pagar Academia',
+        'frequency' => 'monthly',
         'day_of_month' => 10,
     ]);
 });
 
-it('prioriza recorrencia sem valor mesmo com contexto anterior de orcamento', function () {
+it('prioriza lembrete mesmo com contexto anterior de orcamento', function () {
     Http::preventStrayRequests();
 
     $this->contact->update([
@@ -724,8 +713,12 @@ it('prioriza recorrencia sem valor mesmo com contexto anterior de orcamento', fu
     );
     $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
 
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_recurring_transaction_amount');
+    assertDatabaseHas('reminders', [
+        'user_id' => $this->user->id,
+        'title' => 'Pagar Academia',
+        'frequency' => 'monthly',
+        'day_of_month' => 10,
+    ]);
 });
 
 it('tolera texto degradado em recorrencia mensal', function () {
@@ -768,6 +761,47 @@ it('trata frase acentuada de recorrencia antes de cair na IA', function () {
     );
     $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
 
+    assertDatabaseHas('reminders', [
+        'user_id' => $this->user->id,
+        'title' => 'Pagar Academia',
+        'frequency' => 'monthly',
+        'day_of_month' => 10,
+    ]);
+});
+
+it('pede a data quando o lembrete nao informa quando deve acontecer', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $first = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'me lembra de dar parabens para Maria',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $first->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
     $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_recurring_transaction_amount');
+    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_reminder_schedule');
+
+    $second = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'dia 10/06',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $second->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('reminders', [
+        'user_id' => $this->user->id,
+        'title' => 'Dar Parabens Para Maria',
+        'frequency' => 'yearly',
+        'day_of_month' => 10,
+        'month_of_year' => 6,
+    ]);
 });

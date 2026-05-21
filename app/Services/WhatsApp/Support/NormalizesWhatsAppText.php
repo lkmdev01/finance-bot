@@ -2,16 +2,11 @@
 
 namespace App\Services\WhatsApp\Support;
 
-use Illuminate\Support\Str;
-
 trait NormalizesWhatsAppText
 {
     protected function normalizeText(string $value): string
     {
-        $value = mb_strtolower(trim($value));
-        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
-
-        return Str::ascii($value);
+        return app(\App\Services\WhatsApp\IncomingMessageNormalizer::class)->normalize($value);
     }
 
     protected function containsAnyText(string $message, array $needles): bool

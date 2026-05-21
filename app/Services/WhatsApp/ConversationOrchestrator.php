@@ -43,6 +43,24 @@ class ConversationOrchestrator
             ];
         }
 
+        if (($classification['kind'] ?? null) === 'reminder_needs_schedule') {
+            return [
+                'handled' => true,
+                'reply' => 'Entendi o lembrete. Agora me diga quando devo te lembrar.',
+                'action' => null,
+                'classification' => $classification['kind'],
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'create_reminder_schedule',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'reminder_data' => $classification['payload'] ?? [],
+                    ],
+                ],
+            ];
+        }
+
         if (($state['mode'] ?? 'idle') === 'awaiting_clarification'
             && $this->clarificationResolver->shouldResolve($classification['kind'], $state)) {
             $clarification = $this->clarificationResolver->resolve($message, $state);

@@ -7,6 +7,7 @@ use App\Services\WhatsApp\ConversationContextResolver;
 use App\Services\WhatsApp\CreditCardMessageParser;
 use App\Services\WhatsApp\InstallmentTransactionMessageParser;
 use App\Services\WhatsApp\RecurringTransactionMessageParser;
+use App\Services\WhatsApp\ReminderMessageParser;
 use App\Services\WhatsApp\SavingsGoalMessageParser;
 use App\Services\WhatsApp\SubscriptionMessageParser;
 use App\Services\WhatsApp\SimpleTransactionMessageParser;
@@ -18,6 +19,7 @@ class DomainRoutingResolver
     public function __construct(
         private readonly ConversationContextResolver $contextResolver,
         private readonly BudgetMessageParser $budgetMessageParser,
+        private readonly ReminderMessageParser $reminderMessageParser,
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
         private readonly CreditCardMessageParser $creditCardMessageParser,
@@ -53,9 +55,16 @@ class DomainRoutingResolver
                 $message
             ),
             'savings_query' => $this->queryResult('query_savings', $message),
+            'reminder_query' => $this->queryResult('query_reminders', $message),
             'subscription_query' => $this->queryResult('query_subscriptions', $message),
             'credit_card_query' => $this->queryResult('query_credit_cards', $message),
             'projection_query' => $this->queryResult('query_projections', $message),
+            'reminder_create' => $this->actionResult(
+                'create_reminder',
+                'reminder_data',
+                $this->reminderMessageParser->parse($message) ?? [],
+                $message
+            ),
             'savings_create' => $this->actionResult(
                 'create_savings_goal',
                 'goal_data',

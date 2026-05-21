@@ -1,0 +1,52 @@
+<?php
+
+use App\Models\Reminder;
+use App\Models\User;
+use App\Models\WhatsAppContact;
+use App\Services\BaileysService;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\Response;
+
+function fakeReminderBaileysSuccessResponse(): Response
+{
+    return new Response(new Psr7Response(200, [], json_encode(['success' => true])));
+}
+
+it('envia lembretes vencidos e avanca o proximo disparo mensal', function () {
+    $user = User::factory()->create([
+        'phone_number' => '5513991290256',
+    ]);
+
+    $contact = WhatsAppContact::factory()->create([
+        'user_id' => $user->id,
+        'phone_number' => '5513991290256',
+    ]);
+
+    $reminder = Reminder::query()->create([
+        'user_id' => $user->id,
+        'title' => 'Pagar Academia',
+        'message' => 'Lembrete do mes: Pagar Academia.',
+        'frequency' => 'monthly',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->subMinute(),
+        'day_of_month' => 10,
+        'is_active' => true,
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), 'Lembrete do mes: Pagar Academia.')
+            ->andReturn(fakeReminderBaileysSuccessResponse());
+    });
+
+    $this->artisan('reminders:send-due')
+        ->assertSuccessful();
+
+    $reminder->refresh();
+    $contact->refresh();
+
+    expect($reminder->last_sent_at)->not->toBeNull();
+    expect($reminder->next_trigger_at)->not->toBeNull();
+    expect($contact->conversation_state['last_proactive_key'] ?? null)->toBe('reminder:'.$reminder->id);
+});

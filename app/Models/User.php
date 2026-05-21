@@ -159,6 +159,11 @@ class User extends Authenticatable
         return $this->hasMany(RecurringTransaction::class);
     }
 
+    public function reminders(): HasMany
+    {
+        return $this->hasMany(Reminder::class);
+    }
+
     public function transactionDuplicates(): HasMany
     {
         return $this->hasMany(TransactionDuplicate::class);

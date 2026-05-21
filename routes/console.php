@@ -20,6 +20,9 @@ Schedule::command('subscriptions:process-due')
     ->daily()
     ->at('00:05');
 
+Schedule::command('reminders:send-due')
+    ->everyFiveMinutes();
+
 Schedule::command('expense-plans:update')
     ->daily()
     ->at('01:00');
