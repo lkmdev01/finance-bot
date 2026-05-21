@@ -143,6 +143,14 @@ class MessageClassifier
             return false;
         }
 
+        if ($this->containsAny($message, ['projecao', 'projeção', 'projecoes', 'projeções', 'daqui a', 'proximo mes', 'próximo mês', 'saldo futuro'])) {
+            return false;
+        }
+
+        if (preg_match('/\b(quais|qual|me mostra|mostrar|listar|liste|quero ver)\b/u', $message)) {
+            return false;
+        }
+
         return $this->looksLikeNamedFollowUp($message) || $this->containsAny($message, ['vence', 'vencem', 'proxima', 'proximo vencimento']);
     }
 
