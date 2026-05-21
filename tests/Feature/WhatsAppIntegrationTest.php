@@ -1418,3 +1418,157 @@ it('entende follow up de orcamento apos consulta geral', function () {
         app(\App\Services\PerformanceMetricsService::class)
     );
 });
+
+it('processa transacao simples com categoria explicita e cartao informado', function () {
+    $creditCard = \App\Models\CreditCard::create([
+        'user_id' => $this->user->id,
+        'name' => 'Nubank',
+        'brand' => 'Mastercard',
+        'last_four' => '1234',
+        'credit_limit' => 5000,
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([], 500),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(
+                \Mockery::type('string'),
+                \Mockery::on(function ($message) {
+                    return str_contains($message, 'Registrei R$ 89,00 em Uber');
+                })
+            )
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Gastei 89 no Uber no cartao Nubank categoria Transporte',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    $transaction = Transaction::query()->where('user_id', $this->user->id)->latest('id')->first();
+
+    expect($transaction)->not->toBeNull();
+    expect((float) $transaction->amount)->toBe(89.0);
+    expect($transaction->description)->toBe('Uber');
+    expect($transaction->credit_card_id)->toBe($creditCard->id);
+    expect($transaction->category?->name)->toBe('Transporte');
+});
+
+it('processa parcelado em linguagem mais solta com cartao e categoria', function () {
+    $creditCard = \App\Models\CreditCard::create([
+        'user_id' => $this->user->id,
+        'name' => 'Nubank',
+        'brand' => 'Mastercard',
+        'last_four' => '1234',
+        'credit_limit' => 8000,
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([], 500),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(
+                \Mockery::type('string'),
+                \Mockery::on(function ($message) {
+                    return str_contains($message, 'parcelado em 10x de R$ 200,00');
+                })
+            )
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Parcelei um celular de 2000 no cartao Nubank em 10 vezes na categoria Compras',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    expect(Transaction::query()->where('user_id', $this->user->id)->count())->toBe(10);
+
+    $firstInstallment = Transaction::query()->where('user_id', $this->user->id)->orderBy('id')->first();
+    expect($firstInstallment)->not->toBeNull();
+    expect($firstInstallment->credit_card_id)->toBe($creditCard->id);
+    expect($firstInstallment->category?->name)->toBe('Compras');
+    expect((float) $firstInstallment->amount)->toBe(200.0);
+});
+
+it('processa recorrencia em linguagem mais humana com conta e categoria', function () {
+    $bankAccount = \App\Models\BankAccount::create([
+        'user_id' => $this->user->id,
+        'name' => 'Itau',
+        'institution' => 'Itaú',
+        'opening_balance' => 0,
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([], 500),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(
+                \Mockery::type('string'),
+                \Mockery::on(function ($message) {
+                    return str_contains($message, 'Recorrencia criada para Internet');
+                })
+            )
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Minha internet e mensal, dia 12, 119 reais na conta Itau categoria Casa',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    $recurring = \App\Models\RecurringTransaction::query()->where('user_id', $this->user->id)->latest('id')->first();
+
+    expect($recurring)->not->toBeNull();
+    expect((float) $recurring->amount)->toBe(119.0);
+    expect($recurring->description)->toBe('Internet');
+    expect($recurring->frequency)->toBe('monthly');
+    expect($recurring->day_of_month)->toBe(12);
+    expect($recurring->bank_account_id)->toBe($bankAccount->id);
+    expect($recurring->category?->name)->toBe('Casa');
+});

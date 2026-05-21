@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\BillingPlanService;
 use App\Services\CategoryRecognitionService;
+use App\Services\WhatsApp\FinancialSourceResolver;
 use Illuminate\Support\Facades\Validator;
 
 class CreateRecurringTransactionHandler extends BaseHandler
@@ -35,6 +36,8 @@ class CreateRecurringTransactionHandler extends BaseHandler
             'start_date' => ['required', 'date'],
             'day_of_month' => ['nullable', 'integer', 'min:1', 'max:31'],
             'category_name' => ['nullable', 'string', 'max:120'],
+            'bank_account_name' => ['nullable', 'string', 'max:120'],
+            'credit_card_name' => ['nullable', 'string', 'max:120'],
         ]);
 
         if ($validation->fails()) {
@@ -49,9 +52,13 @@ class CreateRecurringTransactionHandler extends BaseHandler
                 ?? $categoryService->findOrCreateCategory($user, $data['category_name'], $data['type']);
         }
 
+        [$bankAccount, $creditCard] = app(FinancialSourceResolver::class)->resolve($user, $data);
+
         $recurring = RecurringTransaction::query()->create([
             'user_id' => $user->id,
             'category_id' => $category?->id,
+            'bank_account_id' => $bankAccount?->id,
+            'credit_card_id' => $creditCard?->id,
             'type' => $data['type'],
             'amount' => $data['amount'],
             'description' => $data['description'],
@@ -95,6 +102,8 @@ class CreateRecurringTransactionHandler extends BaseHandler
             'start_date' => (string) ($data['start_date'] ?? now()->toDateString()),
             'day_of_month' => isset($data['day_of_month']) ? (int) $data['day_of_month'] : null,
             'category_name' => isset($data['category_name']) && trim((string) $data['category_name']) !== '' ? trim((string) $data['category_name']) : null,
+            'bank_account_name' => isset($data['bank_account_name']) && trim((string) $data['bank_account_name']) !== '' ? trim((string) $data['bank_account_name']) : null,
+            'credit_card_name' => isset($data['credit_card_name']) && trim((string) $data['credit_card_name']) !== '' ? trim((string) $data['credit_card_name']) : null,
         ];
     }
 }

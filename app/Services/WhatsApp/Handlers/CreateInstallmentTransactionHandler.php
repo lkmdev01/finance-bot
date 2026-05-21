@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\BillingPlanService;
 use App\Services\CategoryRecognitionService;
+use App\Services\WhatsApp\FinancialSourceResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
 
@@ -35,6 +36,8 @@ class CreateInstallmentTransactionHandler extends BaseHandler
             'per_installment_amount' => ['required', 'numeric', 'min:0.01', 'max:999999.99'],
             'date' => ['required', 'date'],
             'category_name' => ['nullable', 'string', 'max:120'],
+            'bank_account_name' => ['nullable', 'string', 'max:120'],
+            'credit_card_name' => ['nullable', 'string', 'max:120'],
         ]);
 
         if ($validation->fails()) {
@@ -49,6 +52,8 @@ class CreateInstallmentTransactionHandler extends BaseHandler
                 ?? $categoryService->findOrCreateCategory($user, $data['category_name'], 'expense');
         }
 
+        [$bankAccount, $creditCard] = app(FinancialSourceResolver::class)->resolve($user, $data);
+
         $transactions = [];
         $baseDate = Carbon::parse($data['date']);
 
@@ -57,6 +62,8 @@ class CreateInstallmentTransactionHandler extends BaseHandler
                 'user_id' => $user->id,
                 'whatsapp_contact_id' => $contact->id,
                 'category_id' => $category?->id,
+                'bank_account_id' => $bankAccount?->id,
+                'credit_card_id' => $creditCard?->id,
                 'type' => 'expense',
                 'amount' => $data['per_installment_amount'],
                 'description' => sprintf('%s (%d/%d)', $data['description'], $index + 1, $data['installment_count']),
@@ -110,6 +117,8 @@ class CreateInstallmentTransactionHandler extends BaseHandler
             'per_installment_amount' => isset($data['per_installment_amount']) ? (float) $data['per_installment_amount'] : null,
             'date' => (string) ($data['date'] ?? now()->toDateString()),
             'category_name' => isset($data['category_name']) && trim((string) $data['category_name']) !== '' ? trim((string) $data['category_name']) : null,
+            'bank_account_name' => isset($data['bank_account_name']) && trim((string) $data['bank_account_name']) !== '' ? trim((string) $data['bank_account_name']) : null,
+            'credit_card_name' => isset($data['credit_card_name']) && trim((string) $data['credit_card_name']) !== '' ? trim((string) $data['credit_card_name']) : null,
         ];
     }
 }

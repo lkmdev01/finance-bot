@@ -43,15 +43,20 @@ class SimpleTransactionMessageParser
         $description = $this->extractDescription($message, $type);
         $paymentMethod = $this->extractPaymentMethod($normalized);
         $date = $this->extractDate($message, $normalized);
+        $categoryName = $this->extractCategoryName($message);
+        [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($message, $normalized, $paymentMethod);
 
         $payload = [
             'type' => $type,
             'amount' => $amount,
             'description' => $description,
             'date' => ($date ?? Carbon::now())->format('Y-m-d'),
+            'category_name' => $categoryName,
+            'bank_account_name' => $bankAccountName,
+            'credit_card_name' => $creditCardName,
         ];
 
-        if ($type === 'income') {
+        if ($type === 'income' && empty($payload['category_name'])) {
             $payload['category_name'] = 'Salário';
         }
 
@@ -59,7 +64,7 @@ class SimpleTransactionMessageParser
             $payload['payment_method'] = $paymentMethod;
         }
 
-        return $payload;
+        return array_filter($payload, fn ($value) => $value !== null && $value !== '');
     }
 
     private function inferType(string $normalizedMessage): ?string
@@ -90,18 +95,46 @@ class SimpleTransactionMessageParser
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $message, $matches) === 1) {
                 $description = trim($matches[1] ?? '');
-                $description = preg_replace('/^[\p{Z}\p{P}]+|[\p{Z}\p{P}]+$/u', '', $description) ?? $description;
-                $description = preg_replace('/^(?:um|uma)\s+/iu', '', $description) ?? $description;
-                $description = preg_replace('/\b(?:no|na|via|com)\s+(?:d\S{0,2}bito|cr\S{0,2}dito|pix)\b/iu', '', $description) ?? $description;
-                $description = preg_replace('/\b(?:hoje|ontem|amanha|amanhã)\b/iu', '', $description) ?? $description;
-                $description = preg_replace('/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/u', '', $description) ?? $description;
-                $description = preg_replace('/\s+/u', ' ', trim($description)) ?? $description;
+                $description = $this->cleanupTrailingContext($description);
 
                 return $description !== '' ? $description : null;
             }
         }
 
         return null;
+    }
+
+    private function extractCategoryName(string $message): ?string
+    {
+        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cart[aã]o|no cartao|via|com|hoje|ontem|amanh[aã]|em\s+\d{1,2}\/\d{1,2}\/\d{2,4})|[,.]|$)/iu', $message, $matches) === 1) {
+            $category = trim($matches[1] ?? '');
+            $category = $this->cleanupTrailingContext($category);
+
+            return $category !== '' ? mb_convert_case($category, MB_CASE_TITLE, 'UTF-8') : null;
+        }
+
+        return null;
+    }
+
+    private function extractFinancialSourceNames(string $message, string $normalizedMessage, ?string $paymentMethod): array
+    {
+        $bankAccountName = null;
+        $creditCardName = null;
+
+        if (preg_match('/(?:na conta|pela conta|via conta)\s+(.+?)(?:\s+(?:categoria|hoje|ontem|amanh[aã]|em\s+\d{1,2}\/\d{1,2}\/\d{2,4})|[,.]|$)/iu', $message, $matches) === 1) {
+            $bankAccountName = $this->cleanupTrailingContext(trim($matches[1] ?? ''));
+        }
+
+        if (preg_match('/(?:no cart[aã]o|no cartao|pelo cart[aã]o|pelo cartao|via cart[aã]o|via cartao)\s+(.+?)(?:\s+(?:categoria|hoje|ontem|amanh[aã]|em\s+\d{1,2}\/\d{1,2}\/\d{2,4})|[,.]|$)/iu', $message, $matches) === 1) {
+            $creditCardName = $this->cleanupTrailingContext(trim($matches[1] ?? ''));
+        }
+
+        if ($creditCardName === null && $paymentMethod === 'credit' && preg_match('/(?:no|via|com)\s+cr[eé]dito(?:\s+(.+?))?(?:[,.]|$)/iu', $message, $matches) === 1) {
+            $candidate = $this->cleanupTrailingContext(trim($matches[1] ?? ''));
+            $creditCardName = $candidate !== '' ? $candidate : null;
+        }
+
+        return [$bankAccountName ?: null, $creditCardName ?: null];
     }
 
     private function extractPaymentMethod(string $normalizedMessage): ?string
@@ -148,5 +181,19 @@ class SimpleTransactionMessageParser
         }
 
         return null;
+    }
+
+    private function cleanupTrailingContext(string $value): string
+    {
+        $value = preg_replace('/^[\p{Z}\p{P}]+|[\p{Z}\p{P}]+$/u', '', $value) ?? $value;
+        $value = preg_replace('/^(?:um|uma)\s+/iu', '', $value) ?? $value;
+        $value = preg_replace('/\b(?:no|na|via|com)\s+(?:d\S{0,2}bito|cr\S{0,2}dito|pix)\b/iu', '', $value) ?? $value;
+        $value = preg_replace('/\b(?:hoje|ontem|amanha|amanhã)\b/iu', '', $value) ?? $value;
+        $value = preg_replace('/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/u', '', $value) ?? $value;
+        $value = preg_replace('/\s+(?:na conta|no cart[aã]o|no cartao|pela conta|pelo cart[aã]o|pelo cartao|via conta|via cart[aã]o|via cartao)\s+.+$/iu', '', $value) ?? $value;
+        $value = preg_replace('/\s+(?:categoria|na categoria)\s+.+$/iu', '', $value) ?? $value;
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? $value;
+
+        return trim($value);
     }
 }

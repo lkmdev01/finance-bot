@@ -12,6 +12,7 @@ use App\Services\BillingPlanService;
 use App\Services\CategoryRecognitionService;
 use App\Services\PerformanceMetricsService;
 use App\Services\WhatsApp\CompoundTransactionMessageParser;
+use App\Services\WhatsApp\FinancialSourceResolver;
 use App\Services\WhatsAppFormatter;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Support\Facades\Cache;
@@ -193,11 +194,14 @@ class CreateTransactionHandler extends BaseHandler
 
         $defaultDescription = ($data['type'] ?? 'expense') === 'income' ? 'Receita' : 'Gasto';
         $finalDescription = ! empty($data['description']) ? $data['description'] : $defaultDescription;
+        [$bankAccount, $creditCard] = app(FinancialSourceResolver::class)->resolve($user, $data);
 
         $transaction = Transaction::create([
             'user_id' => $user->id,
             'whatsapp_contact_id' => $contact->id,
             'category_id' => $category?->id,
+            'bank_account_id' => $bankAccount?->id,
+            'credit_card_id' => $creditCard?->id,
             'type' => $data['type'] ?? 'expense',
             'amount' => (float) $data['amount'],
             'description' => $finalDescription,
@@ -296,7 +300,7 @@ class CreateTransactionHandler extends BaseHandler
             return false;
         }
 
-        foreach ([' e ', ',', ';', "\n", ' depois ', ' também ', ' tambem ', ' mais '] as $connector) {
+        foreach ([' e ', ',', ';', "\n", ' depois ', ' tambÃ©m ', ' tambem ', ' mais '] as $connector) {
             if (str_contains($msg, $connector)) {
                 return true;
             }
@@ -334,8 +338,8 @@ class CreateTransactionHandler extends BaseHandler
     {
         $normalized = mb_strtolower($message);
         $normalized = preg_replace('/[\d\p{P}\p{Sc}]+/u', ' ', $normalized);
-        $normalized = preg_replace('/\b(r\$|rs|reais?|real|pix|cart[aã]o|credito|crédito|débito|no|na|de|do|da|em|por|para|com|um|uma|uns|umas|foi|era|só|apenas)\b/u', ' ', $normalized);
-        $normalized = preg_replace('/\b(gastei|gasto|paguei|pago|recebi|recebido|ganhei|ganho|entrou|entrada|saída)\b/u', ' ', $normalized);
+        $normalized = preg_replace('/\b(r\$|rs|reais?|real|pix|cart[aÃ£]o|credito|crÃ©dito|dÃ©bito|no|na|de|do|da|em|por|para|com|um|uma|uns|umas|foi|era|sÃ³|apenas)\b/u', ' ', $normalized);
+        $normalized = preg_replace('/\b(gastei|gasto|paguei|pago|recebi|recebido|ganhei|ganho|entrou|entrada|saÃ­da)\b/u', ' ', $normalized);
         $normalized = preg_replace('/\s+/u', ' ', trim((string) $normalized));
         return $normalized === '';
     }
@@ -346,8 +350,8 @@ class CreateTransactionHandler extends BaseHandler
         $normalized = str_replace(['*', '_'], '', $normalized);
 
         return in_array($normalized, [
-            'n/a', 'na', 'n a', 'sem descricao', 'sem descrição',
-            'sem detalhes', 'sem detalhe', 'nao informado', 'não informado', 'indefinido',
+            'n/a', 'na', 'n a', 'sem descricao', 'sem descriÃ§Ã£o',
+            'sem detalhes', 'sem detalhe', 'nao informado', 'nÃ£o informado', 'indefinido',
         ], true);
     }
 
@@ -394,8 +398,8 @@ class CreateTransactionHandler extends BaseHandler
     {
         return "Nao consegui separar esses lancamentos com seguranca.\n\n"
             ."Tente assim:\n"
-            ."• Gastei 32 no Uber e 48 no mercado\n"
-            ."• Recebi 420 de freelance e 180 de cashback\n\n"
+            ."â€¢ Gastei 32 no Uber e 48 no mercado\n"
+            ."â€¢ Recebi 420 de freelance e 180 de cashback\n\n"
             ."Se preferir, pode me mandar uma mensagem por vez que eu registro tudo.";
     }
 
@@ -420,26 +424,27 @@ class CreateTransactionHandler extends BaseHandler
         if (str_contains($message, 'apaga') || str_contains($message, 'apagar') || str_contains($message, 'exclui') || str_contains($message, 'remove')) {
             return "Nao consegui entender qual transacao voce quer apagar.\n\n"
                 ."Tente assim:\n"
-                ."• apagar ultima transacao\n"
-                ."• apagar Uber de 18 reais\n"
-                ."• apagar mercado de ontem";
+                ."â€¢ apagar ultima transacao\n"
+                ."â€¢ apagar Uber de 18 reais\n"
+                ."â€¢ apagar mercado de ontem";
         }
 
-        if (str_contains($message, 'relatorio') || str_contains($message, 'relatório')) {
+        if (str_contains($message, 'relatorio') || str_contains($message, 'relatÃ³rio')) {
             return "Nao consegui entender qual relatorio voce quer gerar.\n\n"
                 ."Tente assim:\n"
-                ."• me gera um relatorio do mes\n"
-                ."• me manda o relatorio em PDF\n"
-                ."• relatorio anual em Excel";
+                ."â€¢ me gera um relatorio do mes\n"
+                ."â€¢ me manda o relatorio em PDF\n"
+                ."â€¢ relatorio anual em Excel";
         }
 
         $details = collect($errors)->filter()->implode(' ');
         $base = "Nao consegui entender essa mensagem do jeito que ela veio.\n\n"
             ."Tente mandar em um destes formatos:\n"
-            ."• Gastei 50 no supermercado\n"
-            ."• Recebi 1000 de salario\n"
-            ."• Qual e o meu saldo?";
+            ."â€¢ Gastei 50 no supermercado\n"
+            ."â€¢ Recebi 1000 de salario\n"
+            ."â€¢ Qual e o meu saldo?";
 
         return $details !== '' ? $base."\n\nDetalhe: {$details}" : $base;
     }
 }
+

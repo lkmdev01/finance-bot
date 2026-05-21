@@ -15,9 +15,11 @@ class RecurringTransactionMessageParser
         }
 
         $amount = $this->extractAmount($message);
-        $description = $this->extractDescription($message);
         $frequency = $this->extractFrequency($normalized);
-        $dayOfMonth = $this->extractDayOfMonth($normalized);
+        $description = $this->extractDescription($message, $frequency);
+        $dayOfMonth = $this->extractDayOfMonth($message, $normalized);
+        [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($message);
+        $categoryName = $this->extractCategoryName($message) ?? $description;
         $type = $this->extractType($normalized);
 
         if ($amount === null || $description === null || $frequency === null) {
@@ -31,41 +33,76 @@ class RecurringTransactionMessageParser
             'frequency' => $frequency,
             'start_date' => now()->toDateString(),
             'day_of_month' => $dayOfMonth,
-            'category_name' => $description,
+            'category_name' => $categoryName,
+            'bank_account_name' => $bankAccountName,
+            'credit_card_name' => $creditCardName,
         ], fn ($value) => $value !== null && $value !== '');
     }
 
     public function looksLikeCreateIntent(string $message): bool
     {
-        if (! str_contains($message, 'todo dia') && ! str_contains($message, 'todo mes') && ! str_contains($message, 'todo m') && ! str_contains($message, 'toda semana')) {
+        $hasCadence = str_contains($message, 'todo dia')
+            || str_contains($message, 'todo mes')
+            || str_contains($message, 'cada mes')
+            || str_contains($message, 'mensal')
+            || str_contains($message, 'toda semana')
+            || str_contains($message, 'semanal');
+
+        if (! $hasCadence) {
             return false;
         }
 
         return str_contains($message, 'pago')
             || str_contains($message, 'gasto')
             || str_contains($message, 'recebo')
-            || str_contains($message, 'ganho');
+            || str_contains($message, 'ganho')
+            || str_contains($message, 'minha ')
+            || str_contains($message, 'meu ');
     }
 
     private function extractAmount(string $message): ?float
     {
-        if (! preg_match('/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/u', $message, $matches)) {
+        $patterns = [
+            '/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)\s*(?:reais?|rs)\b/iu',
+            '/(?:de|por)\s+(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/iu',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $message, $matches) === 1) {
+                $raw = str_replace('.', '', $matches[1]);
+                $amount = (float) str_replace(',', '.', $raw);
+
+                return $amount > 0 ? $amount : null;
+            }
+        }
+
+        if (! preg_match_all('/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/u', $message, $matches) || empty($matches[1])) {
             return null;
         }
 
-        $raw = str_replace('.', '', $matches[1]);
+        $raw = str_replace('.', '', end($matches[1]));
         $amount = (float) str_replace(',', '.', $raw);
 
         return $amount > 0 ? $amount : null;
     }
 
-    private function extractDescription(string $message): ?string
+    private function extractDescription(string $message, ?string $frequency): ?string
     {
-        if (preg_match('/(?:pago|gasto|recebo|ganho)\s+(.+?)(?:\s+(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?|[,.]|$)/iu', $message, $matches)) {
-            $description = trim((string) ($matches[1] ?? ''));
-            $description = trim($description, " \t\n\r\0\x0B-:");
+        $patterns = [
+            '/(?:todo dia\s+\d{1,2}|todo mes|cada mes|mensal|toda semana|semanal)\s+(?:eu\s+)?(?:pago|gasto|recebo|ganho)\s+(.+?)(?:\s+(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?|[,.]|$)/iu',
+            '/(?:pago|gasto|recebo|ganho)\s+(.+?)\s+(?:todo dia\s+\d{1,2}|todo mes|cada mes|mensal|toda semana|semanal)(?:\s|$)/iu',
+            '/(?:minha|meu)\s+(.+?)\s+e\s+(?:mensal|semanal)(?:\s*,?\s*dia\s+\d{1,2})?(?:\s*,?\s*(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?)?/iu',
+        ];
 
-            return $description !== '' ? mb_convert_case($description, MB_CASE_TITLE, 'UTF-8') : null;
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $message, $matches) === 1) {
+                $description = trim((string) ($matches[1] ?? ''));
+                $description = $this->cleanupTrailingContext($description, $frequency);
+
+                if ($description !== '') {
+                    return mb_convert_case($description, MB_CASE_TITLE, 'UTF-8');
+                }
+            }
         }
 
         return null;
@@ -73,29 +110,27 @@ class RecurringTransactionMessageParser
 
     private function extractFrequency(string $message): ?string
     {
-        if (str_contains($message, 'todo dia')) {
-            return 'monthly';
-        }
-
-        if (str_contains($message, 'todo mes') || str_contains($message, 'todo m')) {
-            return 'monthly';
-        }
-
-        if (str_contains($message, 'toda semana')) {
+        if (str_contains($message, 'toda semana') || str_contains($message, 'semanal')) {
             return 'weekly';
+        }
+
+        if (str_contains($message, 'todo dia') || str_contains($message, 'todo mes') || str_contains($message, 'cada mes') || str_contains($message, 'mensal')) {
+            return 'monthly';
         }
 
         return null;
     }
 
-    private function extractDayOfMonth(string $message): ?int
+    private function extractDayOfMonth(string $originalMessage, string $message): ?int
     {
-        if (preg_match('/todo dia\s+(\d{1,2})/u', $message, $matches) || preg_match('/dia\s+(\d{1,2})/u', $message, $matches)) {
+        if (preg_match('/(?:todo dia|dia)\s+(\d{1,2})/u', $originalMessage, $matches) === 1) {
             $day = (int) $matches[1];
 
-            if ($day >= 1 && $day <= 31) {
-                return $day;
-            }
+            return ($day >= 1 && $day <= 31) ? $day : null;
+        }
+
+        if (str_contains($message, 'mensal') || str_contains($message, 'todo mes') || str_contains($message, 'cada mes')) {
+            return now()->day;
         }
 
         return null;
@@ -106,6 +141,52 @@ class RecurringTransactionMessageParser
         return str_contains($message, 'recebo') || str_contains($message, 'ganho')
             ? 'income'
             : 'expense';
+    }
+
+    private function extractCategoryName(string $message): ?string
+    {
+        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cartao|no cart[aã]o|pela conta|pelo cartao|pelo cart[aã]o|via conta|via cartao|via cart[aã]o)|[,.]|$)/iu', $message, $matches) === 1) {
+            $category = trim((string) ($matches[1] ?? ''));
+            $category = $this->cleanupTrailingContext($category, null);
+
+            return $category !== '' ? mb_convert_case($category, MB_CASE_TITLE, 'UTF-8') : null;
+        }
+
+        return null;
+    }
+
+    private function extractFinancialSourceNames(string $message): array
+    {
+        $bankAccountName = null;
+        $creditCardName = null;
+
+        if (preg_match('/(?:na conta|pela conta|via conta)\s+(.+?)(?:\s+(?:categoria|mensal|semanal|todo dia|todo mes|cada mes|dia\s+\d{1,2})|[,.]|$)/iu', $message, $matches) === 1) {
+            $bankAccountName = $this->cleanupTrailingContext(trim((string) ($matches[1] ?? '')), null);
+        }
+
+        if (preg_match('/(?:no cartao|no cart[aã]o|pelo cartao|pelo cart[aã]o|via cartao|via cart[aã]o)\s+(.+?)(?:\s+(?:categoria|mensal|semanal|todo dia|todo mes|cada mes|dia\s+\d{1,2})|[,.]|$)/iu', $message, $matches) === 1) {
+            $creditCardName = $this->cleanupTrailingContext(trim((string) ($matches[1] ?? '')), null);
+        }
+
+        return [$bankAccountName ?: null, $creditCardName ?: null];
+    }
+
+    private function cleanupTrailingContext(string $value, ?string $frequency): string
+    {
+        $value = trim($value, " \t\n\r\0\x0B-:");
+        $value = preg_replace('/^(?:um|uma|meu|minha)\s+/iu', '', $value) ?? $value;
+        $value = preg_replace('/\s+(?:na conta|no cartao|no cart[aã]o|pela conta|pelo cartao|pelo cart[aã]o|via conta|via cartao|via cart[aã]o)\s+.+$/iu', '', $value) ?? $value;
+        $value = preg_replace('/\s+(?:categoria|na categoria)\s+.+$/iu', '', $value) ?? $value;
+        $value = preg_replace('/\b(?:mensal|semanal|todo dia|todo mes|cada mes|toda semana)\b/iu', '', $value) ?? $value;
+        $value = preg_replace('/\bdia\s+\d{1,2}\b/iu', '', $value) ?? $value;
+        $value = preg_replace('/(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?/u', '', $value) ?? $value;
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? $value;
+
+        if ($frequency === 'monthly' && str_ends_with(mb_strtolower($value), ' e')) {
+            $value = trim(mb_substr($value, 0, -2));
+        }
+
+        return trim($value);
     }
 
     private function normalize(string $value): string
