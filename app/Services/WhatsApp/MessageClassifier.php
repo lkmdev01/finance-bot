@@ -122,6 +122,14 @@ class MessageClassifier
             return false;
         }
 
+        if ($this->containsAny($message, ['assinatura', 'assinaturas', 'mensalidade', 'mensalidades', 'projecao', 'projeção', 'projecoes', 'projeções', 'orcamento', 'orçamento'])) {
+            return false;
+        }
+
+        if (preg_match('/\b(quais|qual|me mostra|mostrar|listar|liste|quero ver)\b/u', $message)) {
+            return false;
+        }
+
         return $this->looksLikeNamedFollowUp($message);
     }
 

@@ -132,9 +132,9 @@ class SavingsConversationService
         $advisor = app(FinancialConversationAdvisor::class);
         $reply = "Suas metas atuais:\n{$lines}";
 
-        if ($closest instanceof SavingsGoal) {
+        if ($closest instanceof SavingsGoal && (float) $closest->progress_percentage > 0) {
             $reply .= sprintf(
-                '\n\nHoje, %s e a meta mais avancada, com %s de progresso.',
+                "\n\nHoje, %s e a meta mais avancada, com %s de progresso.",
                 $closest->name,
                 $this->formatPercentage((float) $closest->progress_percentage)
             );
