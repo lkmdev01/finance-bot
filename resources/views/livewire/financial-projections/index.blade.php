@@ -79,7 +79,7 @@ new class extends Component
         <div>
             <h1 class="text-2xl font-bold">Projeções Financeiras</h1>
             <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                Visualize projeções de saldo futuro baseadas em suas transações históricas e recorrentes
+                Visualize projeções de saldo futuro baseadas em suas transações históricas e recorrentes.
             </p>
         </div>
 
@@ -104,9 +104,9 @@ new class extends Component
             <div class="flex-1">
                 <h3 class="mb-2 font-semibold text-blue-900 dark:text-blue-200">Como funcionam as projeções?</h3>
                 <ul class="list-inside list-disc space-y-1 text-sm text-blue-800 dark:text-blue-300">
-                    <li><strong>Receitas projetadas:</strong> Soma das transações recorrentes ativas + 30% da média mensal dos últimos 6 meses</li>
-                    <li><strong>Despesas projetadas:</strong> Soma das transações recorrentes ativas + 70% da média mensal dos últimos 6 meses</li>
-                    <li><strong>Saldo projetado:</strong> Calculado mês a mês, considerando o saldo anterior + receitas - despesas</li>
+                    <li><strong>Receitas projetadas:</strong> soma das transações recorrentes ativas + 30% da média mensal dos últimos 6 meses</li>
+                    <li><strong>Despesas projetadas:</strong> soma das transações recorrentes ativas + 70% da média mensal dos últimos 6 meses</li>
+                    <li><strong>Saldo projetado:</strong> calculado mês a mês, considerando o saldo anterior + receitas - despesas</li>
                 </ul>
                 <p class="mt-2 text-xs text-blue-700 dark:text-blue-400">
                     As projeções são estimativas baseadas em padrões históricos e podem variar conforme suas transações reais.
@@ -120,7 +120,7 @@ new class extends Component
         <p class="text-3xl font-bold {{ $currentBalance >= 0 ? 'text-green-400' : 'text-red-400' }}">
             R$ {{ number_format($currentBalance, 2, ',', '.') }}
         </p>
-        <p class="mt-2 text-xs text-zinc-500">Este é o ponto de partida para as projeções futuras</p>
+        <p class="mt-2 text-xs text-zinc-500">Este é o ponto de partida para as projeções futuras.</p>
     </div>
 
     @if($projections->count() > 0)
@@ -143,69 +143,90 @@ new class extends Component
                 </div>
             </div>
 
-            <div class="h-80" x-data="{
-                init() {
-                    const ctx = this.$el.getContext('2d');
-                    new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: {{ json_encode($chartData->pluck('date')) }},
-                            datasets: [{
-                                label: 'Saldo Projetado',
-                                data: {{ json_encode($chartData->pluck('balance')) }},
-                                borderColor: 'rgb(59, 130, 246)',
-                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                tension: 0.4,
-                                fill: true
-                            }, {
-                                label: 'Receitas Projetadas',
-                                data: {{ json_encode($chartData->pluck('income')) }},
-                                borderColor: 'rgb(34, 197, 94)',
-                                backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                                tension: 0.4,
-                                fill: true
-                            }, {
-                                label: 'Despesas Projetadas',
-                                data: {{ json_encode($chartData->pluck('expenses')) }},
-                                borderColor: 'rgb(239, 68, 68)',
-                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                tension: 0.4,
-                                fill: true
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    display: true,
-                                    position: 'top'
+            <div
+                class="relative w-full"
+                style="min-height: 320px;"
+                wire:key="financial-projections-chart-{{ $months }}-{{ md5($chartData->toJson()) }}"
+                x-data="{
+                    chart: null,
+                    init() {
+                        this.renderChart();
+                    },
+                    renderChart() {
+                        const isDark = document.documentElement.classList.contains('dark');
+
+                        if (this.chart) {
+                            this.chart.destroy();
+                        }
+
+                        const options = {
+                            chart: {
+                                type: 'area',
+                                height: 320,
+                                toolbar: { show: false },
+                                background: 'transparent',
+                                fontFamily: 'inherit',
+                                parentHeightOffset: 0,
+                            },
+                            theme: { mode: isDark ? 'dark' : 'light' },
+                            colors: ['#3b82f6', '#22c55e', '#ef4444'],
+                            series: [
+                                { name: 'Saldo Projetado', data: @js($chartData->pluck('balance')->values()) },
+                                { name: 'Receitas Projetadas', data: @js($chartData->pluck('income')->values()) },
+                                { name: 'Despesas Projetadas', data: @js($chartData->pluck('expenses')->values()) },
+                            ],
+                            xaxis: {
+                                categories: @js($chartData->pluck('date')->values()),
+                                labels: { style: { colors: isDark ? '#94a3b8' : '#64748b' } },
+                                axisBorder: { show: false },
+                                axisTicks: { show: false },
+                                tooltip: { enabled: false },
+                            },
+                            yaxis: {
+                                labels: {
+                                    style: { colors: isDark ? '#94a3b8' : '#64748b' },
+                                    formatter: (value) => 'R$ ' + Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                                 },
-                                tooltip: {
-                                    mode: 'index',
-                                    intersect: false,
-                                    callbacks: {
-                                        label: function(context) {
-                                            return context.dataset.label + ': R$ ' + context.parsed.y.toFixed(2).replace('.', ',');
-                                        }
+                            },
+                            dataLabels: { enabled: false },
+                            stroke: { curve: 'smooth', width: 3 },
+                            fill: {
+                                type: 'gradient',
+                                gradient: {
+                                    shadeIntensity: 1,
+                                    opacityFrom: 0.28,
+                                    opacityTo: 0.02,
+                                    stops: [0, 90, 100],
+                                },
+                            },
+                            tooltip: {
+                                theme: isDark ? 'dark' : 'light',
+                                shared: true,
+                                intersect: false,
+                                y: {
+                                    formatter: function (val) {
+                                        return 'R$ ' + Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                                     }
                                 }
                             },
-                            scales: {
-                                y: {
-                                    beginAtZero: false,
-                                    ticks: {
-                                        callback: function(value) {
-                                            return 'R$ ' + value.toFixed(2).replace('.', ',');
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-            }">
-                <canvas></canvas>
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    colors: isDark ? '#cbd5e1' : '#475569',
+                                },
+                            },
+                            grid: {
+                                borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.08)',
+                                strokeDashArray: 4,
+                            },
+                        };
+
+                        this.chart = new window.ApexCharts(this.$refs.chart, options);
+                        this.chart.render();
+                    }
+                }"
+            >
+                <div x-ref="chart" class="-ml-4" wire:ignore></div>
             </div>
         </div>
 
