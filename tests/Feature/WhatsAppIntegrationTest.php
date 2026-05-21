@@ -286,6 +286,56 @@ it('corrige mojibake na resposta de receita via WhatsApp', function () {
         'category_id' => $incomeCategory->id,
     ]);
 });
+
+it('processa receita simples via parser local sem depender da IA', function () {
+    $incomeCategory = Category::factory()->create([
+        'user_id' => $this->user->id,
+        'type' => 'income',
+        'name' => 'Sal?rio',
+    ]);
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([], 500),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(
+                \Mockery::type('string'),
+                \Mockery::on(function ($message) {
+                    return str_contains($message, 'Receita de R$ 1.200,00 registrada em Sal?rio (servi?o).')
+                        || str_contains($message, 'Receita de R$ 1.200,00 registrada em Sal?rio (Servi?o).');
+                })
+            )
+            ->andReturn(fakeBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Tive um ganho de 1200 de um servi?o',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class),
+        app(\App\Services\WhatsAppMessageProcessor::class),
+        app(\App\Services\WhatsApp\ActionHandlerFactory::class)
+    );
+
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'type' => 'income',
+        'amount' => 1200.00,
+        'description' => 'servi?o',
+        'category_id' => $incomeCategory->id,
+    ]);
+});
 it('cria receita via WhatsApp mesmo quando a IA retorna descricao vazia', function () {
     Http::fake([
         'api.groq.com/*' => Http::response([

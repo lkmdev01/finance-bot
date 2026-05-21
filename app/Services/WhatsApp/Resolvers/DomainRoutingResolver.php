@@ -8,6 +8,7 @@ use App\Services\WhatsApp\InstallmentTransactionMessageParser;
 use App\Services\WhatsApp\RecurringTransactionMessageParser;
 use App\Services\WhatsApp\SavingsGoalMessageParser;
 use App\Services\WhatsApp\SubscriptionMessageParser;
+use App\Services\WhatsApp\SimpleTransactionMessageParser;
 use App\Services\WhatsApp\TransactionActionMessageParser;
 use App\Services\WhatsApp\TransactionSplitMessageParser;
 
@@ -18,6 +19,7 @@ class DomainRoutingResolver
         private readonly BudgetMessageParser $budgetMessageParser,
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
+        private readonly SimpleTransactionMessageParser $simpleTransactionMessageParser,
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
         private readonly RecurringTransactionMessageParser $recurringTransactionMessageParser,
         private readonly InstallmentTransactionMessageParser $installmentTransactionMessageParser,
@@ -106,6 +108,12 @@ class DomainRoutingResolver
                 'create_transaction',
                 'transaction_data',
                 [],
+                $message
+            ),
+            'transaction_create' => $this->actionResult(
+                'create_transaction',
+                'transaction_data',
+                $this->simpleTransactionMessageParser->parse($message) ?? [],
                 $message
             ),
             'transaction_split' => $this->buildTransactionSplitResult($message, $state),

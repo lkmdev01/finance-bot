@@ -13,6 +13,7 @@ class TransactionIntentClassifier
         private readonly RecurringTransactionMessageParser $recurringTransactionMessageParser,
         private readonly InstallmentTransactionMessageParser $installmentTransactionMessageParser,
         private readonly TransactionSplitMessageParser $transactionSplitMessageParser,
+        private readonly SimpleTransactionMessageParser $simpleTransactionMessageParser,
     ) {}
 
     public function classify(string $originalMessage, string $normalizedMessage, array $state): ?array
@@ -39,6 +40,10 @@ class TransactionIntentClassifier
 
         if ($this->looksLikeCompoundTransactionCreate($normalizedMessage)) {
             return ['kind' => 'compound_transaction_create', 'normalized' => $normalizedMessage];
+        }
+
+        if ($this->looksLikeSimpleTransactionCreate($originalMessage, $normalizedMessage)) {
+            return ['kind' => 'transaction_create', 'normalized' => $normalizedMessage];
         }
 
         if ($this->looksLikeTransactionFollowUp($normalizedMessage, $state)) {
@@ -144,6 +149,24 @@ class TransactionIntentClassifier
         }
 
         return $this->containsAnyText($message, [' e ', ',', ';', ' depois ', ' tambem ', ' mais ']);
+    }
+
+    private function looksLikeSimpleTransactionCreate(string $originalMessage, string $normalizedMessage): bool
+    {
+        if ($this->containsBudgetCue($originalMessage, $normalizedMessage)) {
+            return false;
+        }
+
+        if ($this->looksLikeRecurringTransactionCreate($originalMessage, $normalizedMessage)) {
+            return false;
+        }
+
+        if ($this->looksLikeInstallmentTransactionCreate($originalMessage, $normalizedMessage)) {
+            return false;
+        }
+
+        return $this->simpleTransactionMessageParser->looksLikeCreateIntent($normalizedMessage)
+            && $this->simpleTransactionMessageParser->parse($originalMessage) !== null;
     }
 
     private function looksLikeCategoryFollowUpMessage(string $message): bool
