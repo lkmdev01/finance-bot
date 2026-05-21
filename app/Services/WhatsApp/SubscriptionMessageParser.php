@@ -53,7 +53,10 @@ class SubscriptionMessageParser
 
     public function looksLikeCreateIntent(string $message): bool
     {
-        if (! str_contains($message, 'assinatura') && ! str_contains($message, 'mensalidade')) {
+        if (! str_contains($message, 'assinatura')
+            && ! str_contains($message, 'mensalidade')
+            && ! preg_match('/\b(minha|meu)\s+[\p{L}\p{N}].*\b(mensal|anual)\b/u', $message)
+        ) {
             return false;
         }
 
@@ -63,7 +66,8 @@ class SubscriptionMessageParser
             }
         }
 
-        return preg_match('/\bassinatura\s+[\p{L}\p{N}]/u', $message) === 1;
+        return preg_match('/\bassinatura\s+[\p{L}\p{N}]/u', $message) === 1
+            || preg_match('/\b(minha|meu)\s+[\p{L}\p{N}].*\b(mensal|anual)\b/u', $message) === 1;
     }
 
     public function looksLikeEditIntent(string $message): bool
@@ -149,6 +153,13 @@ class SubscriptionMessageParser
 
     private function extractName(string $message): ?string
     {
+        if (preg_match('/(?:minha|meu)\s+(.+?)\s+(?:e|é)\s+(?:mensal|anual)(?:\s+|,|$)/iu', $message, $matches)) {
+            $name = trim((string) ($matches[1] ?? ''));
+            $name = trim($name, " \t\n\r\0\x0B-:");
+
+            return $name !== '' ? mb_convert_case($name, MB_CASE_TITLE, 'UTF-8') : null;
+        }
+
         if (! preg_match('/(?:assinatura|mensalidade)\s+(.+?)(?:\s+(?:mensal|anual|dia\s+\d+|com|valor|r\$|\d|para)|[,.]|$)/iu', $message, $matches)) {
             return null;
         }

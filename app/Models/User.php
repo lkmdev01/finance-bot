@@ -139,6 +139,11 @@ class User extends Authenticatable
         return $this->hasMany(WhatsAppContact::class);
     }
 
+    public function whatsappConversationLogs(): HasMany
+    {
+        return $this->hasMany(WhatsAppConversationLog::class);
+    }
+
     public function budgets(): HasMany
     {
         return $this->hasMany(Budget::class);

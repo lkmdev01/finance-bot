@@ -37,4 +37,9 @@ class WhatsAppContact extends Model
     {
         return $this->hasMany(Transaction::class);
     }
+
+    public function conversationLogs(): HasMany
+    {
+        return $this->hasMany(WhatsAppConversationLog::class, 'whats_app_contact_id');
+    }
 }

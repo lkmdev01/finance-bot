@@ -3,9 +3,11 @@ use App\Services\PerformanceMetricsService;
 use App\Services\BaileysService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use App\Models\WhatsAppConversationLog;
 
 $metrics = app(PerformanceMetricsService::class);
 $baileysService = app(BaileysService::class);
+$recentConversationLogs = WhatsAppConversationLog::query()->latest()->limit(20)->get();
 @endphp
 
 <x-layouts.app>
@@ -194,6 +196,58 @@ $baileysService = app(BaileysService::class);
                             <li class="text-sm text-gray-500 dark:text-gray-400">Nenhum erro recente</li>
                         @endforelse
                     </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Observação do Bot</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Últimas mensagens processadas com classificação, ação e handler.</p>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700 text-sm">
+                        <thead>
+                            <tr class="text-left text-zinc-500 dark:text-zinc-400">
+                                <th class="py-2 pr-4">Quando</th>
+                                <th class="py-2 pr-4">Status</th>
+                                <th class="py-2 pr-4">Classificação</th>
+                                <th class="py-2 pr-4">Ação</th>
+                                <th class="py-2 pr-4">Handler</th>
+                                <th class="py-2 pr-4">Mensagem</th>
+                                <th class="py-2 pr-4">Resposta</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                            @forelse($recentConversationLogs as $entry)
+                                <tr>
+                                    <td class="py-3 pr-4 align-top text-zinc-600 dark:text-zinc-300 whitespace-nowrap">{{ $entry->created_at->format('d/m H:i:s') }}</td>
+                                    <td class="py-3 pr-4 align-top">
+                                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium {{ $entry->status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' }}">
+                                            {{ $entry->status }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 pr-4 align-top text-zinc-700 dark:text-zinc-200">{{ $entry->classification ?? '—' }}</td>
+                                    <td class="py-3 pr-4 align-top text-zinc-700 dark:text-zinc-200">{{ $entry->action ?? '—' }}</td>
+                                    <td class="py-3 pr-4 align-top text-zinc-600 dark:text-zinc-300">{{ $entry->handler ? class_basename($entry->handler) : '—' }}</td>
+                                    <td class="py-3 pr-4 align-top text-zinc-700 dark:text-zinc-200 max-w-sm">
+                                        <div class="line-clamp-3">{{ $entry->message }}</div>
+                                    </td>
+                                    <td class="py-3 pr-4 align-top text-zinc-600 dark:text-zinc-300 max-w-md">
+                                        <div class="line-clamp-3">{{ $entry->reply ?? $entry->error_message ?? '—' }}</div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="py-6 text-center text-zinc-500 dark:text-zinc-400">Ainda não há logs de conversa do bot.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

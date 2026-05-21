@@ -11,6 +11,7 @@ use App\Services\PerformanceMetricsService;
 use App\Services\WhatsApp\ActionHandlerFactory;
 use App\Services\WhatsApp\ConversationOrchestrator;
 use App\Services\WhatsApp\ConversationStateService;
+use App\Services\WhatsApp\ConversationTelemetryService;
 use App\Services\WhatsApp\ProactiveConversationTrigger;
 use App\Services\WhatsAppFormatter;
 use App\Services\WhatsAppMessageProcessor;
@@ -92,10 +93,12 @@ class ProcessWhatsAppMessage implements ShouldQueue
         PerformanceMetricsService $metricsService
     ): void {
         $contact = null;
+        $telemetry = null;
 
         try {
             $this->finalReply = null;
             $user = User::findOrFail($this->userId);
+            $telemetry = app(ConversationTelemetryService::class);
 
             $contact = WhatsAppContact::firstOrCreate(
                 [
@@ -124,6 +127,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'message' => mb_substr($this->message, 0, 160),
                 'handled' => $preflight['handled'] ?? false,
                 'action' => $preflight['action'] ?? ($preflight['result']['action'] ?? null),
+                'classification' => $preflight['classification'] ?? null,
             ]);
 
             if (($preflight['handled'] ?? false) === true) {
@@ -132,6 +136,17 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 $this->sendResponse($baileysService, $phoneNumberService, $reply, $user);
                 $stateService->applyHandledResult($contact, $this->message, $preflight['action'] ?? null, $reply, $preflight['metadata'] ?? []);
                 $proactiveTrigger->dispatch($user, $contact, $preflight['action'] ?? null, $preflight, $this);
+                $telemetry->record($user, $contact, $this->message, [
+                    'classification' => $preflight['classification'] ?? null,
+                    'action' => $preflight['action'] ?? null,
+                    'handler' => 'preflight',
+                    'used_ai' => false,
+                    'status' => 'handled_preflight',
+                    'reply' => $reply,
+                    'metadata' => [
+                        'preflight_handled' => true,
+                    ],
+                ]);
                 return;
             }
 
@@ -172,6 +187,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'user_id' => $user->id,
                 'action' => $action,
                 'handled' => $handled,
+                'handler' => $result['_selected_handler'] ?? null,
                 'reply_preview' => mb_substr((string) ($this->getFinalReply() ?? $result['reply'] ?? ''), 0, 120),
             ]);
 
@@ -182,6 +198,19 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     $stateService->applyHandledResult($contact, $this->message, $action, $reply, $metadata);
                     $proactiveTrigger->dispatch($user, $contact, $action, $result, $this);
                 }
+
+                $telemetry->record($user, $contact, $this->message, [
+                    'classification' => $preflight['classification'] ?? null,
+                    'action' => $action,
+                    'handler' => $result['_selected_handler'] ?? null,
+                    'used_ai' => ! isset($preflight['result']),
+                    'status' => 'handled',
+                    'reply' => $reply,
+                    'metadata' => [
+                        'preflight_handled' => false,
+                        'reply_kind' => $result['_conversation_metadata']['reply_kind'] ?? null,
+                    ],
+                ]);
                 return;
             }
 
@@ -192,6 +221,17 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $metadata = $orchestrator->metadataForResult($this->message, $action, $result, $contact);
             $stateService->applyHandledResult($contact, $this->message, $action, $formattedReply, $metadata);
             $proactiveTrigger->dispatch($user, $contact, $action, $result, $this);
+            $telemetry->record($user, $contact, $this->message, [
+                'classification' => $preflight['classification'] ?? null,
+                'action' => $action,
+                'handler' => $result['_selected_handler'] ?? null,
+                'used_ai' => ! isset($preflight['result']),
+                'status' => 'fallback_reply',
+                'reply' => $formattedReply,
+                'metadata' => [
+                    'preflight_handled' => false,
+                ],
+            ]);
         } catch (\Exception $e) {
             $metricsService->recordError('exception', $e->getMessage());
 
@@ -215,6 +255,23 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 app(ConversationStateService::class)->applyHandledResult($contact, $this->message, null, $errorMessage, [
                     'clear_pending' => false,
                     'reply_kind' => 'error',
+                ]);
+            }
+
+            if (isset($user) && $telemetry instanceof ConversationTelemetryService) {
+                $telemetry->record($user, $contact, $this->message, [
+                    'classification' => $preflight['classification'] ?? null,
+                    'action' => $action ?? null,
+                    'handler' => $result['_selected_handler'] ?? null,
+                    'used_ai' => isset($result) && ! isset($preflight['result']),
+                    'status' => 'error',
+                    'reply' => $errorMessage,
+                    'error_type' => get_class($e),
+                    'error_message' => $e->getMessage(),
+                    'metadata' => [
+                        'line' => $e->getLine(),
+                        'file' => $e->getFile(),
+                    ],
                 ]);
             }
         }

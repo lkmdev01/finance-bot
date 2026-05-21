@@ -8,22 +8,31 @@ class TransactionActionMessageParser
     {
         $normalized = $this->normalize($message);
 
-        if (! $this->looksLikeEditIntent($normalized)) {
-            return null;
-        }
-
         $payload = [
             'target_description' => $this->extractTargetDescription($message),
+            'category_name' => $this->extractCategoryName($message),
             'reference' => $this->extractReference($normalized),
             'target_date_scope' => $this->extractDateScope($normalized),
             'amount' => $this->extractAmount($normalized),
+            'payment_method' => $this->extractPaymentMethod($normalized),
         ];
+
+        if (! $this->looksLikeEditIntent($normalized) && $payload['payment_method'] === null) {
+            return null;
+        }
 
         if ($payload['target_description'] === null && $payload['reference'] === null && ! empty($state['last_entities']['transaction_id'])) {
             $payload['reference'] = 'recent';
         }
 
-        if ($payload['amount'] === null) {
+        if (
+            $payload['amount'] === null
+            && $payload['payment_method'] === null
+            && $payload['category_name'] === null
+            && $payload['target_description'] === null
+            && $payload['reference'] === null
+            && $payload['target_date_scope'] === null
+        ) {
             return null;
         }
 
@@ -103,14 +112,49 @@ class TransactionActionMessageParser
         return null;
     }
 
+    private function extractCategoryName(string $message): ?string
+    {
+        if (preg_match('/\bde\s+([\p{L}\p{N} _-]+)$/iu', trim($message), $matches)) {
+            $category = trim((string) ($matches[1] ?? ''));
+            $category = trim($category, " \t\n\r\0\x0B-:");
+
+            if ($category !== '' && ! in_array($this->normalize($category), ['ontem', 'hoje', 'debito', 'credito', 'pix'], true)) {
+                return mb_convert_case($category, MB_CASE_TITLE, 'UTF-8');
+            }
+        }
+
+        return null;
+    }
+
     private function extractReference(string $message): ?string
     {
+        if ($this->containsAny($message, ['penultimo', 'penultima'])) {
+            return 'penultimate';
+        }
+
         if ($this->containsAny($message, ['ultimo', 'ultima'])) {
             return 'latest';
         }
 
         if ($this->containsAny($message, ['aquele', 'aquela', 'esse', 'essa', 'ele', 'ela', 'isso'])) {
             return 'recent';
+        }
+
+        return null;
+    }
+
+    private function extractPaymentMethod(string $message): ?string
+    {
+        if ($this->containsAny($message, ['debito'])) {
+            return 'debit';
+        }
+
+        if ($this->containsAny($message, ['credito'])) {
+            return 'credit';
+        }
+
+        if ($this->containsAny($message, ['pix'])) {
+            return 'pix';
         }
 
         return null;

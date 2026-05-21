@@ -23,9 +23,12 @@ class ActionHandlerFactory
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateSubscriptionHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\UpdateSubscriptionHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CancelSubscriptionHandler());
+        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateRecurringTransactionHandler());
+        $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateInstallmentTransactionHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\CreateTransactionHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\EditTransactionHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\DeleteTransactionHandler());
+        $this->registerHandler(new \App\Services\WhatsApp\Handlers\SplitTransactionHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\QueryHandler());
         $this->registerHandler(new \App\Services\WhatsApp\Handlers\ReportHandler());
 
@@ -53,6 +56,8 @@ class ActionHandlerFactory
                     'handler' => $handler::class,
                     'user_id' => $user->id,
                 ]);
+
+                $result['_selected_handler'] = $handler::class;
 
                 $shouldStop = $handler->handle($action, $result, $user, $contact, $job);
                 if ($shouldStop) {

@@ -7,8 +7,8 @@ use Illuminate\Support\Carbon;
 
 class ConversationStateService
 {
-    private const MAX_CONTEXT_ITEMS = 12;
-    private const MAX_RECENT_CONTEXTS = 8;
+    private const MAX_CONTEXT_ITEMS = 20;
+    private const MAX_RECENT_CONTEXTS = 16;
 
     public function getState(?WhatsAppContact $contact): array
     {

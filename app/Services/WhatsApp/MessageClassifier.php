@@ -11,6 +11,9 @@ class MessageClassifier
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
+        private readonly RecurringTransactionMessageParser $recurringTransactionMessageParser,
+        private readonly InstallmentTransactionMessageParser $installmentTransactionMessageParser,
+        private readonly TransactionSplitMessageParser $transactionSplitMessageParser,
     ) {}
 
     public function classify(string $message, array $state = []): array
@@ -24,6 +27,10 @@ class MessageClassifier
 
         if ($this->looksLikeSubscriptionCancel($message, $stripped, $state)) {
             return ['kind' => 'subscription_cancel', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeTransactionSplit($message, $stripped, $state)) {
+            return ['kind' => 'transaction_split', 'normalized' => $stripped];
         }
 
         if ($this->looksLikeBudgetDelete($message, $stripped, $state)) {
@@ -74,6 +81,14 @@ class MessageClassifier
 
         if ($this->looksLikeSubscriptionCreate($message, $stripped)) {
             return ['kind' => 'subscription_create', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeRecurringTransactionCreate($message, $stripped)) {
+            return ['kind' => 'recurring_transaction_create', 'normalized' => $stripped];
+        }
+
+        if ($this->looksLikeInstallmentTransactionCreate($message, $stripped)) {
+            return ['kind' => 'installment_transaction_create', 'normalized' => $stripped];
         }
 
         if ($this->looksLikeCompoundTransactionCreate($stripped)) {
@@ -272,7 +287,23 @@ class MessageClassifier
             return false;
         }
 
+        if ($this->containsAny($normalizedMessage, ['debito', 'credito', 'pix'])
+            && $this->containsAny($normalizedMessage, ['esse', 'essa', 'aquele', 'aquela', 'ultimo', 'ultima', 'ontem', 'hoje'])
+        ) {
+            return true;
+        }
+
         return $this->containsAny($normalizedMessage, ['ajusta', 'ajustar', 'corrige', 'corrigir', 'muda', 'mudar', 'edita', 'editar']);
+    }
+
+    private function looksLikeTransactionSplit(string $originalMessage, string $normalizedMessage, array $state): bool
+    {
+        if ($this->transactionSplitMessageParser->looksLikeSplitIntent($normalizedMessage)) {
+            return true;
+        }
+
+        return in_array($state['last_action'] ?? null, ['query_transactions', 'query_category'], true)
+            && $this->containsAny($normalizedMessage, ['divide', 'dividir', 'separa', 'separar']);
     }
 
     private function looksLikeTransactionDelete(string $originalMessage, string $normalizedMessage, array $state): bool
@@ -396,6 +427,18 @@ class MessageClassifier
         }
 
         return $this->looksLikeCategoryFollowUpMessage($message);
+    }
+
+    private function looksLikeRecurringTransactionCreate(string $originalMessage, string $normalizedMessage): bool
+    {
+        return $this->recurringTransactionMessageParser->looksLikeCreateIntent($normalizedMessage)
+            && $this->recurringTransactionMessageParser->parse($originalMessage) !== null;
+    }
+
+    private function looksLikeInstallmentTransactionCreate(string $originalMessage, string $normalizedMessage): bool
+    {
+        return $this->installmentTransactionMessageParser->looksLikeCreateIntent($normalizedMessage)
+            && $this->installmentTransactionMessageParser->parse($originalMessage) !== null;
     }
 
     private function looksLikeCompoundTransactionCreate(string $message): bool

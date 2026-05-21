@@ -3,9 +3,11 @@
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Budget;
 use App\Models\Category;
+use App\Models\RecurringTransaction;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use App\Models\WhatsAppConversationLog;
 use App\Services\AIService;
 use App\Services\BaileysService;
 use GuzzleHttp\Psr7\Response as Psr7Response;
@@ -317,4 +319,223 @@ it('registra lancamentos compostos na mesma mensagem', function () {
         'amount' => 35.00,
         'description' => 'mercado',
     ]);
+});
+
+it('apaga o penultimo gasto por referencia curta', function () {
+    Http::preventStrayRequests();
+
+    $first = Transaction::create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'category_id' => $this->compras->id,
+        'type' => 'expense',
+        'amount' => 20.00,
+        'description' => 'Uber',
+        'date' => now()->subDay()->toDateString(),
+    ]);
+
+    $second = Transaction::create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'category_id' => $this->compras->id,
+        'type' => 'expense',
+        'amount' => 35.00,
+        'description' => 'Mercado',
+        'date' => now()->toDateString(),
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_transactions',
+            'last_entities' => [
+                'topic' => 'transactions',
+                'latest_transaction_ids' => [$second->id, $first->id],
+                'latest_transaction_id' => $second->id,
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'apaga o penultimo',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    $confirm = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'sim',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $confirm->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseMissing('transactions', ['id' => $first->id]);
+    assertDatabaseHas('transactions', ['id' => $second->id]);
+});
+
+it('permite completar edicao contextual de ontem em duas mensagens', function () {
+    Http::preventStrayRequests();
+
+    $transaction = Transaction::create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'category_id' => $this->compras->id,
+        'type' => 'expense',
+        'amount' => 22.00,
+        'description' => 'Almoco',
+        'date' => now()->subDay()->toDateString(),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $first = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'corrige o de ontem',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $first->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('edit_transaction_details');
+
+    $second = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'para 28',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $second->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('transactions', ['id' => $transaction->id, 'amount' => 28.00]);
+});
+
+it('marca o ultimo gasto como debito por follow-up curto', function () {
+    Http::preventStrayRequests();
+
+    $transaction = Transaction::create([
+        'user_id' => $this->user->id,
+        'whatsapp_contact_id' => $this->contact->id,
+        'category_id' => $this->compras->id,
+        'type' => 'expense',
+        'amount' => 18.00,
+        'description' => 'Padaria',
+        'date' => now()->toDateString(),
+        'metadata' => [],
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_transactions',
+            'last_entities' => [
+                'topic' => 'transactions',
+                'transaction_id' => $transaction->id,
+                'latest_transaction_id' => $transaction->id,
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'esse foi no debito',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    expect(Transaction::find($transaction->id)?->metadata['payment_method'] ?? null)->toBe('debit');
+});
+
+it('cria recorrencia via whatsapp', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'todo dia 5 pago academia 89',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('recurring_transactions', [
+        'user_id' => $this->user->id,
+        'amount' => 89.00,
+        'description' => 'Academia',
+        'frequency' => 'monthly',
+        'day_of_month' => 5,
+    ]);
+});
+
+it('cria parcelamento via whatsapp', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'comprei celular por 2000 em 10x',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    expect(Transaction::query()->where('user_id', $this->user->id)->count())->toBe(10);
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'amount' => 200.00,
+        'description' => 'Celular (1/10)',
+    ]);
+});
+
+it('registra log estruturado da conversa', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'oi',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    assertDatabaseHas('whats_app_conversation_logs', [
+        'user_id' => $this->user->id,
+        'message' => 'oi',
+        'classification' => 'greeting',
+        'status' => 'handled_preflight',
+    ]);
+
+    expect(WhatsAppConversationLog::query()->latest()->first())->not->toBeNull();
 });

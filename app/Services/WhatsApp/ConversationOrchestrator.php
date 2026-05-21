@@ -15,6 +15,9 @@ class ConversationOrchestrator
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
+        private readonly RecurringTransactionMessageParser $recurringTransactionMessageParser,
+        private readonly InstallmentTransactionMessageParser $installmentTransactionMessageParser,
+        private readonly TransactionSplitMessageParser $transactionSplitMessageParser,
     ) {}
 
     public function beforeAI(string $message, User $user, WhatsAppContact $contact): array
@@ -23,15 +26,16 @@ class ConversationOrchestrator
         $classification = $this->classifier->classify($message, $state);
 
         if (($state['mode'] ?? 'idle') === 'awaiting_clarification'
-            && in_array($classification['kind'], ['default', 'budget_query'], true)
+            && $this->shouldUseClarification($classification['kind'], $state)
         ) {
             $clarification = $this->handleClarification($message, $state);
             if ($clarification !== null) {
+                $clarification['classification'] = $classification['kind'];
                 return $clarification;
             }
         }
 
-        return match ($classification['kind']) {
+        $decision = match ($classification['kind']) {
             'greeting' => [
                 'handled' => true,
                 'reply' => $this->composer->composeGreeting($user),
@@ -57,12 +61,19 @@ class ConversationOrchestrator
             'subscription_create' => $this->buildSubscriptionCreateResult($message),
             'subscription_edit' => $this->buildSubscriptionEditResult($message, $state),
             'subscription_cancel' => $this->buildSubscriptionCancelResult($message, $state),
+            'recurring_transaction_create' => $this->buildRecurringTransactionCreateResult($message),
+            'installment_transaction_create' => $this->buildInstallmentTransactionCreateResult($message),
             'compound_transaction_create' => $this->buildCompoundTransactionCreateResult($message),
+            'transaction_split' => $this->buildTransactionSplitResult($message, $state),
             'transaction_edit' => $this->buildTransactionEditResult($message, $state),
             'transaction_delete' => $this->buildTransactionDeleteResult($message, $state),
             'transaction_follow_up' => $this->buildQueryResult($classification['target_action'] ?? 'query_transactions', $message),
             default => ['handled' => false],
         };
+
+        $decision['classification'] = $classification['kind'];
+
+        return $decision;
     }
 
     public function metadataForResult(string $message, ?string $action, array $result, WhatsAppContact $contact): array
@@ -329,6 +340,40 @@ class ConversationOrchestrator
         ];
     }
 
+    private function buildRecurringTransactionCreateResult(string $message): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_recurring_transaction',
+                'recurring_data' => $this->recurringTransactionMessageParser->parse($message) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildInstallmentTransactionCreateResult(string $message): array
+    {
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_installment_transaction',
+                'installment_data' => $this->installmentTransactionMessageParser->parse($message) ?? [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
     private function buildCompoundTransactionCreateResult(string $message): array
     {
         return [
@@ -337,6 +382,29 @@ class ConversationOrchestrator
                 'reply' => '',
                 'action' => 'create_transaction',
                 'transaction_data' => [],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildTransactionSplitResult(string $message, array $state): array
+    {
+        $payload = $this->transactionSplitMessageParser->parse($message) ?? [];
+
+        if (empty($payload['reference']) && ! empty($state['last_entities']['transaction_id'])) {
+            $payload['reference'] = 'recent';
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'split_transaction',
+                'transaction_data' => $payload,
                 '_resolved_message' => $message,
                 '_conversation_metadata' => [
                     'clear_pending' => true,
@@ -406,6 +474,8 @@ class ConversationOrchestrator
         return match ($state['pending_intent'] ?? null) {
             'update_budget_category' => $this->buildBudgetClarificationResult('update_budget', $message, $state),
             'delete_budget_category' => $this->buildBudgetClarificationResult('delete_budget', $message, $state),
+            'edit_transaction_details' => $this->buildTransactionEditClarificationResult($message, $state),
+            'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
             default => null,
         };
     }
@@ -433,5 +503,63 @@ class ConversationOrchestrator
                 ],
             ],
         ];
+    }
+
+    private function buildTransactionEditClarificationResult(string $message, array $state): ?array
+    {
+        $transactionData = $this->transactionActionMessageParser->parseEdit($message, $state) ?? [];
+        $pending = $state['pending_payload']['transaction_data'] ?? [];
+
+        if ($transactionData === [] && empty($pending['transaction_id'])) {
+            return null;
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'edit_transaction',
+                'transaction_data' => array_merge($pending, $transactionData),
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildTransactionSplitClarificationResult(string $message, array $state): ?array
+    {
+        $parsed = $this->transactionSplitMessageParser->parse('divide em categorias '.$message) ?? [];
+        $pending = $state['pending_payload']['transaction_data'] ?? [];
+
+        if (empty($parsed['split_items'])) {
+            return null;
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'split_transaction',
+                'transaction_data' => array_merge($pending, $parsed),
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function shouldUseClarification(string $classification, array $state): bool
+    {
+        return match ($state['pending_intent'] ?? null) {
+            'update_budget_category', 'delete_budget_category' => in_array($classification, ['default', 'budget_query'], true),
+            'edit_transaction_details' => in_array($classification, ['default', 'transaction_edit'], true),
+            'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
+            default => false,
+        };
     }
 }

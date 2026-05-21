@@ -33,6 +33,34 @@ class TransactionReferenceResolver
         if (! empty($payload['target_description'])) {
             $source = 'description';
             $query->where('description', 'like', '%'.$payload['target_description'].'%');
+        } elseif (($payload['reference'] ?? null) === 'penultimate') {
+            $source = 'penultimate';
+            $recentIds = $this->recentTransactionIds($state);
+            $targetId = $recentIds[1] ?? null;
+
+            if ($targetId === null) {
+                $targetId = Transaction::query()
+                    ->where('user_id', $user->id)
+                    ->latest('date')
+                    ->latest('id')
+                    ->skip(1)
+                    ->value('id');
+            }
+
+            if ($targetId !== null) {
+                $transaction = Transaction::query()
+                    ->with('category')
+                    ->where('user_id', $user->id)
+                    ->where('id', $targetId)
+                    ->first();
+
+                return [
+                    'transaction' => $transaction,
+                    'ambiguous' => false,
+                    'source' => 'penultimate',
+                    'matches' => collect($transaction ? [$transaction] : []),
+                ];
+            }
         } elseif (($payload['reference'] ?? null) === 'recent') {
             $source = 'recent';
             $recentId = $this->recentTransactionId($state);
@@ -62,7 +90,9 @@ class TransactionReferenceResolver
 
         if (! empty($payload['category_name'])) {
             $query->whereHas('category', function ($builder) use ($payload) {
-                $builder->whereRaw('LOWER(name) = ?', [mb_strtolower((string) $payload['category_name'])]);
+                $normalizedTarget = $this->normalize((string) $payload['category_name']);
+
+                $builder->whereRaw('LOWER(REPLACE(REPLACE(name, \" \", \"\"), \"-\", \"\")) LIKE ?', ['%'.mb_strtolower($normalizedTarget).'%']);
             });
             $source = 'category';
         }
@@ -90,29 +120,44 @@ class TransactionReferenceResolver
 
     public function recentTransactionId(array $state): ?int
     {
+        $ids = $this->recentTransactionIds($state);
+
+        return $ids[0] ?? null;
+    }
+
+    public function recentTransactionIds(array $state): array
+    {
         $lastEntities = $state['last_entities'] ?? [];
 
+        if (! empty($lastEntities['latest_transaction_ids']) && is_array($lastEntities['latest_transaction_ids'])) {
+            return array_values(array_map('intval', $lastEntities['latest_transaction_ids']));
+        }
+
         if (! empty($lastEntities['transaction_id'])) {
-            return (int) $lastEntities['transaction_id'];
+            return [(int) $lastEntities['transaction_id']];
         }
 
         if (! empty($lastEntities['latest_transaction_id'])) {
-            return (int) $lastEntities['latest_transaction_id'];
+            return [(int) $lastEntities['latest_transaction_id']];
         }
 
         foreach (($state['recent_contexts'] ?? []) as $context) {
             $entities = $context['entities'] ?? [];
 
+            if (! empty($entities['latest_transaction_ids']) && is_array($entities['latest_transaction_ids'])) {
+                return array_values(array_map('intval', $entities['latest_transaction_ids']));
+            }
+
             if (! empty($entities['transaction_id'])) {
-                return (int) $entities['transaction_id'];
+                return [(int) $entities['transaction_id']];
             }
 
             if (! empty($entities['latest_transaction_id'])) {
-                return (int) $entities['latest_transaction_id'];
+                return [(int) $entities['latest_transaction_id']];
             }
         }
 
-        return null;
+        return [];
     }
 
     public function formatTransactionLabel(Transaction $transaction): string
@@ -132,5 +177,14 @@ class TransactionReferenceResolver
         return $matches->take(3)->map(function (Transaction $transaction) {
             return '- '.$this->formatTransactionLabel($transaction);
         })->implode("\n");
+    }
+
+    private function normalize(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = preg_replace('/\s+/u', '', $value) ?? $value;
+        $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+        return $converted !== false ? $converted : $value;
     }
 }

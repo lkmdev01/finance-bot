@@ -24,14 +24,42 @@ class EditTransactionHandler extends BaseHandler
     {
         $data = $this->normalizeTransactionData($result['transaction_data'] ?? []);
 
-        if ($this->countProvidedUpdates($data) === 0) {
-            $this->sendErrorMessage($job, 'Preciso do que voce quer alterar nessa transacao. Exemplo: ajustar aquele uber para 28.');
-            return true;
-        }
-
         $resolver = app(TransactionReferenceResolver::class);
         $state = app(ConversationStateService::class)->getState($contact);
         $resolution = $resolver->resolve($user, $data, $state);
+
+        /** @var Transaction|null $transaction */
+        $transaction = $resolution['transaction'] ?? null;
+
+        if ($this->countProvidedUpdates($data) === 0) {
+            if ($transaction instanceof Transaction) {
+                $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
+                    'pending_intent' => 'edit_transaction_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'transaction_data' => ['transaction_id' => $transaction->id],
+                    ],
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'entities' => [
+                        'topic' => 'transactions',
+                        'transaction_id' => $transaction->id,
+                        'latest_transaction_id' => $transaction->id,
+                        'latest_transaction_description' => $transaction->description,
+                        'category_name' => $transaction->category?->name,
+                    ],
+                ]);
+
+                $this->sendResponse($job, sprintf(
+                    'Encontrei %s. O que voce quer mudar? Exemplo: para 28, foi no debito ou muda para mercado.',
+                    $resolver->formatTransactionLabel($transaction)
+                ), $user);
+                return true;
+            }
+
+            $this->sendErrorMessage($job, 'Preciso do que voce quer alterar nessa transacao. Exemplo: ajustar aquele uber para 28.');
+            return true;
+        }
 
         if ($resolution['ambiguous'] ?? false) {
             $options = $resolver->formatAmbiguousOptions($resolution['matches']);
@@ -39,8 +67,6 @@ class EditTransactionHandler extends BaseHandler
             return true;
         }
 
-        /** @var Transaction|null $transaction */
-        $transaction = $resolution['transaction'] ?? null;
         if (! $transaction instanceof Transaction) {
             $this->sendErrorMessage($job, 'Nao consegui identificar qual transacao editar. Tente citar a descricao, a data ou diga ultimo gasto.');
             return true;
@@ -79,6 +105,12 @@ class EditTransactionHandler extends BaseHandler
             }
         }
 
+        if ($data['payment_method'] !== null) {
+            $updates['metadata'] = array_merge($transaction->metadata ?? [], [
+                'payment_method' => $data['payment_method'],
+            ]);
+        }
+
         $transaction->update($updates);
         $transaction->refresh()->loadMissing('category');
 
@@ -104,7 +136,19 @@ class EditTransactionHandler extends BaseHandler
         ]);
 
         $label = $transaction->description ?: ($transaction->category?->name ?? 'transacao');
-        $this->sendResponse($job, sprintf('Atualizei %s para R$ %s.', $label, number_format((float) $transaction->amount, 2, ',', '.')), $user);
+        $parts = [];
+        if ($data['amount'] !== null) {
+            $parts[] = sprintf('valor para R$ %s', number_format((float) $transaction->amount, 2, ',', '.'));
+        }
+        if ($data['payment_method'] !== null) {
+            $parts[] = 'forma de pagamento para '.$this->formatPaymentMethod($data['payment_method']);
+        }
+        if ($data['category_name'] !== null && $transaction->category?->name) {
+            $parts[] = 'categoria para '.$transaction->category->name;
+        }
+
+        $detail = $parts === [] ? sprintf('R$ %s', number_format((float) $transaction->amount, 2, ',', '.')) : implode(' e ', $parts);
+        $this->sendResponse($job, sprintf('Atualizei %s com %s.', $label, $detail), $user);
         return true;
     }
 
@@ -121,6 +165,7 @@ class EditTransactionHandler extends BaseHandler
             'category_id' => isset($data['category_id']) && is_numeric($data['category_id']) ? (int) $data['category_id'] : null,
             'category_name' => isset($data['category_name']) && trim((string) $data['category_name']) !== '' ? trim((string) $data['category_name']) : null,
             'date' => isset($data['date']) && $data['date'] !== '' ? (string) $data['date'] : null,
+            'payment_method' => $data['payment_method'] ?? null,
         ];
     }
 
@@ -133,6 +178,7 @@ class EditTransactionHandler extends BaseHandler
             $data['category_id'],
             $data['category_name'],
             $data['date'],
+            $data['payment_method'],
         ], fn ($value) => $value !== null && $value !== ''));
     }
 
@@ -144,6 +190,17 @@ class EditTransactionHandler extends BaseHandler
             'type' => ['nullable', 'in:income,expense'],
             'category_id' => ['nullable', 'integer'],
             'date' => ['nullable', 'date', 'before_or_equal:today'],
+            'payment_method' => ['nullable', 'in:debit,credit,pix'],
         ]);
+    }
+
+    private function formatPaymentMethod(string $paymentMethod): string
+    {
+        return match ($paymentMethod) {
+            'debit' => 'debito',
+            'credit' => 'credito',
+            'pix' => 'pix',
+            default => $paymentMethod,
+        };
     }
 }
