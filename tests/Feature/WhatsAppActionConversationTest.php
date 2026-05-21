@@ -751,3 +751,23 @@ it('tolera texto degradado em recorrencia mensal', function () {
         'day_of_month' => 10,
     ]);
 });
+
+it('trata frase acentuada de recorrencia antes de cair na IA', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Todo mês pagar academia dia 10',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    $job->handle(app(AIService::class), app(BaileysService::class), app(\App\Services\PhoneNumberService::class), app(\App\Services\PerformanceMetricsService::class));
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_recurring_transaction_amount');
+});
