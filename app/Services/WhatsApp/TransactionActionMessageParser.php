@@ -91,7 +91,7 @@ class TransactionActionMessageParser
 
     private function extractTargetDescription(string $message): ?string
     {
-        if (preg_match('/(?:transacao|transação|gasto|despesa|receita)\s+(?:com\s+)?(.+?)(?:\s+(?:para|de|do|da)\s+(?:r\$\s*)?\d.*|\s+(?:de\s+ontem|de\s+hoje)|[,.]|$)/iu', $message, $matches)) {
+        if (preg_match('/(?:transacao|gasto|despesa|receita)\s+(?:com\s+)?(.+?)(?:\s+(?:para|de|do|da)\s+(?:r\$\s*)?\d.*|\s+(?:de\s+ontem|de\s+hoje)|[,.]|$)/iu', $message, $matches)) {
             $target = trim((string) ($matches[1] ?? ''));
             $target = trim($target, " \t\n\r\0\x0B-:");
 
@@ -105,7 +105,7 @@ class TransactionActionMessageParser
 
     private function extractReference(string $message): ?string
     {
-        if ($this->containsAny($message, ['ultimo', 'ultima', 'último', 'última'])) {
+        if ($this->containsAny($message, ['ultimo', 'ultima'])) {
             return 'latest';
         }
 

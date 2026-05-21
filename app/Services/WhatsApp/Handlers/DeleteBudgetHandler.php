@@ -7,6 +7,7 @@ use App\Models\Budget;
 use App\Models\Category;
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use Illuminate\Support\Str;
 
 class DeleteBudgetHandler extends BaseHandler
 {
@@ -28,8 +29,10 @@ class DeleteBudgetHandler extends BaseHandler
 
         $category = $user->categories()
             ->where('type', 'expense')
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower($categoryName)])
-            ->first();
+            ->get()
+            ->first(function (Category $category) use ($categoryName) {
+                return $this->normalizeText($category->name) === $this->normalizeText($categoryName);
+            });
 
         if (! $category instanceof Category) {
             $this->sendErrorMessage($job, 'Nao encontrei essa categoria de despesa para cancelar o orcamento.');
@@ -93,5 +96,10 @@ class DeleteBudgetHandler extends BaseHandler
 
         $this->sendResponse($job, sprintf('Orcamento de %s cancelado. Se quiser, posso listar os orcamentos ativos ou criar um novo limite.', $name), $user);
         return true;
+    }
+
+    private function normalizeText(string $value): string
+    {
+        return mb_strtolower(Str::ascii(trim($value)));
     }
 }

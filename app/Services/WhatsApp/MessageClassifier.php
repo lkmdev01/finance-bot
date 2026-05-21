@@ -2,6 +2,8 @@
 
 namespace App\Services\WhatsApp;
 
+use Illuminate\Support\Str;
+
 class MessageClassifier
 {
     public function __construct(
@@ -201,6 +203,10 @@ class MessageClassifier
         $fallbackCategory = $this->recentEntityName($state, 'budget', 'category_name');
         $fallbackPeriod = $this->recentBudgetPeriod($state);
 
+        if ($this->containsBudgetCue($originalMessage, $normalizedMessage) && $this->containsAny($normalizedMessage, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'])) {
+            return true;
+        }
+
         if ($this->budgetMessageParser->looksLikeEditIntent($normalizedMessage)) {
             return $this->budgetMessageParser->parseEdit($originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
         }
@@ -219,6 +225,10 @@ class MessageClassifier
         $fallbackCategory = $this->recentEntityName($state, 'budget', 'category_name');
         $fallbackPeriod = $this->recentBudgetPeriod($state);
 
+        if ($this->containsBudgetCue($originalMessage, $normalizedMessage) && $this->containsAny($normalizedMessage, ['cancelar', 'cancela', 'apagar', 'apaga', 'remover', 'remove', 'excluir', 'exclui'])) {
+            return true;
+        }
+
         if ($this->budgetMessageParser->looksLikeDeleteIntent($normalizedMessage)) {
             return $this->budgetMessageParser->parseDelete($originalMessage, $fallbackCategory, $fallbackPeriod) !== null;
         }
@@ -234,6 +244,10 @@ class MessageClassifier
 
     private function looksLikeTransactionEdit(string $originalMessage, string $normalizedMessage, array $state): bool
     {
+        if ($this->containsBudgetCue($originalMessage, $normalizedMessage)) {
+            return false;
+        }
+
         if ($this->transactionActionMessageParser->looksLikeEditIntent($normalizedMessage)) {
             return $this->transactionActionMessageParser->parseEdit($originalMessage, $state) !== null;
         }
@@ -247,6 +261,10 @@ class MessageClassifier
 
     private function looksLikeTransactionDelete(string $originalMessage, string $normalizedMessage, array $state): bool
     {
+        if ($this->containsBudgetCue($originalMessage, $normalizedMessage)) {
+            return false;
+        }
+
         if ($this->transactionActionMessageParser->looksLikeDeleteIntent($normalizedMessage)) {
             return $this->transactionActionMessageParser->parseDelete($originalMessage, $state) !== null;
         }
@@ -260,7 +278,7 @@ class MessageClassifier
 
     private function looksLikeBudgetQuery(string $message, array $state): bool
     {
-        if ((str_contains($message, 'orcamento') || str_contains($message, 'orÃƒÂ§amento')) && $this->containsBudgetQueryCue($message)) {
+        if ((str_contains($message, 'orcamento') || str_contains($message, 'oramento') || str_contains($message, 'orÃƒÂ§amento')) && $this->containsBudgetQueryCue($message)) {
             return true;
         }
 
@@ -433,9 +451,8 @@ class MessageClassifier
     {
         $value = mb_strtolower(trim($value));
         $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
-        $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
 
-        return $converted !== false ? $converted : $value;
+        return Str::ascii($value);
     }
 
     private function recentEntityName(array $state, string $topic, string $field): ?string
@@ -474,5 +491,12 @@ class MessageClassifier
             'year' => $entities['year'] ?? now()->year,
             'month' => $entities['month'] ?? now()->month,
         ];
+    }
+
+    private function containsBudgetCue(string $originalMessage, string $normalizedMessage): bool
+    {
+        return str_contains($normalizedMessage, 'orcamento')
+            || str_contains($normalizedMessage, 'oramento')
+            || preg_match('/or.{0,4}amento/iu', $originalMessage) === 1;
     }
 }

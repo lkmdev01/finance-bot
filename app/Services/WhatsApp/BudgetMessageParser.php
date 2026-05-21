@@ -2,6 +2,8 @@
 
 namespace App\Services\WhatsApp;
 
+use Illuminate\Support\Str;
+
 class BudgetMessageParser
 {
     public function parseEdit(string $message, ?string $fallbackCategoryName = null, array $fallbackPeriod = []): ?array
@@ -12,8 +14,8 @@ class BudgetMessageParser
             return null;
         }
 
-        $amount = $this->extractAmount($normalized);
-        $categoryName = $this->extractCategoryName($message, $normalized) ?? $fallbackCategoryName;
+        $amount = $this->extractAmount($message) ?? $this->extractAmount($normalized);
+        $categoryName = $this->extractCategoryName($message) ?? $fallbackCategoryName;
         $period = $this->extractPeriod($normalized, $fallbackPeriod);
 
         if ($categoryName === null || ($amount === null && $period === [])) {
@@ -37,7 +39,7 @@ class BudgetMessageParser
             return null;
         }
 
-        $categoryName = $this->extractCategoryName($message, $normalized) ?? $fallbackCategoryName;
+        $categoryName = $this->extractCategoryName($message) ?? $fallbackCategoryName;
         $period = $this->extractPeriod($normalized, $fallbackPeriod);
 
         if ($categoryName === null) {
@@ -54,7 +56,7 @@ class BudgetMessageParser
 
     public function looksLikeEditIntent(string $message): bool
     {
-        if (! str_contains($message, 'orcamento')) {
+        if (! str_contains($message, 'orcamento') && ! str_contains($message, 'oramento') && preg_match('/or.{0,4}amento/i', $message) !== 1) {
             return false;
         }
 
@@ -63,7 +65,7 @@ class BudgetMessageParser
 
     public function looksLikeDeleteIntent(string $message): bool
     {
-        if (! str_contains($message, 'orcamento')) {
+        if (! str_contains($message, 'orcamento') && ! str_contains($message, 'oramento') && preg_match('/or.{0,4}amento/i', $message) !== 1) {
             return false;
         }
 
@@ -94,7 +96,7 @@ class BudgetMessageParser
 
     private function extractAmount(string $message): ?float
     {
-        if (! preg_match_all('/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)(?:\s*mil)?/u', $message, $matches) || empty($matches[1])) {
+        if (! preg_match_all('/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)(?:\s*mil)?/i', $message, $matches) || empty($matches[1])) {
             return null;
         }
 
@@ -105,36 +107,55 @@ class BudgetMessageParser
 
         $amount = (float) str_replace(',', '.', str_replace('.', '', $raw));
 
-        if (preg_match('/'.preg_quote((string) $raw, '/').'\s*mil\b/u', $message) === 1) {
+        if (preg_match('/'.preg_quote((string) $raw, '/').'\s*mil\b/i', $message) === 1) {
             $amount *= 1000;
         }
 
         return $amount > 0 ? $amount : null;
     }
 
-    private function extractCategoryName(string $originalMessage, string $normalized): ?string
+    private function extractCategoryName(string $message): ?string
     {
-        if (preg_match('/(?:orcamento|limite)\s+(?:de\s+)?(.+?)(?:\s+(?:para|pra|com|no|na|em)\s+(?:r\$\s*)?\d|\s+(?:mensal|anual|em)\b|[,.]|$)/iu', $originalMessage, $matches)) {
-            $name = trim((string) ($matches[1] ?? ''));
-            $name = preg_replace('/\b(para|pra|com|no|na|em)\b.*$/iu', '', $name) ?? $name;
-            $name = trim($name, " \t\n\r\0\x0B-:");
+        $normalized = $this->normalize($message);
 
-            if ($name !== '' && ! in_array($this->normalize($name), ['orcamento', 'limite'], true)) {
-                return mb_convert_case($name, MB_CASE_TITLE, 'UTF-8');
-            }
+        if (preg_match('/or.*?amento\s+de\s+([\p{L}\p{N} _?-]+?)(?:\s+(?:para|pra|com|no|na|em)\b|[,.]|$)/iu', $normalized, $matches)) {
+            return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
         }
 
-        if (preg_match('/(?:para|de|do|da)\s+([\p{L}\p{N} _-]+)$/iu', $originalMessage, $matches)) {
-            $name = trim((string) ($matches[1] ?? ''));
-            $name = preg_replace('/\b(mensal|anual|hoje|amanha|amanhã)\b.*$/iu', '', $name) ?? $name;
-            $name = trim($name, " \t\n\r\0\x0B-:");
+        if (preg_match('/or.*?amento\s+([\p{L}\p{N} _?-]+?)(?:\s+(?:para|pra|com|no|na|em)\b|[,.]|$)/iu', $normalized, $matches)) {
+            return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
+        }
 
-            if ($name !== '') {
-                return mb_convert_case($name, MB_CASE_TITLE, 'UTF-8');
+        if (preg_match('/(?:para|pra)\s+(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?\s+o\s+or.*?amento\s+de\s+([\p{L}\p{N} _?-]+)$/iu', $normalized, $matches)) {
+            return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
+        }
+
+        if (preg_match('/o\s+or.*?amento\s+de\s+([\p{L}\p{N} _?-]+)$/iu', $normalized, $matches)) {
+            return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
+        }
+
+        $parts = preg_split('/\s+de\s+/iu', $normalized);
+        if (is_array($parts) && count($parts) >= 2) {
+            $tail = trim((string) end($parts));
+            if ($tail !== '') {
+                return $this->normalizeCategoryName($tail);
             }
         }
 
         return null;
+    }
+
+    private function normalizeCategoryName(string $name): ?string
+    {
+        $name = trim($name, " \t\n\r\0\x0B-:");
+        $name = preg_replace('/\b(mensal|anual|hoje|amanha)\b.*$/iu', '', $name) ?? $name;
+        $name = trim($name, " \t\n\r\0\x0B-:");
+
+        if ($name === '' || in_array($this->normalize($name), ['orcamento', 'limite'], true)) {
+            return null;
+        }
+
+        return mb_convert_case($name, MB_CASE_TITLE, 'UTF-8');
     }
 
     private function extractPeriod(string $message, array $fallbackPeriod): array
@@ -186,8 +207,7 @@ class BudgetMessageParser
     {
         $value = mb_strtolower(trim($value));
         $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
-        $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
 
-        return $converted !== false ? $converted : $value;
+        return Str::ascii($value);
     }
 }

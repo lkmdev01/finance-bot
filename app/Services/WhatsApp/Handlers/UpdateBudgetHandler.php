@@ -7,6 +7,7 @@ use App\Models\Budget;
 use App\Models\Category;
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 
 class UpdateBudgetHandler extends BaseHandler
@@ -89,10 +90,14 @@ class UpdateBudgetHandler extends BaseHandler
 
     private function findCategory(User $user, string $categoryName): ?Category
     {
+        $normalizedTarget = $this->normalizeText($categoryName);
+
         return $user->categories()
             ->where('type', 'expense')
-            ->whereRaw('LOWER(name) = ?', [mb_strtolower($categoryName)])
-            ->first();
+            ->get()
+            ->first(function (Category $category) use ($normalizedTarget) {
+                return $this->normalizeText($category->name) === $normalizedTarget;
+            });
     }
 
     private function findBudget(User $user, Category $category, array $data): ?Budget
@@ -119,5 +124,10 @@ class UpdateBudgetHandler extends BaseHandler
             ."* editar orcamento alimentacao para 900 em junho 2026\n"
             ."* mudar orcamento anual de viagem para 5000"
             .$details;
+    }
+
+    private function normalizeText(string $value): string
+    {
+        return mb_strtolower(Str::ascii(trim($value)));
     }
 }
