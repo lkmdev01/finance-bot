@@ -216,6 +216,13 @@ class MessageClassifier
 
     private function looksLikeSubscriptionQuery(string $message, array $state): bool
     {
+        if ($this->containsAny($message, [
+            'cancelar', 'cancela', 'desativar', 'desativa', 'pausar', 'pausa',
+            'editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza',
+        ])) {
+            return false;
+        }
+
         if ($this->containsAny($message, ['assinatura', 'assinaturas', 'mensalidade', 'mensalidades'])) {
             return ! $this->containsAny($message, ['criar', 'crie', 'nova', 'novo', 'definir', 'defina', 'cadastrar', 'cadastre']);
         }
