@@ -36,11 +36,23 @@ class SendDueReminders extends Command
                 }
 
                 $user = $reminder->user;
-                if ($user === null || blank($user->phone_number)) {
+                if ($user === null) {
+                    Log::warning('Reminder sem usuário', ['reminder_id' => $reminder->id]);
+                    return;
+                }
+
+                if (blank($user->phone_number)) {
+                    Log::warning('Usuário sem WhatsApp configurado', ['user_id' => $user->id, 'reminder_id' => $reminder->id]);
                     return;
                 }
 
                 $reply = $reminder->message;
+                if (blank($reply)) {
+                    Log::warning('Lembrete sem mensagem', ['reminder_id' => $reminder->id]);
+                    $reminder->advanceAfterDispatch();
+                    return;
+                }
+
                 $jid = $phoneNumberService->toWhatsAppJid($user->phone_number);
                 $contact = WhatsAppContact::query()
                     ->where('user_id', $user->id)
@@ -61,7 +73,7 @@ class SendDueReminders extends Command
                         'action' => 'send_reminder',
                         'handler' => self::class,
                         'used_ai' => false,
-                        'status' => 'scheduled',
+                        'status' => 'sent',
                         'reply' => $reply,
                         'metadata' => [
                             'reminder_id' => $reminder->id,
