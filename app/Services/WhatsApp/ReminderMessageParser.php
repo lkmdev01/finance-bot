@@ -119,6 +119,19 @@ class ReminderMessageParser
 
     private function extractSchedule(string $normalized, string $time): ?array
     {
+        // Suporte a "em X dias"
+        if (preg_match('/\bem\s+(\d{1,2})\s+dias?\b/u', $normalized, $matches)) {
+            $days = max(1, min(365, (int) $matches[1]));
+            
+            return [
+                'frequency' => 'once',
+                'day_of_week' => null,
+                'day_of_month' => null,
+                'month_of_year' => null,
+                'next_trigger_at' => $this->onceInDaysTrigger($days, $time)->toIso8601String(),
+            ];
+        }
+
         if (preg_match('/(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+(\d{1,2})\b/u', $normalized, $matches)
             || preg_match('/\bdia\s+(\d{1,2})\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/u', $normalized, $matches)) {
             $day = max(1, min(31, (int) $matches[1]));
@@ -290,14 +303,9 @@ class ReminderMessageParser
     private function buildReminderMessage(string $title, ?string $frequency): string
     {
         $base = trim($title);
+        $templateType = ReminderMessageTemplateFactory::detect($base, $base);
 
-        return match ($frequency) {
-            'daily' => "Lembrete diario: {$base}.",
-            'weekly' => "Lembrete semanal: {$base}.",
-            'monthly' => "Lembrete mensal: {$base}.",
-            'yearly' => "Lembrete anual: {$base}.",
-            default => "Lembrete: {$base}.",
-        };
+        return ReminderMessageTemplateFactory::buildFriendlyMessage($base, $frequency ?? 'once', $templateType);
     }
 
     private function extractTriggerTime(string $clean, string $normalized): ?string
@@ -352,6 +360,14 @@ class ReminderMessageParser
     {
         $date = Carbon::create($year, $month, 1, 0, 0, 0, config('app.timezone'));
         $date->day(min($day, $date->daysInMonth));
+        $this->applyTime($date, $time);
+
+        return $date;
+    }
+
+    private function onceInDaysTrigger(int $days, string $time): Carbon
+    {
+        $date = now(config('app.timezone'))->copy()->addDays($days);
         $this->applyTime($date, $time);
 
         return $date;
@@ -460,8 +476,26 @@ class ReminderMessageParser
 
     private function applyTime(Carbon $date, string $time): void
     {
-        [$hour, $minute, $second] = array_map('intval', explode(':', $time));
-        $date->setTime($hour, $minute, $second);
+        try {
+            $parts = explode(':', $time);
+            if (count($parts) < 2) {
+                $date->setTime(9, 0, 0);
+                return;
+            }
+
+            $hour = (int) $parts[0];
+            $minute = (int) $parts[1];
+            $second = isset($parts[2]) ? (int) $parts[2] : 0;
+
+            if ($hour < 0 || $hour > 23 || $minute < 0 || $minute > 59 || $second < 0 || $second > 59) {
+                $date->setTime(9, 0, 0);
+                return;
+            }
+
+            $date->setTime($hour, $minute, $second);
+        } catch (\Throwable $e) {
+            $date->setTime(9, 0, 0);
+        }
     }
 
     private function resolveMonthNumber(string $monthName): ?int

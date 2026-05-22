@@ -8,23 +8,23 @@ class ReminderMessageTemplateFactory
     {
         $titleLower = strtolower($title);
 
-        if ($this->isAnniversary($titleLower)) {
+        if (self::isAnniversary($titleLower)) {
             return 'anniversary';
         }
 
-        if ($this->isPayment($titleLower)) {
+        if (self::isPayment($titleLower)) {
             return 'payment';
         }
 
-        if ($this->isMeeting($titleLower)) {
+        if (self::isMeeting($titleLower)) {
             return 'meeting';
         }
 
-        if ($this->isCall($titleLower)) {
+        if (self::isCall($titleLower)) {
             return 'call';
         }
 
-        if ($this->isTask($titleLower)) {
+        if (self::isTask($titleLower)) {
             return 'task';
         }
 
