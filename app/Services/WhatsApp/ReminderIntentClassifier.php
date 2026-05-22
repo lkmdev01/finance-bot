@@ -14,6 +14,16 @@ class ReminderIntentClassifier
 
     public function classify(string $originalMessage, string $normalizedMessage, array $state): ?array
     {
+        // Delete deve vir ANTES de query para evitar false positives
+        if ($this->looksLikeReminderDelete($normalizedMessage, $state)) {
+            return ['kind' => 'reminder_delete', 'normalized' => $normalizedMessage];
+        }
+
+        // Query deve vir ANTES de create para evitar false positives
+        if ($this->looksLikeReminderQuery($normalizedMessage, $state)) {
+            return ['kind' => 'reminder_query', 'normalized' => $normalizedMessage];
+        }
+
         if ($this->looksLikeReminderCreate($originalMessage, $normalizedMessage)) {
             return ['kind' => 'reminder_create', 'normalized' => $normalizedMessage];
         }
@@ -24,10 +34,6 @@ class ReminderIntentClassifier
                 'normalized' => $normalizedMessage,
                 'payload' => $this->reminderMessageParser->parsePartialCreate($originalMessage) ?? [],
             ];
-        }
-
-        if ($this->looksLikeReminderQuery($normalizedMessage, $state)) {
-            return ['kind' => 'reminder_query', 'normalized' => $normalizedMessage];
         }
 
         return null;
@@ -70,8 +76,22 @@ class ReminderIntentClassifier
         return false;
     }
 
+    private function looksLikeReminderDelete(string $normalizedMessage, array $state): bool
+    {
+        $hasDeleteKeyword = $this->containsAnyText($normalizedMessage, ['apagar', 'apaga', 'deletar', 'deleta', 'remover', 'remove', 'excluir', 'exclui', 'cancelar', 'cancela']);
+        $hasReminderKeyword = $this->containsAnyText($normalizedMessage, ['lembrete', 'lembretes', 'meu lembrete', 'meus lembretes']);
+
+        return $hasDeleteKeyword && $hasReminderKeyword;
+    }
+
     private function looksLikeReminderQuery(string $normalizedMessage, array $state): bool
     {
+        if ($this->containsAnyText($normalizedMessage, ['quais', 'quais sao', 'quais são', 'liste', 'lista', 'listar', 'mostre', 'mostra', 'mostrar'])) {
+            if ($this->containsAnyText($normalizedMessage, ['lembrete', 'lembretes', 'meus lembretes'])) {
+                return true;
+            }
+        }
+
         if ($this->containsAnyText($normalizedMessage, ['lembrete', 'lembretes', 'meus lembretes'])) {
             return true;
         }
