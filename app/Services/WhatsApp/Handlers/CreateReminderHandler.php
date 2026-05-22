@@ -6,6 +6,7 @@ use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Reminder;
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use App\Services\WhatsApp\ReminderMessageTemplateFactory;
 use Illuminate\Support\Facades\Validator;
 
 class CreateReminderHandler extends BaseHandler
@@ -89,34 +90,27 @@ class CreateReminderHandler extends BaseHandler
     private function buildSuccessMessage(Reminder $reminder): string
     {
         $time = $reminder->trigger_time ? substr($reminder->trigger_time, 0, 5) : '09:00';
+        $templateType = ReminderMessageTemplateFactory::detect($reminder->title, $reminder->message);
 
         return match ($reminder->frequency) {
             'daily' => sprintf(
-                'Lembrete diario criado para %s, todos os dias as %s.',
-                $reminder->title,
-                $time
+                'Lembrete diario criado! 📅\n\n%s',
+                ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'daily', $templateType)
             ),
             'weekly' => sprintf(
-                'Lembrete semanal criado para %s, toda %s as %s.',
-                $reminder->title,
-                $this->weekdayLabel((int) $reminder->day_of_week),
-                $time
+                'Lembrete semanal criado! 📅\n\n%s',
+                ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'weekly', $templateType)
             ),
             'monthly' => sprintf(
-                'Lembrete mensal criado para %s, todo dia %d as %s.',
-                $reminder->title,
-                (int) $reminder->day_of_month,
-                $time
+                'Lembrete mensal criado! 📅\n\n%s',
+                ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'monthly', $templateType)
             ),
             'yearly' => sprintf(
-                'Lembrete anual criado para %s, todo dia %02d/%02d as %s.',
-                $reminder->title,
-                (int) $reminder->day_of_month,
-                (int) $reminder->month_of_year,
-                $time
+                'Lembrete anual criado! 📅\n\n%s',
+                ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'yearly', $templateType)
             ),
             default => sprintf(
-                'Lembrete criado para %s em %s as %s.',
+                'Lembrete criado para %s em %s as %s. ✅',
                 $reminder->title,
                 $reminder->next_trigger_at?->format('d/m/Y'),
                 $time

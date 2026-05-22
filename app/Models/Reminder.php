@@ -49,9 +49,12 @@ class Reminder extends Model
     {
         $reference ??= now($this->timezone ?: config('app.timezone'));
 
-        return $this->is_active
-            && $this->next_trigger_at !== null
-            && $this->next_trigger_at->lessThanOrEqualTo($reference);
+        if (!$this->is_active || $this->next_trigger_at === null) {
+            return false;
+        }
+
+        $nextTriggerInTz = $this->next_trigger_at->copy()->setTimezone($this->timezone ?: config('app.timezone'));
+        return $nextTriggerInTz->lessThanOrEqualTo($reference);
     }
 
     public function advanceAfterDispatch(?Carbon $sentAt = null): void
@@ -80,6 +83,12 @@ class Reminder extends Model
         }
 
         if ($this->frequency === 'weekly' && $this->day_of_week !== null) {
+            if ($this->day_of_week < 0 || $this->day_of_week > 6) {
+                $this->is_active = false;
+                $this->save();
+                return;
+            }
+
             $next = $sentAt->copy()->addDay();
             $this->applyTime($next, $time);
 
@@ -94,8 +103,16 @@ class Reminder extends Model
         }
 
         if ($this->frequency === 'monthly' && $this->day_of_month !== null) {
-            $next = $sentAt->copy()->addMonthNoOverflow()->startOfMonth();
-            $next->day(min($this->day_of_month, $next->daysInMonth));
+            if ($this->day_of_month < 1 || $this->day_of_month > 31) {
+                $this->is_active = false;
+                $this->save();
+                return;
+            }
+
+            $next = $sentAt->copy()->addMonthNoOverflow();
+            $maxDayInMonth = $next->daysInMonth;
+            $dayToSet = min($this->day_of_month, $maxDayInMonth);
+            $next->startOfMonth()->day($dayToSet);
             $this->applyTime($next, $time);
             $this->next_trigger_at = $next;
             $this->save();
@@ -104,8 +121,16 @@ class Reminder extends Model
         }
 
         if ($this->frequency === 'yearly' && $this->day_of_month !== null && $this->month_of_year !== null) {
+            if ($this->day_of_month < 1 || $this->day_of_month > 31 || $this->month_of_year < 1 || $this->month_of_year > 12) {
+                $this->is_active = false;
+                $this->save();
+                return;
+            }
+
             $next = Carbon::create($sentAt->year + 1, $this->month_of_year, 1, 0, 0, 0, $this->timezone ?: config('app.timezone'));
-            $next->day(min($this->day_of_month, $next->daysInMonth));
+            $maxDayInMonth = $next->daysInMonth;
+            $dayToSet = min($this->day_of_month, $maxDayInMonth);
+            $next->day($dayToSet);
             $this->applyTime($next, $time);
             $this->next_trigger_at = $next;
             $this->save();
@@ -118,7 +143,25 @@ class Reminder extends Model
 
     private function applyTime(Carbon $date, string $time): void
     {
-        [$hour, $minute, $second] = array_map('intval', explode(':', $time));
-        $date->setTime($hour, $minute, $second);
+        try {
+            $parts = explode(':', $time);
+            if (count($parts) < 2) {
+                $date->setTime(9, 0, 0);
+                return;
+            }
+
+            $hour = (int) $parts[0];
+            $minute = (int) $parts[1];
+            $second = isset($parts[2]) ? (int) $parts[2] : 0;
+
+            if ($hour < 0 || $hour > 23 || $minute < 0 || $minute > 59 || $second < 0 || $second > 59) {
+                $date->setTime(9, 0, 0);
+                return;
+            }
+
+            $date->setTime($hour, $minute, $second);
+        } catch (\Throwable $e) {
+            $date->setTime(9, 0, 0);
+        }
     }
 }
