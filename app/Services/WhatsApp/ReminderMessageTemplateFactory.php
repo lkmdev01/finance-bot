@@ -16,16 +16,16 @@ class ReminderMessageTemplateFactory
             return 'payment';
         }
 
+        if (self::isTask($titleLower)) {
+            return 'task';
+        }
+
         if (self::isMeeting($titleLower)) {
             return 'meeting';
         }
 
         if (self::isCall($titleLower)) {
             return 'call';
-        }
-
-        if (self::isTask($titleLower)) {
-            return 'task';
         }
 
         return 'generic';
@@ -79,15 +79,27 @@ class ReminderMessageTemplateFactory
     private static function isTask(string $titleLower): bool
     {
         return str_contains($titleLower, 'fazer')
-            || str_contains($titleLower, 'fazer')
             || str_contains($titleLower, 'tarefa')
-            || str_contains($titleLower, 'todo');
+            || str_contains($titleLower, 'todo')
+            || str_contains($titleLower, 'tomar')
+            || str_contains($titleLower, 'beber')
+            || str_contains($titleLower, 'comer')
+            || str_contains($titleLower, 'estudar')
+            || str_contains($titleLower, 'treinar')
+            || str_contains($titleLower, 'exercicio')
+            || str_contains($titleLower, 'exercício')
+            || str_contains($titleLower, 'meditar')
+            || str_contains($titleLower, 'ler');
     }
 
     private static function buildAnniversaryMessage(string $greeting, string $title): string
     {
         $title = preg_replace('/^aniversario\s+(?:de|da|do)?\s*/iu', '', $title);
+        $title = preg_replace('/^aniversário\s+(?:de|da|do)?\s*/iu', '', $title);
         $title = preg_replace('/^niver\s+(?:de|da|do)?\s*/iu', '', $title);
+        $title = preg_replace('/\baniversario\s+(?:de|da|do)?\s*/iu', '', $title);
+        $title = preg_replace('/\baniversário\s+(?:de|da|do)?\s*/iu', '', $title);
+        $title = trim($title);
 
         return "{$greeting}\n\n🎉 Vim aqui te lembrar que hoje é o aniversário de {$title}!\n\nNão esqueça de:\n✨ Ligar ou mandar uma mensagem\n🎂 Desejar um feliz aniversário\n🎁 Talvez marcar um café ou encontro\n\nAproveita o dia! 🎊";
     }

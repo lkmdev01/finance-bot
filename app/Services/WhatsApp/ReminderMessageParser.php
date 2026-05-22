@@ -18,7 +18,10 @@ class ReminderMessageParser
             'lembra de',
             'lembrar de',
             'lembrete',
+            'amanha',
+            'hoje',
             'todo mes',
+            'todos os dias',
             'todo dia',
             'cada mes',
             'cada ano',
@@ -71,8 +74,10 @@ class ReminderMessageParser
 
         $time = $this->extractTriggerTime($clean, $normalized) ?? '09:00:00';
 
+        $title = $this->extractReminderTitle($clean);
+
         $data = [
-            'title' => $this->extractReminderTitle($clean),
+            'title' => $title,
             'message' => null,
             'frequency' => null,
             'day_of_week' => null,
@@ -88,7 +93,7 @@ class ReminderMessageParser
             return null;
         }
 
-        $data['message'] = $this->buildReminderMessage($data['title'], $data['frequency']);
+        $data['message'] = $this->buildReminderMessage($clean, $data['title'], $data['frequency']);
 
         return $data;
     }
@@ -112,17 +117,39 @@ class ReminderMessageParser
         $parsed = array_merge($pendingReminder, $schedule);
         $parsed['title'] = $title;
         $parsed['trigger_time'] = $time;
-        $parsed['message'] = $this->buildReminderMessage($title, $parsed['frequency'] ?? null);
+        $parsed['message'] = $this->buildReminderMessage($clean, $title, $parsed['frequency'] ?? null);
 
         return $parsed;
     }
 
     private function extractSchedule(string $normalized, string $time): ?array
     {
+        // Suporte a "hoje"
+        if ($this->containsAnyText($normalized, ['hoje'])) {
+            return [
+                'frequency' => 'once',
+                'day_of_week' => null,
+                'day_of_month' => null,
+                'month_of_year' => null,
+                'next_trigger_at' => $this->onceTodayTrigger($time)->toIso8601String(),
+            ];
+        }
+
+        // Suporte a "amanhã"
+        if ($this->containsAnyText($normalized, ['amanha'])) {
+            return [
+                'frequency' => 'once',
+                'day_of_week' => null,
+                'day_of_month' => null,
+                'month_of_year' => null,
+                'next_trigger_at' => $this->onceTomorrowTrigger($time)->toIso8601String(),
+            ];
+        }
+
         // Suporte a "em X dias"
         if (preg_match('/\bem\s+(\d{1,2})\s+dias?\b/u', $normalized, $matches)) {
             $days = max(1, min(365, (int) $matches[1]));
-            
+
             return [
                 'frequency' => 'once',
                 'day_of_week' => null,
@@ -236,7 +263,7 @@ class ReminderMessageParser
             ];
         }
 
-        if ($this->containsAnyText($normalized, ['diario', 'diariamente', 'todo dia', 'cada dia'])) {
+        if ($this->containsAnyText($normalized, ['diario', 'diariamente', 'todo dia', 'todos os dias', 'cada dia'])) {
             return [
                 'frequency' => 'daily',
                 'day_of_week' => null,
@@ -269,8 +296,8 @@ class ReminderMessageParser
     private function extractReminderTitle(string $cleanMessage): ?string
     {
         $title = $cleanMessage;
-        $title = preg_replace('/^\s*(?:todo\s+m\S*s|todo\s+mes|cada\s+m\S*s|todo\s+dia|cada\s+ano|todo\s+ano|diariamente|diario|semanal)\s*/iu', '', $title) ?? $title;
-        $title = preg_replace('/\b(?:anual|anualmente|todo\s+ano|cada\s+ano|semanal|diario|diariamente|todo\s+dia|cada\s+dia)\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/^\s*(?:todo\s+m\S*s|todo\s+mes|cada\s+m\S*s|todo\s+dia|cada\s+ano|todo\s+ano|diariamente|diario|semanal|amanha|amanhã|hoje)\s*/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:anual|anualmente|todo\s+ano|cada\s+ano|semanal|diario|diariamente|todo\s+dia|cada\s+dia|todos\s+os\s+dias)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+\d{1,2}\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:do|de|no|na)\s+mes\s+\d{1,2}\b/iu', '', $title) ?? $title;
@@ -278,6 +305,7 @@ class ReminderMessageParser
         $title = preg_replace('/\bdia\s+\d{1,2}(?:\/\d{1,2}(?:\/\d{4})?)?\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:desse|deste)\s+m\S*s\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+de\s+[[:alpha:]]+\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:aniversario|aniversário|niver)\s+(?:de|da|do)?\s*/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:desse|deste)\s+m\S*s\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bmes\s+que\s+vem\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bproximo\s+mes\b/iu', '', $title) ?? $title;
@@ -285,9 +313,11 @@ class ReminderMessageParser
         $title = preg_replace('/\bmensal\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:segunda|terca|quarta|quinta|sexta|sabado|domingo)(?:-feira)?\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bfeira\b/iu', '', $title) ?? $title;
-        $title = preg_replace('/\b(?:as|a)\s*\d{1,2}(?::\d{2})?\s*h?\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:as|às)\s*\d{1,2}(?::\d{2})?\s*h?\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:a|à)\s+\d{1,2}(?::\d{2})?\s*h?\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b\d{1,2}h(?:\d{2})?\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:me\s+lembra(?:r)?(?:\s+de)?|me\s+lembre(?:\s+de)?|lembrete(?:\s+para)?|lembrar\s+de|lembra\s+de)\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:amanha|amanhã|hoje)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/^\s*(?:todo|toda|cada)\s+/iu', '', $title) ?? $title;
         $title = preg_replace('/^\s*(?:(?:no|na|do|da|de)\s+)+/iu', '', $title) ?? $title;
         $title = preg_replace('/\s+/u', ' ', $title) ?? $title;
@@ -300,12 +330,11 @@ class ReminderMessageParser
         return Str::title($title);
     }
 
-    private function buildReminderMessage(string $title, ?string $frequency): string
+    private function buildReminderMessage(string $originalClean, string $cleanedTitle, ?string $frequency): string
     {
-        $base = trim($title);
-        $templateType = ReminderMessageTemplateFactory::detect($base, $base);
+        $templateType = ReminderMessageTemplateFactory::detect($originalClean, $originalClean);
 
-        return ReminderMessageTemplateFactory::buildFriendlyMessage($base, $frequency ?? 'once', $templateType);
+        return ReminderMessageTemplateFactory::buildFriendlyMessage($cleanedTitle, $frequency ?? 'once', $templateType);
     }
 
     private function extractTriggerTime(string $clean, string $normalized): ?string
@@ -360,6 +389,27 @@ class ReminderMessageParser
     {
         $date = Carbon::create($year, $month, 1, 0, 0, 0, config('app.timezone'));
         $date->day(min($day, $date->daysInMonth));
+        $this->applyTime($date, $time);
+
+        return $date;
+    }
+
+    private function onceTodayTrigger(string $time): Carbon
+    {
+        $date = now(config('app.timezone'))->copy();
+        $this->applyTime($date, $time);
+
+        if ($date->isPast()) {
+            $date->addDay();
+            $this->applyTime($date, $time);
+        }
+
+        return $date;
+    }
+
+    private function onceTomorrowTrigger(string $time): Carbon
+    {
+        $date = now(config('app.timezone'))->copy()->addDay();
         $this->applyTime($date, $time);
 
         return $date;
