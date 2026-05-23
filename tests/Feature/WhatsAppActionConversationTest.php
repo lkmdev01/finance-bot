@@ -1,16 +1,22 @@
 <?php
 
+/** @noinspection PhpUndefinedFieldInspection */
+/** @noinspection PhpUndefinedMethodInspection */
+
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Budget;
 use App\Models\Category;
 use App\Models\RecurringTransaction;
 use App\Models\Reminder;
 use App\Models\Subscription;
+use App\Models\BankAccount;
+use App\Models\CreditCard;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Models\WhatsAppConversationLog;
 use App\Services\BaileysService;
+use Carbon\Carbon;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -902,4 +908,169 @@ it('cria lembrete semanal com dia da semana e horario', function () {
     ]);
 });
 
+it('apaga apenas o lembrete especificado pelo nome', function () {
+    Http::preventStrayRequests();
+
+    $reminderOne = Reminder::create([
+        'user_id' => $this->user->id,
+        'title' => 'Falar Com João',
+        'message' => 'Lembrete pontual: Falar Com João',
+        'frequency' => 'once',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->addDay(),
+        'trigger_time' => '09:00:00',
+        'is_active' => true,
+    ]);
+
+    $reminderTwo = Reminder::create([
+        'user_id' => $this->user->id,
+        'title' => 'Tomar Água',
+        'message' => 'Lembrete diario: Tomar Água',
+        'frequency' => 'daily',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->addDay(),
+        'trigger_time' => '14:30:00',
+        'is_active' => true,
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'apague o lembrete falar com joão',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($job);
+
+    assertDatabaseHas('reminders', [
+        'id' => $reminderOne->id,
+        'is_active' => false,
+    ]);
+    assertDatabaseHas('reminders', [
+        'id' => $reminderTwo->id,
+        'is_active' => true,
+    ]);
+});
+
+it('edita um lembrete pelo nome e atualiza horarios e frequencia', function () {
+    Http::preventStrayRequests();
+
+    $reminder = Reminder::create([
+        'user_id' => $this->user->id,
+        'title' => 'Tomar Água',
+        'message' => 'Lembrete diario: Tomar Água',
+        'frequency' => 'daily',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->addDay(),
+        'trigger_time' => '14:30:00',
+        'is_active' => true,
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'editar lembrete tomar água para 25/05/2026 as 15:00',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($job);
+
+    assertDatabaseHas('reminders', [
+        'id' => $reminder->id,
+        'title' => 'Tomar Água',
+        'next_trigger_at' => Carbon::parse('2026-05-25 15:00:00')->format('Y-m-d H:i:s'),
+        'trigger_time' => '15:00:00',
+    ]);
+});
+
+it('solicita clarificacao de cartao e registra com cartao padrao', function () {
+    Http::preventStrayRequests();
+
+    $card = CreditCard::create([
+        'user_id' => $this->user->id,
+        'name' => 'Nubank',
+        'issuer' => 'Nubank',
+        'brand' => 'Visa',
+        'last_four' => '1234',
+        'credit_limit' => 5000.00,
+        'opening_balance' => 0.00,
+        'closing_day' => 5,
+        'due_day' => 25,
+        'is_active' => true,
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $firstJob = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'paguei 120 no cartão',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($firstJob);
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('select_credit_card');
+
+    $secondJob = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'usar cartão padrão',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($secondJob);
+
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'amount' => 120.00,
+        'credit_card_id' => $card->id,
+        'bank_account_id' => null,
+    ]);
+});
+
+it('usa conta caixa quando nao informa fonte em debito', function () {
+    Http::preventStrayRequests();
+
+    BankAccount::create([
+        'user_id' => $this->user->id,
+        'name' => 'Caixa',
+        'institution' => 'Dinheiro',
+        'type' => 'cash',
+        'opening_balance' => 100.00,
+        'currency' => 'BRL',
+        'color' => '#000000',
+        'is_active' => true,
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'gastei 50',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($job);
+
+    assertDatabaseHas('transactions', [
+        'user_id' => $this->user->id,
+        'amount' => 50.00,
+        'bank_account_id' => BankAccount::where('user_id', $this->user->id)->where('type', 'cash')->first()->id,
+    ]);
+});
 

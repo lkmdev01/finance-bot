@@ -33,7 +33,7 @@ class ReminderMessageParser
             'cada semana',
             'diario',
             'diariamente',
-        ]);
+        ]) || preg_match('/\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/', $normalizedMessage) === 1;
     }
 
     public function parse(string $originalMessage): ?array
@@ -96,6 +96,16 @@ class ReminderMessageParser
         $data['message'] = $this->buildReminderMessage($clean, $data['title'], $data['frequency']);
 
         return $data;
+    }
+
+    public function extractTitle(string $message): ?string
+    {
+        return $this->extractReminderTitle($this->cleanText($message));
+    }
+
+    public function buildMessage(string $title, ?string $frequency): string
+    {
+        return $this->buildReminderMessage($this->cleanText($title), $title, $frequency);
     }
 
     public function parseScheduleFollowUp(string $message, array $pendingReminder = []): ?array
@@ -228,6 +238,32 @@ class ReminderMessageParser
                 ];
             }
 
+            return [
+                'frequency' => 'yearly',
+                'day_of_week' => null,
+                'day_of_month' => $day,
+                'month_of_year' => $month,
+                'next_trigger_at' => $this->nextYearlyTrigger($day, $month, $time)->toIso8601String(),
+            ];
+        }
+
+        // Support bare dates like 25/05 or 25/05/2026
+        if (preg_match('/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/u', $normalized, $matches)) {
+            $day = max(1, min(31, (int) $matches[1]));
+            $month = max(1, min(12, (int) $matches[2]));
+            $year = isset($matches[3]) && $matches[3] !== '' ? (int) $matches[3] : null;
+
+            if ($year !== null && strlen((string)$year) === 4) {
+                return [
+                    'frequency' => 'once',
+                    'day_of_week' => null,
+                    'day_of_month' => null,
+                    'month_of_year' => null,
+                    'next_trigger_at' => $this->oneTimeSpecificDateTrigger($day, $month, $year, $time)->toIso8601String(),
+                ];
+            }
+
+            // If no year provided, assume yearly recurrence
             return [
                 'frequency' => 'yearly',
                 'day_of_week' => null,

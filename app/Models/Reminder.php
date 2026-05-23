@@ -27,18 +27,15 @@ class Reminder extends Model
         'metadata',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'next_trigger_at' => 'datetime',
-            'last_sent_at' => 'datetime',
-            'day_of_week' => 'integer',
-            'day_of_month' => 'integer',
-            'month_of_year' => 'integer',
-            'is_active' => 'boolean',
-            'metadata' => 'array',
-        ];
-    }
+    protected $casts = [
+        'next_trigger_at' => 'datetime',
+        'last_sent_at' => 'datetime',
+        'day_of_week' => 'integer',
+        'day_of_month' => 'integer',
+        'month_of_year' => 'integer',
+        'is_active' => 'boolean',
+        'metadata' => 'array',
+    ];
 
     public function user(): BelongsTo
     {

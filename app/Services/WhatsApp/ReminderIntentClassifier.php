@@ -19,6 +19,10 @@ class ReminderIntentClassifier
             return ['kind' => 'reminder_delete', 'normalized' => $normalizedMessage];
         }
 
+        if ($this->looksLikeReminderEdit($normalizedMessage, $state)) {
+            return ['kind' => 'reminder_edit', 'normalized' => $normalizedMessage];
+        }
+
         // Query deve vir ANTES de create para evitar false positives
         if ($this->looksLikeReminderQuery($normalizedMessage, $state)) {
             return ['kind' => 'reminder_query', 'normalized' => $normalizedMessage];
@@ -78,10 +82,18 @@ class ReminderIntentClassifier
 
     private function looksLikeReminderDelete(string $normalizedMessage, array $state): bool
     {
-        $hasDeleteKeyword = $this->containsAnyText($normalizedMessage, ['apagar', 'apaga', 'deletar', 'deleta', 'remover', 'remove', 'excluir', 'exclui', 'cancelar', 'cancela']);
+        $hasDeleteKeyword = $this->containsAnyText($normalizedMessage, ['apagar', 'apaga', 'apague', 'apaguei', 'deletar', 'deleta', 'remover', 'remove', 'excluir', 'exclui', 'cancelar', 'cancela']);
         $hasReminderKeyword = $this->containsAnyText($normalizedMessage, ['lembrete', 'lembretes', 'meu lembrete', 'meus lembretes']);
 
         return $hasDeleteKeyword && $hasReminderKeyword;
+    }
+
+    private function looksLikeReminderEdit(string $normalizedMessage, array $state): bool
+    {
+        $hasEditKeyword = $this->containsAnyText($normalizedMessage, ['editar', 'edita', 'alterar', 'altera', 'modificar', 'modifica', 'mudar', 'muda']);
+        $hasReminderKeyword = $this->containsAnyText($normalizedMessage, ['lembrete', 'lembretes', 'meu lembrete', 'meus lembretes']);
+
+        return $hasEditKeyword && $hasReminderKeyword;
     }
 
     private function looksLikeReminderQuery(string $normalizedMessage, array $state): bool

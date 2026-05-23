@@ -24,9 +24,8 @@ class FinancialDataCalculator
         $monthlyAggregates = $this->transactionRepository->getMonthlyAggregates($user, $now);
         $monthlyIncome = $monthlyAggregates['income'] ?? 0;
 
-        // Para despesas, ainda precisamos filtrar savings_goal_deposit_id em memória
-        $monthlyExpensesRaw = $monthlyAggregates['expense'] ?? 0;
-        $monthlyExpensesTransactions = $user->transactions()
+        // Para despesas do mês atual: carregar transações (filtrando depósitos para metas)
+        $monthlyTransactions = $user->transactions()
             ->where('type', 'expense')
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
             ->get()
@@ -36,28 +35,30 @@ class FinancialDataCalculator
                 return ! isset($metadata['savings_goal_deposit_id']);
             });
 
-        // Calcula diferença entre total e sem savings para ajustar
-        $savingsDepositsInMonth = $monthlyExpensesTransactions->sum('amount') - $monthlyExpensesRaw;
-        $monthlyExpenses = $monthlyExpensesRaw - $savingsDepositsInMonth;
+        // Separar despesas em conta (caixa/conta corrente) e despesas lançadas em cartão
+        $monthlyExpenses = $monthlyTransactions->whereNull('credit_card_id')->sum('amount');
+        $monthlyCardExpenses = $monthlyTransactions->whereNotNull('credit_card_id')->sum('amount');
 
         // Totais de todos os tempos - usando agregação SQL
         $allTimeAggregates = $this->transactionRepository->getAllTimeAggregates($user);
         $totalIncomeAllTime = $allTimeAggregates['income'] ?? 0;
 
-        // Para despesas totais, ainda precisamos filtrar savings em memória
-        $allExpenses = $user->transactions()
+        // Para despesas totais, filtrar savings e dividir por origem (conta x cartão)
+        $allTransactions = $user->transactions()
             ->where('type', 'expense')
             ->get()
             ->filter(function ($transaction) {
                 $metadata = $transaction->metadata ?? [];
 
                 return ! isset($metadata['savings_goal_deposit_id']);
-            })
-            ->sum('amount');
+            });
 
-        $totalExpensesAllTime = $allExpenses;
+        $allExpensesExcludingCard = $allTransactions->whereNull('credit_card_id')->sum('amount');
+        $creditCardExpensesAllTime = $allTransactions->whereNotNull('credit_card_id')->sum('amount');
 
-        // Calcula saldo disponível
+        $totalExpensesAllTime = $allExpensesExcludingCard;
+
+        // Calcula saldo disponível (exclui despesas lançadas no cartão)
         // Calcula total de depósitos em metas de poupança através dos SavingsGoals
         $totalSavingsDeposits = $user->savingsGoals()
             ->with('deposits')
@@ -65,10 +66,11 @@ class FinancialDataCalculator
             ->sum(fn ($goal) => $goal->deposits->sum('amount'));
         $availableBalance = $totalIncomeAllTime - $totalExpensesAllTime - $totalSavingsDeposits;
 
-        // Despesas por categoria do mês atual
+        // Despesas por categoria do mês atual (exclui despesas lançadas em cartão)
         $expensesByCategory = $user->transactions()
             ->where('type', 'expense')
             ->whereBetween('date', [$startOfMonth, $endOfMonth])
+            ->whereNull('credit_card_id')
             ->with('category')
             ->get()
             ->filter(function ($transaction) {

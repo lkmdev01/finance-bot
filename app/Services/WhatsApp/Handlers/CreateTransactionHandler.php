@@ -92,6 +92,29 @@ class CreateTransactionHandler extends BaseHandler
             }
         }
 
+        // Se o usuário indicou pagamento no cartão mas não informamos qual cartão, pedir confirmação/especificação
+        if (isset($result['transaction_data']['payment_method'])
+            && $result['transaction_data']['payment_method'] === 'credit'
+            && empty($result['transaction_data']['credit_card_id'])
+            && empty($result['transaction_data']['credit_card_name'])) {
+
+            $reply = 'Você informou pagamento no cartão, mas não identifiquei qual cartão. '
+                .'Por favor, responda com o nome do cartão (ex.: "cartão Nubank") ou diga "usar cartão padrão" para prosseguir.';
+
+            $result['_conversation_metadata'] = [
+                'pending_intent' => 'select_credit_card',
+                'pending_mode' => 'awaiting_clarification',
+                'pending_payload' => [
+                    'transaction_data' => $result['transaction_data'],
+                ],
+                'clear_pending' => false,
+                'reply_kind' => 'message',
+            ];
+
+            $this->sendResponse($job, $reply, $user);
+            return true;
+        }
+
         $createdTransaction = $this->persistTransaction($user, $contact, $result['transaction_data'], $job->message);
         $reply = $this->shouldUseGenericTransactionReply($result['transaction_data'], $job->message)
             ? $this->buildGenericTransactionReply($result['transaction_data'])

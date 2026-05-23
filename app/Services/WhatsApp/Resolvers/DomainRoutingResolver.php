@@ -65,6 +65,18 @@ class DomainRoutingResolver
                 $this->reminderMessageParser->parse($message) ?? [],
                 $message
             ),
+            'reminder_edit' => $this->actionResult(
+                'edit_reminder',
+                'reminder_data',
+                [],
+                $message
+            ),
+            'reminder_delete' => $this->actionResult(
+                'delete_reminder',
+                'reminder_data',
+                [],
+                $message
+            ),
             'savings_create' => $this->actionResult(
                 'create_savings_goal',
                 'goal_data',

@@ -18,6 +18,7 @@ use App\Services\WhatsApp\Handlers\CreateCreditCardHandler;
 use App\Services\WhatsApp\Handlers\CreateInstallmentTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateReminderHandler;
 use App\Services\WhatsApp\Handlers\DeleteReminderHandler;
+use App\Services\WhatsApp\Handlers\EditReminderHandler;
 use App\Services\WhatsApp\Handlers\CreateRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateSavingsGoalHandler;
 use App\Services\WhatsApp\Handlers\CreateSubscriptionHandler;
@@ -41,9 +42,9 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(AbacatePayService::class, function () {
             return new AbacatePayService(
-                baseUrl: config('abacatepay.base_url'),
-                legacyBaseUrl: config('abacatepay.legacy_base_url'),
-                apiKey: config('abacatepay.api_key'),
+                baseUrl: (string) config('abacatepay.base_url'),
+                legacyBaseUrl: (string) config('abacatepay.legacy_base_url'),
+                apiKey: (string) config('abacatepay.api_key'),
                 timeout: config('abacatepay.timeout'),
             );
         });
@@ -58,18 +59,18 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(BaileysService::class, function () {
             return new BaileysService(
-                baseUrl: config('whatsapp.baileys.base_url'),
-                webhookSecret: config('whatsapp.baileys.webhook_secret'),
+                baseUrl: (string) config('whatsapp.baileys.base_url'),
+                webhookSecret: (string) config('whatsapp.baileys.webhook_secret'),
             );
         });
 
         $this->app->singleton(AIService::class, function ($app) {
             // Para Ollama, a API key não é necessária.
-            $apiKey = config('ai.provider') === 'ollama' ? '' : config('ai.api_key');
+            $apiKey = config('ai.provider') === 'ollama' ? '' : (string) config('ai.api_key');
 
             return new AIService(
                 apiKey: $apiKey,
-                provider: config('ai.provider'),
+                provider: (string) config('ai.provider'),
                 contextBuilder: $app->make(AIContextBuilder::class),
                 promptBuilder: $app->make(AIPromptBuilder::class),
                 responseParser: $app->make(AIResponseParser::class),
@@ -93,6 +94,7 @@ class AppServiceProvider extends ServiceProvider
                 CreateInstallmentTransactionHandler::class,
                 CreateReminderHandler::class,
                 DeleteReminderHandler::class,
+                EditReminderHandler::class,
                 CreateTransactionHandler::class,
                 EditTransactionHandler::class,
                 DeleteTransactionHandler::class,

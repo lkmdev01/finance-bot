@@ -2,12 +2,14 @@
 
 namespace App\Services\WhatsApp\Resolvers;
 
+use App\Services\WhatsApp\Support\NormalizesWhatsAppText;
 use App\Services\WhatsApp\TransactionActionMessageParser;
 use App\Services\WhatsApp\ReminderMessageParser;
 use App\Services\WhatsApp\TransactionSplitMessageParser;
 
 class ClarificationResolver
 {
+    use NormalizesWhatsAppText;
     public function __construct(
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
         private readonly ReminderMessageParser $reminderMessageParser,
@@ -35,8 +37,71 @@ class ClarificationResolver
             'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
             'create_reminder_schedule' => $this->buildReminderScheduleClarificationResult($message, $state),
+            'select_credit_card' => $this->buildSelectCreditCardClarificationResult($message, $state),
             default => null,
         };
+    }
+
+    private function buildSelectCreditCardClarificationResult(string $message, array $state): ?array
+    {
+        $creditCardName = $this->extractCreditCardName($message);
+        if ($creditCardName === null) {
+            return null;
+        }
+
+        $pending = $state['pending_payload']['transaction_data'] ?? [];
+
+        if ($creditCardName === 'default') {
+            $pending['use_default_card'] = true;
+        } else {
+            $pending['credit_card_name'] = $creditCardName;
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => 'Entendi. Estou usando esse cartão para registrar o gasto.',
+                'action' => 'create_transaction',
+                'transaction_data' => $pending,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function extractCreditCardName(string $message): ?string
+    {
+        $normalized = $this->normalizeText($message);
+
+        $defaultPatterns = [
+            'usar cartao padrao',
+            'usar cartao padrão',
+            'usar cartão padrao',
+            'usar cartão padrão',
+            'cartao padrao',
+            'cartão padrão',
+            'padrao',
+            'default',
+        ];
+
+        foreach ($defaultPatterns as $pattern) {
+            if (str_contains($normalized, $this->normalizeText($pattern))) {
+                return 'default';
+            }
+        }
+
+        $cleaned = preg_replace('/\b(?:no|na|pelo|pela|via|com|cartao|cartão|de|do|da|credito|crédito|debito|débito)\b/iu', ' ', $message) ?? $message;
+        $cleaned = preg_replace('/\s+/u', ' ', trim($cleaned)) ?? $cleaned;
+        $cleaned = trim((string) $cleaned, " \t\n\r\0\x0B-:");
+
+        if ($cleaned === '') {
+            return null;
+        }
+
+        return mb_convert_case($cleaned, MB_CASE_TITLE, 'UTF-8');
     }
 
     private function buildBudgetClarificationResult(string $action, string $message, array $state): ?array

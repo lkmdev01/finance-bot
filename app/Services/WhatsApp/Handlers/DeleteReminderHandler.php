@@ -5,16 +5,20 @@ namespace App\Services\WhatsApp\Handlers;
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use App\Services\WhatsApp\IncomingMessageNormalizer;
+use App\Services\WhatsApp\ReminderMessageParser;
+use Illuminate\Support\Facades\Log;
 
 class DeleteReminderHandler extends BaseHandler
 {
     public function canHandle(?string $action): bool
     {
-        return $action === 'reminder_delete';
+        return $action === 'delete_reminder';
     }
 
     public function handle(?string $action, array &$result, User $user, WhatsAppContact $contact, ProcessWhatsAppMessage $job): bool
     {
+
         $normalized = $result['normalized'] ?? '';
 
         if ($this->containsText($normalized, ['todos', 'tudo', 'todas', 'todos os'])) {
@@ -31,18 +35,34 @@ class DeleteReminderHandler extends BaseHandler
             return true;
         }
 
+        $title = $this->extractReminderTitleFromMessage($job->message);
+        if ($title !== null) {
+            $matches = $this->findMatchingReminders($reminders, $title);
+
+            if ($matches->count() === 1) {
+                $reminder = $matches->first();
+                $reminder->update(['is_active' => false]);
+                $this->sendResponse($job, "✅ Lembrete '{$reminder->title}' apagado com sucesso!", $user);
+                return true;
+            }
+
+            if ($matches->count() > 1) {
+                $this->sendErrorMessage($job, "Existem varios lembretes parecidos com '{$title}'. Qual deles voce quer apagar?\n\n{$this->renderReminderOptions($matches)}");
+                return true;
+            }
+
+            $this->sendErrorMessage($job, "Nao encontrei nenhum lembrete com o nome '{$title}'.\n\n{$this->renderReminderOptions($reminders)}");
+            return true;
+        }
+
         if ($reminders->count() === 1) {
             $reminder = $reminders->first();
-            $reminder->delete();
+            $reminder->update(['is_active' => false]);
             $this->sendResponse($job, "✅ Lembrete '{$reminder->title}' apagado com sucesso!", $user);
             return true;
         }
 
-        $options = $reminders->map(function ($r, $i) {
-            return ($i + 1) . ". {$r->title}";
-        })->implode("\n");
-
-        $this->sendErrorMessage($job, "Voce tem varios lembretes. Qual deles voce quer apagar?\n\n{$options}");
+        $this->sendErrorMessage($job, "Voce tem varios lembretes. Qual deles voce quer apagar?\n\n{$this->renderReminderOptions($reminders)}");
         return true;
     }
 
@@ -57,7 +77,49 @@ class DeleteReminderHandler extends BaseHandler
             return;
         }
 
-        $this->sendErrorMessage($job, "✅ Todos os {$count} lembrete(s) foram apagados!");
+        $this->sendResponse($job, "✅ Todos os {$count} lembrete(s) foram apagados!", $user);
+    }
+
+    private function extractReminderTitleFromMessage(string $message): ?string
+    {
+        $subject = preg_replace('/\b(?:apagar|apaga|apague|apaguei|deletar|deleta|remover|remove|excluir|exclui|cancelar|cancela|editar|edita|alterar|altera|modificar|modifica|mudar|muda)\b/iu', '', $message);
+        $subject = preg_replace('/\b(?:o|a|os|as|um|uma|meu|minha|esse|essa|este|esta)\b/iu', ' ', $subject);
+        $subject = preg_replace('/\b(?:lembrete|lembretes|lembre)\b/iu', ' ', $subject);
+        $subject = trim(preg_replace('/\s+/u', ' ', $subject));
+
+        if ($subject === '') {
+            return null;
+        }
+
+        return app(ReminderMessageParser::class)->extractTitle($subject);
+    }
+
+    /**
+     * @param \Illuminate\Support\Collection $reminders
+     */
+    private function findMatchingReminders(\Illuminate\Support\Collection $reminders, string $title)
+    {
+        $normalizer = app(IncomingMessageNormalizer::class);
+        $search = $normalizer->normalize($title);
+
+        $exactMatches = $reminders->filter(function ($reminder) use ($normalizer, $search) {
+            return $normalizer->normalize($reminder->title) === $search;
+        });
+
+        if ($exactMatches->isNotEmpty()) {
+            return $exactMatches;
+        }
+
+        return $reminders->filter(function ($reminder) use ($normalizer, $search) {
+            return str_contains($normalizer->normalize($reminder->title), $search);
+        });
+    }
+
+    private function renderReminderOptions($reminders): string
+    {
+        return $reminders->values()->map(function ($reminder, $index) {
+            return ($index + 1) . ". {$reminder->title}";
+        })->implode("\n");
     }
 
     private function containsText(string $text, array $keywords): bool

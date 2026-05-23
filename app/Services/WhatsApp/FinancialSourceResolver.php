@@ -30,6 +30,41 @@ class FinancialSourceResolver
             $creditCard = $this->findCreditCardByName($user, $data['credit_card_name']);
         }
 
+        if (! $creditCard && ! empty($data['use_default_card'])) {
+            $creditCard = $user->creditCards()
+                ->where('is_active', true)
+                ->orderBy('created_at')
+                ->first();
+        }
+
+        // Se não encontrou, tentar preferir conta do tipo 'cash' ou com nome contendo 'caixa'
+        if (! $bankAccount && ! $creditCard) {
+            if (! empty($data['payment_method']) && $data['payment_method'] === 'credit') {
+                $creditCard = $user->creditCards()
+                    ->where('is_active', true)
+                    ->orderBy('created_at')
+                    ->first();
+            }
+
+            if (! $creditCard) {
+                $bankAccount = $user->bankAccounts()
+                    ->where('is_active', true)
+                    ->get()
+                    ->first(function ($account) {
+                        $name = mb_strtolower($account->name ?? '');
+                        return ($account->type ?? '') === 'cash' || str_contains($name, 'caixa');
+                    });
+
+                // fallback: primeira conta ativa
+                if (! $bankAccount) {
+                    $bankAccount = $user->bankAccounts()
+                        ->where('is_active', true)
+                        ->orderBy('created_at')
+                        ->first();
+                }
+            }
+        }
+
         return [$bankAccount, $creditCard];
     }
 
