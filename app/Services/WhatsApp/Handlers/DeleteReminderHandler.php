@@ -2,26 +2,24 @@
 
 namespace App\Services\WhatsApp\Handlers;
 
-use App\Models\Reminder;
+use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\User;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use App\Models\WhatsAppContact;
 
-class DeleteReminderHandler implements ShouldQueue
+class DeleteReminderHandler extends BaseHandler
 {
-    use Queueable;
-
-    public function handle(array $action, User $user, $job): void
+    public function canHandle(?string $action): bool
     {
-        if ($action['kind'] !== 'reminder_delete') {
-            return;
-        }
+        return $action === 'reminder_delete';
+    }
 
-        $normalized = $action['normalized'] ?? '';
+    public function handle(?string $action, array &$result, User $user, WhatsAppContact $contact, ProcessWhatsAppMessage $job): bool
+    {
+        $normalized = $result['normalized'] ?? '';
 
         if ($this->containsText($normalized, ['todos', 'tudo', 'todas', 'todos os'])) {
             $this->deleteAllReminders($user, $job);
-            return;
+            return true;
         }
 
         $reminders = $user->reminders()
@@ -29,14 +27,15 @@ class DeleteReminderHandler implements ShouldQueue
             ->get();
 
         if ($reminders->isEmpty()) {
-            $this->sendMessage($job, 'Voce nao tem lembretes ativos para apagar.');
-            return;
+            $this->sendErrorMessage($job, 'Voce nao tem lembretes ativos para apagar.');
+            return true;
         }
 
         if ($reminders->count() === 1) {
-            $reminders->first()->delete();
-            $this->sendMessage($job, "✅ Lembrete '{$reminders->first()->title}' apagado com sucesso!");
-            return;
+            $reminder = $reminders->first();
+            $reminder->delete();
+            $this->sendResponse($job, "✅ Lembrete '{$reminder->title}' apagado com sucesso!", $user);
+            return true;
         }
 
         $options = $reminders->map(function ($r, $i) {
@@ -44,20 +43,21 @@ class DeleteReminderHandler implements ShouldQueue
         })->implode("\n");
 
         $this->sendErrorMessage($job, "Voce tem varios lembretes. Qual deles voce quer apagar?\n\n{$options}");
+        return true;
     }
 
-    private function deleteAllReminders(User $user, $job): void
+    private function deleteAllReminders(User $user, ProcessWhatsAppMessage $job): void
     {
         $count = $user->reminders()
             ->where('is_active', true)
             ->update(['is_active' => false]);
 
         if ($count === 0) {
-            $this->sendMessage($job, 'Voce nao tem lembretes ativos.');
+            $this->sendErrorMessage($job, 'Voce nao tem lembretes ativos.');
             return;
         }
 
-        $this->sendMessage($job, "✅ Todos os {$count} lembrete(s) foram apagados!");
+        $this->sendErrorMessage($job, "✅ Todos os {$count} lembrete(s) foram apagados!");
     }
 
     private function containsText(string $text, array $keywords): bool
@@ -69,14 +69,5 @@ class DeleteReminderHandler implements ShouldQueue
         }
         return false;
     }
-
-    private function sendMessage($job, string $message): void
-    {
-        $job->message = $message;
-    }
-
-    private function sendErrorMessage($job, string $message): void
-    {
-        $job->message = $message;
-    }
 }
+
