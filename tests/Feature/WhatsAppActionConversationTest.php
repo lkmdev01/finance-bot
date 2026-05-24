@@ -8,7 +8,6 @@ use App\Models\Budget;
 use App\Models\Category;
 use App\Models\RecurringTransaction;
 use App\Models\Reminder;
-use App\Models\Subscription;
 use App\Models\BankAccount;
 use App\Models\CreditCard;
 use App\Models\Transaction;
@@ -16,13 +15,26 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Models\WhatsAppConversationLog;
 use App\Services\BaileysService;
+use App\Services\WhatsApp\Handlers\DeleteReminderHandler;
 use Carbon\Carbon;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Pest\TestSuite;
+use Tests\TestCase;
 
 use function Pest\Laravel\assertDatabaseHas;
 use function Pest\Laravel\assertDatabaseMissing;
+
+uses(TestCase::class);
+
+function currentTestCase(): TestCase
+{
+    /** @var TestCase $test */
+    $test = TestSuite::getInstance()->test;
+
+    return $test;
+}
 
 function runWhatsAppJob(ProcessWhatsAppMessage $job): void
 {
@@ -35,17 +47,17 @@ function fakeActionBaileysSuccessResponse(): Response
 }
 
 beforeEach(function () {
-    $this->user = User::factory()->create([
+    currentTestCase()->user = User::factory()->create([
         'phone_number' => '5513991290256',
     ]);
 
-    $this->contact = WhatsAppContact::factory()->create([
-        'user_id' => $this->user->id,
+    currentTestCase()->contact = WhatsAppContact::factory()->create([
+        'user_id' => currentTestCase()->user->id,
         'phone_number' => '5513991290256',
     ]);
 
-    $this->compras = Category::factory()->create([
-        'user_id' => $this->user->id,
+    currentTestCase()->compras = Category::factory()->create([
+        'user_id' => currentTestCase()->user->id,
         'type' => 'expense',
         'name' => 'Compras',
     ]);
@@ -53,8 +65,8 @@ beforeEach(function () {
 
 it('edita orcamento por contexto recente', function () {
     $budget = Budget::create([
-        'user_id' => $this->user->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'category_id' => currentTestCase()->compras->id,
         'amount' => 500.00,
         'period' => 'monthly',
         'year' => now()->year,
@@ -63,7 +75,7 @@ it('edita orcamento por contexto recente', function () {
 
     Http::preventStrayRequests();
 
-    $this->contact->update([
+    currentTestCase()->contact->update([
         'conversation_state' => [
             'mode' => 'idle',
             'last_action' => 'query_budgets',
@@ -77,7 +89,7 @@ it('edita orcamento por contexto recente', function () {
         ],
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
             ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
@@ -89,7 +101,7 @@ it('edita orcamento por contexto recente', function () {
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'ajusta para 700',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -102,8 +114,8 @@ it('edita orcamento por contexto recente', function () {
 
 it('pede confirmacao antes de cancelar orcamento e apaga ao confirmar', function () {
     $budget = Budget::create([
-        'user_id' => $this->user->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'category_id' => currentTestCase()->compras->id,
         'amount' => 500.00,
         'period' => 'monthly',
         'year' => now()->year,
@@ -112,7 +124,7 @@ it('pede confirmacao antes de cancelar orcamento e apaga ao confirmar', function
 
     Http::preventStrayRequests();
 
-    $this->contact->update([
+    currentTestCase()->contact->update([
         'conversation_state' => [
             'mode' => 'idle',
             'last_action' => 'query_budgets',
@@ -126,7 +138,7 @@ it('pede confirmacao antes de cancelar orcamento e apaga ao confirmar', function
         ],
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->twice()
             ->withArgs(function ($jid, $message) {
@@ -138,18 +150,18 @@ it('pede confirmacao antes de cancelar orcamento e apaga ao confirmar', function
     $firstJob = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'cancela esse orcamento',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($firstJob);
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('delete_budget');
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('delete_budget');
 
     $confirmJob = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'sim',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -161,9 +173,9 @@ it('pede confirmacao antes de cancelar orcamento e apaga ao confirmar', function
 
 it('edita transacao por contexto recente', function () {
     $transaction = Transaction::create([
-        'user_id' => $this->user->id,
-        'whatsapp_contact_id' => $this->contact->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'whatsapp_contact_id' => currentTestCase()->contact->id,
+        'category_id' => currentTestCase()->compras->id,
         'type' => 'expense',
         'amount' => 20.00,
         'description' => 'Uber',
@@ -172,7 +184,7 @@ it('edita transacao por contexto recente', function () {
 
     Http::preventStrayRequests();
 
-    $this->contact->update([
+    currentTestCase()->contact->update([
         'conversation_state' => [
             'mode' => 'idle',
             'last_action' => 'query_transactions',
@@ -187,7 +199,7 @@ it('edita transacao por contexto recente', function () {
         ],
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
             ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
@@ -199,7 +211,7 @@ it('edita transacao por contexto recente', function () {
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'ajusta para 28',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -212,9 +224,9 @@ it('edita transacao por contexto recente', function () {
 
 it('pede confirmacao antes de apagar transacao contextual e remove ao confirmar', function () {
     $transaction = Transaction::create([
-        'user_id' => $this->user->id,
-        'whatsapp_contact_id' => $this->contact->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'whatsapp_contact_id' => currentTestCase()->contact->id,
+        'category_id' => currentTestCase()->compras->id,
         'type' => 'expense',
         'amount' => 20.00,
         'description' => 'Uber',
@@ -223,7 +235,7 @@ it('pede confirmacao antes de apagar transacao contextual e remove ao confirmar'
 
     Http::preventStrayRequests();
 
-    $this->contact->update([
+    currentTestCase()->contact->update([
         'conversation_state' => [
             'mode' => 'idle',
             'last_action' => 'query_transactions',
@@ -238,7 +250,7 @@ it('pede confirmacao antes de apagar transacao contextual e remove ao confirmar'
         ],
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->twice()
             ->withArgs(function ($jid, $message) {
@@ -250,18 +262,18 @@ it('pede confirmacao antes de apagar transacao contextual e remove ao confirmar'
     $firstJob = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'apaga essa',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($firstJob);
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('delete_transaction');
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('delete_transaction');
 
     $confirmJob = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'sim',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -291,7 +303,7 @@ it('registra lancamentos compostos na mesma mensagem', function () {
         ], 200),
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
             ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
@@ -305,19 +317,19 @@ it('registra lancamentos compostos na mesma mensagem', function () {
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'gastei 20 no Uber e 35 no mercado',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
-    expect(Transaction::query()->where('user_id', $this->user->id)->count())->toBe(2);
+    expect(Transaction::query()->where('user_id', currentTestCase()->user->id)->count())->toBe(2);
     assertDatabaseHas('transactions', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'amount' => 20.00,
         'description' => 'Uber',
     ]);
     assertDatabaseHas('transactions', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'amount' => 35.00,
         'description' => 'mercado',
     ]);
@@ -327,9 +339,9 @@ it('apaga o penultimo gasto por referencia curta', function () {
     Http::preventStrayRequests();
 
     $first = Transaction::create([
-        'user_id' => $this->user->id,
-        'whatsapp_contact_id' => $this->contact->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'whatsapp_contact_id' => currentTestCase()->contact->id,
+        'category_id' => currentTestCase()->compras->id,
         'type' => 'expense',
         'amount' => 20.00,
         'description' => 'Uber',
@@ -337,16 +349,16 @@ it('apaga o penultimo gasto por referencia curta', function () {
     ]);
 
     $second = Transaction::create([
-        'user_id' => $this->user->id,
-        'whatsapp_contact_id' => $this->contact->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'whatsapp_contact_id' => currentTestCase()->contact->id,
+        'category_id' => currentTestCase()->compras->id,
         'type' => 'expense',
         'amount' => 35.00,
         'description' => 'Mercado',
         'date' => now()->toDateString(),
     ]);
 
-    $this->contact->update([
+    currentTestCase()->contact->update([
         'conversation_state' => [
             'mode' => 'idle',
             'last_action' => 'query_transactions',
@@ -358,14 +370,14 @@ it('apaga o penultimo gasto por referencia curta', function () {
         ],
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'apaga o penultimo',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -373,7 +385,7 @@ it('apaga o penultimo gasto por referencia curta', function () {
     $confirm = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'sim',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -386,34 +398,34 @@ it('permite completar edicao contextual de ontem em duas mensagens', function ()
     Http::preventStrayRequests();
 
     $transaction = Transaction::create([
-        'user_id' => $this->user->id,
-        'whatsapp_contact_id' => $this->contact->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'whatsapp_contact_id' => currentTestCase()->contact->id,
+        'category_id' => currentTestCase()->compras->id,
         'type' => 'expense',
         'amount' => 22.00,
         'description' => 'Almoco',
         'date' => now()->subDay()->toDateString(),
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $first = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'corrige o de ontem',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($first);
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('edit_transaction_details');
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('edit_transaction_details');
 
     $second = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'para 28',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -425,9 +437,9 @@ it('marca o ultimo gasto como debito por follow-up curto', function () {
     Http::preventStrayRequests();
 
     $transaction = Transaction::create([
-        'user_id' => $this->user->id,
-        'whatsapp_contact_id' => $this->contact->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'whatsapp_contact_id' => currentTestCase()->contact->id,
+        'category_id' => currentTestCase()->compras->id,
         'type' => 'expense',
         'amount' => 18.00,
         'description' => 'Padaria',
@@ -435,7 +447,7 @@ it('marca o ultimo gasto como debito por follow-up curto', function () {
         'metadata' => [],
     ]);
 
-    $this->contact->update([
+    currentTestCase()->contact->update([
         'conversation_state' => [
             'mode' => 'idle',
             'last_action' => 'query_transactions',
@@ -447,14 +459,14 @@ it('marca o ultimo gasto como debito por follow-up curto', function () {
         ],
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'esse foi no debito',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -465,20 +477,20 @@ it('marca o ultimo gasto como debito por follow-up curto', function () {
 it('cria recorrencia via whatsapp', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'todo dia 5 pago academia 89',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('recurring_transactions', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'amount' => 89.00,
         'description' => 'Academia',
         'frequency' => 'monthly',
@@ -489,20 +501,20 @@ it('cria recorrencia via whatsapp', function () {
 it('cria recorrencia mensal com valor e dia sem confundir o dia com o valor', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Todo mes pagar academia 100 reais dia 10',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('recurring_transactions', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'amount' => 100.00,
         'description' => 'Academia',
         'frequency' => 'monthly',
@@ -514,8 +526,8 @@ it('edita recorrencia por contexto recente', function () {
     Http::preventStrayRequests();
 
     $recurring = RecurringTransaction::create([
-        'user_id' => $this->user->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'category_id' => currentTestCase()->compras->id,
         'type' => 'expense',
         'amount' => 89.00,
         'description' => 'Academia',
@@ -525,7 +537,7 @@ it('edita recorrencia por contexto recente', function () {
         'day_of_month' => 5,
     ]);
 
-    $this->contact->update([
+    currentTestCase()->contact->update([
         'conversation_state' => [
             'mode' => 'idle',
             'last_action' => 'create_recurring_transaction',
@@ -537,14 +549,14 @@ it('edita recorrencia por contexto recente', function () {
         ],
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'ajusta para 99',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -559,8 +571,8 @@ it('cancela recorrencia por contexto recente', function () {
     Http::preventStrayRequests();
 
     $recurring = RecurringTransaction::create([
-        'user_id' => $this->user->id,
-        'category_id' => $this->compras->id,
+        'user_id' => currentTestCase()->user->id,
+        'category_id' => currentTestCase()->compras->id,
         'type' => 'expense',
         'amount' => 89.00,
         'description' => 'Academia',
@@ -570,7 +582,7 @@ it('cancela recorrencia por contexto recente', function () {
         'day_of_month' => 5,
     ]);
 
-    $this->contact->update([
+    currentTestCase()->contact->update([
         'conversation_state' => [
             'mode' => 'idle',
             'last_action' => 'create_recurring_transaction',
@@ -582,14 +594,14 @@ it('cancela recorrencia por contexto recente', function () {
         ],
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'cancela ela',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -603,21 +615,21 @@ it('cancela recorrencia por contexto recente', function () {
 it('cria parcelamento via whatsapp', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'comprei celular por 2000 em 10x',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
-    expect(Transaction::query()->where('user_id', $this->user->id)->count())->toBe(10);
+    expect(Transaction::query()->where('user_id', currentTestCase()->user->id)->count())->toBe(10);
     assertDatabaseHas('transactions', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'amount' => 200.00,
         'description' => 'Celular (1/10)',
     ]);
@@ -626,20 +638,20 @@ it('cria parcelamento via whatsapp', function () {
 it('registra log estruturado da conversa', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'oi',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('whats_app_conversation_logs', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'message' => 'oi',
         'classification' => 'greeting',
         'status' => 'handled_preflight',
@@ -651,20 +663,20 @@ it('registra log estruturado da conversa', function () {
 it('cria lembrete mensal quando a mensagem nao informa valor', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Todo mes pagar academia dia 10',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Pagar Academia',
         'frequency' => 'monthly',
         'day_of_month' => 10,
@@ -674,7 +686,7 @@ it('cria lembrete mensal quando a mensagem nao informa valor', function () {
 it('prioriza lembrete mesmo com contexto anterior de orcamento', function () {
     Http::preventStrayRequests();
 
-    $this->contact->update([
+    currentTestCase()->contact->update([
         'conversation_state' => [
             'mode' => 'idle',
             'last_action' => 'query_budgets',
@@ -688,20 +700,20 @@ it('prioriza lembrete mesmo com contexto anterior de orcamento', function () {
         ],
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Todo mes pagar academia dia 10',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Pagar Academia',
         'frequency' => 'monthly',
         'day_of_month' => 10,
@@ -711,20 +723,20 @@ it('prioriza lembrete mesmo com contexto anterior de orcamento', function () {
 it('tolera texto degradado em recorrencia mensal', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Todo ms pagar academia 100 reais dia 10',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('recurring_transactions', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'amount' => 100.00,
         'description' => 'Academia',
         'day_of_month' => 10,
@@ -734,20 +746,20 @@ it('tolera texto degradado em recorrencia mensal', function () {
 it('trata frase acentuada de recorrencia antes de cair na IA', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Todo mÃªs pagar academia dia 10',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Pagar Academia',
         'frequency' => 'monthly',
         'day_of_month' => 10,
@@ -757,31 +769,31 @@ it('trata frase acentuada de recorrencia antes de cair na IA', function () {
 it('pede a data quando o lembrete nao informa quando deve acontecer', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $first = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'me lembra de dar parabens para Maria',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($first);
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_reminder_schedule');
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('create_reminder_schedule');
 
     $second = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'dia 10/06',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($second);
     assertDatabaseHas('reminders', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Dar Parabens Para Maria',
         'frequency' => 'yearly',
         'day_of_month' => 10,
@@ -792,20 +804,20 @@ it('pede a data quando o lembrete nao informa quando deve acontecer', function (
 it('cria lembrete pontual para mes que vem com dia informado', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Me lembra de mes que vem dia 5 pagar o design?',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Pagar O Design',
         'frequency' => 'once',
         'day_of_month' => null,
@@ -816,20 +828,20 @@ it('cria lembrete pontual para mes que vem com dia informado', function () {
 it('cria lembrete pontual para dia do mes que vem com preposicao', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Me lembra no dia 5 do mes que vem de pagar o programador',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Pagar O Programador',
         'frequency' => 'once',
         'day_of_month' => null,
@@ -840,20 +852,20 @@ it('cria lembrete pontual para dia do mes que vem com preposicao', function () {
 it('cria lembrete anual com dia e mes numerico', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'me lembra de dar parabens para Paulo anualmente dia 17 do mes 8?',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Dar Parabens Para Paulo',
         'frequency' => 'yearly',
         'day_of_month' => 17,
@@ -864,20 +876,20 @@ it('cria lembrete anual com dia e mes numerico', function () {
 it('cria lembrete diario com horario', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'me lembra todo dia as 08:30 de beber agua',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Beber Agua',
         'frequency' => 'daily',
         'trigger_time' => '08:30:00',
@@ -887,20 +899,20 @@ it('cria lembrete diario com horario', function () {
 it('cria lembrete semanal com dia da semana e horario', function () {
     Http::preventStrayRequests();
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'me lembra toda segunda feira as 19h de treinar',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
     assertDatabaseHas('reminders', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Treinar',
         'frequency' => 'weekly',
         'day_of_week' => 1,
@@ -912,7 +924,7 @@ it('apaga apenas o lembrete especificado pelo nome', function () {
     Http::preventStrayRequests();
 
     $reminderOne = Reminder::create([
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Falar Com João',
         'message' => 'Lembrete pontual: Falar Com João',
         'frequency' => 'once',
@@ -923,7 +935,7 @@ it('apaga apenas o lembrete especificado pelo nome', function () {
     ]);
 
     $reminderTwo = Reminder::create([
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Tomar Água',
         'message' => 'Lembrete diario: Tomar Água',
         'frequency' => 'daily',
@@ -933,14 +945,14 @@ it('apaga apenas o lembrete especificado pelo nome', function () {
         'is_active' => true,
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'apague o lembrete falar com joão',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -956,11 +968,130 @@ it('apaga apenas o lembrete especificado pelo nome', function () {
     ]);
 });
 
+it('apaga todos os lembretes sem confundir com titulo que comeca com todos', function () {
+    Http::preventStrayRequests();
+
+    $reminderOne = Reminder::create([
+        'user_id' => currentTestCase()->user->id,
+        'title' => 'Todos Os Dias De Fazer Reunião',
+        'message' => 'Lembrete diario: Todos Os Dias De Fazer Reunião',
+        'frequency' => 'daily',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->addDay(),
+        'trigger_time' => '09:00:00',
+        'is_active' => true,
+    ]);
+
+    $reminderTwo = Reminder::create([
+        'user_id' => currentTestCase()->user->id,
+        'title' => 'Completar O Saldo Da Caixa',
+        'message' => 'Lembrete anual: Completar O Saldo Da Caixa',
+        'frequency' => 'yearly',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->addDays(7),
+        'trigger_time' => '09:00:00',
+        'is_active' => true,
+    ]);
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'apagar todos os lembretes',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($job);
+
+    assertDatabaseHas('reminders', [
+        'id' => $reminderOne->id,
+        'is_active' => false,
+    ]);
+    assertDatabaseHas('reminders', [
+        'id' => $reminderTwo->id,
+        'is_active' => false,
+    ]);
+});
+
+it('apaga todos os lembretes com capitalizacao variada', function () {
+    Http::preventStrayRequests();
+
+    $reminder = Reminder::create([
+        'user_id' => currentTestCase()->user->id,
+        'title' => 'Revisar Caixa',
+        'message' => 'Lembrete diario: Revisar Caixa',
+        'frequency' => 'daily',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->addDay(),
+        'trigger_time' => '09:00:00',
+        'is_active' => true,
+    ]);
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Apagar Todos Os Lembretes',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($job);
+
+    assertDatabaseHas('reminders', [
+        'id' => $reminder->id,
+        'is_active' => false,
+    ]);
+});
+
+it('mantem compatibilidade com frase legada apagar tudo no handler', function () {
+    Http::preventStrayRequests();
+
+    $reminder = Reminder::create([
+        'user_id' => currentTestCase()->user->id,
+        'title' => 'Revisar Caixa',
+        'message' => 'Lembrete diario: Revisar Caixa',
+        'frequency' => 'daily',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->addDay(),
+        'trigger_time' => '09:00:00',
+        'is_active' => true,
+    ]);
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'apagar tudo',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $result = ['_resolved_message' => 'apagar tudo'];
+    $handler = app(DeleteReminderHandler::class);
+
+    $handled = $handler->handle('delete_reminder', $result, currentTestCase()->user, currentTestCase()->contact, $job);
+
+    expect($handled)->toBeTrue();
+    assertDatabaseHas('reminders', [
+        'id' => $reminder->id,
+        'is_active' => false,
+    ]);
+});
+
 it('edita um lembrete pelo nome e atualiza horarios e frequencia', function () {
     Http::preventStrayRequests();
 
     $reminder = Reminder::create([
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'title' => 'Tomar Água',
         'message' => 'Lembrete diario: Tomar Água',
         'frequency' => 'daily',
@@ -970,14 +1101,14 @@ it('edita um lembrete pelo nome e atualiza horarios e frequencia', function () {
         'is_active' => true,
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'editar lembrete tomar água para 25/05/2026 as 15:00',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
@@ -995,7 +1126,7 @@ it('solicita clarificacao de cartao e registra com cartao padrao', function () {
     Http::preventStrayRequests();
 
     $card = CreditCard::create([
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'name' => 'Nubank',
         'issuer' => 'Nubank',
         'brand' => 'Visa',
@@ -1007,33 +1138,33 @@ it('solicita clarificacao de cartao e registra com cartao padrao', function () {
         'is_active' => true,
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $firstJob = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'paguei 120 no cartão',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($firstJob);
 
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('select_credit_card');
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('select_credit_card');
 
     $secondJob = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'usar cartão padrão',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($secondJob);
 
     assertDatabaseHas('transactions', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'amount' => 120.00,
         'credit_card_id' => $card->id,
         'bank_account_id' => null,
@@ -1044,7 +1175,7 @@ it('usa conta caixa quando nao informa fonte em debito', function () {
     Http::preventStrayRequests();
 
     BankAccount::create([
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'name' => 'Caixa',
         'institution' => 'Dinheiro',
         'type' => 'cash',
@@ -1054,23 +1185,22 @@ it('usa conta caixa quando nao informa fonte em debito', function () {
         'is_active' => true,
     ]);
 
-    $this->mock(BaileysService::class, function ($mock) {
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'gastei 50',
-        userId: $this->user->id,
+        userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
 
     assertDatabaseHas('transactions', [
-        'user_id' => $this->user->id,
+        'user_id' => currentTestCase()->user->id,
         'amount' => 50.00,
-        'bank_account_id' => BankAccount::where('user_id', $this->user->id)->where('type', 'cash')->first()->id,
+        'bank_account_id' => BankAccount::where('user_id', currentTestCase()->user->id)->where('type', 'cash')->first()->id,
     ]);
 });
-

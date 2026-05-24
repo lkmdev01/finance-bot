@@ -7,7 +7,7 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\WhatsApp\IncomingMessageNormalizer;
 use App\Services\WhatsApp\ReminderMessageParser;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
 
 class DeleteReminderHandler extends BaseHandler
 {
@@ -18,10 +18,9 @@ class DeleteReminderHandler extends BaseHandler
 
     public function handle(?string $action, array &$result, User $user, WhatsAppContact $contact, ProcessWhatsAppMessage $job): bool
     {
+        $normalized = $this->normalizeMessage($result['_resolved_message'] ?? $job->message ?? '');
 
-        $normalized = $result['normalized'] ?? '';
-
-        if ($this->containsText($normalized, ['todos', 'tudo', 'todas', 'todos os'])) {
+        if ($this->isDeleteAllIntent($normalized)) {
             $this->deleteAllReminders($user, $job);
             return true;
         }
@@ -91,6 +90,22 @@ class DeleteReminderHandler extends BaseHandler
             return null;
         }
 
+        $normalizedSubject = $this->normalizeMessage($subject);
+
+        if (in_array($normalizedSubject, [
+            'todos',
+            'todas',
+            'tudo',
+            'todos os',
+            'todas as',
+            'todos meus',
+            'todas minhas',
+            'todos os meus',
+            'todas as minhas',
+        ], true)) {
+            return null;
+        }
+
         return app(ReminderMessageParser::class)->extractTitle($subject);
     }
 
@@ -115,21 +130,24 @@ class DeleteReminderHandler extends BaseHandler
         });
     }
 
-    private function renderReminderOptions($reminders): string
+    private function renderReminderOptions(Collection $reminders): string
     {
         return $reminders->values()->map(function ($reminder, $index) {
             return ($index + 1) . ". {$reminder->title}";
         })->implode("\n");
     }
 
-    private function containsText(string $text, array $keywords): bool
+    private function isDeleteAllIntent(string $normalizedMessage): bool
     {
-        foreach ($keywords as $keyword) {
-            if (str_contains(strtolower($text), strtolower($keyword))) {
-                return true;
-            }
+        if (preg_match('/\b(?:todos|todas|tudo)\b(?:\s+(?:os|as|meus|minhas))*\s+lembretes?\b/iu', $normalizedMessage) === 1) {
+            return true;
         }
-        return false;
+
+        return preg_match('/\b(?:apagar|apaga|apague|apaguei|deletar|deleta|remover|remove|excluir|exclui|cancelar|cancela)\b(?:\s+\w+){0,3}\s+\b(?:todos|todas|tudo)\b/iu', $normalizedMessage) === 1;
+    }
+
+    private function normalizeMessage(string $message): string
+    {
+        return app(IncomingMessageNormalizer::class)->normalize($message);
     }
 }
-
