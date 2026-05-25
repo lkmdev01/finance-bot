@@ -179,6 +179,26 @@ class EditTransactionHandler extends BaseHandler
             $parts[] = 'cartao '.$creditCard->name;
         }
 
+        // Keep responses natural and predictable. When only the amount changes, prefer:
+        // "Atualizei Uber para R$ 28,00." (used by tests and feels more conversational)
+        $amountOnly = $data['amount'] !== null
+            && $data['payment_method'] === null
+            && $data['category_name'] === null
+            && $data['bank_account_name'] === null
+            && $data['credit_card_name'] === null
+            && $data['type'] === null
+            && $data['description'] === null
+            && $data['date'] === null;
+
+        if ($amountOnly) {
+            $this->sendResponse($job, sprintf(
+                'Atualizei %s para R$ %s.',
+                $label,
+                number_format((float) $transaction->amount, 2, ',', '.')
+            ), $user);
+            return true;
+        }
+
         $detail = $parts === [] ? sprintf('R$ %s', number_format((float) $transaction->amount, 2, ',', '.')) : implode(' e ', $parts);
         $this->sendResponse($job, sprintf('Atualizei %s com %s.', $label, $detail), $user);
         return true;

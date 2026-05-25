@@ -143,7 +143,7 @@ class TransactionActionMessageParser
 
     private function extractCreditCardName(string $message): ?string
     {
-        if (preg_match('/(?:no cart[aã]o|pelo cart[aã]o|via cart[aã]o)\s+(.+?)(?:\s+(?:categoria|hoje|ontem)|[,.]|$)/iu', $message, $matches) === 1) {
+        if (preg_match('/(?:no cart(?:a|ã)o|pelo cart(?:a|ã)o|via cart(?:a|ã)o)\s+(.+?)(?:\s+(?:categoria|hoje|ontem)|[,.]|$)/iu', $message, $matches) === 1) {
             $name = trim((string) ($matches[1] ?? ''));
             $name = trim($name, " \t\n\r\0\x0B-:");
             return $name !== '' ? mb_convert_case($name, MB_CASE_TITLE, 'UTF-8') : null;
@@ -159,7 +159,9 @@ class TransactionActionMessageParser
         }
 
         if ($this->containsAny($message, ['ultimo', 'ultima'])) {
-            return 'latest';
+            // Prefer conversation context (what the user last interacted with),
+            // instead of "latest by date" (which breaks with future installments).
+            return 'recent';
         }
 
         if ($this->containsAny($message, ['aquele', 'aquela', 'esse', 'essa', 'ele', 'ela', 'isso'])) {

@@ -53,7 +53,11 @@ class TransactionConversationService
             $mode = 'category';
         }
 
-        $type = $this->resolveType($normalized, $lastEntities);
+        $type = match ($action) {
+            'query_income' => 'income',
+            'query_expenses' => 'expense',
+            default => $this->resolveType($normalized, $lastEntities),
+        };
         $period = $this->resolvePeriod($normalized, $lastEntities);
         $categoryNames = $this->resolveCategories($normalized, $availableCategories, $lastEntities, $mode);
         $comparisonMode = $this->resolveComparisonMode($normalized, $categoryNames, $mode);

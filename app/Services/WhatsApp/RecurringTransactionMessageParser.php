@@ -145,11 +145,15 @@ class RecurringTransactionMessageParser
             }
         }
 
-        if (preg_match('/(?:todo dia|dia)\s+\d{1,2}\b/iu', $message) === 1) {
+        $hasDayOfMonthCue = preg_match('/(?:todo dia|dia)\s+\d{1,2}\b/iu', $message) === 1;
+
+        if (! preg_match_all('/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/u', $message, $matches) || empty($matches[1])) {
             return null;
         }
 
-        if (! preg_match_all('/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)/u', $message, $matches) || empty($matches[1])) {
+        // If the message only contains the day-of-month number (ex: "todo dia 5 pago academia"),
+        // do not treat that as a monetary amount.
+        if ($hasDayOfMonthCue && count($matches[1]) < 2) {
             return null;
         }
 

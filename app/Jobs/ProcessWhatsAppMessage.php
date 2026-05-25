@@ -91,9 +91,12 @@ class ProcessWhatsAppMessage implements ShouldQueue
         BaileysService $baileysService,
         PhoneNumberService $phoneNumberService,
         PerformanceMetricsService $metricsService,
-        WhatsAppMessageProcessor $processor,
-        ActionHandlerFactory $handlerFactory,
+        ?WhatsAppMessageProcessor $processor = null,
+        ?ActionHandlerFactory $handlerFactory = null,
     ): void {
+        $processor ??= app(WhatsAppMessageProcessor::class);
+        $handlerFactory ??= app(ActionHandlerFactory::class);
+
         $contact = null;
         $telemetry = null;
 
@@ -541,5 +544,4 @@ class ProcessWhatsAppMessage implements ShouldQueue
         return $sanitized;
     }
 }
-
 

@@ -13,7 +13,8 @@ class CompoundTransactionMessageParser
             return [];
         }
 
-        $segments = preg_split('/\s+(?:e|tambem|também|depois)\s+|\s*;\s*|\s*,\s*/u', trim($message)) ?: [];
+        // ASCII-only regex to avoid PCRE UTF-8 compilation failures from bad bytes.
+        $segments = preg_split('/\s+(?:e|tambem|depois)\s+|\s*;\s*|\s*,\s*/u', trim($message)) ?: [];
 
         if (count($segments) < 2) {
             return [];

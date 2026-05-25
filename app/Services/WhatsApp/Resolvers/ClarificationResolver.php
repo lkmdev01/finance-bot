@@ -211,6 +211,38 @@ class ClarificationResolver
             return null;
         }
 
+        // In edit follow-ups we often get short messages without a verb, like:
+        // "para 28", "28", "foi no debito", "de mercado".
+        // The main parser is strict (requires an edit verb), so we accept these
+        // minimal forms here when we are already in an edit clarification.
+        if ($transactionData === []) {
+            $normalized = $this->normalizeText($message);
+
+            // Amount-only follow-up.
+            $amount = $this->extractAmount($message);
+            if ($amount !== null) {
+                $transactionData['amount'] = $amount;
+            }
+
+            // Payment method-only follow-up.
+            if (str_contains($normalized, 'credito') || str_contains($normalized, 'crÃƒÂ©dito')) {
+                $transactionData['payment_method'] = 'credit';
+            } elseif (str_contains($normalized, 'debito') || str_contains($normalized, 'dÃƒÂ©bito')) {
+                $transactionData['payment_method'] = 'debit';
+            } elseif (str_contains($normalized, 'pix')) {
+                $transactionData['payment_method'] = 'pix';
+            }
+
+            // Category-only follow-up (simple heuristic).
+            if (preg_match('/\\bde\\s+([\\p{L}\\p{N} _-]+)$/u', trim($message), $matches) === 1) {
+                $category = trim((string) ($matches[1] ?? ''));
+                $category = trim($category, " \t\n\r\0\x0B-:");
+                if ($category !== '' && ! in_array($this->normalizeText($category), ['ontem', 'hoje', 'debito', 'credito', 'pix'], true)) {
+                    $transactionData['category_name'] = mb_convert_case($category, MB_CASE_TITLE, 'UTF-8');
+                }
+            }
+        }
+
         return [
             'handled' => false,
             'result' => [

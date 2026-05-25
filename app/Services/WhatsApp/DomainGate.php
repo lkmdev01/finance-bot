@@ -37,8 +37,25 @@ class DomainGate
             return true;
         }
 
-        return $this->containsAnyText($message, ['todo mes', 'cada mes', 'todo dia', 'cada ano'])
-            && ! $this->containsAnyText($message, ['r$', 'reais', 'real', 'valor', 'ganho', 'ganhei', 'recebo', 'recebi']);
+        $hasScheduleCue = $this->containsAnyText($message, ['todo mes', 'cada mes', 'todo dia', 'cada ano']);
+        if (! $hasScheduleCue) {
+            return false;
+        }
+
+        // If the user provided a monetary value (even without "R$"/"reais"), this is usually a
+        // recurring transaction/subscription intent, not a generic reminder.
+        $hasMoneyWord = $this->containsAnyText($message, ['r$', 'reais', 'real', 'valor', 'ganho', 'ganhei', 'recebo', 'recebi']);
+
+        // Detect a value that looks like a monetary amount.
+        // Avoid treating "dia 10" (schedule) as an amount.
+        $hasMoneyNumber = preg_match('/(?:^|\\s)(?:r\\$\\s*)?(?<!\\bdia\\s)\\d{2,}(?:[\\.,]\\d{1,2})?(?:\\s|$)/iu', $message) === 1;
+        if (! $hasMoneyNumber && preg_match_all('/\\b\\d+(?:[\\.,]\\d{1,2})?\\b/u', $message, $matches) && count($matches[0] ?? []) >= 2) {
+            $nums = array_map(fn ($n) => (float) str_replace(',', '.', str_replace('.', '', $n)), $matches[0]);
+            // If there is any number greater than 31, it's almost certainly a monetary amount.
+            $hasMoneyNumber = collect($nums)->max() > 31;
+        }
+
+        return ! $hasMoneyWord && ! $hasMoneyNumber;
     }
 
     private function looksLikeTransactionDomain(string $message, array $state): bool

@@ -76,7 +76,7 @@ class QueryHandler extends BaseHandler
     private function buildQueryReply(User $user, WhatsAppContact $contact, ?string $action, string $fallbackReply, string $rawMessage): array
     {
         return match ($action) {
-            'query_transactions', 'query_category' => $this->buildTransactionReplyData($user, $contact, $rawMessage, $action),
+            'query_transactions', 'query_category', 'query_expenses', 'query_income' => $this->buildTransactionReplyData($user, $contact, $rawMessage, $action),
             'query_budgets' => $this->buildBudgetReplyData($user, $contact, $rawMessage),
             'query_savings' => $this->buildSavingsReplyData($user, $contact, $rawMessage),
             'query_subscriptions' => $this->buildSubscriptionReplyData($user, $contact, $rawMessage),

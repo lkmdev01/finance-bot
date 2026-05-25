@@ -97,13 +97,21 @@ class TransactionReferenceResolver
             $source = 'category';
         }
 
-        $matches = $query->latest('date')->latest('id')->limit(5)->get();
+        $reference = (string) ($payload['reference'] ?? '');
+        $shouldPreferCreatedAt = in_array($reference, ['recent', 'latest', 'penultimate'], true)
+            && empty($payload['target_description'])
+            && empty($payload['category_name'])
+            && empty($payload['target_date_scope']);
+
+        $matches = $shouldPreferCreatedAt
+            ? $query->latest('created_at')->latest('id')->limit(5)->get()
+            : $query->latest('date')->latest('id')->limit(5)->get();
 
         if ($matches->isEmpty() && ($payload['reference'] ?? null) === 'latest') {
             $matches = Transaction::query()
                 ->with('category')
                 ->where('user_id', $user->id)
-                ->latest('date')
+                ->when($shouldPreferCreatedAt, fn ($builder) => $builder->latest('created_at'), fn ($builder) => $builder->latest('date'))
                 ->latest('id')
                 ->limit(5)
                 ->get();
