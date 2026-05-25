@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\WhatsApp\ConversationStateService;
+use App\Services\WhatsApp\FinancialSourceResolver;
 use App\Services\WhatsApp\TransactionReferenceResolver;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -105,6 +106,32 @@ class EditTransactionHandler extends BaseHandler
             }
         }
 
+        $sourceResolver = app(FinancialSourceResolver::class);
+        $bankAccount = null;
+        $creditCard = null;
+
+        if ($data['bank_account_name'] !== null) {
+            $bankAccount = $sourceResolver->findBankAccountByName($user, $data['bank_account_name']);
+            if ($bankAccount === null) {
+                $this->sendErrorMessage($job, 'Nao encontrei essa conta para usar. Tente o nome exato ou liste suas contas primeiro.');
+                return true;
+            }
+
+            $updates['bank_account_id'] = $bankAccount->id;
+            $updates['credit_card_id'] = null;
+        }
+
+        if ($data['credit_card_name'] !== null) {
+            $creditCard = $sourceResolver->findCreditCardByName($user, $data['credit_card_name']);
+            if ($creditCard === null) {
+                $this->sendErrorMessage($job, 'Nao encontrei esse cartao para usar. Tente o nome exato ou liste seus cartoes primeiro.');
+                return true;
+            }
+
+            $updates['credit_card_id'] = $creditCard->id;
+            $updates['bank_account_id'] = null;
+        }
+
         if ($data['payment_method'] !== null) {
             $updates['metadata'] = array_merge($transaction->metadata ?? [], [
                 'payment_method' => $data['payment_method'],
@@ -146,6 +173,11 @@ class EditTransactionHandler extends BaseHandler
         if ($data['category_name'] !== null && $transaction->category?->name) {
             $parts[] = 'categoria para '.$transaction->category->name;
         }
+        if ($bankAccount !== null) {
+            $parts[] = 'conta '.$bankAccount->name;
+        } elseif ($creditCard !== null) {
+            $parts[] = 'cartao '.$creditCard->name;
+        }
 
         $detail = $parts === [] ? sprintf('R$ %s', number_format((float) $transaction->amount, 2, ',', '.')) : implode(' e ', $parts);
         $this->sendResponse($job, sprintf('Atualizei %s com %s.', $label, $detail), $user);
@@ -166,6 +198,8 @@ class EditTransactionHandler extends BaseHandler
             'category_name' => isset($data['category_name']) && trim((string) $data['category_name']) !== '' ? trim((string) $data['category_name']) : null,
             'date' => isset($data['date']) && $data['date'] !== '' ? (string) $data['date'] : null,
             'payment_method' => $data['payment_method'] ?? null,
+            'bank_account_name' => isset($data['bank_account_name']) && trim((string) $data['bank_account_name']) !== '' ? trim((string) $data['bank_account_name']) : null,
+            'credit_card_name' => isset($data['credit_card_name']) && trim((string) $data['credit_card_name']) !== '' ? trim((string) $data['credit_card_name']) : null,
         ];
     }
 
@@ -179,6 +213,8 @@ class EditTransactionHandler extends BaseHandler
             $data['category_name'],
             $data['date'],
             $data['payment_method'],
+            $data['bank_account_name'],
+            $data['credit_card_name'],
         ], fn ($value) => $value !== null && $value !== ''));
     }
 
@@ -191,6 +227,8 @@ class EditTransactionHandler extends BaseHandler
             'category_id' => ['nullable', 'integer'],
             'date' => ['nullable', 'date', 'before_or_equal:today'],
             'payment_method' => ['nullable', 'in:debit,credit,pix'],
+            'bank_account_name' => ['nullable', 'string', 'max:120'],
+            'credit_card_name' => ['nullable', 'string', 'max:120'],
         ]);
     }
 

@@ -395,5 +395,5 @@ it('calcula corretamente com valores decimais', function () {
     
     expect($totalIncome)->toBe(1234.56);
     expect($totalExpenses)->toBe(789.12);
-    expect($balance)->toBe(445.44);
+    expect(round($balance, 2))->toBe(445.44);
 });

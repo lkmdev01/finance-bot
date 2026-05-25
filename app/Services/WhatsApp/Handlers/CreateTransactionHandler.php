@@ -15,6 +15,7 @@ use App\Services\WhatsApp\CompoundTransactionMessageParser;
 use App\Services\WhatsApp\FinancialSourceResolver;
 use App\Services\WhatsAppFormatter;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -93,10 +94,57 @@ class CreateTransactionHandler extends BaseHandler
         }
 
         // Se o usuário indicou pagamento no cartão mas não informamos qual cartão, pedir confirmação/especificação
+        // Se a mensagem citou um cartao especifico, mas nao ficou claro se e credito ou debito,
+        // pedir esclarecimento antes de persistir para evitar descontar no lugar errado.
+        $result['transaction_data'] = $this->inferCardIntentFromRawMessage($result['transaction_data'], $job->message);
+
+        if (($result['transaction_data']['type'] ?? 'expense') === 'expense'
+            && empty($result['transaction_data']['payment_method'])
+            && ! empty($result['transaction_data']['credit_card_name'])) {
+
+            $reply = sprintf(
+                'Entendi. Voce quer registrar isso no *credito* (limite do cartao) ou no *debito* (saldo da conta) para %s? Responda: credito ou debito.',
+                (string) $result['transaction_data']['credit_card_name']
+            );
+
+            $result['_conversation_metadata'] = [
+                'pending_intent' => 'select_card_payment_method',
+                'pending_mode' => 'awaiting_clarification',
+                'pending_payload' => [
+                    'transaction_data' => $result['transaction_data'],
+                ],
+                'clear_pending' => false,
+                'reply_kind' => 'message',
+            ];
+
+            $this->sendResponse($job, $reply, $user);
+            return true;
+        }
+
         if (isset($result['transaction_data']['payment_method'])
             && $result['transaction_data']['payment_method'] === 'credit'
             && empty($result['transaction_data']['credit_card_id'])
-            && empty($result['transaction_data']['credit_card_name'])) {
+            && empty($result['transaction_data']['credit_card_name'])
+            && empty($result['transaction_data']['use_default_card'])) {
+
+            if (! $user->creditCards()->where('is_active', true)->exists()) {
+                $reply = 'Voce informou pagamento no cartao/credito, mas voce ainda nao tem cartoes ativos cadastrados. '
+                    .'Se quiser cadastrar, mande algo como: "registrar cartao de credito Nubank limite de 5000". '
+                    .'Se preferir registrar no saldo da conta, responda: "usar saldo".';
+
+                $result['_conversation_metadata'] = [
+                    'pending_intent' => 'select_credit_card',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'transaction_data' => $result['transaction_data'],
+                    ],
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                ];
+
+                $this->sendResponse($job, $reply, $user);
+                return true;
+            }
 
             $reply = 'Você informou pagamento no cartão, mas não identifiquei qual cartão. '
                 .'Por favor, responda com o nome do cartão (ex.: "cartão Nubank") ou diga "usar cartão padrão" para prosseguir.';
@@ -244,7 +292,7 @@ class CreateTransactionHandler extends BaseHandler
             'category_name' => $category?->name,
         ]);
 
-        return $transaction->loadMissing('category');
+        return $transaction->loadMissing('category', 'bankAccount', 'creditCard');
     }
 
     private function validateTransactionData(array $data, User $user): ValidatorContract
@@ -383,6 +431,16 @@ class CreateTransactionHandler extends BaseHandler
         $amount = number_format((float) $transaction->amount, 2, ',', '.');
         $description = trim((string) $transaction->description);
         $category = trim((string) ($transaction->category?->name ?? ''));
+        $paymentMethod = (string) ($transaction->metadata['payment_method'] ?? '');
+
+        $sourceLabel = null;
+        if (! empty($transaction->credit_card_id) && $transaction->creditCard?->name) {
+            $sourceLabel = 'no cartao '.$transaction->creditCard->name;
+        } elseif (! empty($transaction->bank_account_id) && $transaction->bankAccount?->name) {
+            $sourceLabel = 'na conta '.$transaction->bankAccount->name;
+        } elseif ($paymentMethod === 'debit') {
+            $sourceLabel = 'no saldo';
+        }
 
         if ($transaction->type === 'income') {
             if ($description !== '' && $description !== 'Receita' && $category !== '') {
@@ -398,15 +456,19 @@ class CreateTransactionHandler extends BaseHandler
         }
 
         if ($description !== '' && $description !== 'Gasto' && $category !== '') {
-            return "Registrei R$ {$amount} em {$category} ({$description}).";
+            $suffix = $sourceLabel ? " ({$sourceLabel})" : '';
+            return "Registrei R$ {$amount} em {$category} ({$description}){$suffix}.";
         }
         if ($description !== '' && $description !== 'Gasto') {
-            return "Registrei R$ {$amount} em {$description}.";
+            $suffix = $sourceLabel ? " ({$sourceLabel})" : '';
+            return "Registrei R$ {$amount} em {$description}{$suffix}.";
         }
         if ($category !== '') {
-            return "Registrei R$ {$amount} em {$category}.";
+            $suffix = $sourceLabel ? " ({$sourceLabel})" : '';
+            return "Registrei R$ {$amount} em {$category}{$suffix}.";
         }
-        return "Gasto de R$ {$amount} registrado.";
+        $suffix = $sourceLabel ? " ({$sourceLabel})" : '';
+        return "Gasto de R$ {$amount} registrado{$suffix}.";
     }
 
     private function buildGenericTransactionReply(array $data): string
@@ -469,5 +531,29 @@ class CreateTransactionHandler extends BaseHandler
 
         return $details !== '' ? $base."\n\nDetalhe: {$details}" : $base;
     }
-}
 
+    private function inferCardIntentFromRawMessage(array $data, string $rawMessage): array
+    {
+        if (($data['type'] ?? 'expense') !== 'expense') {
+            return $data;
+        }
+
+        if (! empty($data['payment_method'])) {
+            return $data;
+        }
+
+        $normalized = mb_strtolower(WhatsAppFormatter::normalizeTextEncoding($rawMessage));
+        $ascii = Str::ascii($normalized);
+
+        if (! str_contains($ascii, 'cartao')) {
+            return $data;
+        }
+
+        // Se o usuario citou apenas "cartao" sem especificar, assumir credito e pedir qual cartao.
+        if (empty($data['credit_card_id']) && empty($data['credit_card_name']) && empty($data['bank_account_name']) && empty($data['bank_account_id'])) {
+            $data['payment_method'] = 'credit';
+        }
+
+        return $data;
+    }
+}

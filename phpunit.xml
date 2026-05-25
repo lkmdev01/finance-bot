@@ -21,12 +21,6 @@
             <directory>app/Exceptions</directory>
         </exclude>
     </source>
-    <coverage>
-        <report>
-            <html outputDirectory="coverage"/>
-            <text outputFile="php://stdout"/>
-        </report>
-    </coverage>
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

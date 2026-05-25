@@ -253,6 +253,23 @@ class MascotScoreService
 
     protected function determineMood(int $score, array $snapshot, ?MascotAchievementUnlock $recentUnlock): array
     {
+        $needsAttention =
+            $score < 50 ||
+            $snapshot['current_month_expenses'] > $snapshot['current_month_income'] ||
+            ($snapshot['active_budgets'] > 0 && $snapshot['budget_health_ratio'] < 0.5);
+
+        // "Attention" has priority over celebrations: do not mask a risky situation
+        // just because the user unlocked a badge today.
+        if ($needsAttention) {
+            return [
+                'key' => 'attention',
+                'label' => 'Precisa de atencao',
+                'headline' => $this->mascotName().' percebeu sinais de alerta.',
+                'message' => 'Vale revisar gastos recentes, reforcar o orcamento e retomar a sequencia.',
+                'tone' => 'rose',
+            ];
+        }
+
         if ($recentUnlock && $recentUnlock->unlocked_at->gte(now()->subDay())) {
             return [
                 'key' => 'celebrating',
@@ -270,20 +287,6 @@ class MascotScoreService
                 'headline' => $this->mascotName().' esta feliz com suas decisoes.',
                 'message' => 'Seu dinheiro esta sob controle e seus habitos estao consistentes.',
                 'tone' => 'emerald',
-            ];
-        }
-
-        if (
-            $score < 50 ||
-            $snapshot['current_month_expenses'] > $snapshot['current_month_income'] ||
-            ($snapshot['active_budgets'] > 0 && $snapshot['budget_health_ratio'] < 0.5)
-        ) {
-            return [
-                'key' => 'attention',
-                'label' => 'Precisa de atencao',
-                'headline' => $this->mascotName().' percebeu sinais de alerta.',
-                'message' => 'Vale revisar gastos recentes, reforcar o orcamento e retomar a sequencia.',
-                'tone' => 'rose',
             ];
         }
 

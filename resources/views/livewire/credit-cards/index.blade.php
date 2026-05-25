@@ -1,5 +1,6 @@
 <?php
 
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Component;
 
@@ -30,13 +31,49 @@ new class extends Component {
                 ->get(),
         ];
     }
+
+    public function utilizationPct($card): int
+    {
+        $limit = (float) ($card->credit_limit ?? 0);
+        $used = (float) ($card->current_balance ?? 0);
+
+        if ($limit <= 0) {
+            return 0;
+        }
+
+        $pct = (int) round(($used / $limit) * 100);
+        return max(0, min(999, $pct));
+    }
+
+    public function nextDueDateLabel($card): string
+    {
+        if (empty($card->due_day)) {
+            return 'Não definido';
+        }
+
+        $today = CarbonImmutable::now();
+        $dueDay = (int) $card->due_day;
+        $base = CarbonImmutable::create($today->year, $today->month, 1)->startOfDay();
+        $due = $base->day(min($dueDay, $base->daysInMonth));
+
+        if ($due->lessThan($today->startOfDay())) {
+            $nextMonth = $today->addMonthNoOverflow();
+            $base = CarbonImmutable::create($nextMonth->year, $nextMonth->month, 1)->startOfDay();
+            $due = $base->day(min($dueDay, $base->daysInMonth));
+        }
+
+        $days = $today->startOfDay()->diffInDays($due, false);
+        $suffix = $days === 0 ? ' (hoje)' : ($days === 1 ? ' (amanhã)' : " (em {$days} dias)");
+
+        return $due->format('d/m/Y') . $suffix;
+    }
 }; ?>
 
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold">Cartões de Crédito</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Acompanhe limite, vencimento e saldo utilizado.</p>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Acompanhe limite, vencimento e uso da fatura.</p>
         </div>
         <flux:button href="{{ route('credit-cards.create') }}" wire:navigate variant="primary">
             Novo Cartão
@@ -45,6 +82,10 @@ new class extends Component {
 
     <div class="grid grid-cols-1 gap-4">
         @forelse($cards as $card)
+            @php
+                $usedPct = $this->utilizationPct($card);
+                $lastTx = $card->transactions->max('date');
+            @endphp
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 {{ ! $card->is_active ? 'opacity-60' : '' }}">
                 <div class="flex items-start justify-between gap-4">
                     <div class="flex-1">
@@ -54,7 +95,7 @@ new class extends Component {
                                 {{ $card->is_active ? 'Ativo' : 'Inativo' }}
                             </span>
                             @if($card->brand)
-                                <span class="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                <span class="px-2 py-1 text-xs rounded-full bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
                                     {{ $card->brand }}
                                 </span>
                             @endif
@@ -74,25 +115,44 @@ new class extends Component {
                                 <p class="font-semibold text-red-600 dark:text-red-400">R$ {{ number_format($card->current_balance, 2, ',', '.') }}</p>
                             </div>
                             <div>
-                                <p class="text-xs text-zinc-500">Disponível</p>
+                                <p class="text-xs text-zinc-500">Disponivel</p>
                                 <p class="font-semibold {{ $card->available_limit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
                                     R$ {{ number_format($card->available_limit, 2, ',', '.') }}
                                 </p>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div class="mt-4">
+                            <div class="flex items-center justify-between text-xs text-zinc-500 mb-2">
+                                <span>Uso do limite</span>
+                                <span class="font-medium text-zinc-700 dark:text-zinc-300">{{ $usedPct }}%</span>
+                            </div>
+                            <div class="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                <div
+                                    class="h-full rounded-full {{ $usedPct >= 90 ? 'bg-red-500' : ($usedPct >= 70 ? 'bg-amber-500' : 'bg-emerald-500') }}"
+                                    style="width: {{ min(100, $usedPct) }}%;"
+                                ></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
                             <div>
                                 <p class="text-xs text-zinc-500">Fechamento</p>
                                 <p class="font-medium">{{ $card->closing_day ?: 'Não definido' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-zinc-500">Vencimento</p>
-                                <p class="font-medium">{{ $card->due_day ?: 'Não definido' }}</p>
+                                <p class="font-medium">{{ $this->nextDueDateLabel($card) }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-zinc-500">Transações vinculadas</p>
                                 <p class="font-medium">{{ $card->transactions->count() }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-zinc-500">Última compra</p>
+                                <p class="font-medium">
+                                    {{ $lastTx ? \Carbon\Carbon::parse($lastTx)->format('d/m/Y') : 'Nunca' }}
+                                </p>
                             </div>
                         </div>
                     </div>

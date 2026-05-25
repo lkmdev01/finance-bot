@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
@@ -51,6 +51,9 @@
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="credit-card" :href="route('credit-cards.index')" :current="request()->routeIs('credit-cards.*')" wire:navigate>
                     Cartões de Crédito
+                </flux:sidebar.item>
+                <flux:sidebar.item icon="bell" :href="route('reminders.index')" :current="request()->routeIs('reminders.*')" wire:navigate>
+                    Lembretes
                 </flux:sidebar.item>
                 <flux:sidebar.item icon="arrow-path" :href="route('recurring-transactions.index')" :current="request()->routeIs('recurring-transactions.*')" wire:navigate>
                     Transações Recorrentes

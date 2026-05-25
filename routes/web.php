@@ -194,6 +194,17 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.credit-cards.edit', ['creditCard' => $creditCard]);
     })->name('credit-cards.edit');
 
+    // Lembretes
+    Route::get('reminders', function () {
+        return view('pages.reminders.index');
+    })->name('reminders.index');
+    Route::get('reminders/create', function () {
+        return view('pages.reminders.create');
+    })->middleware('billing.writable')->name('reminders.create');
+    Route::get('reminders/{reminder}/edit', function (App\Models\Reminder $reminder) {
+        return view('pages.reminders.edit', ['reminder' => $reminder]);
+    })->middleware('billing.writable')->name('reminders.edit');
+
     // Assinaturas e contas recorrentes
     Route::get('subscriptions', function () {
         return view('pages.subscriptions.index');

@@ -9,6 +9,18 @@ use Illuminate\Database\Eloquent\Collection;
 
 class TransactionRepository
 {
+    private function normalizeMonthRef(Carbon|int $dateOrYear, ?int $month = null): Carbon
+    {
+        if ($dateOrYear instanceof Carbon) {
+            return $dateOrYear;
+        }
+
+        $year = (int) $dateOrYear;
+        $month = (int) ($month ?? now()->month);
+
+        return Carbon::create($year, $month, 1);
+    }
+
     /**
      * Busca transações recentes do usuário
      */
@@ -35,8 +47,9 @@ class TransactionRepository
     /**
      * Busca receitas do mês
      */
-    public function getMonthlyIncome(User $user, Carbon $date): float
+    public function getMonthlyIncome(User $user, Carbon|int $dateOrYear, ?int $month = null): float
     {
+        $date = $this->normalizeMonthRef($dateOrYear, $month);
         $start = $date->copy()->startOfMonth();
         $end = $date->copy()->endOfMonth();
 
@@ -49,8 +62,9 @@ class TransactionRepository
     /**
      * Busca despesas do mês (excluindo depósitos em metas) usando agregação SQL
      */
-    public function getMonthlyExpenses(User $user, Carbon $date): float
+    public function getMonthlyExpenses(User $user, Carbon|int $dateOrYear, ?int $month = null): float
     {
+        $date = $this->normalizeMonthRef($dateOrYear, $month);
         $start = $date->copy()->startOfMonth();
         $end = $date->copy()->endOfMonth();
 
@@ -66,8 +80,9 @@ class TransactionRepository
     /**
      * Busca despesas do mês excluindo depósitos em metas (versão completa)
      */
-    public function getMonthlyExpensesExcludingSavings(User $user, Carbon $date): float
+    public function getMonthlyExpensesExcludingSavings(User $user, Carbon|int $dateOrYear, ?int $month = null): float
     {
+        $date = $this->normalizeMonthRef($dateOrYear, $month);
         $start = $date->copy()->startOfMonth();
         $end = $date->copy()->endOfMonth();
 
@@ -86,8 +101,9 @@ class TransactionRepository
     /**
      * Busca totais agregados do mês usando uma única query
      */
-    public function getMonthlyAggregates(User $user, Carbon $date): array
+    public function getMonthlyAggregates(User $user, Carbon|int $dateOrYear, ?int $month = null): array
     {
+        $date = $this->normalizeMonthRef($dateOrYear, $month);
         $start = $date->copy()->startOfMonth();
         $end = $date->copy()->endOfMonth();
 

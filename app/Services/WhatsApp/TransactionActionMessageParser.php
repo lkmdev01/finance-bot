@@ -15,6 +15,8 @@ class TransactionActionMessageParser
             'target_date_scope' => $this->extractDateScope($normalized),
             'amount' => $this->extractAmount($normalized),
             'payment_method' => $this->extractPaymentMethod($normalized),
+            'bank_account_name' => $this->extractBankAccountName($message),
+            'credit_card_name' => $this->extractCreditCardName($message),
         ];
 
         if (! $this->looksLikeEditIntent($normalized) && $payload['payment_method'] === null) {
@@ -29,6 +31,8 @@ class TransactionActionMessageParser
             $payload['amount'] === null
             && $payload['payment_method'] === null
             && $payload['category_name'] === null
+            && $payload['bank_account_name'] === null
+            && $payload['credit_card_name'] === null
             && $payload['target_description'] === null
             && $payload['reference'] === null
             && $payload['target_date_scope'] === null
@@ -121,6 +125,28 @@ class TransactionActionMessageParser
             if ($category !== '' && ! in_array($this->normalize($category), ['ontem', 'hoje', 'debito', 'credito', 'pix'], true)) {
                 return mb_convert_case($category, MB_CASE_TITLE, 'UTF-8');
             }
+        }
+
+        return null;
+    }
+
+    private function extractBankAccountName(string $message): ?string
+    {
+        if (preg_match('/(?:na conta|pela conta|via conta)\s+(.+?)(?:\s+(?:categoria|hoje|ontem)|[,.]|$)/iu', $message, $matches) === 1) {
+            $name = trim((string) ($matches[1] ?? ''));
+            $name = trim($name, " \t\n\r\0\x0B-:");
+            return $name !== '' ? mb_convert_case($name, MB_CASE_TITLE, 'UTF-8') : null;
+        }
+
+        return null;
+    }
+
+    private function extractCreditCardName(string $message): ?string
+    {
+        if (preg_match('/(?:no cart[aã]o|pelo cart[aã]o|via cart[aã]o)\s+(.+?)(?:\s+(?:categoria|hoje|ontem)|[,.]|$)/iu', $message, $matches) === 1) {
+            $name = trim((string) ($matches[1] ?? ''));
+            $name = trim($name, " \t\n\r\0\x0B-:");
+            return $name !== '' ? mb_convert_case($name, MB_CASE_TITLE, 'UTF-8') : null;
         }
 
         return null;

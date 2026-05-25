@@ -130,12 +130,7 @@ test('expired trial users receive subscription message on whatsapp create intent
         remoteJid: '5513991290256@s.whatsapp.net',
     );
 
-    $job->handle(
-        app(AIService::class),
-        app(BaileysService::class),
-        app(PhoneNumberService::class),
-        app(PerformanceMetricsService::class),
-    );
+    app()->call([$job, 'handle']);
 
     expect(Transaction::query()->where('user_id', $user->id)->count())->toBe(0);
 });

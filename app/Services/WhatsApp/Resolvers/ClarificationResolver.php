@@ -24,6 +24,7 @@ class ClarificationResolver
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
             'create_reminder_schedule' => in_array($classification, ['default', 'reminder_create', 'reminder_needs_schedule'], true),
+            'select_credit_card', 'select_card_payment_method' => true,
             default => false,
         };
     }
@@ -38,12 +39,33 @@ class ClarificationResolver
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
             'create_reminder_schedule' => $this->buildReminderScheduleClarificationResult($message, $state),
             'select_credit_card' => $this->buildSelectCreditCardClarificationResult($message, $state),
+            'select_card_payment_method' => $this->buildSelectCardPaymentMethodClarificationResult($message, $state),
             default => null,
         };
     }
 
     private function buildSelectCreditCardClarificationResult(string $message, array $state): ?array
     {
+        if ($this->looksLikeBalanceFallback($message)) {
+            $pending = $state['pending_payload']['transaction_data'] ?? [];
+            unset($pending['credit_card_id'], $pending['credit_card_name'], $pending['use_default_card']);
+            $pending['payment_method'] = 'debit';
+
+            return [
+                'handled' => false,
+                'result' => [
+                    'reply' => 'Entendi. Vou registrar no saldo da conta.',
+                    'action' => 'create_transaction',
+                    'transaction_data' => $pending,
+                    '_resolved_message' => $message,
+                    '_conversation_metadata' => [
+                        'clear_pending' => true,
+                        'reply_kind' => 'action',
+                    ],
+                ],
+            ];
+        }
+
         $creditCardName = $this->extractCreditCardName($message);
         if ($creditCardName === null) {
             return null;
@@ -70,6 +92,57 @@ class ClarificationResolver
                 ],
             ],
         ];
+    }
+
+    private function buildSelectCardPaymentMethodClarificationResult(string $message, array $state): ?array
+    {
+        $normalized = $this->normalizeText($message);
+
+        $method = null;
+        if (str_contains($normalized, 'credito') || str_contains($normalized, 'crÃ©dito')) {
+            $method = 'credit';
+        } elseif (str_contains($normalized, 'debito') || str_contains($normalized, 'dÃ©bito') || $this->looksLikeBalanceFallback($message)) {
+            $method = 'debit';
+        }
+
+        if ($method === null) {
+            return null;
+        }
+
+        $pending = $state['pending_payload']['transaction_data'] ?? [];
+        $pending['payment_method'] = $method;
+
+        if ($method === 'debit') {
+            // "Debito" aqui significa "a vista no saldo". Nao tente inferir uma conta pelo nome do cartao.
+            unset($pending['credit_card_id'], $pending['credit_card_name'], $pending['use_default_card']);
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_transaction',
+                'transaction_data' => $pending,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function looksLikeBalanceFallback(string $message): bool
+    {
+        $normalized = $this->normalizeText($message);
+
+        foreach (['usar saldo', 'saldo', 'na conta', 'conta', 'debito', 'dÃ©bito'] as $needle) {
+            if (str_contains($normalized, $this->normalizeText($needle))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function extractCreditCardName(string $message): ?string

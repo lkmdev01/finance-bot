@@ -8,6 +8,13 @@ new class extends Component {
     public string $search = '';
     public ?string $type = null;
 
+    public function mount(): void
+    {
+        // Allow deep linking via query string: /categories?type=income
+        $this->type = request()->query('type') ?: null;
+        $this->search = (string) (request()->query('search') ?? '');
+    }
+
     public function delete(int $categoryId): void
     {
         $category = Auth::user()->categories()->findOrFail($categoryId);

@@ -47,6 +47,18 @@ class DomainGate
             return true;
         }
 
+        // Quando o usuario esta falando sobre transacoes recentes e usa referencias curtas,
+        // priorizar o dominio de transacoes (mesmo que mencione "cartao", "meta", etc).
+        if (in_array($state['last_action'] ?? null, ['query_transactions', 'query_category'], true)) {
+            if ($this->containsAnyText($message, [
+                'ajusta', 'ajustar', 'edita', 'editar', 'muda', 'mudar', 'altera', 'alterar', 'corrige', 'corrigir',
+                'apaga', 'apagar', 'remove', 'remover', 'deleta', 'deletar', 'exclui', 'excluir',
+                'esse', 'essa', 'aquele', 'aquela', 'ultimo', 'ultima', 'penultimo', 'penultima', 'ontem', 'hoje',
+            ])) {
+                return true;
+            }
+        }
+
         return $this->containsAnyText($message, [
             'gastei', 'paguei', 'recebi', 'ganhei', 'entrou', 'comprei', 'parcelei',
             'todo mes pagar', 'todo dia pagar', 'academia', 'debito', 'credito', 'pix',

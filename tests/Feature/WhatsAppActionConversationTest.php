@@ -26,8 +26,6 @@ use Tests\TestCase;
 use function Pest\Laravel\assertDatabaseHas;
 use function Pest\Laravel\assertDatabaseMissing;
 
-uses(TestCase::class);
-
 function currentTestCase(): TestCase
 {
     /** @var TestCase $test */
@@ -219,6 +217,79 @@ it('edita transacao por contexto recente', function () {
     assertDatabaseHas('transactions', [
         'id' => $transaction->id,
         'amount' => 28.00,
+    ]);
+});
+
+it('muda a fonte de uma transacao para um cartao pelo whatsapp', function () {
+    Http::preventStrayRequests();
+
+    $cash = BankAccount::create([
+        'user_id' => currentTestCase()->user->id,
+        'name' => 'Caixa',
+        'institution' => 'Dinheiro',
+        'type' => 'cash',
+        'opening_balance' => 100.00,
+        'currency' => 'BRL',
+        'color' => '#000000',
+        'is_active' => true,
+    ]);
+
+    $card = CreditCard::create([
+        'user_id' => currentTestCase()->user->id,
+        'name' => 'Nubank',
+        'issuer' => 'Nubank',
+        'brand' => 'Visa',
+        'last_four' => '1234',
+        'credit_limit' => 5000.00,
+        'opening_balance' => 0.00,
+        'closing_day' => 5,
+        'due_day' => 25,
+        'is_active' => true,
+    ]);
+
+    $transaction = Transaction::create([
+        'user_id' => currentTestCase()->user->id,
+        'whatsapp_contact_id' => currentTestCase()->contact->id,
+        'category_id' => currentTestCase()->compras->id,
+        'bank_account_id' => $cash->id,
+        'type' => 'expense',
+        'amount' => 22.00,
+        'description' => 'Uber',
+        'date' => now()->toDateString(),
+    ]);
+
+    currentTestCase()->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_transactions',
+            'last_entities' => [
+                'topic' => 'transactions',
+                'transaction_id' => $transaction->id,
+                'latest_transaction_id' => $transaction->id,
+            ],
+        ],
+    ]);
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::type('string'))
+            ->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'ajusta esse no cartao Nubank',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($job);
+
+    assertDatabaseHas('transactions', [
+        'id' => $transaction->id,
+        'credit_card_id' => $card->id,
+        'bank_account_id' => null,
     ]);
 });
 
@@ -752,7 +823,7 @@ it('trata frase acentuada de recorrencia antes de cair na IA', function () {
 
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
-        message: 'Todo mÃªs pagar academia dia 10',
+        message: 'Todo mês pagar academia dia 10',
         userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
@@ -1168,6 +1239,129 @@ it('solicita clarificacao de cartao e registra com cartao padrao', function () {
         'amount' => 120.00,
         'credit_card_id' => $card->id,
         'bank_account_id' => null,
+    ]);
+});
+
+it('pede clarificacao de credito ou debito quando informa cartao por nome', function () {
+    Http::preventStrayRequests();
+
+    $card = CreditCard::create([
+        'user_id' => currentTestCase()->user->id,
+        'name' => 'Nubank',
+        'issuer' => 'Nubank',
+        'brand' => 'Visa',
+        'last_four' => '1234',
+        'credit_limit' => 5000.00,
+        'opening_balance' => 0.00,
+        'closing_day' => 5,
+        'due_day' => 25,
+        'is_active' => true,
+    ]);
+
+    BankAccount::create([
+        'user_id' => currentTestCase()->user->id,
+        'name' => 'Nubank',
+        'institution' => 'Nubank',
+        'type' => 'checking',
+        'opening_balance' => 100.00,
+        'currency' => 'BRL',
+        'color' => '#000000',
+        'is_active' => true,
+    ]);
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->twice()
+            ->with(\Mockery::type('string'), \Mockery::type('string'))
+            ->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $firstJob = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'comprei lanche 20 no cartao Nubank',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($firstJob);
+
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('select_card_payment_method');
+
+    $secondJob = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'credito',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($secondJob);
+
+    assertDatabaseHas('transactions', [
+        'user_id' => currentTestCase()->user->id,
+        'amount' => 20.00,
+        'credit_card_id' => $card->id,
+        'bank_account_id' => null,
+    ]);
+});
+
+it('registra no saldo quando usuario escolhe debito apos informar cartao por nome', function () {
+    Http::preventStrayRequests();
+
+    CreditCard::create([
+        'user_id' => currentTestCase()->user->id,
+        'name' => 'Nubank',
+        'issuer' => 'Nubank',
+        'brand' => 'Visa',
+        'last_four' => '1234',
+        'credit_limit' => 5000.00,
+        'opening_balance' => 0.00,
+        'closing_day' => 5,
+        'due_day' => 25,
+        'is_active' => true,
+    ]);
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'credito') && str_contains($message, 'debito');
+            }))
+            ->andReturn(fakeActionBaileysSuccessResponse());
+
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'saldo');
+            }))
+            ->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $firstJob = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'comprei lanche 20 no cartao Nubank',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($firstJob);
+
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('select_card_payment_method');
+
+    $secondJob = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'debito',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($secondJob);
+
+    assertDatabaseHas('transactions', [
+        'user_id' => currentTestCase()->user->id,
+        'amount' => 20.00,
+        'credit_card_id' => null,
     ]);
 });
 

@@ -6,7 +6,7 @@ class ReminderMessageTemplateFactory
 {
     public static function detect(string $title, string $message): string
     {
-        $titleLower = strtolower($title);
+        $titleLower = mb_strtolower($title);
 
         if (self::isAnniversary($titleLower)) {
             return 'anniversary';
@@ -33,7 +33,7 @@ class ReminderMessageTemplateFactory
 
     public static function buildFriendlyMessage(string $title, string $frequency, string $type = 'generic', ?string $userName = null): string
     {
-        $greeting = $userName ? "Olá, {$userName}! 👋" : "Olá! 👋";
+        $greeting = $userName ? "Olá, {$userName}!" : 'Olá!';
 
         return match ($type) {
             'anniversary' => self::buildAnniversaryMessage($greeting, $title),
@@ -94,14 +94,11 @@ class ReminderMessageTemplateFactory
 
     private static function buildAnniversaryMessage(string $greeting, string $title): string
     {
-        $title = preg_replace('/^aniversario\s+(?:de|da|do)?\s*/iu', '', $title);
-        $title = preg_replace('/^aniversário\s+(?:de|da|do)?\s*/iu', '', $title);
-        $title = preg_replace('/^niver\s+(?:de|da|do)?\s*/iu', '', $title);
-        $title = preg_replace('/\baniversario\s+(?:de|da|do)?\s*/iu', '', $title);
-        $title = preg_replace('/\baniversário\s+(?:de|da|do)?\s*/iu', '', $title);
-        $title = trim($title);
+        $name = preg_replace('/\banivers[aá]rio\s+(?:de|da|do)?\s*/iu', '', $title) ?? $title;
+        $name = preg_replace('/\bniver\s+(?:de|da|do)?\s*/iu', '', $name) ?? $name;
+        $name = trim((string) $name);
 
-        return "{$greeting}\n\n🎉 Vim aqui te lembrar que hoje é o aniversário de {$title}!\n\nNão esqueça de:\n✨ Ligar ou mandar uma mensagem\n🎂 Desejar um feliz aniversário\n🎁 Talvez marcar um café ou encontro\n\nAproveita o dia! 🎊";
+        return "{$greeting}\n\nVim te lembrar que hoje é o aniversário de {$name}.\n\nSugestões:\n- Mandar uma mensagem\n- Ligar\n- Marcar algo para comemorar";
     }
 
     private static function buildPaymentMessage(string $greeting, string $title, string $frequency): string
@@ -111,12 +108,14 @@ class ReminderMessageTemplateFactory
             'weekly' => 'toda semana',
             'monthly' => 'todo mês',
             'yearly' => 'todo ano',
+            'once' => 'no dia agendado',
             default => 'conforme agendado',
         };
 
-        $title = preg_replace('/^(?:pagar|pagamento|conta|fatura)\s+(?:de|da|do)?\s*/iu', '', $title);
+        $what = preg_replace('/^(?:pagar|pagamento|conta|fatura)\s+(?:de|da|do)?\s*/iu', '', $title) ?? $title;
+        $what = trim((string) $what);
 
-        return "{$greeting}\n\n💰 Não esqueça! Precisa pagar {$title}.\n\nEsse lembrete sai $frequencyText para você não deixar escapar. Melhor não deixar para última hora! 😉";
+        return "{$greeting}\n\nLembrete: pagar {$what}.\n\nEsse lembrete sai {$frequencyText} para você não esquecer.";
     }
 
     private static function buildMeetingMessage(string $greeting, string $title, string $frequency): string
@@ -126,19 +125,22 @@ class ReminderMessageTemplateFactory
             'weekly' => 'toda semana',
             'monthly' => 'todo mês',
             'yearly' => 'todo ano',
+            'once' => 'no dia agendado',
             default => 'conforme agendado',
         };
 
-        $title = preg_replace('/^(?:reuniao|reunião|encontro|meeting)\s+(?:com|de|da|do)?\s*/iu', '', $title);
+        $who = preg_replace('/^(?:reuni[aã]o|encontro|meeting)\s+(?:com|de|da|do)?\s*/iu', '', $title) ?? $title;
+        $who = trim((string) $who);
 
-        return "{$greeting}\n\n📅 Lembrete: Você tem uma reunião com {$title}.\n\nSe ainda não confirmou presença ou precisa se preparar, agora é a hora! Boa sorte! 💼";
+        return "{$greeting}\n\nLembrete: reunião com {$who}.\n\nEsse lembrete sai {$frequencyText}.";
     }
 
     private static function buildCallMessage(string $greeting, string $title): string
     {
-        $title = preg_replace('/^(?:ligar|chamada|telefonar|call)\s+(?:para|para o|para a|para o)?\s*/iu', '', $title);
+        $who = preg_replace('/^(?:ligar|chamada|telefonar|call)\s+(?:para|pro|pra)?\s*/iu', '', $title) ?? $title;
+        $who = trim((string) $who);
 
-        return "{$greeting}\n\n☎️ Hora de ligar para {$title}!\n\nAguarde um bom momento, respire fundo e faça a chamada. Boa sorte na conversa! 😊";
+        return "{$greeting}\n\nLembrete: ligar para {$who}.";
     }
 
     private static function buildTaskMessage(string $greeting, string $title, string $frequency): string
@@ -148,12 +150,11 @@ class ReminderMessageTemplateFactory
             'weekly' => 'toda semana',
             'monthly' => 'todo mês',
             'yearly' => 'todo ano',
+            'once' => 'no dia agendado',
             default => 'conforme agendado',
         };
 
-        $title = preg_replace('/^(?:fazer|tarefa|todo)\s+\s*/iu', '', $title);
-
-        return "{$greeting}\n\n✅ Tarefa do dia: {$title}\n\nSe conseguir fazer agora, melhor ainda! A sensação de completar uma tarefa é sempre boa. Bora lá! 🚀";
+        return "{$greeting}\n\nLembrete: {$title}\n\nEsse lembrete sai {$frequencyText}.";
     }
 
     private static function buildGenericMessage(string $greeting, string $title, string $frequency): string
@@ -163,10 +164,11 @@ class ReminderMessageTemplateFactory
             'weekly' => 'toda semana',
             'monthly' => 'todo mês',
             'yearly' => 'todo ano',
-            'once' => 'neste momento',
+            'once' => 'no dia agendado',
             default => 'conforme agendado',
         };
 
-        return "{$greeting}\n\n⏰ Lembrete: {$title}\n\nEsse lembrete sai $frequencyText. Não esqueça! 💭";
+        return "{$greeting}\n\nLembrete: {$title}\n\nEsse lembrete sai {$frequencyText}.";
     }
 }
+

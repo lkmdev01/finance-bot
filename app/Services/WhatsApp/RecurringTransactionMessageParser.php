@@ -214,7 +214,7 @@ class RecurringTransactionMessageParser
 
     private function extractCategoryName(string $message): ?string
     {
-        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cartao|no cart[aÃ£]o|pela conta|pelo cartao|pelo cart[aÃ£]o|via conta|via cartao|via cart[aÃ£]o)|[,.]|$)/iu', $message, $matches) === 1) {
+        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cart(?:a|ã)o|pela conta|pelo cart(?:a|ã)o|via conta|via cart(?:a|ã)o)|[,.]|$)/iu', $message, $matches) === 1) {
             $category = trim((string) ($matches[1] ?? ''));
             $category = $this->cleanupTrailingContext($category, null);
             return $category !== '' ? mb_convert_case($category, MB_CASE_TITLE, 'UTF-8') : null;
@@ -232,7 +232,7 @@ class RecurringTransactionMessageParser
             $bankAccountName = $this->cleanupTrailingContext(trim((string) ($matches[1] ?? '')), null);
         }
 
-        if (preg_match('/(?:no cartao|no cart[aÃ£]o|pelo cartao|pelo cart[aÃ£]o|via cartao|via cart[aÃ£]o)\s+(.+?)(?:\s+(?:categoria|mensal|semanal|todo dia|todo mes|cada mes|dia\s+\d{1,2})|[,.]|$)/iu', $message, $matches) === 1) {
+        if (preg_match('/(?:no cart(?:a|ã)o|pelo cart(?:a|ã)o|via cart(?:a|ã)o)\s+(.+?)(?:\s+(?:categoria|mensal|semanal|todo dia|todo mes|cada mes|dia\s+\d{1,2})|[,.]|$)/iu', $message, $matches) === 1) {
             $creditCardName = $this->cleanupTrailingContext(trim((string) ($matches[1] ?? '')), null);
         }
 
@@ -275,7 +275,7 @@ class RecurringTransactionMessageParser
     {
         $value = trim($value, " \t\n\r\0\x0B-:");
         $value = preg_replace('/^(?:um|uma|meu|minha)\s+/iu', '', $value) ?? $value;
-        $value = preg_replace('/\s+(?:na conta|no cartao|no cart[aÃ£]o|pela conta|pelo cartao|pelo cart[aÃ£]o|via conta|via cartao|via cart[aÃ£]o)\s+.+$/iu', '', $value) ?? $value;
+        $value = preg_replace('/\s+(?:na conta|no cart(?:a|ã)o|pela conta|pelo cart(?:a|ã)o|via conta|via cart(?:a|ã)o)\s+.+$/iu', '', $value) ?? $value;
         $value = preg_replace('/\s+(?:categoria|na categoria)\s+.+$/iu', '', $value) ?? $value;
         $value = preg_replace('/\b(?:mensal|semanal|todo dia|todo mes|todo ms|cada mes|cada ms|toda semana)\b/iu', '', $value) ?? $value;
         $value = preg_replace('/\bdia\s+\d{1,2}\b/iu', '', $value) ?? $value;

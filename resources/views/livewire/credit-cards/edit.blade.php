@@ -57,8 +57,8 @@ new class extends Component {
 <div class="p-6 space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Editar Cartão de Crédito</h1>
-            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Atualize os dados do cartão.</p>
+            <h1 class="text-2xl font-bold">Editar cartao de credito</h1>
+            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Atualize os dados do cartao.</p>
         </div>
         <flux:button href="{{ route('credit-cards.index') }}" wire:navigate variant="ghost">Voltar</flux:button>
     </div>
@@ -79,7 +79,7 @@ new class extends Component {
 
             <div class="flex justify-end gap-3">
                 <flux:button href="{{ route('credit-cards.index') }}" wire:navigate variant="ghost">Cancelar</flux:button>
-                <flux:button type="submit" variant="primary">Salvar Alterações</flux:button>
+                <flux:button type="submit" variant="primary">Salvar alteracoes</flux:button>
             </div>
         </form>
     </div>

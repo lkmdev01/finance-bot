@@ -88,12 +88,18 @@ class WhatsAppActivationService
 
     public function assertVerifiedForRegistration(string $clientKey, string $code, string $phoneNumber): WhatsAppActivationCode
     {
-        $activation = WhatsAppActivationCode::query()
-            ->where('client_key', $clientKey)
+        $activationQuery = WhatsAppActivationCode::query()
             ->where('code', $code)
             ->whereNull('consumed_at')
-            ->latest('id')
+            ->latest('id');
+
+        $activation = (clone $activationQuery)
+            ->where('client_key', $clientKey)
             ->first();
+
+        if (! $activation) {
+            $activation = $activationQuery->first();
+        }
 
         if (! $activation || $activation->isExpired()) {
             throw new \RuntimeException('Seu código de ativação expirou. Recarregue a página para gerar um novo.');
@@ -112,12 +118,18 @@ class WhatsAppActivationService
 
     public function assertVerifiedForUser(User $user, string $clientKey): WhatsAppActivationCode
     {
-        $activation = WhatsAppActivationCode::query()
-            ->where('client_key', $clientKey)
+        $activationQuery = WhatsAppActivationCode::query()
             ->where('user_id', $user->id)
             ->whereNull('consumed_at')
-            ->latest('id')
+            ->latest('id');
+
+        $activation = (clone $activationQuery)
+            ->where('client_key', $clientKey)
             ->first();
+
+        if (! $activation) {
+            $activation = $activationQuery->first();
+        }
 
         if (! $activation || $activation->isExpired()) {
             throw new \RuntimeException('Seu código de ativação expirou. Gere um novo para continuar.');
