@@ -224,11 +224,16 @@ class TransactionConversationService
 
         $lines = $transactions->take(5)->map(function (Transaction $transaction) {
             $date = $transaction->date?->format('d/m') ?? now()->format('d/m');
-            $label = $transaction->description ?: ($transaction->category?->name ?? 'Sem descrição');
+            $label = trim((string) ($transaction->description ?? ''));
+            $labelNormalized = mb_strtolower($label);
+            if ($label === '' || in_array($labelNormalized, ['gasto', 'receita', 'transacao', 'transação'], true)) {
+                $label = $transaction->category?->name ?? 'Transação';
+            }
             $category = $transaction->category?->name ? " ({$transaction->category->name})" : '';
+            $source = $this->formatSourceSuffix($transaction);
             $amount = number_format((float) $transaction->amount, 2, ',', '.');
 
-            return "- {$date} - {$label}{$category}: R$ {$amount}";
+            return "- {$date} - {$label}{$category}: R$ {$amount}{$source}";
         })->implode("\n");
 
         $total = number_format((float) $transactions->sum('amount'), 2, ',', '.');
@@ -243,6 +248,30 @@ class TransactionConversationService
         $reply .= ' Se quiser, eu posso filtrar por categoria, comparar com o mês passado ou te mostrar o que mais pesou.';
 
         return $reply;
+    }
+
+    private function formatSourceSuffix(Transaction $transaction): string
+    {
+        $method = (string) ($transaction->metadata['payment_method'] ?? '');
+
+        if ($transaction->creditCard) {
+            return sprintf(' (cartão %s)', $transaction->creditCard->name);
+        }
+
+        if ($transaction->bankAccount) {
+            $type = (string) ($transaction->bankAccount->type ?? '');
+            if ($type === 'cash') {
+                return ' (saldo)';
+            }
+
+            return sprintf(' (conta %s)', $transaction->bankAccount->name);
+        }
+
+        if ($method === 'debit' || $method === 'pix') {
+            return ' (saldo)';
+        }
+
+        return '';
     }
 
     private function buildCategoryReply(User $user, Collection $transactions, array $context): string
