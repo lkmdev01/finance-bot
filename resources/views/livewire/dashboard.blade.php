@@ -187,7 +187,7 @@ new class extends Component
 
         $deltas = $user->transactions()
             ->whereIn('credit_card_id', $cards->pluck('id')->all())
-            ->selectRaw('credit_card_id, SUM(CASE WHEN type = \"expense\" THEN amount ELSE -amount END) as delta')
+            ->selectRaw("credit_card_id, SUM(CASE WHEN type = 'expense' THEN amount ELSE -amount END) as delta")
             ->groupBy('credit_card_id')
             ->pluck('delta', 'credit_card_id');
 
@@ -225,7 +225,7 @@ new class extends Component
 
         $deltas = $user->transactions()
             ->whereIn('bank_account_id', $accounts->pluck('id')->all())
-            ->selectRaw('bank_account_id, SUM(CASE WHEN type = \"income\" THEN amount ELSE -amount END) as delta')
+            ->selectRaw("bank_account_id, SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as delta")
             ->groupBy('bank_account_id')
             ->pluck('delta', 'bank_account_id');
 
