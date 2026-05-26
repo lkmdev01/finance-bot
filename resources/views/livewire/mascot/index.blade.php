@@ -26,6 +26,7 @@ new class extends Component
                 'tone' => 'sky',
                 'cta' => route('bank-accounts.create'),
                 'cta_label' => 'Cadastrar conta',
+                'whatsapp_text' => 'Quero cadastrar uma conta. Pode me ajudar?',
             ];
         }
 
@@ -36,6 +37,7 @@ new class extends Component
                 'tone' => 'violet',
                 'cta' => route('credit-cards.create'),
                 'cta_label' => 'Cadastrar cartao',
+                'whatsapp_text' => 'Registrar cartao de credito Nubank limite de 5000',
             ];
         }
 
@@ -46,6 +48,7 @@ new class extends Component
                 'tone' => 'amber',
                 'cta' => route('budgets.create'),
                 'cta_label' => 'Criar orcamento',
+                'whatsapp_text' => 'Criar orcamento de 800 para alimentacao',
             ];
         }
 
@@ -56,6 +59,7 @@ new class extends Component
                 'tone' => 'emerald',
                 'cta' => route('savings-goals.create'),
                 'cta_label' => 'Criar meta',
+                'whatsapp_text' => 'Definir meta viagem 5000',
             ];
         }
 
@@ -66,6 +70,7 @@ new class extends Component
                 'tone' => 'sky',
                 'cta' => route('transactions.index'),
                 'cta_label' => 'Ver transacoes',
+                'whatsapp_text' => 'Quais foram meus gastos por categoria este mes?',
             ];
         }
 
@@ -76,6 +81,7 @@ new class extends Component
                 'tone' => 'rose',
                 'cta' => route('reports.index'),
                 'cta_label' => 'Abrir relatorios',
+                'whatsapp_text' => 'Quais foram meus gastos deste mes?',
             ];
         }
 
@@ -86,10 +92,24 @@ new class extends Component
                 'tone' => 'amber',
                 'cta' => route('subscriptions.create'),
                 'cta_label' => 'Cadastrar assinatura',
+                'whatsapp_text' => 'Criar assinatura Netflix mensal, dia 10, 19 reais no cartao Nubank',
             ];
         }
 
         return array_slice($missions, 0, 4);
+    }
+
+    public function whatsAppQuickActionUrl(string $message): ?string
+    {
+        $contactNumber = (string) config('whatsapp.tutorial.contact_number');
+        $digits = preg_replace('/\\D+/', '', $contactNumber) ?? '';
+        $digits = trim((string) $digits);
+
+        if ($digits === '' || trim($message) === '') {
+            return null;
+        }
+
+        return 'https://wa.me/'.$digits.'?text='.urlencode($message);
     }
 
     public function upcomingEvents(int $days = 30): array
@@ -422,25 +442,38 @@ new class extends Component
                 </span>
             </div>
 
-            @php $missions = $this->missions($mascot); @endphp
-            @if($missions !== [])
-                <div class="mt-8 grid gap-3">
-                    @foreach($missions as $mission)
-                        @php $missionClasses = $this->toneClasses($mission['tone'] ?? 'sky'); @endphp
-                        <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                            <div class="flex items-start justify-between gap-4">
-                                <div>
-                                    <p class="text-sm font-bold text-white">{{ $mission['title'] }}</p>
-                                    <p class="mt-1 text-sm leading-7 text-slate-300">{{ $mission['description'] }}</p>
+                @php $missions = $this->missions($mascot); @endphp
+                @if($missions !== [])
+                    <div class="mt-8 grid gap-3">
+                        @foreach($missions as $mission)
+                            @php $missionClasses = $this->toneClasses($mission['tone'] ?? 'sky'); @endphp
+                            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div>
+                                        <p class="text-sm font-bold text-white">{{ $mission['title'] }}</p>
+                                        <p class="mt-1 text-sm leading-7 text-slate-300">{{ $mission['description'] }}</p>
+                                    </div>
+                                    @php
+                                        $whatsAppUrl = !empty($mission['whatsapp_text'])
+                                            ? $this->whatsAppQuickActionUrl((string) $mission['whatsapp_text'])
+                                            : null;
+                                    @endphp
+
+                                    <div class="shrink-0 flex flex-col items-end gap-2">
+                                        @if($whatsAppUrl)
+                                            <a href="{{ $whatsAppUrl }}" target="_blank" rel="noopener noreferrer" class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-200 hover:bg-white/10">
+                                                Abrir WhatsApp
+                                            </a>
+                                        @endif
+                                        <a href="{{ $mission['cta'] }}" wire:navigate class="text-xs font-semibold text-slate-300 underline underline-offset-4 hover:text-white">
+                                            {{ $mission['cta_label'] }}
+                                        </a>
+                                    </div>
                                 </div>
-                                <a href="{{ $mission['cta'] }}" wire:navigate class="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-200 hover:bg-white/10">
-                                    {{ $mission['cta_label'] }}
-                                </a>
                             </div>
-                        </div>
-                    @endforeach
-                </div>
-            @endif
+                        @endforeach
+                    </div>
+                @endif
         </div>
 
         <div class="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5 sm:rounded-[2rem] sm:p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
