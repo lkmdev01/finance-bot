@@ -156,7 +156,7 @@ new class extends Component
             ->where('type', 'expense')
             ->get();
         
-        // Filtrar transaÃ§Ãµes que nÃ£o sÃ£o depÃ³sitos em metas
+        // Filtrar transacoes que nao sao depositos em metas
         $expensesWithoutSavings = $allExpenses->filter(function ($transaction) {
             $metadata = $transaction->metadata ?? [];
             return !isset($metadata['savings_goal_deposit_id']);
@@ -167,8 +167,8 @@ new class extends Component
 
     public function getAvailableBalance(): float
     {
-        // Saldo disponÃ­vel considera todas as transaÃ§Ãµes, nÃ£o apenas do perÃ­odo
-        // DepÃ³sitos em metas sÃ£o deduzidos separadamente (nÃ£o contam como despesas normais)
+        // Saldo disponivel considera todas as transacoes, nao apenas do periodo
+        // Depositos em metas sao deduzidos separadamente (nao contam como despesas normais)
         return $this->getTotalIncomeAllTime() - $this->getTotalExpensesAllTime() - $this->getTotalSavingsDeposits();
     }
 
@@ -229,7 +229,7 @@ new class extends Component
             return html_entity_decode('&#128230;', ENT_QUOTES, 'UTF-8');
         }
 
-        if (str_contains($icon, 'ÃƒÂ°') || str_contains($icon, 'ÃƒÆ’')) {
+        if (str_contains($icon, 'Ã') || str_contains($icon, 'Â') || str_contains($icon, 'â') || str_contains($icon, '�')) {
             return html_entity_decode('&#128230;', ENT_QUOTES, 'UTF-8');
         }
 
@@ -1345,4 +1345,6 @@ new class extends Component
     </div>
     @endif
 </div>
+
+
 

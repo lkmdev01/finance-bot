@@ -49,6 +49,7 @@ class ClarificationResolver
     {
         $pending = $state['pending_payload']['transaction_data'] ?? [];
         $normalized = $this->normalizeText($message);
+        $availableAccounts = $state['pending_payload']['available_bank_accounts'] ?? [];
 
         if (str_contains($normalized, 'cadastrar') || str_contains($normalized, 'criar conta') || str_contains($normalized, 'adicionar conta')) {
             $url = rtrim((string) config('app.url'), '/').'/bank-accounts/create';
@@ -64,7 +65,25 @@ class ClarificationResolver
             ];
         }
 
-        if ($this->looksLikeBalanceFallback($message)) {
+        if ($this->looksLikeBankAccountsListRequest($normalized)) {
+            $reply = $this->buildBankAccountsListReply($availableAccounts);
+            if ($reply === null) {
+                $url = rtrim((string) config('app.url'), '/').'/bank-accounts/create';
+                $reply = "Voce ainda nao tem contas cadastradas.\n\nCadastre aqui:\n{$url}\n\nDepois me diga qual conta voce quer usar (ex.: \"usar Itau\"), ou responda \"caixa\" para usar o saldo geral.";
+            }
+
+            return [
+                'handled' => true,
+                'reply' => $reply,
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                ],
+            ];
+        }
+
+        if ($this->looksLikeCashSelection($normalized)) {
             // Keep whatever bank_account_name we prefilled (usually Caixa).
             $pending['payment_method'] = 'debit';
 
@@ -84,7 +103,7 @@ class ClarificationResolver
         }
 
         // Treat any non-empty text as an account name.
-        $cleaned = preg_replace('/\b(?:usar|use|na|no|conta|saldo|debito|d[eé]bito)\b/iu', ' ', $message) ?? $message;
+        $cleaned = preg_replace('/\\b(?:usar|use|na|no|conta|saldo|debito|credito)\\b/iu', ' ', $message) ?? $message;
         $cleaned = preg_replace('/\s+/u', ' ', trim($cleaned)) ?? $cleaned;
         $cleaned = trim((string) $cleaned, " \t\n\r\0\x0B-:");
 
@@ -93,7 +112,32 @@ class ClarificationResolver
         }
 
         $pending['payment_method'] = 'debit';
-        $pending['bank_account_name'] = mb_convert_case($cleaned, MB_CASE_TITLE, 'UTF-8');
+
+        $matchedAccount = $this->matchAvailableBankAccount($cleaned, $availableAccounts);
+        if ($availableAccounts !== [] && $matchedAccount === null) {
+            $reply = "Eu nao encontrei essa conta. Responda com o nome exato, ou diga \"contas\" para eu listar.";
+            $list = $this->buildBankAccountsListReply($availableAccounts);
+            if ($list) {
+                $reply .= "\n\n".$list;
+            }
+
+            return [
+                'handled' => true,
+                'reply' => $reply,
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                ],
+            ];
+        }
+
+        if ($matchedAccount !== null) {
+            $pending['bank_account_id'] = $matchedAccount['id'] ?? null;
+            $pending['bank_account_name'] = $matchedAccount['name'] ?? mb_convert_case($cleaned, MB_CASE_TITLE, 'UTF-8');
+        } else {
+            $pending['bank_account_name'] = mb_convert_case($cleaned, MB_CASE_TITLE, 'UTF-8');
+        }
         unset($pending['credit_card_id'], $pending['credit_card_name'], $pending['use_default_card']);
 
         return [
@@ -149,7 +193,7 @@ class ClarificationResolver
         return [
             'handled' => false,
             'result' => [
-                'reply' => 'Entendi. Estou usando esse cartão para registrar o gasto.',
+                'reply' => 'Entendi. Estou usando esse cartao para registrar o gasto.',
                 'action' => 'create_transaction',
                 'transaction_data' => $pending,
                 '_resolved_message' => $message,
@@ -203,7 +247,7 @@ class ClarificationResolver
     {
         $normalized = $this->normalizeText($message);
 
-        foreach (['usar saldo', 'saldo', 'na conta', 'conta', 'debito'] as $needle) {
+        foreach (['usar saldo', 'no saldo', 'saldo', 'usar caixa', 'caixa', 'debito', 'no debito'] as $needle) {
             if (str_contains($normalized, $this->normalizeText($needle))) {
                 return true;
             }
@@ -218,11 +262,7 @@ class ClarificationResolver
 
         $defaultPatterns = [
             'usar cartao padrao',
-            'usar cartao padrão',
-            'usar cartão padrao',
-            'usar cartão padrão',
             'cartao padrao',
-            'cartão padrão',
             'padrao',
             'default',
         ];
@@ -233,7 +273,10 @@ class ClarificationResolver
             }
         }
 
-        $cleaned = preg_replace('/\b(?:no|na|pelo|pela|via|com|cartao|cartão|de|do|da|credito|crédito|debito|débito)\b/iu', ' ', $message) ?? $message;
+        // Use the same normalization layer as the rest of the bot so mojibake (e.g. "cartÃ£o")
+        // does not break the extraction.
+        $cleaned = app(\App\Services\WhatsApp\IncomingMessageNormalizer::class)->clean($message);
+        $cleaned = preg_replace('/\b(?:no|na|pelo|pela|via|com|cartao|cartão|de|do|da|credito|crédito|debito|débito)\b/iu', ' ', $cleaned) ?? $cleaned;
         $cleaned = preg_replace('/\s+/u', ' ', trim($cleaned)) ?? $cleaned;
         $cleaned = trim((string) $cleaned, " \t\n\r\0\x0B-:");
 
@@ -242,6 +285,105 @@ class ClarificationResolver
         }
 
         return mb_convert_case($cleaned, MB_CASE_TITLE, 'UTF-8');
+    }
+
+    private function looksLikeBankAccountsListRequest(string $normalizedMessage): bool
+    {
+        foreach (['contas', 'listar contas', 'lista contas', 'quais contas', 'ver contas', 'minhas contas'] as $needle) {
+            if (str_contains($normalizedMessage, $this->normalizeText($needle))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function looksLikeCashSelection(string $normalizedMessage): bool
+    {
+        foreach (['saldo', 'usar saldo', 'caixa', 'usar caixa', 'debito', 'no saldo', 'no debito'] as $needle) {
+            if (str_contains($normalizedMessage, $this->normalizeText($needle))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function buildBankAccountsListReply(array $accounts): ?string
+    {
+        if ($accounts === []) {
+            return null;
+        }
+
+        $lines = [];
+        foreach ($accounts as $account) {
+            $name = trim((string) ($account['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $lines[] = "- {$name}";
+        }
+
+        if ($lines === []) {
+            return null;
+        }
+
+        $list = implode("\n", $lines);
+
+        return "Suas contas ativas:\n{$list}\n\nResponda com o nome (ex.: \"usar Itau\") ou diga \"caixa\" para usar o saldo geral.";
+    }
+
+    private function matchAvailableBankAccount(string $inputName, array $accounts): ?array
+    {
+        if ($accounts === []) {
+            return null;
+        }
+
+        $input = $this->normalizeText($inputName);
+        if ($input === '') {
+            return null;
+        }
+
+        $exact = [];
+        foreach ($accounts as $account) {
+            $name = (string) ($account['name'] ?? '');
+            $norm = $this->normalizeText($name);
+            if ($norm === '') {
+                continue;
+            }
+
+            if ($norm === $input) {
+                $exact[] = $account;
+            }
+        }
+
+        if (count($exact) === 1) {
+            return $exact[0];
+        }
+
+        if ($exact !== []) {
+            return null;
+        }
+
+        $partial = [];
+        foreach ($accounts as $account) {
+            $name = (string) ($account['name'] ?? '');
+            $norm = $this->normalizeText($name);
+            if ($norm === '') {
+                continue;
+            }
+
+            if (str_contains($norm, $input) || str_contains($input, $norm)) {
+                $partial[] = $account;
+            }
+        }
+
+        if (count($partial) === 1) {
+            return $partial[0];
+        }
+
+        return null;
     }
 
     private function buildBudgetClarificationResult(string $action, string $message, array $state): ?array
@@ -411,3 +553,5 @@ class ClarificationResolver
         return $amount > 0 ? $amount : null;
     }
 }
+
+

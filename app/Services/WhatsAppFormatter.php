@@ -5,7 +5,7 @@ namespace App\Services;
 class WhatsAppFormatter
 {
     /**
-     * Formata mensagem com negrito, itálico e outros estilos do WhatsApp.
+     * Formats a message for WhatsApp and attempts to repair mojibake.
      */
     public static function format(string $message): string
     {
@@ -14,6 +14,10 @@ class WhatsAppFormatter
         return self::removeFormatting($message);
     }
 
+    /**
+     * Tries to repair strings that were mis-decoded (UTF-8 bytes interpreted as Windows-1252).
+     * This shows up as sequences like "Ã£", "Ã©", "â€“", etc.
+     */
     public static function normalizeTextEncoding(?string $text): string
     {
         $text = (string) ($text ?? '');
@@ -71,31 +75,29 @@ class WhatsAppFormatter
         return self::bold($title);
     }
 
-    public static function formatList(array $items, string $prefix = '•'): string
+    public static function formatList(array $items, string $prefix = '-'): string
     {
         return implode("\n", array_map(fn ($item) => "{$prefix} {$item}", $items));
     }
 
     public static function formatBalance(float $balance): string
     {
-        $emoji = $balance >= 0 ? '💰' : '⚠️';
-        $status = $balance >= 0 ? 'Saldo disponível' : 'Saldo negativo';
+        $status = $balance >= 0 ? 'Saldo disponivel' : 'Saldo negativo';
 
-        return "{$emoji} ".self::formatTitle($status).":\n"
+        return self::formatTitle($status).":\n"
             .self::formatMoney($balance)."\n\n"
-            .($balance < 0 ? '⚠️ Atenção: seu saldo está negativo!' : '✅ Tudo certo!');
+            .($balance < 0 ? 'Atencao: seu saldo esta negativo.' : 'Tudo certo.');
     }
 
     public static function formatTransactionCreated(array $data): string
     {
-        $type = $data['type'] === 'income' ? 'receita' : 'despesa';
-        $emoji = $data['type'] === 'income' ? '✅' : '💸';
+        $type = ($data['type'] ?? 'expense') === 'income' ? 'receita' : 'despesa';
 
-        $message = "{$emoji} ".self::formatTitle("Registrei sua {$type}!")."\n\n";
-        $message .= self::bold('Valor:').' '.self::formatMoney($data['amount'], false)."\n";
+        $message = self::formatTitle("Registrei sua {$type}!")."\n\n";
+        $message .= self::bold('Valor:').' '.self::formatMoney((float) ($data['amount'] ?? 0), false)."\n";
 
         if (! empty($data['description'])) {
-            $message .= self::bold('Descrição:').' '.self::normalizeTextEncoding((string) $data['description'])."\n";
+            $message .= self::bold('Descricao:').' '.self::normalizeTextEncoding((string) $data['description'])."\n";
         }
 
         if (! empty($data['category'])) {
@@ -111,9 +113,9 @@ class WhatsAppFormatter
 
     private static function removeFormatting(string $text): string
     {
-        $text = preg_replace('/\*{2,}/', '*', $text);
-        $text = preg_replace('/_{2,}/', '_', $text);
-        $text = preg_replace('/~{2,}/', '~', $text);
+        $text = preg_replace('/\*{2,}/', '*', $text) ?? $text;
+        $text = preg_replace('/_{2,}/', '_', $text) ?? $text;
+        $text = preg_replace('/~{2,}/', '~', $text) ?? $text;
 
         return $text;
     }

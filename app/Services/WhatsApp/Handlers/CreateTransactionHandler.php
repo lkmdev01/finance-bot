@@ -121,8 +121,19 @@ class CreateTransactionHandler extends BaseHandler
                     ->first(fn ($acc) => ($acc->type ?? '') === 'cash' || str_contains(mb_strtolower($acc->name ?? ''), 'caixa'));
 
                 $cashName = $fallbackCash?->name ?? 'Caixa';
+                $availableAccounts = $user->bankAccounts()
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'type'])
+                    ->map(fn ($acc) => [
+                        'id' => $acc->id,
+                        'name' => $acc->name,
+                        'type' => $acc->type,
+                    ])
+                    ->values()
+                    ->toArray();
                 $reply = sprintf(
-                    'Entendi que voce quer registrar no *debito*, mas eu nao encontrei uma conta "%s" para usar no saldo. Quer usar "%s" (responda: usar saldo) ou me diga o nome da conta certa?',
+                    'Entendi que voce quer registrar no *debito*, mas eu nao encontrei uma conta "%s" para usar no saldo. Quer usar "%s" (responda: caixa) ou me diga o nome da conta certa? Se quiser, diga: contas.',
                     (string) $result['transaction_data']['bank_account_name'],
                     $cashName
                 );
@@ -135,6 +146,7 @@ class CreateTransactionHandler extends BaseHandler
                             'bank_account_name' => $cashName,
                             'payment_method' => 'debit',
                         ]),
+                        'available_bank_accounts' => $availableAccounts,
                     ],
                     'clear_pending' => false,
                     'reply_kind' => 'message',
