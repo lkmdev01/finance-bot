@@ -243,6 +243,188 @@ new class extends Component
         })->values()->toArray();
     }
 
+    public function getBankAccountsTotals(): array
+    {
+        $accounts = $this->getBankAccountsSummary();
+
+        $total = 0.0;
+        $negative = [];
+
+        foreach ($accounts as $account) {
+            $balance = (float) ($account['current_balance'] ?? 0);
+            $total += $balance;
+
+            if ($balance < 0) {
+                $negative[] = [
+                    'id' => $account['id'] ?? null,
+                    'name' => $account['name'] ?? 'Conta',
+                    'balance' => $balance,
+                ];
+            }
+        }
+
+        usort($negative, fn ($a, $b) => ($a['balance'] ?? 0) <=> ($b['balance'] ?? 0));
+
+        return [
+            'total_balance' => round($total, 2),
+            'negative_accounts' => $negative,
+        ];
+    }
+
+    public function getCreditCardsTotals(): array
+    {
+        $cards = $this->getCreditCardsSummary();
+
+        $totalLimit = 0.0;
+        $totalUsed = 0.0;
+        $tight = [];
+
+        foreach ($cards as $card) {
+            $limit = (float) ($card['credit_limit'] ?? 0);
+            $used = (float) ($card['current_balance'] ?? 0);
+            $usage = (float) ($card['usage_pct'] ?? 0);
+
+            $totalLimit += $limit;
+            $totalUsed += $used;
+
+            if ($usage >= 80) {
+                $tight[] = [
+                    'id' => $card['id'] ?? null,
+                    'name' => $card['name'] ?? 'Cartao',
+                    'usage_pct' => $usage,
+                    'available_limit' => (float) ($card['available_limit'] ?? 0),
+                ];
+            }
+        }
+
+        usort($tight, fn ($a, $b) => ($b['usage_pct'] ?? 0) <=> ($a['usage_pct'] ?? 0));
+
+        return [
+            'total_limit' => round($totalLimit, 2),
+            'total_used' => round($totalUsed, 2),
+            'total_available' => round($totalLimit - $totalUsed, 2),
+            'tight_cards' => $tight,
+        ];
+    }
+
+    public function getUpcomingFinancialEvents(int $days = 30): array
+    {
+        $user = $this->user();
+        $today = now()->startOfDay();
+        $until = now()->addDays($days)->endOfDay();
+
+        $items = [];
+
+        $subscriptions = $user->subscriptions()
+            ->where('is_active', true)
+            ->whereNotNull('next_due_date')
+            ->whereDate('next_due_date', '<=', $until->toDateString())
+            ->orderBy('next_due_date')
+            ->limit(20)
+            ->get(['id', 'name', 'amount', 'next_due_date', 'billing_cycle', 'bank_account_id', 'credit_card_id']);
+
+        foreach ($subscriptions as $sub) {
+            if (! $sub->next_due_date) {
+                continue;
+            }
+
+            $date = $sub->next_due_date->copy()->startOfDay();
+            $items[] = [
+                'kind' => 'subscription',
+                'id' => $sub->id,
+                'label' => $sub->name,
+                'amount' => (float) $sub->amount,
+                'date' => $date,
+                'is_overdue' => $date->lt($today),
+            ];
+        }
+
+        $cards = $this->getCreditCardsSummary();
+        foreach ($cards as $card) {
+            $dueDay = (int) ($card['due_day'] ?? 0);
+            if ($dueDay <= 0) {
+                continue;
+            }
+
+            $base = \Carbon\Carbon::create(now()->year, now()->month, 1)->startOfMonth();
+            $dueDate = $base->copy()->day(min($dueDay, $base->daysInMonth))->startOfDay();
+            if ($dueDate->lt($today)) {
+                $next = $base->copy()->addMonth();
+                $dueDate = $next->day(min($dueDay, $next->daysInMonth))->startOfDay();
+            }
+
+            if ($dueDate->gt($until)) {
+                continue;
+            }
+
+            $items[] = [
+                'kind' => 'credit_card',
+                'id' => $card['id'] ?? null,
+                'label' => $card['name'] ?? 'Cartao',
+                'amount' => (float) ($card['current_balance'] ?? 0),
+                'date' => $dueDate,
+                'is_overdue' => false,
+                'usage_pct' => (float) ($card['usage_pct'] ?? 0),
+            ];
+        }
+
+        usort($items, fn ($a, $b) => ($a['date'] ?? $today) <=> ($b['date'] ?? $today));
+
+        return array_slice($items, 0, 8);
+    }
+
+    public function getDashboardInsights(): array
+    {
+        $insights = [];
+
+        $bankTotals = $this->getBankAccountsTotals();
+        if (! empty($bankTotals['negative_accounts'][0])) {
+            $acc = $bankTotals['negative_accounts'][0];
+            $insights[] = [
+                'tone' => 'warning',
+                'text' => sprintf('Conta %s esta negativa: R$ %s.', (string) ($acc['name'] ?? 'Conta'), number_format(abs((float) ($acc['balance'] ?? 0)), 2, ',', '.')),
+                'cta' => route('bank-accounts.index'),
+                'cta_label' => 'Ver contas',
+            ];
+        }
+
+        $cardTotals = $this->getCreditCardsTotals();
+        if (! empty($cardTotals['tight_cards'][0])) {
+            $card = $cardTotals['tight_cards'][0];
+            $insights[] = [
+                'tone' => 'warning',
+                'text' => sprintf('Cartao %s esta com %s%% do limite usado.', (string) ($card['name'] ?? 'Cartao'), number_format((float) ($card['usage_pct'] ?? 0), 1, ',', '.')),
+                'cta' => route('credit-cards.index'),
+                'cta_label' => 'Ver cartoes',
+            ];
+        }
+
+        $expensesByCategory = $this->getExpensesByCategory();
+        if (! empty($expensesByCategory[0]['category'])) {
+            $top = $expensesByCategory[0];
+            $pct = (float) ($top['percentage'] ?? 0);
+            if ($pct >= 40) {
+                $insights[] = [
+                    'tone' => 'info',
+                    'text' => sprintf('%s concentra %s%% das despesas do periodo.', (string) ($top['category'] ?? 'Uma categoria'), number_format($pct, 1, ',', '.')),
+                    'cta' => route('reports.index'),
+                    'cta_label' => 'Abrir relatorio',
+                ];
+            }
+        }
+
+        if ($insights === []) {
+            $insights[] = [
+                'tone' => 'ok',
+                'text' => 'Sem alertas hoje. Quer que eu gere um relatorio rapido do periodo?',
+                'cta' => route('reports.index'),
+                'cta_label' => 'Ver relatorios',
+            ];
+        }
+
+        return array_slice($insights, 0, 3);
+    }
+
     public function getExpensesByCategory(): array
     {
         $user = $this->user();
@@ -1034,10 +1216,27 @@ new class extends Component
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-500/20 text-sky-600 dark:text-sky-400">
                         <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>
                     </div>
-                    <p class="text-sm font-semibold text-sky-700 dark:text-sky-300">Saldo Livre</p>
+                    <p class="text-sm font-semibold text-sky-700 dark:text-sky-300">Saldo em Contas</p>
                 </div>
+                @php
+                    $bankTotals = $this->getBankAccountsTotals();
+                    $cardTotals = $this->getCreditCardsTotals();
+                    $cashBalance = (float) ($bankTotals['total_balance'] ?? 0);
+                    $cardDebt = (float) ($cardTotals['total_used'] ?? 0);
+                    $netWorth = $cashBalance - $cardDebt;
+                @endphp
                 <p class="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
-                    R$ {{ number_format($this->getAvailableBalance(), 2, ',', '.') }}
+                    R$ {{ number_format($cashBalance, 2, ',', '.') }}
+                </p>
+                <p class="text-xs mt-2 font-medium text-sky-700/80 dark:text-sky-300/80">
+                    Cartoes (em aberto): R$ {{ number_format($cardDebt, 2, ',', '.') }}
+                    @if(($cardTotals['total_limit'] ?? 0) > 0)
+                        <span class="mx-1">•</span>
+                        Limite total: R$ {{ number_format((float) ($cardTotals['total_limit'] ?? 0), 2, ',', '.') }}
+                    @endif
+                </p>
+                <p class="text-[11px] mt-1 text-zinc-500 dark:text-zinc-400">
+                    Patrimonio liquido (contas - cartoes): R$ {{ number_format($netWorth, 2, ',', '.') }}
                 </p>
             </div>
         </div>
@@ -1157,6 +1356,115 @@ new class extends Component
                         </flux:button>
                     </div>
                 @endif
+            </div>
+        </div>
+
+        <!-- Proximos vencimentos e insights -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <h2 class="text-lg font-bold">Proximos vencimentos</h2>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Assinaturas e faturas (proximos 30 dias)</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <flux:button href="{{ route('subscriptions.index') }}" wire:navigate variant="ghost" size="sm">
+                            Assinaturas
+                        </flux:button>
+                        <flux:button href="{{ route('credit-cards.index') }}" wire:navigate variant="ghost" size="sm">
+                            Cartoes
+                        </flux:button>
+                    </div>
+                </div>
+
+                @php $events = $this->getUpcomingFinancialEvents(30); @endphp
+                @if(count($events) > 0)
+                    <div class="space-y-2">
+                        @foreach($events as $event)
+                            @php
+                                $daysTo = now()->startOfDay()->diffInDays($event['date'], false);
+                                $isOverdue = (bool) ($event['is_overdue'] ?? false);
+                                $isSoon = ! $isOverdue && $daysTo <= 3;
+                                $isCard = ($event['kind'] ?? '') === 'credit_card';
+                                $href = $isCard
+                                    ? (isset($event['id']) ? route('credit-cards.edit', $event['id']) : route('credit-cards.index'))
+                                    : (isset($event['id']) ? route('subscriptions.edit', $event['id']) : route('subscriptions.index'));
+                            @endphp
+                            <a href="{{ $href }}" wire:navigate class="block rounded-2xl border border-zinc-200/70 dark:border-white/10 bg-zinc-50/60 dark:bg-white/[0.02] px-4 py-3 hover:bg-zinc-100/60 dark:hover:bg-white/[0.04] transition">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="min-w-0">
+                                        <p class="font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                            {{ $isCard ? 'Fatura: ' : '' }}{{ $event['label'] ?? 'Item' }}
+                                        </p>
+                                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                            {{ $isCard ? 'Cartao' : 'Assinatura' }}
+                                            <span class="mx-1">•</span>
+                                            R$ {{ number_format((float) ($event['amount'] ?? 0), 2, ',', '.') }}
+                                        </p>
+                                    </div>
+                                    <div class="text-right shrink-0">
+                                        <p class="text-xs font-semibold text-zinc-600 dark:text-zinc-300">{{ $event['date']->format('d/m') }}</p>
+                                        @if($isOverdue)
+                                            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/10 text-[11px] font-bold">Atrasado</span>
+                                        @elseif($isSoon)
+                                            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/10 text-[11px] font-bold">Em {{ max(0, $daysTo) }}d</span>
+                                        @else
+                                            <span class="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-white/5 text-zinc-700 dark:text-zinc-300 border border-zinc-500/10 text-[11px] font-bold">Em {{ max(0, $daysTo) }}d</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="flex flex-col items-center justify-center py-10 text-zinc-500">
+                        <div class="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 mb-3">
+                            <svg class="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h8m-8 4h8m-8 4h6M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                            </svg>
+                        </div>
+                        <p class="font-medium">Sem vencimentos no horizonte</p>
+                        <flux:button href="{{ route('subscriptions.create') }}" wire:navigate variant="ghost" size="sm" class="mt-4">
+                            Cadastrar assinatura
+                        </flux:button>
+                    </div>
+                @endif
+            </div>
+
+            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <h2 class="text-lg font-bold">Insights</h2>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Curto, direto e util</p>
+                    </div>
+                    <flux:button href="{{ route('reports.index') }}" wire:navigate variant="ghost" size="sm">
+                        Relatorios
+                    </flux:button>
+                </div>
+
+                @php $insights = $this->getDashboardInsights(); @endphp
+                <div class="space-y-2">
+                    @foreach($insights as $insight)
+                        @php
+                            $tone = $insight['tone'] ?? 'info';
+                            $toneClass = match ($tone) {
+                                'warning' => 'border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200',
+                                'ok' => 'border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-200',
+                                default => 'border-sky-500/20 bg-sky-50/70 dark:bg-sky-500/10 text-sky-900 dark:text-sky-200',
+                            };
+                        @endphp
+                        <div class="rounded-2xl border {{ $toneClass }} px-4 py-3">
+                            <p class="text-sm font-semibold leading-6">
+                                {{ $insight['text'] ?? '' }}
+                            </p>
+                            @if(!empty($insight['cta']) && !empty($insight['cta_label']))
+                                <a href="{{ $insight['cta'] }}" wire:navigate class="mt-2 inline-flex text-xs font-bold underline underline-offset-4">
+                                    {{ $insight['cta_label'] }}
+                                </a>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
             </div>
         </div>
 
