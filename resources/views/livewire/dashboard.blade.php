@@ -172,6 +172,77 @@ new class extends Component
         return $this->getTotalIncomeAllTime() - $this->getTotalExpensesAllTime() - $this->getTotalSavingsDeposits();
     }
 
+    public function getCreditCardsSummary(): array
+    {
+        $user = $this->user();
+
+        $cards = $user->creditCards()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'credit_limit', 'opening_balance', 'closing_day', 'due_day']);
+
+        if ($cards->isEmpty()) {
+            return [];
+        }
+
+        $deltas = $user->transactions()
+            ->whereIn('credit_card_id', $cards->pluck('id')->all())
+            ->selectRaw('credit_card_id, SUM(CASE WHEN type = \"expense\" THEN amount ELSE -amount END) as delta')
+            ->groupBy('credit_card_id')
+            ->pluck('delta', 'credit_card_id');
+
+        return $cards->map(function ($card) use ($deltas) {
+            $delta = (float) ($deltas[$card->id] ?? 0);
+            $currentBalance = round((float) $card->opening_balance + $delta, 2);
+            $available = round((float) $card->credit_limit - $currentBalance, 2);
+            $usagePct = (float) $card->credit_limit > 0 ? round(($currentBalance / (float) $card->credit_limit) * 100, 1) : 0.0;
+
+            return [
+                'id' => $card->id,
+                'name' => $card->name,
+                'credit_limit' => (float) $card->credit_limit,
+                'current_balance' => $currentBalance,
+                'available_limit' => $available,
+                'usage_pct' => $usagePct,
+                'closing_day' => $card->closing_day,
+                'due_day' => $card->due_day,
+            ];
+        })->values()->toArray();
+    }
+
+    public function getBankAccountsSummary(): array
+    {
+        $user = $this->user();
+
+        $accounts = $user->bankAccounts()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'type', 'opening_balance', 'color']);
+
+        if ($accounts->isEmpty()) {
+            return [];
+        }
+
+        $deltas = $user->transactions()
+            ->whereIn('bank_account_id', $accounts->pluck('id')->all())
+            ->selectRaw('bank_account_id, SUM(CASE WHEN type = \"income\" THEN amount ELSE -amount END) as delta')
+            ->groupBy('bank_account_id')
+            ->pluck('delta', 'bank_account_id');
+
+        return $accounts->map(function ($account) use ($deltas) {
+            $delta = (float) ($deltas[$account->id] ?? 0);
+            $currentBalance = round((float) $account->opening_balance + $delta, 2);
+
+            return [
+                'id' => $account->id,
+                'name' => $account->name,
+                'type' => $account->type,
+                'color' => $account->color,
+                'current_balance' => $currentBalance,
+            ];
+        })->values()->toArray();
+    }
+
     public function getExpensesByCategory(): array
     {
         $user = $this->user();
@@ -968,6 +1039,124 @@ new class extends Component
                 <p class="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">
                     R$ {{ number_format($this->getAvailableBalance(), 2, ',', '.') }}
                 </p>
+            </div>
+        </div>
+
+        <!-- Contas e Cartoes -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <h2 class="text-lg font-bold">Contas</h2>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Saldo por conta (ativos)</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <flux:button href="{{ route('bank-accounts.index') }}" wire:navigate variant="ghost" size="sm">
+                            Ver
+                        </flux:button>
+                        <flux:button href="{{ route('bank-accounts.create') }}" wire:navigate variant="ghost" size="sm">
+                            Nova
+                        </flux:button>
+                    </div>
+                </div>
+
+                @php $accounts = $this->getBankAccountsSummary(); @endphp
+                @if(count($accounts) > 0)
+                    <div class="space-y-2">
+                        @foreach($accounts as $account)
+                            <div class="flex items-center justify-between rounded-2xl border border-zinc-200/70 dark:border-white/10 bg-zinc-50/60 dark:bg-white/[0.02] px-4 py-3">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <span class="h-2.5 w-2.5 rounded-full shrink-0" style="background: {{ $account['color'] ?: '#94A3B8' }}"></span>
+                                    <div class="min-w-0">
+                                        <p class="font-bold text-zinc-900 dark:text-zinc-100 truncate">{{ $account['name'] }}</p>
+                                        <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                                            {{ $account['type'] === 'cash' ? 'Caixa' : 'Conta' }}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="font-black tracking-tight {{ ($account['current_balance'] ?? 0) < 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-white' }}">
+                                        R$ {{ number_format($account['current_balance'] ?? 0, 2, ',', '.') }}
+                                    </p>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="flex flex-col items-center justify-center py-10 text-zinc-500">
+                        <div class="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 mb-3">
+                            <svg class="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7h18M7 7v10a2 2 0 002 2h6a2 2 0 002-2V7" />
+                            </svg>
+                        </div>
+                        <p class="font-medium">Nenhuma conta cadastrada ainda</p>
+                        <flux:button href="{{ route('bank-accounts.create') }}" wire:navigate variant="ghost" size="sm" class="mt-4">
+                            Cadastrar conta
+                        </flux:button>
+                    </div>
+                @endif
+            </div>
+
+            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <h2 class="text-lg font-bold">Cartoes</h2>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Limite, uso e disponivel (ativos)</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <flux:button href="{{ route('credit-cards.index') }}" wire:navigate variant="ghost" size="sm">
+                            Ver
+                        </flux:button>
+                        <flux:button href="{{ route('credit-cards.create') }}" wire:navigate variant="ghost" size="sm">
+                            Novo
+                        </flux:button>
+                    </div>
+                </div>
+
+                @php $cards = $this->getCreditCardsSummary(); @endphp
+                @if(count($cards) > 0)
+                    <div class="space-y-2">
+                        @foreach($cards as $card)
+                            @php $isTight = ($card['usage_pct'] ?? 0) >= 80; @endphp
+                            <div class="rounded-2xl border border-zinc-200/70 dark:border-white/10 bg-zinc-50/60 dark:bg-white/[0.02] px-4 py-3">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="min-w-0">
+                                        <p class="font-bold text-zinc-900 dark:text-zinc-100 truncate">{{ $card['name'] }}</p>
+                                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                            Limite R$ {{ number_format($card['credit_limit'] ?? 0, 2, ',', '.') }}
+                                            <span class="mx-1">•</span>
+                                            Disponivel R$ {{ number_format($card['available_limit'] ?? 0, 2, ',', '.') }}
+                                        </p>
+                                    </div>
+                                    <div class="text-right shrink-0">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg {{ $isTight ? 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/10' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/10' }} text-xs font-bold tracking-tight">
+                                            {{ number_format($card['usage_pct'] ?? 0, 1) }}%
+                                        </span>
+                                        @if(!empty($card['due_day']))
+                                            <p class="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">Vence dia {{ $card['due_day'] }}</p>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                <div class="mt-3 h-2 w-full rounded-full bg-zinc-200/70 dark:bg-white/10 overflow-hidden">
+                                    <div class="h-full rounded-full {{ $isTight ? 'bg-red-500' : 'bg-emerald-500' }}" style="width: {{ min(100, max(0, (float) ($card['usage_pct'] ?? 0))) }}%"></div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="flex flex-col items-center justify-center py-10 text-zinc-500">
+                        <div class="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 mb-3">
+                            <svg class="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2 10h20M4 6h16a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" />
+                            </svg>
+                        </div>
+                        <p class="font-medium">Nenhum cartao cadastrado ainda</p>
+                        <flux:button href="{{ route('credit-cards.create') }}" wire:navigate variant="ghost" size="sm" class="mt-4">
+                            Cadastrar cartao
+                        </flux:button>
+                    </div>
+                @endif
             </div>
         </div>
 
