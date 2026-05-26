@@ -189,6 +189,9 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 }
             }
 
+            [$result, $contractMeta] = app(\App\Services\WhatsApp\ActionResultSanitizer::class)->sanitize($result);
+            $result['_contract_meta'] = $contractMeta;
+
             // Handlers read $job->message for raw context; pass normalized text to state/history for predictability.
             $handled = $handlerFactory->process($action, $result, $user, $contact, $this);
 
@@ -197,6 +200,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'action' => $action,
                 'handled' => $handled,
                 'handler' => $result['_selected_handler'] ?? null,
+                'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
+                'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                 'reply_preview' => mb_substr((string) ($this->getFinalReply() ?? $result['reply'] ?? ''), 0, 120),
             ]);
 
@@ -218,6 +223,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'metadata' => [
                         'preflight_handled' => false,
                         'reply_kind' => $result['_conversation_metadata']['reply_kind'] ?? null,
+                        'contract' => $result['_contract_meta'] ?? null,
+                        'entities' => $result['_conversation_metadata']['entities'] ?? null,
                     ],
                 ]);
                 return;
@@ -239,6 +246,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'reply' => $formattedReply,
                 'metadata' => [
                     'preflight_handled' => false,
+                    'contract' => $result['_contract_meta'] ?? null,
+                    'entities' => $result['_conversation_metadata']['entities'] ?? null,
                 ],
             ]);
         } catch (\Exception $e) {
@@ -280,6 +289,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'metadata' => [
                         'line' => $e->getLine(),
                         'file' => $e->getFile(),
+                        'contract' => $result['_contract_meta'] ?? null,
                     ],
                 ]);
             }

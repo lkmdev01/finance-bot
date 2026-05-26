@@ -4,7 +4,10 @@ use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\AudioTranscriptionService;
+use App\Services\BaileysService;
 use Illuminate\Support\Facades\Queue;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\Response;
 
 test('webhook recebe mensagem do whatsapp e enfileira job', function () {
     Queue::fake();
@@ -13,6 +16,7 @@ test('webhook recebe mensagem do whatsapp e enfileira job', function () {
 
     $user = User::factory()->create([
         'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
     ]);
 
     $webhookData = [
@@ -96,6 +100,7 @@ test('webhook transcreve audio e enfileira job', function () {
 
     $user = User::factory()->create([
         'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
     ]);
 
     $this->mock(AudioTranscriptionService::class, function ($mock) {
@@ -143,6 +148,7 @@ test('webhook retorna erro amigavel quando audio nao pode ser transcrito', funct
 
     User::factory()->create([
         'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
     ]);
 
     $this->mock(AudioTranscriptionService::class, function ($mock) {
@@ -151,10 +157,10 @@ test('webhook retorna erro amigavel quando audio nao pode ser transcrito', funct
             ->andReturn(null);
     });
 
-    $this->mock(\App\Services\BaileysService::class, function ($mock) {
+    $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
-            ->andReturn(['success' => true]);
+            ->andReturn(new Response(new Psr7Response(200, [], json_encode(['success' => true]))));
     });
 
     $webhookData = [
@@ -192,12 +198,13 @@ test('webhook importa csv enviado como documento no whatsapp', function () {
 
     $user = User::factory()->create([
         'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
     ]);
 
-    $this->mock(\App\Services\BaileysService::class, function ($mock) {
+    $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
-            ->andReturn(['success' => true]);
+            ->andReturn(new Response(new Psr7Response(200, [], json_encode(['success' => true]))));
     });
 
     $csv = "Data,Descricao,Valor,Tipo\n";
@@ -243,6 +250,7 @@ test('webhook encaminha texto extraido de pdf para fila', function () {
 
     $user = User::factory()->create([
         'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
     ]);
 
     $pdfLike = "%PDF-1.4\n(Compra mercado 89,90 no cartao)\n%%EOF";

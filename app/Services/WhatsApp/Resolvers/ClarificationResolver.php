@@ -50,6 +50,20 @@ class ClarificationResolver
         $pending = $state['pending_payload']['transaction_data'] ?? [];
         $normalized = $this->normalizeText($message);
 
+        if (str_contains($normalized, 'cadastrar') || str_contains($normalized, 'criar conta') || str_contains($normalized, 'adicionar conta')) {
+            $url = rtrim((string) config('app.url'), '/').'/bank-accounts/create';
+
+            return [
+                'handled' => true,
+                'reply' => "Para cadastrar uma conta, use este link:\n{$url}\n\nDepois me diga qual conta voce quer usar aqui.",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                ],
+            ];
+        }
+
         if ($this->looksLikeBalanceFallback($message)) {
             // Keep whatever bank_account_name we prefilled (usually Caixa).
             $pending['payment_method'] = 'debit';
@@ -152,9 +166,9 @@ class ClarificationResolver
         $normalized = $this->normalizeText($message);
 
         $method = null;
-        if (str_contains($normalized, 'credito') || str_contains($normalized, 'crÃ©dito')) {
+        if (str_contains($normalized, 'credito')) {
             $method = 'credit';
-        } elseif (str_contains($normalized, 'debito') || str_contains($normalized, 'dÃ©bito') || $this->looksLikeBalanceFallback($message)) {
+        } elseif (str_contains($normalized, 'debito') || $this->looksLikeBalanceFallback($message)) {
             $method = 'debit';
         }
 
@@ -189,7 +203,7 @@ class ClarificationResolver
     {
         $normalized = $this->normalizeText($message);
 
-        foreach (['usar saldo', 'saldo', 'na conta', 'conta', 'debito', 'dÃ©bito'] as $needle) {
+        foreach (['usar saldo', 'saldo', 'na conta', 'conta', 'debito'] as $needle) {
             if (str_contains($normalized, $this->normalizeText($needle))) {
                 return true;
             }
@@ -278,9 +292,9 @@ class ClarificationResolver
             }
 
             // Payment method-only follow-up.
-            if (str_contains($normalized, 'credito') || str_contains($normalized, 'crÃƒÂ©dito')) {
+            if (str_contains($normalized, 'credito')) {
                 $transactionData['payment_method'] = 'credit';
-            } elseif (str_contains($normalized, 'debito') || str_contains($normalized, 'dÃƒÂ©bito')) {
+            } elseif (str_contains($normalized, 'debito')) {
                 $transactionData['payment_method'] = 'debit';
             } elseif (str_contains($normalized, 'pix')) {
                 $transactionData['payment_method'] = 'pix';
