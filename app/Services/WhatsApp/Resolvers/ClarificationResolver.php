@@ -24,7 +24,7 @@ class ClarificationResolver
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
             'create_reminder_schedule' => in_array($classification, ['default', 'reminder_create', 'reminder_needs_schedule'], true),
-            'select_credit_card', 'select_card_payment_method' => true,
+            'select_credit_card', 'select_card_payment_method', 'select_bank_account' => true,
             default => false,
         };
     }
@@ -40,8 +40,61 @@ class ClarificationResolver
             'create_reminder_schedule' => $this->buildReminderScheduleClarificationResult($message, $state),
             'select_credit_card' => $this->buildSelectCreditCardClarificationResult($message, $state),
             'select_card_payment_method' => $this->buildSelectCardPaymentMethodClarificationResult($message, $state),
+            'select_bank_account' => $this->buildSelectBankAccountClarificationResult($message, $state),
             default => null,
         };
+    }
+
+    private function buildSelectBankAccountClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['transaction_data'] ?? [];
+        $normalized = $this->normalizeText($message);
+
+        if ($this->looksLikeBalanceFallback($message)) {
+            // Keep whatever bank_account_name we prefilled (usually Caixa).
+            $pending['payment_method'] = 'debit';
+
+            return [
+                'handled' => false,
+                'result' => [
+                    'reply' => 'Entendi. Vou registrar no saldo da conta.',
+                    'action' => 'create_transaction',
+                    'transaction_data' => $pending,
+                    '_resolved_message' => $message,
+                    '_conversation_metadata' => [
+                        'clear_pending' => true,
+                        'reply_kind' => 'action',
+                    ],
+                ],
+            ];
+        }
+
+        // Treat any non-empty text as an account name.
+        $cleaned = preg_replace('/\b(?:usar|use|na|no|conta|saldo|debito|d[eé]bito)\b/iu', ' ', $message) ?? $message;
+        $cleaned = preg_replace('/\s+/u', ' ', trim($cleaned)) ?? $cleaned;
+        $cleaned = trim((string) $cleaned, " \t\n\r\0\x0B-:");
+
+        if ($cleaned === '') {
+            return null;
+        }
+
+        $pending['payment_method'] = 'debit';
+        $pending['bank_account_name'] = mb_convert_case($cleaned, MB_CASE_TITLE, 'UTF-8');
+        unset($pending['credit_card_id'], $pending['credit_card_name'], $pending['use_default_card']);
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_transaction',
+                'transaction_data' => $pending,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
     }
 
     private function buildSelectCreditCardClarificationResult(string $message, array $state): ?array

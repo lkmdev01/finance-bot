@@ -1309,6 +1309,17 @@ it('registra no saldo quando informa debito junto do cartao por nome', function 
         'is_active' => true,
     ]);
 
+    BankAccount::create([
+        'user_id' => currentTestCase()->user->id,
+        'name' => 'Nubank',
+        'institution' => 'Nubank',
+        'type' => 'checking',
+        'opening_balance' => 100.00,
+        'currency' => 'BRL',
+        'color' => '#000000',
+        'is_active' => true,
+    ]);
+
     currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()

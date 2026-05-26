@@ -178,7 +178,7 @@ class TransactionConversationService
     private function loadTransactions(User $user, array $context): Collection
     {
         $query = Transaction::query()
-            ->with('category')
+            ->with(['category', 'bankAccount', 'creditCard'])
             ->where('user_id', $user->id)
             ->when($context['type'], fn ($builder, $type) => $builder->where('type', $type));
 

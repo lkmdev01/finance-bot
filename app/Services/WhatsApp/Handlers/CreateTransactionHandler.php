@@ -107,6 +107,44 @@ class CreateTransactionHandler extends BaseHandler
             $result['transaction_data']['credit_card_name'] = null;
         }
 
+        // If user explicitly asked for debit for a card name but we still don't have a matching account,
+        // ask for clarification instead of silently falling back to "Caixa"/first account.
+        if (($result['transaction_data']['payment_method'] ?? null) === 'debit'
+            && ! empty($result['transaction_data']['bank_account_name'])) {
+            $sourceResolver = app(\App\Services\WhatsApp\FinancialSourceResolver::class);
+            $account = $sourceResolver->findBankAccountByName($user, (string) $result['transaction_data']['bank_account_name']);
+
+            if ($account === null) {
+                $fallbackCash = $user->bankAccounts()
+                    ->where('is_active', true)
+                    ->get()
+                    ->first(fn ($acc) => ($acc->type ?? '') === 'cash' || str_contains(mb_strtolower($acc->name ?? ''), 'caixa'));
+
+                $cashName = $fallbackCash?->name ?? 'Caixa';
+                $reply = sprintf(
+                    'Entendi que voce quer registrar no *debito*, mas eu nao encontrei uma conta "%s" para usar no saldo. Quer usar "%s" (responda: usar saldo) ou me diga o nome da conta certa?',
+                    (string) $result['transaction_data']['bank_account_name'],
+                    $cashName
+                );
+
+                $result['_conversation_metadata'] = [
+                    'pending_intent' => 'select_bank_account',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'transaction_data' => array_merge($result['transaction_data'], [
+                            'bank_account_name' => $cashName,
+                            'payment_method' => 'debit',
+                        ]),
+                    ],
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                ];
+
+                $this->sendResponse($job, $reply, $user);
+                return true;
+            }
+        }
+
         // If the user mentioned a specific credit card but didn't say "credito/debito",
         // default to credit. Debit must be explicit ("no debito", "no saldo").
         if (($result['transaction_data']['type'] ?? 'expense') === 'expense'
