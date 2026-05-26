@@ -13,6 +13,155 @@ new class extends Component
         ];
     }
 
+    public function missions(array $mascot): array
+    {
+        $stats = $mascot['stats'] ?? [];
+
+        $missions = [];
+
+        if (empty($stats['has_bank_account'])) {
+            $missions[] = [
+                'title' => 'Cadastrar uma conta',
+                'description' => 'Para separar saldo e organizar entradas/saidas por fonte.',
+                'tone' => 'sky',
+                'cta' => route('bank-accounts.create'),
+                'cta_label' => 'Cadastrar conta',
+            ];
+        }
+
+        if (empty($stats['has_credit_card'])) {
+            $missions[] = [
+                'title' => 'Cadastrar um cartao',
+                'description' => 'Para controlar limite, fatura e compras no credito.',
+                'tone' => 'violet',
+                'cta' => route('credit-cards.create'),
+                'cta_label' => 'Cadastrar cartao',
+            ];
+        }
+
+        if (($stats['active_budgets'] ?? 0) === 0 && ($stats['transaction_count'] ?? 0) > 0) {
+            $missions[] = [
+                'title' => 'Criar 1 orcamento do mes',
+                'description' => 'Orcamentos melhoram previsibilidade e ajudam nos alertas.',
+                'tone' => 'amber',
+                'cta' => route('budgets.create'),
+                'cta_label' => 'Criar orcamento',
+            ];
+        }
+
+        if (($stats['active_goals'] ?? 0) === 0) {
+            $missions[] = [
+                'title' => 'Criar uma meta',
+                'description' => 'Uma meta ativa transforma economia em progresso visivel.',
+                'tone' => 'emerald',
+                'cta' => route('savings-goals.create'),
+                'cta_label' => 'Criar meta',
+            ];
+        }
+
+        if (($stats['categorized_ratio'] ?? 0) < 0.8 && ($stats['transaction_count'] ?? 0) > 0) {
+            $missions[] = [
+                'title' => 'Melhorar a categorizacao',
+                'description' => 'Quanto mais categorias consistentes, melhores os insights.',
+                'tone' => 'sky',
+                'cta' => route('transactions.index'),
+                'cta_label' => 'Ver transacoes',
+            ];
+        }
+
+        if (($stats['current_month_income'] ?? 0) > 0 && ($stats['current_month_expenses'] ?? 0) > ($stats['current_month_income'] ?? 0)) {
+            $missions[] = [
+                'title' => 'Revisar despesas do mes',
+                'description' => 'Despesas acima da receita pedem ajuste rapido para evitar bola de neve.',
+                'tone' => 'rose',
+                'cta' => route('reports.index'),
+                'cta_label' => 'Abrir relatorios',
+            ];
+        }
+
+        if (empty($stats['has_subscription'])) {
+            $missions[] = [
+                'title' => 'Cadastrar assinaturas',
+                'description' => 'Assim o sistema acompanha vencimentos automaticamente.',
+                'tone' => 'amber',
+                'cta' => route('subscriptions.create'),
+                'cta_label' => 'Cadastrar assinatura',
+            ];
+        }
+
+        return array_slice($missions, 0, 4);
+    }
+
+    public function upcomingEvents(int $days = 30): array
+    {
+        $user = Auth::user();
+        $today = now()->startOfDay();
+        $until = now()->addDays($days)->endOfDay();
+
+        $items = [];
+
+        $subscriptions = $user->subscriptions()
+            ->where('is_active', true)
+            ->whereNotNull('next_due_date')
+            ->whereDate('next_due_date', '<=', $until->toDateString())
+            ->orderBy('next_due_date')
+            ->limit(10)
+            ->get(['id', 'name', 'amount', 'next_due_date']);
+
+        foreach ($subscriptions as $sub) {
+            $date = $sub->next_due_date?->copy()->startOfDay();
+            if (! $date) {
+                continue;
+            }
+
+            $items[] = [
+                'kind' => 'subscription',
+                'id' => $sub->id,
+                'label' => $sub->name,
+                'amount' => (float) $sub->amount,
+                'date' => $date,
+                'is_overdue' => $date->lt($today),
+            ];
+        }
+
+        $cards = $user->creditCards()
+            ->where('is_active', true)
+            ->whereNotNull('due_day')
+            ->orderBy('name')
+            ->get(['id', 'name', 'due_day']);
+
+        foreach ($cards as $card) {
+            $dueDay = (int) $card->due_day;
+            if ($dueDay <= 0) {
+                continue;
+            }
+
+            $base = \Carbon\Carbon::create(now()->year, now()->month, 1)->startOfMonth();
+            $dueDate = $base->copy()->day(min($dueDay, $base->daysInMonth))->startOfDay();
+            if ($dueDate->lt($today)) {
+                $next = $base->copy()->addMonth();
+                $dueDate = $next->day(min($dueDay, $next->daysInMonth))->startOfDay();
+            }
+
+            if ($dueDate->gt($until)) {
+                continue;
+            }
+
+            $items[] = [
+                'kind' => 'credit_card',
+                'id' => $card->id,
+                'label' => $card->name,
+                'amount' => null,
+                'date' => $dueDate,
+                'is_overdue' => false,
+            ];
+        }
+
+        usort($items, fn ($a, $b) => ($a['date'] ?? $today) <=> ($b['date'] ?? $today));
+
+        return array_slice($items, 0, 6);
+    }
+
     public function mascotName(): string
     {
         return (string) config('mascot.name', 'Orbita');
@@ -192,7 +341,7 @@ new class extends Component
         <div class="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5 sm:rounded-[2rem] sm:p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
             <div class="flex items-center justify-between gap-4">
                 <div>
-                    <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Score breakdown</p>
+                    <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Componentes do score</p>
                     <h2 class="mt-2 text-2xl font-black text-white">O que mais pesa na Pontuação do {{ $this->mascotName() }}</h2>
                 </div>
                 <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
@@ -219,24 +368,132 @@ new class extends Component
         </div>
 
         <div class="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5 sm:rounded-[2rem] sm:p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
-            <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Foco sugerido</p>
-            <h2 class="mt-2 text-2xl font-black text-white">{{ $mascot['focus_area']['title'] }}</h2>
-            <p class="mt-4 text-sm leading-7 text-slate-300">{{ $mascot['focus_area']['description'] }}</p>
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Nivel e progresso</p>
+                    <h2 class="mt-2 text-2xl font-black text-white">Nivel {{ $mascot['level'] }} do {{ $this->mascotName() }}</h2>
+                    <p class="mt-3 text-sm leading-7 text-slate-300">
+                        {{ $mascot['xp_in_level'] }}/{{ $mascot['xp_for_next_level'] }} XP neste nivel
+                        <span class="mx-1">•</span>
+                        {{ $mascot['level_progress'] }}% para o proximo
+                    </p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Sequencia</p>
+                    <p class="mt-1 text-2xl font-black text-white">{{ $mascot['current_streak'] }}d</p>
+                    <p class="text-xs text-slate-400">melhor: {{ $mascot['best_streak'] }}d</p>
+                </div>
+            </div>
+
+            <div class="mt-5 h-3 overflow-hidden rounded-full bg-white/10">
+                <div
+                    class="h-full rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-300"
+                    style="width: {{ min(100, (int) ($mascot['level_progress'] ?? 0)) }}%"
+                ></div>
+            </div>
 
             <div class="mt-8 grid gap-3">
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Receitas do mês</p>
+                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Receitas do mes</p>
                     <p class="mt-2 text-2xl font-bold text-emerald-300">R$ {{ number_format($mascot['stats']['current_month_income'], 2, ',', '.') }}</p>
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Despesas do mês</p>
+                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Despesas do mes</p>
                     <p class="mt-2 text-2xl font-bold text-rose-300">R$ {{ number_format($mascot['stats']['current_month_expenses'], 2, ',', '.') }}</p>
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Economia do mês</p>
+                    <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Economia do mes</p>
                     <p class="mt-2 text-2xl font-bold text-amber-200">R$ {{ number_format($mascot['stats']['current_month_savings'], 2, ',', '.') }}</p>
                 </div>
             </div>
+        </div>
+    </section>
+
+    <section class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <div class="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5 sm:rounded-[2rem] sm:p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Missao do momento</p>
+                    <h2 class="mt-2 text-2xl font-black text-white">{{ $mascot['focus_area']['title'] }}</h2>
+                    <p class="mt-3 text-sm leading-7 text-slate-300">{{ $mascot['focus_area']['description'] }}</p>
+                </div>
+                <span class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200">
+                    {{ $mascot['focus_area']['score'] }}/25
+                </span>
+            </div>
+
+            @php $missions = $this->missions($mascot); @endphp
+            @if($missions !== [])
+                <div class="mt-8 grid gap-3">
+                    @foreach($missions as $mission)
+                        @php $missionClasses = $this->toneClasses($mission['tone'] ?? 'sky'); @endphp
+                        <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <p class="text-sm font-bold text-white">{{ $mission['title'] }}</p>
+                                    <p class="mt-1 text-sm leading-7 text-slate-300">{{ $mission['description'] }}</p>
+                                </div>
+                                <a href="{{ $mission['cta'] }}" wire:navigate class="shrink-0 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-200 hover:bg-white/10">
+                                    {{ $mission['cta_label'] }}
+                                </a>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+
+        <div class="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5 sm:rounded-[2rem] sm:p-6 shadow-[0_18px_70px_rgba(2,6,23,0.32)]">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <p class="text-sm uppercase tracking-[0.18em] text-slate-400">Radar</p>
+                    <h2 class="mt-2 text-2xl font-black text-white">O que vem pela frente</h2>
+                    <p class="mt-2 text-sm leading-7 text-slate-300">Vencimentos e lembretes para voce nao ser pego de surpresa.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('subscriptions.index') }}" wire:navigate class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-200 hover:bg-white/10">Assinaturas</a>
+                    <a href="{{ route('credit-cards.index') }}" wire:navigate class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-200 hover:bg-white/10">Cartoes</a>
+                </div>
+            </div>
+
+            @php $events = $this->upcomingEvents(30); @endphp
+            @if($events !== [])
+                <div class="mt-8 space-y-3">
+                    @foreach($events as $event)
+                        @php
+                            $daysTo = now()->startOfDay()->diffInDays($event['date'], false);
+                            $isOverdue = (bool) ($event['is_overdue'] ?? false);
+                            $isCard = ($event['kind'] ?? '') === 'credit_card';
+                            $href = $isCard
+                                ? (isset($event['id']) ? route('credit-cards.edit', $event['id']) : route('credit-cards.index'))
+                                : (isset($event['id']) ? route('subscriptions.edit', $event['id']) : route('subscriptions.index'));
+                        @endphp
+                        <a href="{{ $href }}" wire:navigate class="block rounded-2xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold text-white truncate">
+                                        {{ $isCard ? 'Fatura: ' : '' }}{{ $event['label'] }}
+                                    </p>
+                                    <p class="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
+                                        {{ $isCard ? 'Cartao' : 'Assinatura' }} <span class="mx-1">•</span> {{ $event['date']->format('d/m') }}
+                                    </p>
+                                </div>
+                                <span class="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-200">
+                                    {{ $isOverdue ? 'Atrasado' : 'Em '.max(0, $daysTo).'d' }}
+                                </span>
+                            </div>
+                        </a>
+                    @endforeach
+                </div>
+            @else
+                <div class="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p class="text-sm font-semibold text-white">Sem vencimentos nos proximos 30 dias.</p>
+                    <p class="mt-1 text-sm leading-7 text-slate-300">Se quiser, cadastre uma assinatura para eu acompanhar automaticamente.</p>
+                    <a href="{{ route('subscriptions.create') }}" wire:navigate class="mt-4 inline-flex rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-200 hover:bg-white/10">
+                        Cadastrar assinatura
+                    </a>
+                </div>
+            @endif
         </div>
     </section>
 

@@ -8,7 +8,7 @@
     @else
         <x-billing.feature-paywall
             :feature-title="$mascotName"
-            :feature-description="'O sistema de pontuação, humor e medalhas do '.$mascotName.' faz parte da assinatura Pro.'"
+            :feature-description="'O sistema de pontuacao, humor e medalhas do '.$mascotName.' faz parte da assinatura Pro.'"
         />
     @endif
 </x-layouts.app.sidebar>
