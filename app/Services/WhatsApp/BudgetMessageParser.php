@@ -6,6 +6,40 @@ use Illuminate\Support\Str;
 
 class BudgetMessageParser
 {
+    public function parseCreate(string $message): ?array
+    {
+        $normalized = $this->normalize($message);
+
+        if (! $this->looksLikeCreateIntent($normalized)) {
+            return null;
+        }
+
+        $amount = $this->extractAmount($message) ?? $this->extractAmount($normalized);
+        $categoryName = $this->extractCategoryNameForCreate($message);
+        $period = $this->extractPeriod($normalized, []);
+
+        if ($amount === null || $categoryName === null) {
+            return null;
+        }
+
+        return array_filter([
+            'category_name' => $categoryName,
+            'amount' => $amount,
+            'period' => $period['period'] ?? 'monthly',
+            'year' => $period['year'] ?? now()->year,
+            'month' => ($period['period'] ?? 'monthly') === 'monthly' ? ($period['month'] ?? now()->month) : null,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    public function looksLikeCreateIntent(string $message): bool
+    {
+        if (! str_contains($message, 'orcamento') && ! str_contains($message, 'oramento') && preg_match('/or.{0,4}amento/i', $message) !== 1) {
+            return false;
+        }
+
+        return $this->containsCreateVerb($message);
+    }
+
     public function parseEdit(string $message, ?string $fallbackCategoryName = null, array $fallbackPeriod = []): ?array
     {
         $normalized = $this->normalize($message);
@@ -83,6 +117,17 @@ class BudgetMessageParser
         return false;
     }
 
+    private function containsCreateVerb(string $message): bool
+    {
+        foreach (['criar', 'cria', 'definir', 'define', 'registrar', 'registra', 'setar', 'seta'] as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function containsDeleteVerb(string $message): bool
     {
         foreach (['cancelar', 'cancela', 'apagar', 'apaga', 'excluir', 'exclui', 'deletar', 'deleta', 'remover', 'remove'] as $keyword) {
@@ -152,6 +197,24 @@ class BudgetMessageParser
         }
 
         return null;
+    }
+
+    private function extractCategoryNameForCreate(string $message): ?string
+    {
+        $normalized = $this->normalize($message);
+
+        // Pattern: "criar orcamento de 500 para compras"
+        if (preg_match('/or.*?amento\\s+de\\s+(?:r\\$\\s*)?\\d+(?:[\\.,]\\d{1,2})?(?:\\s*mil)?\\s+(?:para|pra)\\s+([\\p{L}\\p{N} _?-]+?)(?:\\s+em\\b|[,.]|$)/iu', $normalized, $matches) === 1) {
+            return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
+        }
+
+        // Pattern: "criar orcamento de alimentacao de 700" / "orcamento de alimentacao 700"
+        if (preg_match('/or.*?amento\\s+de\\s+([\\p{L}\\p{N} _?-]+?)\\s+(?:de\\s+)?(?:r\\$\\s*)?\\d+(?:[\\.,]\\d{1,2})?(?:\\s*mil)?(?:\\b|$)/iu', $normalized, $matches) === 1) {
+            return $this->normalizeCategoryName((string) ($matches[1] ?? ''));
+        }
+
+        // Fallback to existing extractor (handles "a de X", "de X", etc.)
+        return $this->extractCategoryName($message);
     }
 
     private function normalizeCategoryName(string $name): ?string

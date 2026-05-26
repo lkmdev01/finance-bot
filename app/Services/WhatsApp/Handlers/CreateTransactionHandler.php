@@ -98,27 +98,21 @@ class CreateTransactionHandler extends BaseHandler
         // pedir esclarecimento antes de persistir para evitar descontar no lugar errado.
         $result['transaction_data'] = $this->inferCardIntentFromRawMessage($result['transaction_data'], $job->message);
 
+        // If the user said "no debito/no saldo" but referenced a card by name, we interpret it as
+        // "use the account that matches that institution/name", not the credit limit.
+        if (($result['transaction_data']['payment_method'] ?? null) === 'debit'
+            && empty($result['transaction_data']['bank_account_name'])
+            && ! empty($result['transaction_data']['credit_card_name'])) {
+            $result['transaction_data']['bank_account_name'] = $result['transaction_data']['credit_card_name'];
+            $result['transaction_data']['credit_card_name'] = null;
+        }
+
+        // If the user mentioned a specific credit card but didn't say "credito/debito",
+        // default to credit. Debit must be explicit ("no debito", "no saldo").
         if (($result['transaction_data']['type'] ?? 'expense') === 'expense'
             && empty($result['transaction_data']['payment_method'])
             && ! empty($result['transaction_data']['credit_card_name'])) {
-
-            $reply = sprintf(
-                'Entendi. Voce quer registrar isso no *credito* (limite do cartao) ou no *debito* (saldo da conta) para %s? Responda: credito ou debito.',
-                (string) $result['transaction_data']['credit_card_name']
-            );
-
-            $result['_conversation_metadata'] = [
-                'pending_intent' => 'select_card_payment_method',
-                'pending_mode' => 'awaiting_clarification',
-                'pending_payload' => [
-                    'transaction_data' => $result['transaction_data'],
-                ],
-                'clear_pending' => false,
-                'reply_kind' => 'message',
-            ];
-
-            $this->sendResponse($job, $reply, $user);
-            return true;
+            $result['transaction_data']['payment_method'] = 'credit';
         }
 
         if (isset($result['transaction_data']['payment_method'])
@@ -266,6 +260,15 @@ class CreateTransactionHandler extends BaseHandler
         $defaultDescription = ($data['type'] ?? 'expense') === 'income' ? 'Receita' : 'Gasto';
         $finalDescription = ! empty($data['description']) ? $data['description'] : $defaultDescription;
         [$bankAccount, $creditCard] = app(FinancialSourceResolver::class)->resolve($user, $data);
+
+        $paymentMethod = (string) ($data['payment_method'] ?? '');
+        if ($paymentMethod === 'credit') {
+            // Credit should always impact the card limit/fatura, not the cash balance.
+            $bankAccount = null;
+        } elseif ($paymentMethod === 'debit' || $paymentMethod === 'pix') {
+            // Debit/Pix should always impact the cash/bank balance, not the card limit.
+            $creditCard = null;
+        }
 
         $transaction = Transaction::create([
             'user_id' => $user->id,
@@ -546,6 +549,18 @@ class CreateTransactionHandler extends BaseHandler
         $ascii = Str::ascii($normalized);
 
         if (! str_contains($ascii, 'cartao')) {
+            return $data;
+        }
+
+        // If user explicitly says debit/saldo, treat as debit.
+        if (str_contains($ascii, 'debito') || str_contains($ascii, 'saldo')) {
+            $data['payment_method'] = 'debit';
+            return $data;
+        }
+
+        // If user explicitly says credit, treat as credit.
+        if (str_contains($ascii, 'credito')) {
+            $data['payment_method'] = 'credit';
             return $data;
         }
 

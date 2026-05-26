@@ -1242,7 +1242,7 @@ it('solicita clarificacao de cartao e registra com cartao padrao', function () {
     ]);
 });
 
-it('pede clarificacao de credito ou debito quando informa cartao por nome', function () {
+it('assume credito quando informa cartao por nome sem especificar debito', function () {
     Http::preventStrayRequests();
 
     $card = CreditCard::create([
@@ -1271,7 +1271,7 @@ it('pede clarificacao de credito ou debito quando informa cartao por nome', func
 
     currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
-            ->twice()
+            ->once()
             ->with(\Mockery::type('string'), \Mockery::type('string'))
             ->andReturn(fakeActionBaileysSuccessResponse());
     });
@@ -1285,18 +1285,6 @@ it('pede clarificacao de credito ou debito quando informa cartao por nome', func
     );
     runWhatsAppJob($firstJob);
 
-    currentTestCase()->contact->refresh();
-    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('select_card_payment_method');
-
-    $secondJob = new ProcessWhatsAppMessage(
-        phoneNumber: '5513991290256',
-        message: 'credito',
-        userId: currentTestCase()->user->id,
-        pushName: 'Test User',
-        remoteJid: '5513991290256@s.whatsapp.net'
-    );
-    runWhatsAppJob($secondJob);
-
     assertDatabaseHas('transactions', [
         'user_id' => currentTestCase()->user->id,
         'amount' => 20.00,
@@ -1305,7 +1293,7 @@ it('pede clarificacao de credito ou debito quando informa cartao por nome', func
     ]);
 });
 
-it('registra no saldo quando usuario escolhe debito apos informar cartao por nome', function () {
+it('registra no saldo quando informa debito junto do cartao por nome', function () {
     Http::preventStrayRequests();
 
     CreditCard::create([
@@ -1324,39 +1312,18 @@ it('registra no saldo quando usuario escolhe debito apos informar cartao por nom
     currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
-            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
-                return str_contains($message, 'credito') && str_contains($message, 'debito');
-            }))
-            ->andReturn(fakeActionBaileysSuccessResponse());
-
-        $mock->shouldReceive('sendTextMessage')
-            ->once()
-            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
-                return str_contains($message, 'saldo');
-            }))
+            ->with(\Mockery::type('string'), \Mockery::type('string'))
             ->andReturn(fakeActionBaileysSuccessResponse());
     });
 
     $firstJob = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
-        message: 'comprei lanche 20 no cartao Nubank',
+        message: 'comprei lanche 20 no cartao Nubank no debito',
         userId: currentTestCase()->user->id,
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($firstJob);
-
-    currentTestCase()->contact->refresh();
-    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('select_card_payment_method');
-
-    $secondJob = new ProcessWhatsAppMessage(
-        phoneNumber: '5513991290256',
-        message: 'debito',
-        userId: currentTestCase()->user->id,
-        pushName: 'Test User',
-        remoteJid: '5513991290256@s.whatsapp.net'
-    );
-    runWhatsAppJob($secondJob);
 
     assertDatabaseHas('transactions', [
         'user_id' => currentTestCase()->user->id,

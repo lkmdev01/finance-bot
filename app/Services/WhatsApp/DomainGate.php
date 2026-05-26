@@ -60,6 +60,11 @@ class DomainGate
 
     private function looksLikeTransactionDomain(string $message, array $state): bool
     {
+        // Budget messages should never be forced into "transaction" domain by context.
+        if (str_contains($message, 'orcamento') || str_contains($message, 'oramento') || preg_match('/or.{0,4}amento/iu', $message) === 1) {
+            return false;
+        }
+
         if (($state['last_entities']['topic'] ?? null) === 'recurring_transactions') {
             return true;
         }
@@ -86,6 +91,11 @@ class DomainGate
     {
         if (($state['last_entities']['topic'] ?? null) === 'subscriptions') {
             return true;
+        }
+
+        // Budget messages should stay in the budget domain, not planning.
+        if ($this->containsAnyText($message, ['orcamento', 'oramento']) || preg_match('/or.{0,4}amento/iu', $message) === 1) {
+            return false;
         }
 
         return $this->containsAnyText($message, [

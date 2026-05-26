@@ -15,6 +15,10 @@ class BudgetIntentClassifier
 
     public function classify(string $originalMessage, string $normalizedMessage, array $state): ?array
     {
+        if ($this->looksLikeBudgetCreate($originalMessage, $normalizedMessage)) {
+            return ['kind' => 'budget_create', 'normalized' => $normalizedMessage];
+        }
+
         if ($this->looksLikeBudgetDelete($originalMessage, $normalizedMessage, $state)) {
             return ['kind' => 'budget_delete', 'normalized' => $normalizedMessage];
         }
@@ -28,6 +32,16 @@ class BudgetIntentClassifier
         }
 
         return null;
+    }
+
+    private function looksLikeBudgetCreate(string $originalMessage, string $normalizedMessage): bool
+    {
+        if (! $this->containsBudgetCue($originalMessage, $normalizedMessage)) {
+            return false;
+        }
+
+        return $this->budgetMessageParser->looksLikeCreateIntent($normalizedMessage)
+            && $this->budgetMessageParser->parseCreate($originalMessage) !== null;
     }
 
     private function looksLikeBudgetEdit(string $originalMessage, string $normalizedMessage, array $state): bool

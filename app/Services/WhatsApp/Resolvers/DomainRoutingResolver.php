@@ -34,6 +34,12 @@ class DomainRoutingResolver
     {
         return match ($classification) {
             'budget_query' => $this->queryResult('query_budgets', $message),
+            'budget_create' => $this->actionResult(
+                'create_budget',
+                'budget_data',
+                $this->budgetMessageParser->parseCreate($message) ?? [],
+                $message
+            ),
             'budget_edit' => $this->actionResult(
                 'update_budget',
                 'budget_data',
