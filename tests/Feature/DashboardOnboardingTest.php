@@ -10,7 +10,7 @@ it('renders the regular dashboard for new users without showing onboarding tutor
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertOk()
-        ->assertSee('Saldo Livre')
+        ->assertSee('Saldo em Contas')
         ->assertDontSee('Bem-vindo ao seu cockpit financeiro')
         ->assertDontSee('Configure uma vez.');
 });

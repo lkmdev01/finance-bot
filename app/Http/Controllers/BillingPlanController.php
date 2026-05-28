@@ -93,27 +93,55 @@ class BillingPlanController extends Controller
         $user = $request->user();
         $plan = $this->billingPlanService->findOrFail($planCode);
 
+        $productId = $plan['product_id'] ?? null;
+        if (blank($productId)) {
+            return redirect()
+                ->route('billing.checkout-data.show', $planCode)
+                ->with('status', 'Este plano ainda nao esta configurado para pagamento. Entre em contato com o suporte.');
+        }
+
         try {
             $externalId = 'plan_'.$planCode.'_'.$user->id.'_'.Str::uuid();
 
-            $response = $this->abacatePayService->createSubscriptionCheckout([
-                'frequency' => 'ONE_TIME',
-                'methods' => ['PIX', 'CARD'],
-                'products' => [
-                    [
-                        'externalId' => $plan['code'],
-                        'name' => $plan['name'],
-                        'description' => $plan['description'],
-                        'quantity' => 1,
-                        'price' => $plan['price_cents'],
-                    ],
-                ],
-                'customer' => [
+            $customerId = $user->abacatepay_customer_id;
+
+            if (blank($customerId)) {
+                $customerResponse = $this->abacatePayService->createCustomer([
                     'name' => $user->name,
                     'email' => $user->email,
                     'cellphone' => $this->formatBillingPhone($user->phone_number),
                     'taxId' => BrazilTaxId::format($user->tax_id),
+                    'metadata' => [
+                        'app_user_id' => $user->id,
+                        'source' => 'app_billing',
+                    ],
+                ]);
+
+                if (! ($customerResponse['success'] ?? false) || blank($customerResponse['data']['id'] ?? null)) {
+                    return redirect()
+                        ->route('billing.checkout-data.show', $planCode)
+                        ->with('status', $customerResponse['error'] ?? 'Nao foi possivel iniciar o pagamento do plano agora. Tente novamente.');
+                }
+
+                $customerId = (string) $customerResponse['data']['id'];
+                $user->forceFill(['abacatepay_customer_id' => $customerId])->save();
+            }
+
+            $methods = config('billing.checkout_methods', ['PIX', 'CARD']);
+            if (! is_array($methods) || $methods === []) {
+                $methods = ['PIX', 'CARD'];
+            }
+
+            // MVP: cobranca avulsa (sem renovacao automatica). O acesso e liberado pelo periodo do plano.
+            $response = $this->abacatePayService->createCheckout([
+                'items' => [
+                    [
+                        'id' => $productId,
+                        'quantity' => 1,
+                    ],
                 ],
+                'customerId' => $customerId,
+                'methods' => array_values($methods),
                 'externalId' => $externalId,
                 'returnUrl' => route('billing.plans'),
                 'completionUrl' => route('billing.plans', ['checkout' => 'success']),
@@ -150,6 +178,7 @@ class BillingPlanController extends Controller
                 'amount' => $data['amount'] ?? $plan['price_cents'],
                 'status' => $data['status'] ?? 'PENDING',
                 'frequency' => $plan['frequency'],
+                'gateway_customer_id' => $user->abacatepay_customer_id,
                 'customer_name' => $user->name,
                 'customer_email' => $user->email,
                 'customer_tax_id' => BrazilTaxId::format($user->tax_id),

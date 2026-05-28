@@ -9,9 +9,22 @@ use Illuminate\Support\Facades\Http;
 
 use function Pest\Laravel\assertDatabaseHas;
 
+uses()->group('performance');
+
 beforeEach(function () {
     $this->user = User::factory()->create();
     $this->repository = new TransactionRepository();
+    $this->expenseCategory = Category::factory()->create([
+        'user_id' => $this->user->id,
+        'type' => 'expense',
+        'name' => 'Performance Expense',
+    ]);
+
+    $this->incomeCategory = Category::factory()->create([
+        'user_id' => $this->user->id,
+        'type' => 'income',
+        'name' => 'Performance Income',
+    ]);
 });
 
 it('calcula dados financeiros com performance aceitável', function () {
@@ -19,11 +32,13 @@ it('calcula dados financeiros com performance aceitável', function () {
     Transaction::factory()->count(100)->create([
         'user_id' => $this->user->id,
         'type' => 'income',
+        'category_id' => $this->incomeCategory->id,
     ]);
     
     Transaction::factory()->count(150)->create([
         'user_id' => $this->user->id,
         'type' => 'expense',
+        'category_id' => $this->expenseCategory->id,
     ]);
     
     $startTime = microtime(true);
@@ -57,14 +72,13 @@ it('processa mensagem da IA com tempo de resposta aceitável', function () {
         ], 200),
     ]);
     
-    $aiService = new AIService(
-        apiKey: config('ai.groq.api_key', 'test-key'),
-        provider: 'groq'
-    );
+    config()->set('ai.provider', 'groq');
+    config()->set('ai.api_key', 'test-key');
+    $aiService = app(AIService::class);
     
     $startTime = microtime(true);
     
-    $result = $aiService->processMessage('Qual é o meu saldo?', $this->user);
+    $result = $aiService->processMessage('Qual e o meu saldo?', $this->user);
     
     $executionTime = (microtime(true) - $startTime) * 1000; // em milissegundos
     
@@ -77,6 +91,7 @@ it('busca transações recentes com performance aceitável', function () {
     // Cria muitas transações
     Transaction::factory()->count(500)->create([
         'user_id' => $this->user->id,
+        'category_id' => $this->expenseCategory->id,
     ]);
     
     $startTime = microtime(true);
@@ -95,12 +110,14 @@ it('calcula agregações mensais com performance otimizada', function () {
         Transaction::factory()->count(50)->create([
             'user_id' => $this->user->id,
             'type' => 'income',
+            'category_id' => $this->incomeCategory->id,
             'date' => now()->subMonths($i),
         ]);
         
         Transaction::factory()->count(50)->create([
             'user_id' => $this->user->id,
             'type' => 'expense',
+            'category_id' => $this->expenseCategory->id,
             'date' => now()->subMonths($i),
         ]);
     }
@@ -120,6 +137,7 @@ it('calcula agregações de todos os tempos com performance otimizada', function
     // Cria muitas transações
     Transaction::factory()->count(1000)->create([
         'user_id' => $this->user->id,
+        'category_id' => $this->expenseCategory->id,
     ]);
     
     $startTime = microtime(true);
@@ -136,6 +154,7 @@ it('calcula agregações de todos os tempos com performance otimizada', function
 it('processa múltiplas consultas simultaneamente com performance aceitável', function () {
     Transaction::factory()->count(200)->create([
         'user_id' => $this->user->id,
+        'category_id' => $this->expenseCategory->id,
     ]);
     
     $startTime = microtime(true);

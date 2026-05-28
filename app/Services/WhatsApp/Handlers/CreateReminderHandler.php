@@ -29,7 +29,7 @@ class CreateReminderHandler extends BaseHandler
             'day_of_week' => ['nullable', 'integer', 'min:0', 'max:6'],
             'day_of_month' => ['nullable', 'integer', 'min:1', 'max:31'],
             'month_of_year' => ['nullable', 'integer', 'min:1', 'max:12'],
-            'trigger_time' => ['nullable', 'regex:/^\d{2}:\d{2}:\d{2}$/'],
+            'trigger_time' => ['nullable', 'regex:/^\\d{2}:\\d{2}:\\d{2}$/'],
         ]);
 
         $validation->after(function ($validator) use ($data) {
@@ -47,7 +47,13 @@ class CreateReminderHandler extends BaseHandler
         });
 
         if ($validation->fails()) {
-            $this->sendErrorMessage($job, "Nao consegui criar esse lembrete.\n\nTente assim:\n* me lembra no dia 5 do mes que vem de pagar Joao\n* me lembra de dar parabens para Maria anualmente dia 10 do mes 6\n* me lembra todo dia as 08:30 de tomar agua");
+            $this->sendErrorMessage(
+                $job,
+                "Nao consegui criar esse lembrete.\n\nTente assim:\n"
+                ."* me lembra no dia 5 do mes que vem de pagar Joao\n"
+                ."* me lembra de dar parabens para Maria anualmente dia 10 do mes 6\n"
+                ."* me lembra todo dia as 08:30 de tomar agua"
+            );
             return true;
         }
 
@@ -58,6 +64,11 @@ class CreateReminderHandler extends BaseHandler
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => [
+                'kind' => 'reminder_create',
+                'id' => $reminder->id,
+                'expires_at' => now()->addSeconds(60)->toIso8601String(),
+            ],
             'entities' => [
                 'topic' => 'reminders',
                 'reminder_id' => $reminder->id,
@@ -67,7 +78,6 @@ class CreateReminderHandler extends BaseHandler
         ]);
 
         $this->sendResponse($job, $this->buildSuccessMessage($reminder), $user);
-
         return true;
     }
 
@@ -94,40 +104,28 @@ class CreateReminderHandler extends BaseHandler
 
         return match ($reminder->frequency) {
             'daily' => sprintf(
-                'Lembrete diario criado! 📅\n\n%s',
+                "Lembrete diario criado.\n\n%s",
                 ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'daily', $templateType)
             ),
             'weekly' => sprintf(
-                'Lembrete semanal criado! 📅\n\n%s',
+                "Lembrete semanal criado.\n\n%s",
                 ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'weekly', $templateType)
             ),
             'monthly' => sprintf(
-                'Lembrete mensal criado! 📅\n\n%s',
+                "Lembrete mensal criado.\n\n%s",
                 ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'monthly', $templateType)
             ),
             'yearly' => sprintf(
-                'Lembrete anual criado! 📅\n\n%s',
+                "Lembrete anual criado.\n\n%s",
                 ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'yearly', $templateType)
             ),
             default => sprintf(
-                'Lembrete criado para %s em %s as %s. ✅',
+                'Lembrete criado para %s em %s as %s.',
                 $reminder->title,
                 $reminder->next_trigger_at?->format('d/m/Y'),
                 $time
             ),
         };
     }
-
-    private function weekdayLabel(int $dayOfWeek): string
-    {
-        return [
-            0 => 'domingo',
-            1 => 'segunda-feira',
-            2 => 'terca-feira',
-            3 => 'quarta-feira',
-            4 => 'quinta-feira',
-            5 => 'sexta-feira',
-            6 => 'sabado',
-        ][$dayOfWeek] ?? 'dia da semana';
-    }
 }
+

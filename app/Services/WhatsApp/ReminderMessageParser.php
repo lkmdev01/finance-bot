@@ -156,8 +156,8 @@ class ReminderMessageParser
             ];
         }
 
-        // Suporte a "em X dias"
-        if (preg_match('/\bem\s+(\d{1,2})\s+dias?\b/u', $normalized, $matches)) {
+        // Suporte a "em X dias" / "daqui a X dias"
+        if (preg_match('/\b(?:em|daqui\s+a)\s+(\d{1,3})\s+dias?\b/u', $normalized, $matches)) {
             $days = max(1, min(365, (int) $matches[1]));
 
             return [
@@ -288,6 +288,21 @@ class ReminderMessageParser
             }
         }
 
+        if (preg_match('/\bdia\s+(\d{1,2})\s+do\s+mes\s+de\s+([[:alpha:]]+)\b/u', $normalized, $matches)) {
+            $month = $this->resolveMonthNumber($matches[2] ?? '');
+            if ($month !== null) {
+                $day = max(1, min(31, (int) $matches[1]));
+
+                return [
+                    'frequency' => 'yearly',
+                    'day_of_week' => null,
+                    'day_of_month' => $day,
+                    'month_of_year' => $month,
+                    'next_trigger_at' => $this->nextYearlyTrigger($day, $month, $time)->toIso8601String(),
+                ];
+            }
+        }
+
         $weekday = $this->extractWeekday($normalized);
         if ($weekday !== null && $this->containsAnyText($normalized, ['semanal', 'semana', 'todo', 'toda', 'cada'])) {
             return [
@@ -334,9 +349,11 @@ class ReminderMessageParser
         $title = $cleanMessage;
         $title = preg_replace('/^\s*(?:todo\s+m\S*s|todo\s+mes|cada\s+m\S*s|todo\s+dia|cada\s+ano|todo\s+ano|diariamente|diario|semanal|amanha|amanhã|hoje)\s*/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:anual|anualmente|todo\s+ano|cada\s+ano|semanal|diario|diariamente|todo\s+dia|cada\s+dia|todos\s+os\s+dias)\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\b(?:em|daqui\s+a)\s+\d{1,3}\s+dias?\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\b(?:mes\s+que\s+vem|proximo\s+mes)\s+dia\s+\d{1,2}\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:(?:do|de|no|na)\s+)?(?:mes\s+que\s+vem|proximo\s+mes)\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:do|de|no|na)\s+mes\s+\d{1,2}\b/iu', '', $title) ?? $title;
+        $title = preg_replace('/\bdia\s+\d{1,2}\s+do\s+mes\s+de\s+[[:alpha:]]+\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bmes\s+\d{1,2}\s+(?:dia\s+)?\d{1,2}\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}(?:\/\d{1,2}(?:\/\d{4})?)?\b/iu', '', $title) ?? $title;
         $title = preg_replace('/\bdia\s+\d{1,2}\s+(?:desse|deste)\s+m\S*s\b/iu', '', $title) ?? $title;

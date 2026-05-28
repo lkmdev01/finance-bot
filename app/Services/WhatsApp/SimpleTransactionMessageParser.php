@@ -3,6 +3,7 @@
 namespace App\Services\WhatsApp;
 
 use App\Services\WhatsApp\Support\NormalizesWhatsAppText;
+use App\Services\WhatsApp\IncomingMessageNormalizer;
 use Carbon\Carbon;
 
 class SimpleTransactionMessageParser
@@ -46,6 +47,29 @@ class SimpleTransactionMessageParser
         $categoryName = $this->extractCategoryName($message);
         [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($message, $normalized, $paymentMethod);
 
+        // Clean extracted entities so artifacts like "Servi??o" become "Servico" and casing is consistent.
+        $cleaner = app(IncomingMessageNormalizer::class);
+
+        if ($description !== null) {
+            $description = trim($cleaner->clean($description));
+            $description = $description !== '' ? mb_convert_case($description, MB_CASE_TITLE, 'UTF-8') : null;
+        }
+
+        if ($categoryName !== null) {
+            $categoryName = trim($cleaner->clean($categoryName));
+            $categoryName = $categoryName !== '' ? mb_convert_case($categoryName, MB_CASE_TITLE, 'UTF-8') : null;
+        }
+
+        if ($bankAccountName !== null) {
+            $bankAccountName = trim($cleaner->clean($bankAccountName));
+            $bankAccountName = $bankAccountName !== '' ? mb_convert_case($bankAccountName, MB_CASE_TITLE, 'UTF-8') : null;
+        }
+
+        if ($creditCardName !== null) {
+            $creditCardName = trim($cleaner->clean($creditCardName));
+            $creditCardName = $creditCardName !== '' ? mb_convert_case($creditCardName, MB_CASE_TITLE, 'UTF-8') : null;
+        }
+
         $payload = [
             'type' => $type,
             'amount' => $amount,
@@ -84,12 +108,12 @@ class SimpleTransactionMessageParser
     {
         $patterns = $type === 'income'
             ? [
-                '/(?:recebi|ganhei|entrou|tive\s+um\s+ganho)\s+(?:de\s+)?(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?\s+(?:de|do|da|em|com)\s+(.+)$/iu',
-                '/(?:recebi|ganhei|entrou|tive\s+um\s+ganho)\s+(?:de\s+)?(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?\s+(.+)$/iu',
+                '/(?:recebi|ganhei|entrou|tive\s+um\s+ganho)\s+(?:de\s+)?(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?(?:\s*reais?)?\s+(?:de|do|da|em|com)\s+(.+)$/iu',
+                '/(?:recebi|ganhei|entrou|tive\s+um\s+ganho)\s+(?:de\s+)?(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?(?:\s*reais?)?\s+(.+)$/iu',
             ]
             : [
-                '/(?:gastei|paguei|comprei|tive\s+um\s+gasto)\s+(?:de\s+)?(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?\s+(?:no|na|em|com)\s+(.+)$/iu',
-                '/(?:gastei|paguei|comprei|tive\s+um\s+gasto)\s+(?:de\s+)?(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?\s+(.+)$/iu',
+                '/(?:gastei|paguei|comprei|tive\s+um\s+gasto)\s+(?:de\s+)?(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?(?:\s*reais?)?\s+(?:no|na|em|com)\s+(.+)$/iu',
+                '/(?:gastei|paguei|comprei|tive\s+um\s+gasto)\s+(?:de\s+)?(?:r\$\s*)?\d+(?:[\.,]\d{1,2})?(?:\s*reais?)?\s+(.+)$/iu',
             ];
 
         foreach ($patterns as $pattern) {
@@ -190,6 +214,7 @@ class SimpleTransactionMessageParser
         $value = preg_replace('/\b(?:no|na|via|com)\s+(?:d\S{0,2}bito|cr\S{0,2}dito|pix)\b/iu', '', $value) ?? $value;
         $value = preg_replace('/\b(?:hoje|ontem|amanha|amanhã)\b/iu', '', $value) ?? $value;
         $value = preg_replace('/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/u', '', $value) ?? $value;
+        $value = preg_replace('/\bem\b$/iu', '', trim($value)) ?? $value;
         $value = preg_replace('/\s+(?:na conta|no cart[aã]o|no cartao|pela conta|pelo cart[aã]o|pelo cartao|via conta|via cart[aã]o|via cartao)\s+.+$/iu', '', $value) ?? $value;
         $value = preg_replace('/\s+(?:categoria|na categoria)\s+.+$/iu', '', $value) ?? $value;
         $value = preg_replace('/\s+/u', ' ', trim($value)) ?? $value;

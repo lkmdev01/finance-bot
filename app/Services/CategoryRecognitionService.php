@@ -117,6 +117,20 @@ class CategoryRecognitionService
     {
         $normalized = mb_strtolower(Str::ascii($description));
 
+        // Prefer an existing category that matches the raw term before applying canonical normalization.
+        // This avoids forcing users into the canonical bucket when they created a specific category
+        // like "Supermercado" or "Uber".
+        $rawAscii = mb_strtolower(Str::ascii(trim($description)));
+        if ($rawAscii !== '') {
+            $existingByRaw = $user->categories()
+                ->get()
+                ->first(fn (Category $category) => mb_strtolower(Str::ascii(trim((string) $category->name))) === $rawAscii);
+
+            if ($existingByRaw instanceof Category) {
+                return $existingByRaw;
+            }
+        }
+
         // 1. Tenta pelo mapa de normalização
         foreach ($this->categoryNormalizationMap as $synonym => $canonicalName) {
             if (Str::contains($normalized, mb_strtolower(Str::ascii($synonym)))) {

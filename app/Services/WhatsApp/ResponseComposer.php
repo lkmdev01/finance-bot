@@ -3,6 +3,7 @@
 namespace App\Services\WhatsApp;
 
 use App\Models\User;
+use App\Services\Onboarding\OnboardingChecklistService;
 
 class ResponseComposer
 {
@@ -11,7 +12,34 @@ class ResponseComposer
         $firstName = trim((string) explode(' ', trim($user->name))[0]);
         $namePart = $firstName !== '' ? " {$firstName}" : '';
 
-        return "Ola{$namePart}! Eu sou o InovaFinance. Posso registrar gastos e receitas, consultar seu saldo, listar suas ultimas transacoes e gerar relatorios.";
+        $base = "Ola{$namePart}! Eu sou o InovaFinance. Posso registrar gastos e receitas, consultar seu saldo, listar suas ultimas transacoes e gerar relatorios.";
+
+        $checklist = app(OnboardingChecklistService::class)->checklist($user);
+        if (($checklist['completed'] ?? 0) >= ($checklist['total'] ?? 3)) {
+            return $base;
+        }
+
+        $lines = [];
+        foreach ($checklist['steps'] ?? [] as $step) {
+            $done = (bool) ($step['done'] ?? false);
+            $title = (string) ($step['title'] ?? '');
+            if ($title === '') {
+                continue;
+            }
+
+            $lines[] = sprintf('%s %s', $done ? '[x]' : '[ ]', $title);
+        }
+
+        if ($lines === []) {
+            return $base;
+        }
+
+        $progress = sprintf('%d/%d', (int) ($checklist['completed'] ?? 0), (int) ($checklist['total'] ?? 3));
+
+        return $base
+            ."\n\nChecklist rapida ({$progress}):\n"
+            .implode("\n", $lines)
+            ."\n\nSe quiser, me diga um passo e eu te guio com um exemplo.";
     }
 
     public function composeNeutralAcknowledgement(?string $lastAction = null, array $lastEntities = []): string

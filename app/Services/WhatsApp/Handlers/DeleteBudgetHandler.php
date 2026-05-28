@@ -111,10 +111,16 @@ class DeleteBudgetHandler extends BaseHandler
         }
 
         $name = $budget->category?->name;
+        $beforeDelete = $budget->only(['category_id', 'period', 'year', 'month', 'amount']);
         $budget->delete();
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => [
+                'kind' => 'budget_delete',
+                'attributes' => $beforeDelete,
+                'expires_at' => now()->addSeconds(60)->toIso8601String(),
+            ],
             'entities' => [
                 'topic' => 'budget',
                 'category_name' => $name,

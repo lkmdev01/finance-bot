@@ -194,7 +194,10 @@ class TransactionIntentClassifier
             return false;
         }
 
-        preg_match_all('/(?:r\\$\\s*)?\\d+(?:[\\.,]\\d{1,2})?/u', $message, $amountMatches);
+        // Ignore absolute dates (e.g. 14/05/2026) so they don't look like "multiple amounts".
+        $messageWithoutDates = preg_replace('/\\b\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}\\b/u', '', $message) ?? $message;
+
+        preg_match_all('/(?:r\\$\\s*)?\\d+(?:[\\.,]\\d{1,2})?/u', $messageWithoutDates, $amountMatches);
         if (count($amountMatches[0] ?? []) < 2) {
             return false;
         }

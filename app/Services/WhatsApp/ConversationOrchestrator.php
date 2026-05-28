@@ -24,6 +24,7 @@ class ConversationOrchestrator
     {
         $state = $this->stateService->getState($contact);
         $classification = $this->classifier->classify($message, $state);
+        $domain = $classification['domain'] ?? null;
 
         if (($classification['kind'] ?? null) === 'recurring_transaction_needs_amount') {
             return [
@@ -31,6 +32,7 @@ class ConversationOrchestrator
                 'reply' => 'Entendi a recorrencia. Agora me diga o valor para eu terminar o cadastro.',
                 'action' => null,
                 'classification' => $classification['kind'],
+                'domain' => $domain,
                 'metadata' => [
                     'clear_pending' => false,
                     'reply_kind' => 'message',
@@ -49,6 +51,7 @@ class ConversationOrchestrator
                 'reply' => 'Entendi o lembrete. Agora me diga quando devo te lembrar.',
                 'action' => null,
                 'classification' => $classification['kind'],
+                'domain' => $domain,
                 'metadata' => [
                     'clear_pending' => false,
                     'reply_kind' => 'message',
@@ -77,6 +80,7 @@ class ConversationOrchestrator
                 : $this->domainRoutingResolver->resolve($classification['kind'], $message, $state));
 
         $decision['classification'] = $classification['kind'];
+        $decision['domain'] = $domain;
 
         return $decision;
     }

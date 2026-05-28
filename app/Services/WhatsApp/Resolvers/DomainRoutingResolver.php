@@ -33,6 +33,18 @@ class DomainRoutingResolver
     public function resolve(string $classification, string $message, array $state): array
     {
         return match ($classification) {
+            'undo' => [
+                'handled' => false,
+                'result' => [
+                    'reply' => '',
+                    'action' => 'undo_last_action',
+                    '_resolved_message' => $message,
+                    '_conversation_metadata' => [
+                        'clear_pending' => true,
+                        'reply_kind' => 'action',
+                    ],
+                ],
+            ],
             'budget_query' => $this->queryResult('query_budgets', $message),
             'budget_create' => $this->actionResult(
                 'create_budget',

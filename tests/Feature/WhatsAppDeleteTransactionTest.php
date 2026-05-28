@@ -22,13 +22,14 @@ beforeEach(function () {
     ]);
 });
 
-it('deleta transacao via whatsapp quando a ia retorna transaction_id', function () {
+it('deleta transacao via whatsapp com confirmacao quando a IA retorna transaction_id', function () {
     $transaction = Transaction::factory()->create([
         'user_id' => $this->user->id,
         'whatsapp_contact_id' => $this->contact->id,
         'type' => 'expense',
         'amount' => 50.00,
         'description' => 'Uber',
+        'date' => now()->toDateString(),
     ]);
 
     Http::fake([
@@ -37,10 +38,11 @@ it('deleta transacao via whatsapp quando a ia retorna transaction_id', function 
                 [
                     'message' => [
                         'content' => json_encode([
-                            'reply' => '✅ Transação apagada com sucesso!',
+                            'reply' => 'Ok.',
                             'action' => 'delete_transaction',
-                            'transaction_id' => $transaction->id,
-                            'transaction_data' => null,
+                            'transaction_data' => [
+                                'transaction_id' => $transaction->id,
+                            ],
                         ]),
                     ],
                 ],
@@ -50,7 +52,7 @@ it('deleta transacao via whatsapp quando a ia retorna transaction_id', function 
 
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
-            ->once()
+            ->twice()
             ->andReturn(new Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
     });
 
@@ -69,6 +71,22 @@ it('deleta transacao via whatsapp quando a ia retorna transaction_id', function 
         app(\App\Services\PerformanceMetricsService::class)
     );
 
+    // Segundo passo: confirma e apaga
+    $confirmJob = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'sim',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $confirmJob->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
     assertDatabaseMissing('transactions', [
         'id' => $transaction->id,
     ]);
@@ -81,6 +99,7 @@ it('pede mais detalhes quando encontra mais de uma transacao parecida para apaga
         'type' => 'expense',
         'amount' => 18.00,
         'description' => 'Uber',
+        'date' => now()->toDateString(),
     ]);
 
     Transaction::factory()->create([
@@ -89,6 +108,7 @@ it('pede mais detalhes quando encontra mais de uma transacao parecida para apaga
         'type' => 'expense',
         'amount' => 27.00,
         'description' => 'Uber',
+        'date' => now()->toDateString(),
     ]);
 
     Http::fake([
@@ -97,10 +117,11 @@ it('pede mais detalhes quando encontra mais de uma transacao parecida para apaga
                 [
                     'message' => [
                         'content' => json_encode([
-                            'reply' => 'Apagando gasto com Uber.',
+                            'reply' => 'Ok.',
                             'action' => 'delete_transaction',
-                            'transaction_id' => 'uber',
-                            'transaction_data' => null,
+                            'transaction_data' => [
+                                'target_description' => 'uber',
+                            ],
                         ]),
                     ],
                 ],
@@ -112,8 +133,8 @@ it('pede mais detalhes quando encontra mais de uma transacao parecida para apaga
         $mock->shouldReceive('sendTextMessage')
             ->once()
             ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
-                return str_contains($message, 'mais de uma transação')
-                    && str_contains($message, 'valor ou a data');
+                return str_contains($message, 'mais de uma transacao')
+                    && str_contains($message, 'Me diga');
             }))
             ->andReturn(new Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
     });
@@ -135,3 +156,4 @@ it('pede mais detalhes quando encontra mais de uma transacao parecida para apaga
 
     expect(Transaction::query()->where('user_id', $this->user->id)->count())->toBe(2);
 });
+

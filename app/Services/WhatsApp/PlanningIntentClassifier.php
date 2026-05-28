@@ -17,10 +17,6 @@ class PlanningIntentClassifier
 
     public function classify(string $originalMessage, string $normalizedMessage, array $state): ?array
     {
-        if ($this->looksLikeSubscriptionCreate($originalMessage, $normalizedMessage)) {
-            return ['kind' => 'subscription_create', 'normalized' => $normalizedMessage];
-        }
-
         if ($this->looksLikeCreditCardCreate($originalMessage, $normalizedMessage)) {
             return ['kind' => 'credit_card_create', 'normalized' => $normalizedMessage];
         }
@@ -35,6 +31,10 @@ class PlanningIntentClassifier
 
         if ($this->looksLikeSubscriptionEdit($originalMessage, $normalizedMessage, $state)) {
             return ['kind' => 'subscription_edit', 'normalized' => $normalizedMessage];
+        }
+
+        if ($this->looksLikeSubscriptionCreate($originalMessage, $normalizedMessage)) {
+            return ['kind' => 'subscription_create', 'normalized' => $normalizedMessage];
         }
 
         if (($state['last_action'] ?? null) === 'query_subscriptions'
@@ -102,7 +102,7 @@ class PlanningIntentClassifier
         }
 
         return $fallbackName !== null
-            && $this->savingsGoalMessageParser->parseEdit('meta '.$fallbackName.' '.$originalMessage, $fallbackName) !== null;
+            && $this->savingsGoalMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
     }
 
     private function looksLikeSubscriptionEdit(string $originalMessage, string $normalizedMessage, array $state): bool
@@ -123,7 +123,7 @@ class PlanningIntentClassifier
             return false;
         }
 
-        return $this->subscriptionMessageParser->parseEdit('assinatura '.($fallbackName ?? '').' '.$originalMessage, $fallbackName) !== null;
+        return $this->subscriptionMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
     }
 
     private function looksLikeSubscriptionCancel(string $originalMessage, string $normalizedMessage, array $state): bool

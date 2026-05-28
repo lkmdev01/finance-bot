@@ -78,13 +78,20 @@ class SubscriptionMessageParser
             return false;
         }
 
+        // If the user is clearly creating a new subscription, do not treat as edit.
+        foreach (['criar', 'crie', 'nova', 'novo', 'definir', 'defina', 'cadastrar', 'cadastre'] as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return false;
+            }
+        }
+
         foreach (['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'] as $keyword) {
             if (str_contains($message, $keyword)) {
                 return true;
             }
         }
 
-        return preg_match('/\bassinatura\s+[\p{L}\p{N}].*\b(?:para|dia|mensal|anual)\b/u', $message) === 1;
+        return false;
     }
 
     public function looksLikeCancelIntent(string $message): bool
@@ -93,7 +100,7 @@ class SubscriptionMessageParser
             return false;
         }
 
-        foreach (['cancelar', 'cancela', 'desativar', 'desativa', 'pausar', 'pausa', 'parar', 'para'] as $keyword) {
+        foreach (['cancelar', 'cancela', 'desativar', 'desativa', 'pausar', 'pausa', 'parar'] as $keyword) {
             if (str_contains($message, $keyword)) {
                 return true;
             }
@@ -115,7 +122,7 @@ class SubscriptionMessageParser
 
     private function containsCancelVerb(string $message): bool
     {
-        foreach (['cancelar', 'cancela', 'desativar', 'desativa', 'pausar', 'pausa', 'parar', 'para'] as $keyword) {
+        foreach (['cancelar', 'cancela', 'desativar', 'desativa', 'pausar', 'pausa', 'parar'] as $keyword) {
             if (str_contains($message, $keyword)) {
                 return true;
             }

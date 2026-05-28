@@ -71,6 +71,8 @@ class UpdateBudgetHandler extends BaseHandler
             return true;
         }
 
+        $before = $budget->only(['amount', 'period', 'year', 'month']);
+
         $budget->amount = $data['amount'];
         if ($data['period'] !== null) {
             $budget->period = $data['period'];
@@ -84,6 +86,12 @@ class UpdateBudgetHandler extends BaseHandler
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => [
+                'kind' => 'budget_update',
+                'id' => $budget->id,
+                'before' => $before,
+                'expires_at' => now()->addSeconds(60)->toIso8601String(),
+            ],
             'entities' => [
                 'topic' => 'budget',
                 'budget_id' => $budget->id,

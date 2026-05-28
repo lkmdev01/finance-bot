@@ -1271,7 +1271,7 @@ it('assume credito quando informa cartao por nome sem especificar debito', funct
 
     currentTestCase()->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
-            ->once()
+            ->twice()
             ->with(\Mockery::type('string'), \Mockery::type('string'))
             ->andReturn(fakeActionBaileysSuccessResponse());
     });
@@ -1284,6 +1284,21 @@ it('assume credito quando informa cartao por nome sem especificar debito', funct
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($firstJob);
+
+    // Com Nubank existindo como cartao e como conta, o bot pede clarificacao (credito/debito)
+    assertDatabaseMissing('transactions', [
+        'user_id' => currentTestCase()->user->id,
+        'amount' => 20.00,
+    ]);
+
+    $followUp = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'credito',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($followUp);
 
     assertDatabaseHas('transactions', [
         'user_id' => currentTestCase()->user->id,

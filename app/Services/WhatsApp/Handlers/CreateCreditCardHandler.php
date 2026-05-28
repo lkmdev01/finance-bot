@@ -33,6 +33,11 @@ class CreateCreditCardHandler extends BaseHandler
             return true;
         }
 
+        $previous = CreditCard::query()
+            ->where('user_id', $user->id)
+            ->where('name', $data['name'])
+            ->first();
+
         $card = CreditCard::query()->updateOrCreate(
             [
                 'user_id' => $user->id,
@@ -46,6 +51,18 @@ class CreateCreditCardHandler extends BaseHandler
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => $previous instanceof CreditCard
+                ? [
+                    'kind' => 'credit_card_update',
+                    'id' => $card->id,
+                    'before' => $previous->only(['credit_limit', 'is_active']),
+                    'expires_at' => now()->addSeconds(60)->toIso8601String(),
+                ]
+                : [
+                    'kind' => 'credit_card_create',
+                    'id' => $card->id,
+                    'expires_at' => now()->addSeconds(60)->toIso8601String(),
+                ],
             'entities' => [
                 'topic' => 'credit_cards',
                 'credit_card_name' => $card->name,
