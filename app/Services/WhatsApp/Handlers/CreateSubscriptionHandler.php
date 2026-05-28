@@ -55,9 +55,15 @@ class CreateSubscriptionHandler extends BaseHandler
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => [
+                'kind' => 'subscription_create',
+                'id' => $subscription->id,
+                'expires_at' => now()->addSeconds(60)->toIso8601String(),
+            ],
             'entities' => array_filter([
                 'topic' => 'subscriptions',
                 'subscription_name' => $subscription->name,
+                'subscription_id' => $subscription->id,
             ]),
         ]);
 
@@ -68,10 +74,12 @@ class CreateSubscriptionHandler extends BaseHandler
 
     private function normalizeSubscriptionData(array $data): array
     {
+        $cycle = $data['billing_cycle'] ?? 'monthly';
+
         return [
             'name' => trim((string) ($data['name'] ?? '')),
             'amount' => isset($data['amount']) ? (float) $data['amount'] : null,
-            'billing_cycle' => in_array(($data['billing_cycle'] ?? 'monthly'), ['monthly', 'yearly'], true) ? $data['billing_cycle'] : 'monthly',
+            'billing_cycle' => in_array($cycle, ['monthly', 'yearly'], true) ? $cycle : 'monthly',
             'due_day' => isset($data['due_day']) ? (int) $data['due_day'] : now()->day,
             'start_date' => (string) ($data['start_date'] ?? now()->toDateString()),
             'auto_record' => (bool) ($data['auto_record'] ?? false),

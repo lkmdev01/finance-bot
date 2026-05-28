@@ -223,6 +223,19 @@ class ClarificationResolver
         $pending = $state['pending_payload']['transaction_data'] ?? [];
         $pending['payment_method'] = $method;
 
+        $preferences = [];
+        $cardName = $state['pending_payload']['card_name'] ?? ($pending['credit_card_name'] ?? null);
+        if (is_string($cardName) && trim($cardName) !== '') {
+            $key = app(\App\Services\WhatsApp\IncomingMessageNormalizer::class)->normalize($cardName);
+            if ($key !== '') {
+                $preferences = [
+                    'card_payment_method' => [
+                        $key => $method,
+                    ],
+                ];
+            }
+        }
+
         if ($method === 'debit') {
             // "Debito" aqui significa "a vista no saldo". Nao tente inferir uma conta pelo nome do cartao.
             unset($pending['credit_card_id'], $pending['credit_card_name'], $pending['use_default_card']);
@@ -238,6 +251,7 @@ class ClarificationResolver
                 '_conversation_metadata' => [
                     'clear_pending' => true,
                     'reply_kind' => 'action',
+                    'preferences' => $preferences,
                 ],
             ],
         ];

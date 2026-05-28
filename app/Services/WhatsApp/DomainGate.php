@@ -65,6 +65,13 @@ class DomainGate
             return false;
         }
 
+        // Credit-card management ("registrar cartao ... limite ...") belongs to planning domain,
+        // even if the message contains words like "credito".
+        if ($this->containsAnyText($message, ['cartao', 'cartoes'])
+            && $this->containsAnyText($message, ['limite', 'registrar', 'registre', 'cadastrar', 'cadastre', 'criar', 'crie', 'novo', 'nova', 'ativos', 'ativas', 'tenho', 'listar', 'liste'])) {
+            return false;
+        }
+
         if (($state['last_entities']['topic'] ?? null) === 'recurring_transactions') {
             return true;
         }
@@ -91,6 +98,13 @@ class DomainGate
     {
         if (($state['last_entities']['topic'] ?? null) === 'subscriptions') {
             return true;
+        }
+
+        // Follow-ups after querying goals often omit the word "meta".
+        if (($state['last_entities']['topic'] ?? null) === 'savings') {
+            if ($this->containsAnyText($message, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'])) {
+                return true;
+            }
         }
 
         // Budget messages should stay in the budget domain, not planning.

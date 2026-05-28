@@ -138,6 +138,17 @@ class EditTransactionHandler extends BaseHandler
             ]);
         }
 
+        $before = $transaction->only([
+            'category_id',
+            'bank_account_id',
+            'credit_card_id',
+            'type',
+            'amount',
+            'description',
+            'date',
+            'metadata',
+        ]);
+
         $transaction->update($updates);
         $transaction->refresh()->loadMissing('category');
 
@@ -152,6 +163,12 @@ class EditTransactionHandler extends BaseHandler
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => [
+                'kind' => 'transaction_update',
+                'id' => $transaction->id,
+                'before' => $before,
+                'expires_at' => now()->addSeconds(60)->toIso8601String(),
+            ],
             'entities' => [
                 'topic' => 'transactions',
                 'transaction_id' => $transaction->id,

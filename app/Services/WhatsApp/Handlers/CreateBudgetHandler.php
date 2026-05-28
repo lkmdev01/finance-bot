@@ -28,7 +28,6 @@ class CreateBudgetHandler extends BaseHandler
 
         if (! $billingPlanService->userCanCreateRecords($user)) {
             $this->sendResponse($job, $this->buildSubscriptionRequiredReply($user, $billingPlanService), $user);
-
             return true;
         }
 
@@ -36,17 +35,38 @@ class CreateBudgetHandler extends BaseHandler
         $validation = $this->validateBudgetData($budgetData, $user);
 
         if ($validation->fails()) {
-            $errorMessage = $this->buildBudgetValidationGuidanceReply($validation->errors()->all());
-            $this->sendErrorMessage($job, $errorMessage);
-
+            $this->sendErrorMessage($job, $this->buildBudgetValidationGuidanceReply($validation->errors()->all()));
             return true;
         }
 
-        $budget = $this->upsertBudget($user, $budgetData);
-        $reply = $this->buildBudgetCreatedReply($budget);
+        [$budget, $previous] = $this->upsertBudget($user, $budgetData);
+        $reply = $this->buildBudgetCreatedReply($budget, $previous instanceof Budget);
+
+        $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
+            'reply_kind' => 'action',
+            'undo' => $previous instanceof Budget
+                ? [
+                    'kind' => 'budget_update',
+                    'id' => $budget->id,
+                    'before' => $previous->only(['amount', 'period', 'year', 'month']),
+                    'expires_at' => now()->addSeconds(60)->toIso8601String(),
+                ]
+                : [
+                    'kind' => 'budget_create',
+                    'id' => $budget->id,
+                    'expires_at' => now()->addSeconds(60)->toIso8601String(),
+                ],
+            'entities' => [
+                'topic' => 'budgets',
+                'budget_id' => $budget->id,
+                'category_name' => $budget->category?->name,
+                'period' => $budget->period,
+                'year' => $budget->year,
+                'month' => $budget->month,
+            ],
+        ]);
 
         $this->sendResponse($job, $reply, $user);
-
         return true;
     }
 
@@ -80,11 +100,11 @@ class CreateBudgetHandler extends BaseHandler
 
         $validator->after(function ($validator) use ($data, $user) {
             if (empty($data['category_id']) && blank($data['category_name'] ?? null)) {
-                $validator->errors()->add('category', 'Informe uma categoria para o orçamento.');
+                $validator->errors()->add('category', 'Informe uma categoria para o orcamento.');
             }
 
             if (($data['period'] ?? 'monthly') === 'monthly' && empty($data['month'])) {
-                $validator->errors()->add('month', 'Informe o mês do orçamento mensal.');
+                $validator->errors()->add('month', 'Informe o mes do orcamento mensal.');
             }
 
             if (! empty($data['category_id'])) {
@@ -95,7 +115,7 @@ class CreateBudgetHandler extends BaseHandler
                     ->first();
 
                 if (! $category && blank($data['category_name'] ?? null)) {
-                    $validator->errors()->add('category_id', 'A categoria informada não é uma categoria de despesa válida.');
+                    $validator->errors()->add('category_id', 'A categoria informada nao e uma categoria de despesa valida.');
                 }
             }
         });
@@ -103,7 +123,10 @@ class CreateBudgetHandler extends BaseHandler
         return $validator;
     }
 
-    private function upsertBudget(User $user, array $data): Budget
+    /**
+     * @return array{0: Budget, 1: Budget|null}
+     */
+    private function upsertBudget(User $user, array $data): array
     {
         $categoryRecognition = app(CategoryRecognitionService::class);
         $category = null;
@@ -124,7 +147,15 @@ class CreateBudgetHandler extends BaseHandler
             $category = $categoryRecognition->findOrCreateCategory($user, $data['category_name'], 'expense');
         }
 
-        return Budget::query()->updateOrCreate(
+        $previous = Budget::query()
+            ->where('user_id', $user->id)
+            ->where('category_id', $category->id)
+            ->where('period', $data['period'])
+            ->where('year', $data['year'])
+            ->where('month', $data['period'] === 'monthly' ? $data['month'] : null)
+            ->first();
+
+        $budget = Budget::query()->updateOrCreate(
             [
                 'user_id' => $user->id,
                 'category_id' => $category->id,
@@ -136,32 +167,38 @@ class CreateBudgetHandler extends BaseHandler
                 'amount' => $data['amount'],
             ]
         )->load('category');
+
+        return [$budget, $previous];
     }
 
-    private function buildBudgetCreatedReply(Budget $budget): string
+    private function buildBudgetCreatedReply(Budget $budget, bool $wasUpdate = false): string
     {
         $amount = number_format((float) $budget->amount, 2, ',', '.');
         $category = $budget->category?->name ?? 'Sem categoria';
 
         if ($budget->period === 'yearly') {
-            return "✅ Orçamento anual de R$ {$amount} criado para {$category} em {$budget->year}.";
+            return $wasUpdate
+                ? "Orcamento anual atualizado: R$ {$amount} para {$category} em {$budget->year}."
+                : "Orcamento anual criado: R$ {$amount} para {$category} em {$budget->year}.";
         }
 
         $monthLabel = str_pad((string) $budget->month, 2, '0', STR_PAD_LEFT).'/'.$budget->year;
 
-        return "✅ Orçamento de R$ {$amount} criado para {$category} em {$monthLabel}.";
+        return $wasUpdate
+            ? "Orcamento atualizado: R$ {$amount} para {$category} em {$monthLabel}."
+            : "Orcamento de R$ {$amount} criado para {$category} em {$monthLabel}.";
     }
 
     private function buildBudgetValidationGuidanceReply(array $errors = []): string
     {
         $details = empty($errors) ? '' : "\n\nDetalhes: ".implode(' | ', $errors);
 
-        return "⚠️ Não consegui criar o orçamento com essa mensagem.\n\n"
+        return "Atencao: Nao consegui criar o orcamento com essa mensagem.\n\n"
             ."Tente assim:\n"
-            ."• criar orçamento de 800 para mercado\n"
-            ."• definir orçamento de 300 para transporte\n"
-            ."• registrar orçamento de 500 para compras\n"
-            ."• criar orçamento anual de 5000 para saúde"
+            ."* criar orcamento de 800 para mercado\n"
+            ."* definir orcamento de 300 para transporte\n"
+            ."* registrar orcamento de 500 para compras\n"
+            ."* criar orcamento anual de 5000 para saude"
             .$details;
     }
 
@@ -170,7 +207,8 @@ class CreateBudgetHandler extends BaseHandler
         $plansUrl = rtrim((string) config('app.url'), '/').'/billing/plans';
 
         return $billingPlanService->writeAccessMessage($user)
-            ."\n\nAssine um plano para voltar a registrar novas informações:\n"
+            ."\n\nAssine um plano para voltar a registrar novas informacoes:\n"
             .$plansUrl;
     }
 }
+

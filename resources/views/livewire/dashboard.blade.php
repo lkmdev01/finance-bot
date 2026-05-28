@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Livewire\Volt\Component;
 
@@ -174,73 +175,91 @@ new class extends Component
 
     public function getCreditCardsSummary(): array
     {
-        $user = $this->user();
+        try {
+            $user = $this->user();
 
-        $cards = $user->creditCards()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name', 'credit_limit', 'opening_balance', 'closing_day', 'due_day']);
+            $cards = $user->creditCards()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'credit_limit', 'opening_balance', 'closing_day', 'due_day']);
 
-        if ($cards->isEmpty()) {
+            if ($cards->isEmpty()) {
+                return [];
+            }
+
+            $deltas = $user->transactions()
+                ->whereIn('credit_card_id', $cards->pluck('id')->all())
+                ->selectRaw("credit_card_id, SUM(CASE WHEN type = 'expense' THEN amount ELSE -amount END) as delta")
+                ->groupBy('credit_card_id')
+                ->pluck('delta', 'credit_card_id');
+
+            return $cards->map(function ($card) use ($deltas) {
+                $delta = (float) ($deltas[$card->id] ?? 0);
+                $currentBalance = round((float) $card->opening_balance + $delta, 2);
+                $available = round((float) $card->credit_limit - $currentBalance, 2);
+                $usagePct = (float) $card->credit_limit > 0 ? round(($currentBalance / (float) $card->credit_limit) * 100, 1) : 0.0;
+
+                return [
+                    'id' => $card->id,
+                    'name' => $card->name,
+                    'credit_limit' => (float) $card->credit_limit,
+                    'current_balance' => $currentBalance,
+                    'available_limit' => $available,
+                    'usage_pct' => $usagePct,
+                    'closing_day' => $card->closing_day,
+                    'due_day' => $card->due_day,
+                ];
+            })->values()->toArray();
+        } catch (\Throwable $e) {
+            Log::error('Dashboard: falha ao calcular resumo de cartoes', [
+                'user_id' => $this->user()->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
             return [];
         }
-
-        $deltas = $user->transactions()
-            ->whereIn('credit_card_id', $cards->pluck('id')->all())
-            ->selectRaw("credit_card_id, SUM(CASE WHEN type = 'expense' THEN amount ELSE -amount END) as delta")
-            ->groupBy('credit_card_id')
-            ->pluck('delta', 'credit_card_id');
-
-        return $cards->map(function ($card) use ($deltas) {
-            $delta = (float) ($deltas[$card->id] ?? 0);
-            $currentBalance = round((float) $card->opening_balance + $delta, 2);
-            $available = round((float) $card->credit_limit - $currentBalance, 2);
-            $usagePct = (float) $card->credit_limit > 0 ? round(($currentBalance / (float) $card->credit_limit) * 100, 1) : 0.0;
-
-            return [
-                'id' => $card->id,
-                'name' => $card->name,
-                'credit_limit' => (float) $card->credit_limit,
-                'current_balance' => $currentBalance,
-                'available_limit' => $available,
-                'usage_pct' => $usagePct,
-                'closing_day' => $card->closing_day,
-                'due_day' => $card->due_day,
-            ];
-        })->values()->toArray();
     }
 
     public function getBankAccountsSummary(): array
     {
-        $user = $this->user();
+        try {
+            $user = $this->user();
 
-        $accounts = $user->bankAccounts()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name', 'type', 'opening_balance', 'color']);
+            $accounts = $user->bankAccounts()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'type', 'opening_balance', 'color']);
 
-        if ($accounts->isEmpty()) {
+            if ($accounts->isEmpty()) {
+                return [];
+            }
+
+            $deltas = $user->transactions()
+                ->whereIn('bank_account_id', $accounts->pluck('id')->all())
+                ->selectRaw("bank_account_id, SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as delta")
+                ->groupBy('bank_account_id')
+                ->pluck('delta', 'bank_account_id');
+
+            return $accounts->map(function ($account) use ($deltas) {
+                $delta = (float) ($deltas[$account->id] ?? 0);
+                $currentBalance = round((float) $account->opening_balance + $delta, 2);
+
+                return [
+                    'id' => $account->id,
+                    'name' => $account->name,
+                    'type' => $account->type,
+                    'color' => $account->color,
+                    'current_balance' => $currentBalance,
+                ];
+            })->values()->toArray();
+        } catch (\Throwable $e) {
+            Log::error('Dashboard: falha ao calcular resumo de contas', [
+                'user_id' => $this->user()->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
             return [];
         }
-
-        $deltas = $user->transactions()
-            ->whereIn('bank_account_id', $accounts->pluck('id')->all())
-            ->selectRaw("bank_account_id, SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as delta")
-            ->groupBy('bank_account_id')
-            ->pluck('delta', 'bank_account_id');
-
-        return $accounts->map(function ($account) use ($deltas) {
-            $delta = (float) ($deltas[$account->id] ?? 0);
-            $currentBalance = round((float) $account->opening_balance + $delta, 2);
-
-            return [
-                'id' => $account->id,
-                'name' => $account->name,
-                'type' => $account->type,
-                'color' => $account->color,
-                'current_balance' => $currentBalance,
-            ];
-        })->values()->toArray();
     }
 
     public function getBankAccountsTotals(): array
@@ -948,10 +967,60 @@ new class extends Component
                 </div>
             </div>
         </section>
-    @else
-    <div class="relative px-2 py-4 sm:p-6 space-y-6">
-        <!-- Header com Filtros -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2 mb-2">
+	    @else
+	    <div class="relative px-2 py-4 sm:p-6 space-y-6">
+	        @php
+	            $onboardingChecklist = app(\App\Services\Onboarding\OnboardingChecklistService::class)->checklist(auth()->user());
+	        @endphp
+	        @if(($onboardingChecklist['completed'] ?? 0) < ($onboardingChecklist['total'] ?? 3))
+	            <section class="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5 text-emerald-950 shadow-sm dark:border-emerald-400/15 dark:bg-emerald-400/5 dark:text-emerald-50">
+	                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+	                    <div>
+	                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-200">
+	                            Checklist inicial ({{ $onboardingChecklist['completed'] ?? 0 }}/{{ $onboardingChecklist['total'] ?? 3 }})
+	                        </p>
+	                        <p class="mt-2 text-base font-semibold text-emerald-950 dark:text-emerald-50">
+	                            Complete esses 3 passos para o painel ficar bem mais util.
+	                        </p>
+	                    </div>
+	                    @if(! empty($tutorialWhatsappUrl))
+	                        <a
+	                            href="{{ $tutorialWhatsappUrl }}"
+	                            target="_blank"
+	                            rel="noreferrer"
+	                            class="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
+	                        >
+	                            Testar no WhatsApp
+	                        </a>
+	                    @endif
+	                </div>
+
+	                <div class="mt-4 grid gap-3 sm:grid-cols-3">
+	                    @foreach(($onboardingChecklist['steps'] ?? []) as $step)
+	                        <div class="rounded-2xl border border-emerald-500/10 bg-white/60 p-4 text-sm dark:border-white/10 dark:bg-slate-950/30">
+	                            <p class="font-semibold text-emerald-950 dark:text-emerald-50">
+	                                {{ ($step['done'] ?? false) ? 'OK' : 'Pendente' }}: {{ $step['title'] ?? '' }}
+	                            </p>
+	                            <p class="mt-2 text-xs leading-6 text-emerald-800/90 dark:text-emerald-100/80">
+	                                {{ $step['hint'] ?? '' }}
+	                            </p>
+	                            <div class="mt-3 flex flex-wrap gap-2">
+	                                @if(! empty($step['url']))
+	                                    <a href="{{ $step['url'] }}" class="text-xs font-semibold text-emerald-700 underline underline-offset-4 hover:text-emerald-800 dark:text-emerald-200 dark:hover:text-emerald-100">
+	                                        Abrir
+	                                    </a>
+	                                @endif
+	                                @if(! empty($step['example']))
+	                                    <span class="text-xs font-mono text-emerald-900/80 dark:text-emerald-100/80">{{ $step['example'] }}</span>
+	                                @endif
+	                            </div>
+	                        </div>
+	                    @endforeach
+	                </div>
+	            </section>
+	        @endif
+	        <!-- Header com Filtros -->
+	        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2 mb-2">
             <div>
                 @php
                     $hour = now()->hour;

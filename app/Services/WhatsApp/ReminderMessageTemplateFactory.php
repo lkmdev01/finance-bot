@@ -33,7 +33,7 @@ class ReminderMessageTemplateFactory
 
     public static function buildFriendlyMessage(string $title, string $frequency, string $type = 'generic', ?string $userName = null): string
     {
-        $greeting = $userName ? "Olá, {$userName}!" : 'Olá!';
+        $greeting = $userName ? "Ola, {$userName}!" : 'Ola!';
 
         return match ($type) {
             'anniversary' => self::buildAnniversaryMessage($greeting, $title),
@@ -48,7 +48,6 @@ class ReminderMessageTemplateFactory
     private static function isAnniversary(string $titleLower): bool
     {
         return str_contains($titleLower, 'aniversario')
-            || str_contains($titleLower, 'aniversário')
             || str_contains($titleLower, 'niver');
     }
 
@@ -63,7 +62,6 @@ class ReminderMessageTemplateFactory
     private static function isMeeting(string $titleLower): bool
     {
         return str_contains($titleLower, 'reuniao')
-            || str_contains($titleLower, 'reunião')
             || str_contains($titleLower, 'encontro')
             || str_contains($titleLower, 'meeting');
     }
@@ -87,18 +85,17 @@ class ReminderMessageTemplateFactory
             || str_contains($titleLower, 'estudar')
             || str_contains($titleLower, 'treinar')
             || str_contains($titleLower, 'exercicio')
-            || str_contains($titleLower, 'exercício')
             || str_contains($titleLower, 'meditar')
             || str_contains($titleLower, 'ler');
     }
 
     private static function buildAnniversaryMessage(string $greeting, string $title): string
     {
-        $name = preg_replace('/\banivers[aá]rio\s+(?:de|da|do)?\s*/iu', '', $title) ?? $title;
+        $name = preg_replace('/\baniversario\s+(?:de|da|do)?\s*/iu', '', $title) ?? $title;
         $name = preg_replace('/\bniver\s+(?:de|da|do)?\s*/iu', '', $name) ?? $name;
         $name = trim((string) $name);
 
-        return "{$greeting}\n\nVim te lembrar que hoje é o aniversário de {$name}.\n\nSugestões:\n- Mandar uma mensagem\n- Ligar\n- Marcar algo para comemorar";
+        return "{$greeting}\n\nHoje e o aniversario de {$name}. Nao esquece de dar parabens.\n\nSugestoes:\n- Mandar uma mensagem\n- Ligar\n- Marcar algo para comemorar";
     }
 
     private static function buildPaymentMessage(string $greeting, string $title, string $frequency): string
@@ -106,7 +103,7 @@ class ReminderMessageTemplateFactory
         $frequencyText = match ($frequency) {
             'daily' => 'todos os dias',
             'weekly' => 'toda semana',
-            'monthly' => 'todo mês',
+            'monthly' => 'todo mes',
             'yearly' => 'todo ano',
             'once' => 'no dia agendado',
             default => 'conforme agendado',
@@ -115,7 +112,7 @@ class ReminderMessageTemplateFactory
         $what = preg_replace('/^(?:pagar|pagamento|conta|fatura)\s+(?:de|da|do)?\s*/iu', '', $title) ?? $title;
         $what = trim((string) $what);
 
-        return "{$greeting}\n\nLembrete: pagar {$what}.\n\nEsse lembrete sai {$frequencyText} para você não esquecer.";
+        return "{$greeting}\n\nLembrete: pagar {$what}.\n\nEsse lembrete sai {$frequencyText} para voce nao esquecer.";
     }
 
     private static function buildMeetingMessage(string $greeting, string $title, string $frequency): string
@@ -123,16 +120,16 @@ class ReminderMessageTemplateFactory
         $frequencyText = match ($frequency) {
             'daily' => 'todos os dias',
             'weekly' => 'toda semana',
-            'monthly' => 'todo mês',
+            'monthly' => 'todo mes',
             'yearly' => 'todo ano',
             'once' => 'no dia agendado',
             default => 'conforme agendado',
         };
 
-        $who = preg_replace('/^(?:reuni[aã]o|encontro|meeting)\s+(?:com|de|da|do)?\s*/iu', '', $title) ?? $title;
+        $who = preg_replace('/^(?:reuniao|encontro|meeting)\s+(?:com|de|da|do)?\s*/iu', '', $title) ?? $title;
         $who = trim((string) $who);
 
-        return "{$greeting}\n\nLembrete: reunião com {$who}.\n\nEsse lembrete sai {$frequencyText}.";
+        return "{$greeting}\n\nLembrete: reuniao com {$who}.\n\nEsse lembrete sai {$frequencyText}.";
     }
 
     private static function buildCallMessage(string $greeting, string $title): string
@@ -148,7 +145,7 @@ class ReminderMessageTemplateFactory
         $frequencyText = match ($frequency) {
             'daily' => 'todos os dias',
             'weekly' => 'toda semana',
-            'monthly' => 'todo mês',
+            'monthly' => 'todo mes',
             'yearly' => 'todo ano',
             'once' => 'no dia agendado',
             default => 'conforme agendado',
@@ -162,7 +159,7 @@ class ReminderMessageTemplateFactory
         $frequencyText = match ($frequency) {
             'daily' => 'todos os dias',
             'weekly' => 'toda semana',
-            'monthly' => 'todo mês',
+            'monthly' => 'todo mes',
             'yearly' => 'todo ano',
             'once' => 'no dia agendado',
             default => 'conforme agendado',

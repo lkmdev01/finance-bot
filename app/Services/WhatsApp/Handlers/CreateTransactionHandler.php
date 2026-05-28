@@ -38,6 +38,7 @@ class CreateTransactionHandler extends BaseHandler
             }
 
             $action = 'create_transaction';
+            $result['action'] = 'create_transaction';
         }
 
         if ($action !== 'create_transaction' || ! isset($result['transaction_data'])) {
@@ -157,6 +158,51 @@ class CreateTransactionHandler extends BaseHandler
             }
         }
 
+        // If the name matches both a credit card and a bank account, we need to disambiguate
+        // between credit (limit) and debit (cash balance). We remember the user's choice to
+        // avoid asking repeatedly for the same card.
+        if (($result['transaction_data']['type'] ?? 'expense') === 'expense'
+            && empty($result['transaction_data']['payment_method'])
+            && ! empty($result['transaction_data']['credit_card_name'])) {
+            $cardName = (string) $result['transaction_data']['credit_card_name'];
+
+            $sourceResolver = app(\App\Services\WhatsApp\FinancialSourceResolver::class);
+            $creditCard = $sourceResolver->findCreditCardByName($user, $cardName);
+            $bankAccount = $sourceResolver->findBankAccountByName($user, $cardName);
+
+            if ($creditCard !== null && $bankAccount !== null) {
+                $preferred = $this->getCardPaymentMethodPreference($contact, $cardName);
+
+                if (in_array($preferred, ['credit', 'debit'], true)) {
+                    $result['transaction_data']['payment_method'] = $preferred;
+
+                    if ($preferred === 'debit') {
+                        $result['transaction_data']['bank_account_name'] = $bankAccount->name;
+                        unset($result['transaction_data']['credit_card_id'], $result['transaction_data']['credit_card_name'], $result['transaction_data']['use_default_card']);
+                    }
+                } else {
+                    $reply = sprintf(
+                        'Entendi. Voce quer registrar isso no credito (limite do cartao) ou no debito (saldo da conta) para %s? Responda: credito ou debito.',
+                        $cardName
+                    );
+
+                    $result['_conversation_metadata'] = [
+                        'pending_intent' => 'select_card_payment_method',
+                        'pending_mode' => 'awaiting_clarification',
+                        'pending_payload' => [
+                            'transaction_data' => $result['transaction_data'],
+                            'card_name' => $cardName,
+                        ],
+                        'clear_pending' => false,
+                        'reply_kind' => 'message',
+                    ];
+
+                    $this->sendResponse($job, $reply, $user);
+                    return true;
+                }
+            }
+        }
+
         // If the user mentioned a specific credit card but didn't say "credito/debito",
         // default to credit. Debit must be explicit ("no debito", "no saldo").
         if (($result['transaction_data']['type'] ?? 'expense') === 'expense'
@@ -226,6 +272,11 @@ class CreateTransactionHandler extends BaseHandler
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => [
+                'kind' => 'transaction_create',
+                'id' => $createdTransaction->id,
+                'expires_at' => now()->addSeconds(60)->toIso8601String(),
+            ],
             'entities' => [
                 'topic' => 'transactions',
                 'transaction_id' => $createdTransaction->id,
@@ -239,6 +290,31 @@ class CreateTransactionHandler extends BaseHandler
 
         $this->sendResponse($job, $reply, $user);
         return true;
+    }
+
+    private function getCardPaymentMethodPreference(WhatsAppContact $contact, string $cardName): ?string
+    {
+        $stateService = app(\App\Services\WhatsApp\ConversationStateService::class);
+        $state = $stateService->getState($contact);
+        $prefs = is_array($state['preferences'] ?? null) ? $state['preferences'] : [];
+
+        $map = $prefs['card_payment_method'] ?? null;
+        if (! is_array($map)) {
+            return null;
+        }
+
+        $key = $this->normalizePreferenceKey($cardName);
+        $value = $map[$key] ?? null;
+
+        return is_string($value) ? $value : null;
+    }
+
+    private function normalizePreferenceKey(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = preg_replace('/\\s+/u', ' ', $value) ?? $value;
+
+        return Str::ascii($value);
     }
 
     private function handleCompoundTransactions(array $payloads, array &$result, User $user, WhatsAppContact $contact, ProcessWhatsAppMessage $job): bool

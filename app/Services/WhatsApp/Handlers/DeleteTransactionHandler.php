@@ -67,6 +67,16 @@ class DeleteTransactionHandler extends BaseHandler
 
         $label = $resolver->formatTransactionLabel($transaction);
         $transactionId = $transaction->id;
+        $beforeDelete = $transaction->only([
+            'category_id',
+            'bank_account_id',
+            'credit_card_id',
+            'type',
+            'amount',
+            'description',
+            'date',
+            'metadata',
+        ]);
         $transaction->delete();
 
         Cache::forget("user.{$user->id}.financial_data");
@@ -80,6 +90,11 @@ class DeleteTransactionHandler extends BaseHandler
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => [
+                'kind' => 'transaction_delete',
+                'attributes' => $beforeDelete,
+                'expires_at' => now()->addSeconds(60)->toIso8601String(),
+            ],
             'entities' => [
                 'topic' => 'transactions',
                 'latest_transaction_description' => null,

@@ -29,6 +29,7 @@ use App\Services\WhatsApp\Handlers\EditTransactionHandler;
 use App\Services\WhatsApp\Handlers\QueryHandler;
 use App\Services\WhatsApp\Handlers\ReportHandler;
 use App\Services\WhatsApp\Handlers\SplitTransactionHandler;
+use App\Services\WhatsApp\Handlers\UndoLastActionHandler;
 use App\Services\WhatsApp\Handlers\UpdateBudgetHandler;
 use App\Services\WhatsApp\Handlers\UpdateRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\UpdateSavingsGoalHandler;
@@ -79,6 +80,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ActionHandlerFactory::class, function ($app) {
             $handlerClasses = [
+                UndoLastActionHandler::class,
                 CreateBudgetHandler::class,
                 UpdateBudgetHandler::class,
                 DeleteBudgetHandler::class,

@@ -3,6 +3,7 @@
 namespace App\Services\WhatsApp\Handlers;
 
 use App\Jobs\ProcessWhatsAppMessage;
+use App\Models\Reminder;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\WhatsApp\IncomingMessageNormalizer;
@@ -40,8 +41,25 @@ class DeleteReminderHandler extends BaseHandler
 
             if ($matches->count() === 1) {
                 $reminder = $matches->first();
+                $before = $reminder->only(['is_active']);
                 $reminder->update(['is_active' => false]);
-                $this->sendResponse($job, "✅ Lembrete '{$reminder->title}' apagado com sucesso!", $user);
+
+                $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
+                    'reply_kind' => 'action',
+                    'undo' => [
+                        'kind' => 'reminder_delete',
+                        'id' => $reminder->id,
+                        'before' => $before,
+                        'expires_at' => now()->addSeconds(60)->toIso8601String(),
+                    ],
+                    'entities' => [
+                        'topic' => 'reminders',
+                        'reminder_id' => $reminder->id,
+                        'reminder_title' => $reminder->title,
+                    ],
+                ]);
+
+                $this->sendResponse($job, "Lembrete '{$reminder->title}' apagado com sucesso.", $user);
                 return true;
             }
 
@@ -56,8 +74,25 @@ class DeleteReminderHandler extends BaseHandler
 
         if ($reminders->count() === 1) {
             $reminder = $reminders->first();
+            $before = $reminder->only(['is_active']);
             $reminder->update(['is_active' => false]);
-            $this->sendResponse($job, "✅ Lembrete '{$reminder->title}' apagado com sucesso!", $user);
+
+            $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
+                'reply_kind' => 'action',
+                'undo' => [
+                    'kind' => 'reminder_delete',
+                    'id' => $reminder->id,
+                    'before' => $before,
+                    'expires_at' => now()->addSeconds(60)->toIso8601String(),
+                ],
+                'entities' => [
+                    'topic' => 'reminders',
+                    'reminder_id' => $reminder->id,
+                    'reminder_title' => $reminder->title,
+                ],
+            ]);
+
+            $this->sendResponse($job, "Lembrete '{$reminder->title}' apagado com sucesso.", $user);
             return true;
         }
 
@@ -76,15 +111,15 @@ class DeleteReminderHandler extends BaseHandler
             return;
         }
 
-        $this->sendResponse($job, "✅ Todos os {$count} lembrete(s) foram apagados!", $user);
+        $this->sendResponse($job, "Todos os {$count} lembrete(s) foram apagados.", $user);
     }
 
     private function extractReminderTitleFromMessage(string $message): ?string
     {
-        $subject = preg_replace('/\b(?:apagar|apaga|apague|apaguei|deletar|deleta|remover|remove|excluir|exclui|cancelar|cancela|editar|edita|alterar|altera|modificar|modifica|mudar|muda)\b/iu', '', $message);
-        $subject = preg_replace('/\b(?:o|a|os|as|um|uma|meu|minha|esse|essa|este|esta)\b/iu', ' ', $subject);
-        $subject = preg_replace('/\b(?:lembrete|lembretes|lembre)\b/iu', ' ', $subject);
-        $subject = trim(preg_replace('/\s+/u', ' ', $subject));
+        $subject = preg_replace('/\\b(?:apagar|apaga|apague|apaguei|deletar|deleta|remover|remove|excluir|exclui|cancelar|cancela|editar|edita|alterar|altera|modificar|modifica|mudar|muda)\\b/iu', '', $message) ?? $message;
+        $subject = preg_replace('/\\b(?:o|a|os|as|um|uma|meu|minha|esse|essa|este|esta)\\b/iu', ' ', $subject) ?? $subject;
+        $subject = preg_replace('/\\b(?:lembrete|lembretes|lembre)\\b/iu', ' ', $subject) ?? $subject;
+        $subject = trim(preg_replace('/\\s+/u', ' ', $subject) ?? $subject);
 
         if ($subject === '') {
             return null;
@@ -110,40 +145,33 @@ class DeleteReminderHandler extends BaseHandler
     }
 
     /**
-     * @param \Illuminate\Support\Collection $reminders
+     * @param \Illuminate\Support\Collection<int, Reminder> $reminders
      */
     private function findMatchingReminders(\Illuminate\Support\Collection $reminders, string $title)
     {
         $normalizer = app(IncomingMessageNormalizer::class);
         $search = $normalizer->normalize($title);
 
-        $exactMatches = $reminders->filter(function ($reminder) use ($normalizer, $search) {
-            return $normalizer->normalize($reminder->title) === $search;
-        });
-
-        if ($exactMatches->isNotEmpty()) {
-            return $exactMatches;
+        $exact = $reminders->filter(fn ($reminder) => $normalizer->normalize($reminder->title) === $search);
+        if ($exact->isNotEmpty()) {
+            return $exact;
         }
 
-        return $reminders->filter(function ($reminder) use ($normalizer, $search) {
-            return str_contains($normalizer->normalize($reminder->title), $search);
-        });
+        return $reminders->filter(fn ($reminder) => str_contains($normalizer->normalize($reminder->title), $search));
     }
 
     private function renderReminderOptions(Collection $reminders): string
     {
-        return $reminders->values()->map(function ($reminder, $index) {
-            return ($index + 1) . ". {$reminder->title}";
-        })->implode("\n");
+        return $reminders->values()->map(fn ($reminder, $index) => ($index + 1).". {$reminder->title}")->implode("\n");
     }
 
     private function isDeleteAllIntent(string $normalizedMessage): bool
     {
-        if (preg_match('/\b(?:todos|todas|tudo)\b(?:\s+(?:os|as|meus|minhas))*\s+lembretes?\b/iu', $normalizedMessage) === 1) {
+        if (preg_match('/\\b(?:todos|todas|tudo)\\b(?:\\s+(?:os|as|meus|minhas))*\\s+lembretes?\\b/iu', $normalizedMessage) === 1) {
             return true;
         }
 
-        return preg_match('/\b(?:apagar|apaga|apague|apaguei|deletar|deleta|remover|remove|excluir|exclui|cancelar|cancela)\b(?:\s+\w+){0,3}\s+\b(?:todos|todas|tudo)\b/iu', $normalizedMessage) === 1;
+        return preg_match('/\\b(?:apagar|apaga|apague|apaguei|deletar|deleta|remover|remove|excluir|exclui|cancelar|cancela)\\b(?:\\s+\\w+){0,3}\\s+\\b(?:todos|todas|tudo)\\b/iu', $normalizedMessage) === 1;
     }
 
     private function normalizeMessage(string $message): string
@@ -151,3 +179,4 @@ class DeleteReminderHandler extends BaseHandler
         return app(IncomingMessageNormalizer::class)->normalize($message);
     }
 }
+

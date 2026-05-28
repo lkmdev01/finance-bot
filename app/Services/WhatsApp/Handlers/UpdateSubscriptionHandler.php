@@ -45,6 +45,16 @@ class UpdateSubscriptionHandler extends BaseHandler
             return true;
         }
 
+        $before = $subscription->only([
+            'amount',
+            'billing_cycle',
+            'due_day',
+            'bank_account_id',
+            'credit_card_id',
+            'next_due_date',
+            'is_active',
+        ]);
+
         $changedSchedule = false;
 
         if ($data['amount'] !== null) {
@@ -102,6 +112,12 @@ class UpdateSubscriptionHandler extends BaseHandler
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => [
+                'kind' => 'subscription_update',
+                'id' => $subscription->id,
+                'before' => $before,
+                'expires_at' => now()->addSeconds(60)->toIso8601String(),
+            ],
             'entities' => [
                 'topic' => 'subscriptions',
                 'subscription_name' => $subscription->name,

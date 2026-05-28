@@ -32,6 +32,14 @@ beforeEach(function () {
         'type' => 'expense',
         'name' => 'Alimentação',
     ]);
+
+    $this->compras = Category::create([
+        'user_id' => $this->user->id,
+        'name' => 'Compras',
+        'type' => 'expense',
+        'color' => '#E67E22',
+        'icon' => 'cart',
+    ]);
 });
 
 it('entende follow up temporal de orçamento com base na categoria anterior', function () {

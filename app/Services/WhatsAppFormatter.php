@@ -15,8 +15,8 @@ class WhatsAppFormatter
     }
 
     /**
-     * Tries to repair strings that were mis-decoded (UTF-8 bytes interpreted as Windows-1252).
-     * This shows up as sequences like "Ã£", "Ã©", "â€“", etc.
+     * Tries to repair strings that were mis-decoded (UTF-8 bytes interpreted as Latin-1/Windows-1252).
+     * This shows up as sequences like "ServiÃ§o", "orÃ§amento", "cartÃ£o", etc.
      */
     public static function normalizeTextEncoding(?string $text): string
     {
@@ -32,15 +32,17 @@ class WhatsAppFormatter
             return $text;
         }
 
-        $repaired = @mb_convert_encoding($text, 'Windows-1252', 'UTF-8');
+        $repaired = self::repairLatin1Mojibake($text);
 
         if (! is_string($repaired) || $repaired === '') {
             return $text;
         }
 
-        return self::mojibakeScore($repaired) < self::mojibakeScore($text)
-            ? $repaired
-            : $text;
+        if (! mb_check_encoding($repaired, 'UTF-8')) {
+            return $text;
+        }
+
+        return self::mojibakeScore($repaired) < self::mojibakeScore($text) ? $repaired : $text;
     }
 
     public static function bold(string $text): string
@@ -84,28 +86,28 @@ class WhatsAppFormatter
     {
         $status = $balance >= 0 ? 'Saldo disponivel' : 'Saldo negativo';
 
-        return self::formatTitle($status).":\n"
-            .self::formatMoney($balance)."\n\n"
-            .($balance < 0 ? 'Atencao: seu saldo esta negativo.' : 'Tudo certo.');
+        return self::formatTitle($status) . ":\n"
+            . self::formatMoney($balance) . "\n\n"
+            . ($balance < 0 ? 'Atencao: seu saldo esta negativo.' : 'Tudo certo.');
     }
 
     public static function formatTransactionCreated(array $data): string
     {
         $type = ($data['type'] ?? 'expense') === 'income' ? 'receita' : 'despesa';
 
-        $message = self::formatTitle("Registrei sua {$type}!")."\n\n";
-        $message .= self::bold('Valor:').' '.self::formatMoney((float) ($data['amount'] ?? 0), false)."\n";
+        $message = self::formatTitle("Registrei sua {$type}!") . "\n\n";
+        $message .= self::bold('Valor:') . ' ' . self::formatMoney((float) ($data['amount'] ?? 0), false) . "\n";
 
         if (! empty($data['description'])) {
-            $message .= self::bold('Descricao:').' '.self::normalizeTextEncoding((string) $data['description'])."\n";
+            $message .= self::bold('Descricao:') . ' ' . self::normalizeTextEncoding((string) $data['description']) . "\n";
         }
 
         if (! empty($data['category'])) {
-            $message .= self::bold('Categoria:').' '.self::normalizeTextEncoding((string) $data['category'])."\n";
+            $message .= self::bold('Categoria:') . ' ' . self::normalizeTextEncoding((string) $data['category']) . "\n";
         }
 
         if (! empty($data['date'])) {
-            $message .= self::bold('Data:')." {$data['date']}\n";
+            $message .= self::bold('Data:') . " {$data['date']}\n";
         }
 
         return $message;
@@ -122,7 +124,7 @@ class WhatsAppFormatter
 
     private static function containsPotentialMojibake(string $text): bool
     {
-        foreach (['Ã', 'Â', 'â', 'ðŸ'] as $marker) {
+        foreach (['Ãƒ', 'Ã‚', 'Ã¢', 'Ã°', 'Ã£', 'Ã§', 'Ã¡', 'Ã©', 'Ã³', 'Ãº', 'Â'] as $marker) {
             if (str_contains($text, $marker)) {
                 return true;
             }
@@ -131,14 +133,30 @@ class WhatsAppFormatter
         return false;
     }
 
+    /**
+     * Equivalent to utf8_decode() (deprecated) but using mbstring.
+     * For the common mojibake pattern, this yields the original UTF-8 bytes.
+     */
+    private static function repairLatin1Mojibake(string $text): ?string
+    {
+        $candidate = @mb_convert_encoding($text, 'ISO-8859-1', 'UTF-8');
+
+        if (! is_string($candidate) || $candidate === '') {
+            return null;
+        }
+
+        return $candidate;
+    }
+
     private static function mojibakeScore(string $text): int
     {
         $score = 0;
 
-        foreach (['Ã', 'Â', 'â', 'ðŸ'] as $marker) {
+        foreach (['Ãƒ', 'Ã‚', 'Ã¢', 'Ã°', 'Ã£', 'Ã§', 'Ã¡', 'Ã©', 'Ã³', 'Ãº', 'Â'] as $marker) {
             $score += substr_count($text, $marker);
         }
 
         return $score;
     }
 }
+

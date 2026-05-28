@@ -25,6 +25,10 @@ class MessageClassifier
             return ['kind' => 'greeting', 'normalized' => $stripped];
         }
 
+        if ($this->isUndo($stripped)) {
+            return ['kind' => 'undo', 'normalized' => $stripped];
+        }
+
         $domain = $this->domainGate->detect($message, $state);
 
         foreach ($this->classifiersForDomain($domain) as $classifier) {
@@ -85,6 +89,29 @@ class MessageClassifier
 
         foreach (['nao quero', 'agora nao', 'nao precisa'] as $phrase) {
             if ($message === $phrase || str_starts_with($message, $phrase . ' ')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isUndo(string $message): bool
+    {
+        if (in_array($message, ['undo', 'desfazer', 'desfaz', 'desfaca', 'anular', 'voltar', 'volta'], true)) {
+            return true;
+        }
+
+        foreach ([
+            'desfaz isso',
+            'desfaz o ultimo',
+            'desfaz a ultima',
+            'desfazer o ultimo',
+            'desfazer a ultima',
+            'anula isso',
+            'volta isso',
+        ] as $phrase) {
+            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
                 return true;
             }
         }

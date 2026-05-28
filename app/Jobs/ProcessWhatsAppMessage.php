@@ -25,6 +25,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
     use Queueable;
 
     private ?string $finalReply = null;
+    private ?string $normalizedMessage = null;
 
     public function __construct(
         public readonly string $phoneNumber,
@@ -48,6 +49,16 @@ class ProcessWhatsAppMessage implements ShouldQueue
     public function getFinalReply(): ?string
     {
         return $this->finalReply;
+    }
+
+    public function setNormalizedMessage(string $message): void
+    {
+        $this->normalizedMessage = $message;
+    }
+
+    public function getNormalizedMessage(): string
+    {
+        return $this->normalizedMessage ?? $this->message;
     }
 
     public function sendResponse(
@@ -125,6 +136,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             // Normalize WhatsApp text early so classifier/parsers/handlers receive clean UTF-8.
             // Keep the raw message available via $this->message for audit metadata in handlers.
             $normalizedMessage = $normalizer->clean($this->message);
+            $this->setNormalizedMessage($normalizedMessage);
 
             $stateService = app(ConversationStateService::class);
             $orchestrator = app(ConversationOrchestrator::class);
@@ -155,6 +167,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'reply' => $reply,
                     'metadata' => [
                         'preflight_handled' => true,
+                        'domain' => $preflight['domain'] ?? null,
                     ],
                 ]);
                 return;
@@ -194,10 +207,12 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
             // Handlers read $job->message for raw context; pass normalized text to state/history for predictability.
             $handled = $handlerFactory->process($action, $result, $user, $contact, $this);
+            // Handlers may refine/override the action after clarification/confirmation.
+            $effectiveAction = $result['action'] ?? $action;
 
             Log::info('WhatsApp pos-handler', [
                 'user_id' => $user->id,
-                'action' => $action,
+                'action' => $effectiveAction,
                 'handled' => $handled,
                 'handler' => $result['_selected_handler'] ?? null,
                 'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
@@ -206,24 +221,39 @@ class ProcessWhatsAppMessage implements ShouldQueue
             ]);
 
             if ($handled) {
+                // Handlers are allowed to either:
+                // - send the response themselves (BaseHandler::sendResponse), setting $job->finalReply
+                // - or just populate $result['reply'] and return true (legacy/pure handlers).
+                // In both cases we must persist conversation state and, if nothing was sent yet, send now.
                 $reply = $this->getFinalReply() ?? ($result['reply'] ?? '');
+
                 if ($reply !== '') {
-                    $metadata = $orchestrator->metadataForResult($normalizedMessage, $action, $result, $contact);
-                    $stateService->applyHandledResult($contact, $normalizedMessage, $action, $reply, $metadata);
-                    $proactiveTrigger->dispatch($user, $contact, $action, $result, $this);
+                    if ($this->getFinalReply() === null) {
+                        $formattedReply = WhatsAppFormatter::format($reply);
+                        $this->rememberFinalReply($formattedReply);
+                        $this->sendResponse($baileysService, $phoneNumberService, $formattedReply, $user);
+                        $reply = $formattedReply;
+                    }
+
+                    $metadata = $orchestrator->metadataForResult($normalizedMessage, $effectiveAction, $result, $contact);
+                    $stateService->applyHandledResult($contact, $normalizedMessage, $effectiveAction, $reply, $metadata);
+                    $proactiveTrigger->dispatch($user, $contact, $effectiveAction, $result, $this);
                 }
 
                 $telemetry->record($user, $contact, $this->message, [
                     'classification' => $preflight['classification'] ?? null,
-                    'action' => $action,
+                    'action' => $effectiveAction,
                     'handler' => $result['_selected_handler'] ?? null,
                     'used_ai' => ! isset($preflight['result']),
                     'status' => 'handled',
                     'reply' => $reply,
                     'metadata' => [
                         'preflight_handled' => false,
+                        'domain' => $preflight['domain'] ?? null,
                         'reply_kind' => $result['_conversation_metadata']['reply_kind'] ?? null,
                         'contract' => $result['_contract_meta'] ?? null,
+                        'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
+                        'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                         'entities' => $result['_conversation_metadata']['entities'] ?? null,
                     ],
                 ]);
@@ -234,19 +264,22 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $this->rememberFinalReply($formattedReply);
             $this->sendResponse($baileysService, $phoneNumberService, $formattedReply, $user);
 
-            $metadata = $orchestrator->metadataForResult($normalizedMessage, $action, $result, $contact);
-            $stateService->applyHandledResult($contact, $normalizedMessage, $action, $formattedReply, $metadata);
-            $proactiveTrigger->dispatch($user, $contact, $action, $result, $this);
+            $metadata = $orchestrator->metadataForResult($normalizedMessage, $effectiveAction, $result, $contact);
+            $stateService->applyHandledResult($contact, $normalizedMessage, $effectiveAction, $formattedReply, $metadata);
+            $proactiveTrigger->dispatch($user, $contact, $effectiveAction, $result, $this);
             $telemetry->record($user, $contact, $this->message, [
                 'classification' => $preflight['classification'] ?? null,
-                'action' => $action,
+                'action' => $effectiveAction,
                 'handler' => $result['_selected_handler'] ?? null,
                 'used_ai' => ! isset($preflight['result']),
                 'status' => 'fallback_reply',
                 'reply' => $formattedReply,
                 'metadata' => [
                     'preflight_handled' => false,
+                    'domain' => $preflight['domain'] ?? null,
                     'contract' => $result['_contract_meta'] ?? null,
+                    'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
+                    'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                     'entities' => $result['_conversation_metadata']['entities'] ?? null,
                 ],
             ]);
@@ -289,6 +322,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'metadata' => [
                         'line' => $e->getLine(),
                         'file' => $e->getFile(),
+                        'domain' => $preflight['domain'] ?? null,
                         'contract' => $result['_contract_meta'] ?? null,
                     ],
                 ]);

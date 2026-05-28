@@ -34,11 +34,19 @@ class CancelSubscriptionHandler extends BaseHandler
             return true;
         }
 
+        $before = $subscription->only(['is_active']);
+
         $subscription->is_active = false;
         $subscription->save();
 
         $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
             'reply_kind' => 'action',
+            'undo' => [
+                'kind' => 'subscription_cancel',
+                'id' => $subscription->id,
+                'before' => $before,
+                'expires_at' => now()->addSeconds(60)->toIso8601String(),
+            ],
             'entities' => [
                 'topic' => 'subscriptions',
                 'subscription_name' => $subscription->name,

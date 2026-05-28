@@ -27,12 +27,22 @@ class AbacatePayService
 
     public function createCustomer(array $payload): array
     {
-        return $this->legacyPost('/customer/create', $payload);
+        return $this->post('/customers/create', $payload);
     }
 
     public function createSubscriptionCheckout(array $payload): array
     {
-        return $this->legacyPost('/billing/create', $payload);
+        return $this->post('/subscriptions/create', $payload);
+    }
+
+    public function cancelSubscription(array $payload): array
+    {
+        return $this->post('/subscriptions/cancel', $payload);
+    }
+
+    public function changeSubscriptionPlan(array $payload): array
+    {
+        return $this->post('/subscriptions/change-plan', $payload);
     }
 
     public function getCheckout(array $query): array

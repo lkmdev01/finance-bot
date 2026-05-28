@@ -5,6 +5,10 @@ return [
     'trial_days' => 7,
     'trial_expired_message' => 'Seu teste gratuito terminou. Para continuar registrando novas informações, ative um plano.',
 
+    // Metodos exibidos no checkout da AbacatePay.
+    // Para MVP, usamos checkout avulso (sem renovacao automatica), entao vale liberar PIX + Cartao.
+    'checkout_methods' => ['PIX', 'CARD'],
+
     'premium_features' => [
         'reports',
         'financial_projections',
@@ -83,3 +87,4 @@ return [
         ],
     ],
 ];
+

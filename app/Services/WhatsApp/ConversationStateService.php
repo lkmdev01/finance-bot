@@ -9,6 +9,7 @@ class ConversationStateService
 {
     private const MAX_CONTEXT_ITEMS = 20;
     private const MAX_RECENT_CONTEXTS = 16;
+    private const MAX_UNDO_STACK = 8;
 
     public function getState(?WhatsAppContact $contact): array
     {
@@ -21,6 +22,14 @@ class ConversationStateService
         $state['mode'] = 'idle';
         $state['pending_intent'] = null;
         $state['pending_payload'] = [];
+        $this->persistState($contact, $state);
+    }
+
+    public function replaceUndoStack(WhatsAppContact $contact, array $undoStack): void
+    {
+        $state = $this->getState($contact);
+        $state['undo_stack'] = array_slice($this->sanitizeValue($undoStack), 0, self::MAX_UNDO_STACK);
+        $state['updated_at'] = now()->toIso8601String();
         $this->persistState($contact, $state);
     }
 
@@ -118,6 +127,22 @@ class ConversationStateService
         $replyKind = $metadata['reply_kind'] ?? $this->inferReplyKind($action, $reply);
         $entities = $metadata['entities'] ?? [];
 
+        // Merge any preference updates from handlers/resolvers.
+        if (! empty($metadata['preferences']) && is_array($metadata['preferences'])) {
+            $state = $this->getState($contact);
+            $state['preferences'] = $this->mergePreferences($state['preferences'] ?? [], $metadata['preferences']);
+            $state['updated_at'] = now()->toIso8601String();
+            $this->persistState($contact, $state);
+        }
+
+        // Push undo entries (if any) produced by deterministic handlers.
+        if (! empty($metadata['undo'])) {
+            $state = $this->getState($contact);
+            $state['undo_stack'] = $this->pushUndoEntry($state['undo_stack'] ?? [], $metadata['undo']);
+            $state['updated_at'] = now()->toIso8601String();
+            $this->persistState($contact, $state);
+        }
+
         if (($metadata['pending_intent'] ?? null) !== null) {
             $pendingMode = $metadata['pending_mode'] ?? 'awaiting_confirmation';
 
@@ -171,10 +196,54 @@ class ConversationStateService
             'last_entities' => is_array($state['last_entities'] ?? null) ? $state['last_entities'] : [],
             'last_reply_kind' => $state['last_reply_kind'] ?? null,
             'recent_contexts' => is_array($state['recent_contexts'] ?? null) ? array_slice($state['recent_contexts'], 0, self::MAX_RECENT_CONTEXTS) : [],
+            'preferences' => is_array($state['preferences'] ?? null) ? $state['preferences'] : [],
+            'undo_stack' => is_array($state['undo_stack'] ?? null) ? array_slice($state['undo_stack'], 0, self::MAX_UNDO_STACK) : [],
             'last_proactive_key' => $state['last_proactive_key'] ?? null,
             'last_proactive_at' => $state['last_proactive_at'] ?? null,
             'updated_at' => $state['updated_at'] ?? null,
         ];
+    }
+
+    private function mergePreferences(array $existing, array $incoming): array
+    {
+        $existing = $this->sanitizeValue($existing);
+        $incoming = $this->sanitizeValue($incoming);
+
+        foreach ($incoming as $key => $value) {
+            if (is_array($value) && is_array($existing[$key] ?? null)) {
+                $existing[$key] = $this->mergePreferences($existing[$key], $value);
+                continue;
+            }
+
+            $existing[$key] = $value;
+        }
+
+        return $existing;
+    }
+
+    private function pushUndoEntry(array $stack, mixed $undo): array
+    {
+        // Accept either a single entry or a list of entries.
+        $entries = $undo;
+        if (! is_array($entries)) {
+            return $stack;
+        }
+
+        $isList = array_is_list($entries);
+        if (! $isList || (isset($entries['kind']) || isset($entries['action']))) {
+            $entries = [$entries];
+        }
+
+        foreach ($entries as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $sanitized = $this->sanitizeValue($entry);
+            array_unshift($stack, $sanitized);
+        }
+
+        return array_slice($stack, 0, self::MAX_UNDO_STACK);
     }
 
     private function sanitizeValue(mixed $value): mixed
