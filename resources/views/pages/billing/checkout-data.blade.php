@@ -1,4 +1,4 @@
-<x-layouts.app.sidebar title="Confirmar dados de cobranca">
+<x-layouts.checkout title="Confirmar dados de cobranca" :back-href="route('billing.plans')">
     @php
         $user = auth()->user();
         $canContinue = filled($formattedPhoneNumber);
@@ -89,4 +89,4 @@
             </div>
         </section>
     </div>
-</x-layouts.app.sidebar>
+</x-layouts.checkout>
