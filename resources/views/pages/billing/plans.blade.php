@@ -90,7 +90,7 @@
                                 Plano atual
                             </flux:button>
                         @else
-                            <form method="POST" action="{{ route('billing.subscribe', $plan['code']) }}">
+                            <form method="POST" action="{{ route('billing.subscribe', $plan['code']) }}" data-billing-subscribe-form data-plan-name="{{ $plan['name'] }}">
                                 @csrf
                                 <flux:button type="submit" variant="primary" class="w-full">
                                     Ativar {{ $plan['name'] }}
@@ -102,6 +102,145 @@
             @endforeach
         </section>
     </div>
+
+    {{-- Checkout invisivel: coleta CPF/CNPJ inline (se faltar) e inicia o checkout via AJAX sem sair da tela. --}}
+    <div id="billing-tax-modal" class="fixed inset-0 z-[999] hidden">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" data-billing-tax-close></div>
+        <div class="relative mx-auto mt-24 w-[92%] max-w-lg rounded-[1.75rem] border border-white/10 bg-slate-950/90 p-6 shadow-[0_24px_90px_rgba(2,6,23,0.55)]">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Confirmar dados</p>
+                    <h3 class="mt-2 text-2xl font-black text-white">CPF ou CNPJ</h3>
+                    <p class="mt-2 text-sm leading-7 text-slate-300">
+                        Para abrir o checkout do plano <span class="font-semibold text-white" data-billing-tax-plan></span>, preciso do seu CPF/CNPJ.
+                    </p>
+                </div>
+                <button type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10" data-billing-tax-close>
+                    Fechar
+                </button>
+            </div>
+
+            <div class="mt-6 space-y-3">
+                <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Documento</label>
+                <input
+                    id="billing-tax-id"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="000.000.000-00"
+                    class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
+                    value="{{ old('tax_id', \App\Support\BrazilTaxId::format($user->tax_id)) }}"
+                />
+                <p class="text-xs leading-6 text-slate-400">Sem renovacao automatica nesta etapa. O pagamento libera acesso pelo periodo do plano.</p>
+                <p class="hidden text-sm text-rose-300" data-billing-tax-error></p>
+            </div>
+
+            <div class="mt-6 flex flex-col gap-3">
+                <button type="button" class="inline-flex w-full items-center justify-center rounded-xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60" data-billing-tax-confirm>
+                    Continuar para pagamento
+                </button>
+                <div class="text-center text-xs text-slate-400" data-billing-tax-loading style="display:none;">Iniciando checkout...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const modal = document.getElementById('billing-tax-modal');
+            const planLabel = modal?.querySelector('[data-billing-tax-plan]');
+            const closeButtons = modal?.querySelectorAll('[data-billing-tax-close]') ?? [];
+            const confirmButton = modal?.querySelector('[data-billing-tax-confirm]');
+            const loadingEl = modal?.querySelector('[data-billing-tax-loading]');
+            const errorEl = modal?.querySelector('[data-billing-tax-error]');
+            const taxInput = document.getElementById('billing-tax-id');
+
+            if (!modal || !confirmButton || !taxInput) return;
+
+            let pendingForm = null;
+
+            function showModal(planName) {
+                if (planLabel) planLabel.textContent = planName || '';
+                if (errorEl) {
+                    errorEl.textContent = '';
+                    errorEl.classList.add('hidden');
+                }
+                modal.classList.remove('hidden');
+                taxInput.focus();
+            }
+
+            function hideModal() {
+                modal.classList.add('hidden');
+                pendingForm = null;
+                if (loadingEl) loadingEl.style.display = 'none';
+                confirmButton.disabled = false;
+            }
+
+            closeButtons.forEach(btn => btn.addEventListener('click', hideModal));
+
+            async function submitSubscribe(form, extraFields) {
+                const fd = new FormData(form);
+                if (extraFields) {
+                    Object.entries(extraFields).forEach(([k, v]) => fd.set(k, v));
+                }
+
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    body: fd,
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                const data = await res.json().catch(() => ({}));
+
+                if (res.ok && data && data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                    return;
+                }
+
+                const message = data?.message || 'Nao foi possivel iniciar o pagamento agora. Tente novamente.';
+
+                if (res.status === 422 && data?.requires_tax_id) {
+                    pendingForm = form;
+                    showModal(form.getAttribute('data-plan-name') || '');
+                    return;
+                }
+
+                alert(message);
+            }
+
+            document.querySelectorAll('[data-billing-subscribe-form]').forEach((form) => {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    submitSubscribe(form);
+                });
+            });
+
+            confirmButton.addEventListener('click', async () => {
+                if (!pendingForm) {
+                    hideModal();
+                    return;
+                }
+
+                confirmButton.disabled = true;
+                if (loadingEl) loadingEl.style.display = 'block';
+
+                const taxId = (taxInput.value || '').trim();
+
+                try {
+                    await submitSubscribe(pendingForm, { tax_id: taxId });
+                } catch (err) {
+                    if (errorEl) {
+                        errorEl.textContent = 'Falha ao iniciar o checkout. Tente novamente.';
+                        errorEl.classList.remove('hidden');
+                    }
+                    confirmButton.disabled = false;
+                    if (loadingEl) loadingEl.style.display = 'none';
+                }
+            });
+        })();
+    </script>
 </x-layouts.app.sidebar>
 
 
