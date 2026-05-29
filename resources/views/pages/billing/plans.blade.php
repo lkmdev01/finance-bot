@@ -1,4 +1,4 @@
-<x-layouts.app.sidebar title="Planos">
+<x-layouts.checkout title="Planos" :back-href="route('dashboard')">
     @php
         $user = auth()->user();
         $hasSubscriptionFlow = collect($plans ?? [])->contains(fn ($plan) => ($plan['checkout_flow'] ?? 'checkout') === 'subscription' && (($plan['price_cents'] ?? 0) > 0));
@@ -246,6 +246,6 @@
             });
         })();
     </script>
-</x-layouts.app.sidebar>
+</x-layouts.checkout>
 
 
