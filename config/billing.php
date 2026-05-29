@@ -9,6 +9,10 @@ return [
     // Para MVP, usamos checkout avulso (sem renovacao automatica), entao vale liberar PIX + Cartao.
     'checkout_methods' => ['PIX', 'CARD'],
 
+    // Metodos permitidos para checkout de assinatura (recorrencia automatica).
+    // Para evitar o erro "PIX Automático is not available for this store", usamos apenas cartao.
+    'subscription_methods' => ['CARD'],
+
     'premium_features' => [
         'reports',
         'financial_projections',
@@ -46,6 +50,9 @@ return [
             'badge' => 'Mais popular',
             'highlight' => true,
             'product_id' => env('ABACATEPAY_PLAN_PRO_MONTHLY_PRODUCT_ID'),
+            // checkout = pagamento avulso (sem renovacao automatica)
+            // subscription = assinatura recorrente (renova automaticamente no cartao)
+            'checkout_flow' => env('BILLING_PLAN_PRO_MONTHLY_FLOW', 'subscription'),
             'features' => [
                 'transactions',
                 'categories',
@@ -70,6 +77,7 @@ return [
             'badge' => 'Economize 2 meses',
             'highlight' => false,
             'product_id' => env('ABACATEPAY_PLAN_PRO_YEARLY_PRODUCT_ID'),
+            'checkout_flow' => env('BILLING_PLAN_PRO_YEARLY_FLOW', 'checkout'),
             'features' => [
                 'transactions',
                 'categories',

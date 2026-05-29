@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Http;
 test('usuario pode iniciar checkout do plano pro apos confirmar dados', function () {
     $planPrice = config('billing.plans.pro_monthly.price_cents');
     config(['billing.plans.pro_monthly.product_id' => 'prod_pro_monthly_123']);
+    config(['billing.plans.pro_monthly.checkout_flow' => 'subscription']);
 
     $user = User::factory()->create([
         'email' => 'lukas@example.com',
@@ -29,7 +30,7 @@ test('usuario pode iniciar checkout do plano pro apos confirmar dados', function
                 'id' => 'cust_123',
             ],
         ]),
-        'https://api.abacatepay.com/v2/checkouts/create' => Http::response([
+        'https://api.abacatepay.com/v2/subscriptions/create' => Http::response([
             'success' => true,
             'error' => null,
             'data' => [
@@ -57,11 +58,10 @@ test('usuario pode iniciar checkout do plano pro apos confirmar dados', function
                 && $request['taxId'] === '111.444.777-35';
         }
 
-        return $request->url() === 'https://api.abacatepay.com/v2/checkouts/create'
+        return $request->url() === 'https://api.abacatepay.com/v2/subscriptions/create'
             && $request['items'][0]['id'] === 'prod_pro_monthly_123'
             && $request['items'][0]['quantity'] === 1
             && $request['customerId'] === 'cust_123'
-            && in_array('PIX', $request['methods'] ?? [], true)
             && in_array('CARD', $request['methods'] ?? [], true)
             && ($request['metadata']['plan_code'] ?? null) === 'pro_monthly';
     });
@@ -134,6 +134,7 @@ test('checkout invisivel retorna erro json quando falta cpf', function () {
 test('checkout invisivel aceita tax_id inline e retorna redirect_url em json', function () {
     $planPrice = config('billing.plans.pro_monthly.price_cents');
     config(['billing.plans.pro_monthly.product_id' => 'prod_pro_monthly_123']);
+    config(['billing.plans.pro_monthly.checkout_flow' => 'subscription']);
 
     $user = User::factory()->create([
         'email' => 'lukas@example.com',
@@ -156,7 +157,7 @@ test('checkout invisivel aceita tax_id inline e retorna redirect_url em json', f
                 'id' => 'cust_123',
             ],
         ]),
-        'https://api.abacatepay.com/v2/checkouts/create' => Http::response([
+        'https://api.abacatepay.com/v2/subscriptions/create' => Http::response([
             'success' => true,
             'error' => null,
             'data' => [

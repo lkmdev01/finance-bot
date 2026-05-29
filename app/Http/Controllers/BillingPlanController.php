@@ -152,31 +152,62 @@ class BillingPlanController extends Controller
                 $user->forceFill(['abacatepay_customer_id' => $customerId])->save();
             }
 
-            $methods = config('billing.checkout_methods', ['PIX', 'CARD']);
-            if (! is_array($methods) || $methods === []) {
-                $methods = ['PIX', 'CARD'];
-            }
+            $flow = (string) ($plan['checkout_flow'] ?? 'checkout');
 
-            // MVP: cobranca avulsa (sem renovacao automatica). O acesso e liberado pelo periodo do plano.
-            $response = $this->abacatePayService->createCheckout([
-                'items' => [
-                    [
-                        'id' => $productId,
-                        'quantity' => 1,
+            if ($flow === 'subscription') {
+                $methods = config('billing.subscription_methods', ['CARD']);
+                if (! is_array($methods) || $methods === []) {
+                    $methods = ['CARD'];
+                }
+
+                // Assinatura recorrente (renova automaticamente) via CARD.
+                // O produto precisa ter `cycle` configurado na loja (ex: MONTHLY).
+                $response = $this->abacatePayService->createSubscriptionCheckout([
+                    'items' => [
+                        [
+                            'id' => $productId,
+                            'quantity' => 1,
+                        ],
                     ],
-                ],
-                'customerId' => $customerId,
-                'methods' => array_values($methods),
-                'externalId' => $externalId,
-                'returnUrl' => route('billing.plans'),
-                'completionUrl' => route('billing.plans', ['checkout' => 'success']),
-                'metadata' => [
-                    'app_user_id' => $user->id,
-                    'plan_code' => $planCode,
-                    'plan_name' => $plan['name'],
-                    'source' => 'app_billing',
-                ],
-            ]);
+                    'customerId' => $customerId,
+                    'methods' => array_values($methods),
+                    'externalId' => $externalId,
+                    'returnUrl' => route('billing.plans'),
+                    'completionUrl' => route('billing.plans', ['checkout' => 'success']),
+                    'metadata' => [
+                        'app_user_id' => $user->id,
+                        'plan_code' => $planCode,
+                        'plan_name' => $plan['name'],
+                        'source' => 'app_billing',
+                    ],
+                ]);
+            } else {
+                $methods = config('billing.checkout_methods', ['PIX', 'CARD']);
+                if (! is_array($methods) || $methods === []) {
+                    $methods = ['PIX', 'CARD'];
+                }
+
+                // Pagamento avulso (sem renovacao automatica). O acesso e liberado pelo periodo do plano.
+                $response = $this->abacatePayService->createCheckout([
+                    'items' => [
+                        [
+                            'id' => $productId,
+                            'quantity' => 1,
+                        ],
+                    ],
+                    'customerId' => $customerId,
+                    'methods' => array_values($methods),
+                    'externalId' => $externalId,
+                    'returnUrl' => route('billing.plans'),
+                    'completionUrl' => route('billing.plans', ['checkout' => 'success']),
+                    'metadata' => [
+                        'app_user_id' => $user->id,
+                        'plan_code' => $planCode,
+                        'plan_name' => $plan['name'],
+                        'source' => 'app_billing',
+                    ],
+                ]);
+            }
         } catch (\Throwable $exception) {
             report($exception);
 

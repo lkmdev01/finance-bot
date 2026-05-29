@@ -1,6 +1,7 @@
 <x-layouts.app.sidebar title="Planos">
     @php
         $user = auth()->user();
+        $hasSubscriptionFlow = collect($plans ?? [])->contains(fn ($plan) => ($plan['checkout_flow'] ?? 'checkout') === 'subscription' && (($plan['price_cents'] ?? 0) > 0));
     @endphp
 
     <div class="space-y-8">
@@ -21,7 +22,11 @@
                         O Starter cobre o basico. Os planos Pro liberam relatorios avancados, projecoes financeiras e a experiencia completa do {{ config('mascot.name', 'Orbita') }}.
                     </p>
                     <p class="mt-2 max-w-2xl text-sm leading-7 text-slate-400">
-                        Cada pagamento libera o acesso pelo periodo do plano escolhido. Nao ha renovacao automatica nesta etapa.
+                        @if ($hasSubscriptionFlow)
+                            Alguns planos renovam automaticamente no cartao (assinatura). Outros funcionam como pagamento avulso e nao renovam automaticamente.
+                        @else
+                            Cada pagamento libera o acesso pelo periodo do plano escolhido. Nao ha renovacao automatica nesta etapa.
+                        @endif
                     </p>
                 </div>
 
@@ -131,7 +136,7 @@
                     class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
                     value="{{ old('tax_id', \App\Support\BrazilTaxId::format($user->tax_id)) }}"
                 />
-                <p class="text-xs leading-6 text-slate-400">Sem renovacao automatica nesta etapa. O pagamento libera acesso pelo periodo do plano.</p>
+                <p class="text-xs leading-6 text-slate-400">Se o plano for assinatura, ele renova automaticamente no cartao. Caso contrario, e pagamento unico.</p>
                 <p class="hidden text-sm text-rose-300" data-billing-tax-error></p>
             </div>
 
