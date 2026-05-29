@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Http;
 test('usuario pode iniciar checkout do plano pro apos confirmar dados', function () {
     $planPrice = config('billing.plans.pro_monthly.price_cents');
     config(['billing.plans.pro_monthly.product_id' => 'prod_pro_monthly_123']);
+    config(['billing.plans.pro_monthly.checkout_flow' => 'subscription']);
 
     $user = User::factory()->create([
         'email' => 'lukas@example.com',
@@ -29,7 +30,7 @@ test('usuario pode iniciar checkout do plano pro apos confirmar dados', function
                 'id' => 'cust_123',
             ],
         ]),
-        'https://api.abacatepay.com/v2/checkouts/create' => Http::response([
+        'https://api.abacatepay.com/v2/subscriptions/create' => Http::response([
             'success' => true,
             'error' => null,
             'data' => [
@@ -57,11 +58,10 @@ test('usuario pode iniciar checkout do plano pro apos confirmar dados', function
                 && $request['taxId'] === '111.444.777-35';
         }
 
-        return $request->url() === 'https://api.abacatepay.com/v2/checkouts/create'
+        return $request->url() === 'https://api.abacatepay.com/v2/subscriptions/create'
             && $request['items'][0]['id'] === 'prod_pro_monthly_123'
             && $request['items'][0]['quantity'] === 1
             && $request['customerId'] === 'cust_123'
-            && in_array('PIX', $request['methods'] ?? [], true)
             && in_array('CARD', $request['methods'] ?? [], true)
             && ($request['metadata']['plan_code'] ?? null) === 'pro_monthly';
     });
@@ -110,5 +110,80 @@ test('usuario sem numero cadastrado continua vendo a tela intermediaria', functi
 
     $response->assertOk()
         ->assertSee('Configurar WhatsApp');
+});
+
+test('checkout invisivel retorna erro json quando falta cpf', function () {
+    $user = User::factory()->create([
+        'email' => 'lukas@example.com',
+        'name' => 'Lukas Martins',
+        'phone_number' => '5511999999999',
+        'tax_id' => null,
+    ]);
+
+    $response = $this->actingAs($user)
+        ->postJson(route('billing.subscribe', 'pro_monthly'));
+
+    $response->assertStatus(422)
+        ->assertJson([
+            'ok' => false,
+            'error' => 'missing_billing_requirements',
+            'requires_tax_id' => true,
+        ]);
+});
+
+test('checkout invisivel aceita tax_id inline e retorna redirect_url em json', function () {
+    $planPrice = config('billing.plans.pro_monthly.price_cents');
+    config(['billing.plans.pro_monthly.product_id' => 'prod_pro_monthly_123']);
+    config(['billing.plans.pro_monthly.checkout_flow' => 'subscription']);
+
+    $user = User::factory()->create([
+        'email' => 'lukas@example.com',
+        'name' => 'Lukas Martins',
+        'phone_number' => '5511999999999',
+        'tax_id' => null,
+        'abacatepay_customer_id' => null,
+    ]);
+
+    config([
+        'abacatepay.api_key' => 'abacate_dev_123',
+        'abacatepay.base_url' => 'https://api.abacatepay.com/v2',
+    ]);
+
+    Http::fake([
+        'https://api.abacatepay.com/v2/customers/create' => Http::response([
+            'success' => true,
+            'error' => null,
+            'data' => [
+                'id' => 'cust_123',
+            ],
+        ]),
+        'https://api.abacatepay.com/v2/subscriptions/create' => Http::response([
+            'success' => true,
+            'error' => null,
+            'data' => [
+                'id' => 'checkout_123',
+                'url' => 'https://pay.abacatepay.com/checkout_123',
+                'amount' => $planPrice,
+                'status' => 'PENDING',
+                'customerId' => 'cust_123',
+            ],
+        ]),
+    ]);
+
+    $response = $this->actingAs($user)
+        ->postJson(route('billing.subscribe', 'pro_monthly'), [
+            'tax_id' => '111.444.777-35',
+        ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'ok' => true,
+            'redirect_url' => 'https://pay.abacatepay.com/checkout_123',
+        ]);
+
+    $subscription = AbacatePaySubscription::query()->where('user_id', $user->id)->latest()->first();
+
+    expect($subscription)->not->toBeNull()
+        ->and($subscription->checkout_url)->toBe('https://pay.abacatepay.com/checkout_123');
 });
 

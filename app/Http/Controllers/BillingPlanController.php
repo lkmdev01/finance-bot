@@ -6,9 +6,9 @@ use App\Models\AbacatePaySubscription;
 use App\Services\AbacatePayService;
 use App\Services\BillingPlanService;
 use App\Support\BrazilTaxId;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
 
 class BillingPlanController extends Controller
 {
@@ -35,7 +35,7 @@ class BillingPlanController extends Controller
         ]);
     }
 
-    public function storeCheckoutData(Request $request, string $planCode): RedirectResponse
+    public function storeCheckoutData(Request $request, string $planCode): Response
     {
         $this->billingPlanService->findOrFail($planCode);
 
@@ -60,26 +60,51 @@ class BillingPlanController extends Controller
         return $this->startCheckoutForPlan($request, $planCode);
     }
 
-    public function subscribe(Request $request, string $planCode): RedirectResponse
+    public function subscribe(Request $request, string $planCode): Response
     {
         $plan = $this->billingPlanService->findOrFail($planCode);
         $user = $request->user();
 
         if (($plan['price_cents'] ?? 0) === 0) {
-            return redirect()
-                ->route('billing.plans')
-                ->with('status', 'O plano Starter ja esta disponivel sem cobranca.');
+            return $this->respondBillingStatus(
+                $request,
+                'O plano Starter ja esta disponivel sem cobranca.'
+            );
         }
 
         if ($user->hasActivePaidPlan() && $user->billing_plan_code === $planCode) {
-            return redirect()
-                ->route('billing.plans')
-                ->with('status', 'Voce ja possui este plano ativo.');
+            return $this->respondBillingStatus(
+                $request,
+                'Voce ja possui este plano ativo.'
+            );
+        }
+
+        // "Checkout invisivel": a tela de planos pode enviar tax_id inline (AJAX) sem precisar ir para a tela checkout-data.
+        if ($request->filled('tax_id')) {
+            $taxId = BrazilTaxId::normalize((string) $request->input('tax_id'));
+
+            if (! BrazilTaxId::isValid($taxId)) {
+                return $this->respondBillingValidationError($request, 'tax_id', 'Informe um CPF ou CNPJ valido.');
+            }
+
+            $user->forceFill(['tax_id' => $taxId])->save();
         }
 
         $missingBillingRequirements = $this->billingPlanService->missingBillingRequirements($user);
 
         if ($missingBillingRequirements !== []) {
+            if ($request->expectsJson()) {
+                $requiresTaxId = blank($user->tax_id) || ! BrazilTaxId::isValid($user->tax_id);
+
+                return response()->json([
+                    'ok' => false,
+                    'error' => 'missing_billing_requirements',
+                    'missing' => $missingBillingRequirements,
+                    'requires_tax_id' => $requiresTaxId,
+                    'message' => 'Confirme seus dados antes de seguir para o checkout.',
+                ], 422);
+            }
+
             return redirect()
                 ->route('billing.checkout-data.show', $planCode)
                 ->with('status', 'Confirme seus dados antes de seguir para o checkout.');
@@ -88,7 +113,7 @@ class BillingPlanController extends Controller
         return $this->startCheckoutForPlan($request, $planCode);
     }
 
-    protected function startCheckoutForPlan(Request $request, string $planCode): RedirectResponse
+    protected function startCheckoutForPlan(Request $request, string $planCode): Response
     {
         $user = $request->user();
         $plan = $this->billingPlanService->findOrFail($planCode);
@@ -127,31 +152,62 @@ class BillingPlanController extends Controller
                 $user->forceFill(['abacatepay_customer_id' => $customerId])->save();
             }
 
-            $methods = config('billing.checkout_methods', ['PIX', 'CARD']);
-            if (! is_array($methods) || $methods === []) {
-                $methods = ['PIX', 'CARD'];
-            }
+            $flow = (string) ($plan['checkout_flow'] ?? 'checkout');
 
-            // MVP: cobranca avulsa (sem renovacao automatica). O acesso e liberado pelo periodo do plano.
-            $response = $this->abacatePayService->createCheckout([
-                'items' => [
-                    [
-                        'id' => $productId,
-                        'quantity' => 1,
+            if ($flow === 'subscription') {
+                $methods = config('billing.subscription_methods', ['CARD']);
+                if (! is_array($methods) || $methods === []) {
+                    $methods = ['CARD'];
+                }
+
+                // Assinatura recorrente (renova automaticamente) via CARD.
+                // O produto precisa ter `cycle` configurado na loja (ex: MONTHLY).
+                $response = $this->abacatePayService->createSubscriptionCheckout([
+                    'items' => [
+                        [
+                            'id' => $productId,
+                            'quantity' => 1,
+                        ],
                     ],
-                ],
-                'customerId' => $customerId,
-                'methods' => array_values($methods),
-                'externalId' => $externalId,
-                'returnUrl' => route('billing.plans'),
-                'completionUrl' => route('billing.plans', ['checkout' => 'success']),
-                'metadata' => [
-                    'app_user_id' => $user->id,
-                    'plan_code' => $planCode,
-                    'plan_name' => $plan['name'],
-                    'source' => 'app_billing',
-                ],
-            ]);
+                    'customerId' => $customerId,
+                    'methods' => array_values($methods),
+                    'externalId' => $externalId,
+                    'returnUrl' => route('billing.plans'),
+                    'completionUrl' => route('billing.plans', ['checkout' => 'success']),
+                    'metadata' => [
+                        'app_user_id' => $user->id,
+                        'plan_code' => $planCode,
+                        'plan_name' => $plan['name'],
+                        'source' => 'app_billing',
+                    ],
+                ]);
+            } else {
+                $methods = config('billing.checkout_methods', ['PIX', 'CARD']);
+                if (! is_array($methods) || $methods === []) {
+                    $methods = ['PIX', 'CARD'];
+                }
+
+                // Pagamento avulso (sem renovacao automatica). O acesso e liberado pelo periodo do plano.
+                $response = $this->abacatePayService->createCheckout([
+                    'items' => [
+                        [
+                            'id' => $productId,
+                            'quantity' => 1,
+                        ],
+                    ],
+                    'customerId' => $customerId,
+                    'methods' => array_values($methods),
+                    'externalId' => $externalId,
+                    'returnUrl' => route('billing.plans'),
+                    'completionUrl' => route('billing.plans', ['checkout' => 'success']),
+                    'metadata' => [
+                        'app_user_id' => $user->id,
+                        'plan_code' => $planCode,
+                        'plan_name' => $plan['name'],
+                        'source' => 'app_billing',
+                    ],
+                ]);
+            }
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -161,9 +217,19 @@ class BillingPlanController extends Controller
         }
 
         if (! ($response['success'] ?? false) || blank($response['data']['url'] ?? null)) {
+            $message = $response['error'] ?? 'Nao foi possivel iniciar o pagamento do plano agora. Tente novamente.';
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => false,
+                    'error' => 'checkout_failed',
+                    'message' => $message,
+                ], 422);
+            }
+
             return redirect()
                 ->route('billing.checkout-data.show', $planCode)
-                ->with('status', $response['error'] ?? 'Nao foi possivel iniciar o pagamento do plano agora. Tente novamente.');
+                ->with('status', $message);
         }
 
         $data = $response['data'];
@@ -186,7 +252,46 @@ class BillingPlanController extends Controller
             ]
         );
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'redirect_url' => $data['url'],
+            ]);
+        }
+
         return redirect()->away($data['url']);
+    }
+
+    protected function respondBillingStatus(Request $request, string $message): Response
+    {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'billing_status',
+                'message' => $message,
+            ], 422);
+        }
+
+        return redirect()
+            ->route('billing.plans')
+            ->with('status', $message);
+    }
+
+    protected function respondBillingValidationError(Request $request, string $field, string $message): Response
+    {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'validation_error',
+                'field' => $field,
+                'message' => $message,
+            ], 422);
+        }
+
+        return redirect()
+            ->back()
+            ->withErrors([$field => $message])
+            ->withInput();
     }
 
     protected function formatBillingPhone(?string $phoneNumber): ?string

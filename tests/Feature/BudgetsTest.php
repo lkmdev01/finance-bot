@@ -18,10 +18,19 @@ beforeEach(function () {
 });
 
 it('pode listar orçamentos', function () {
-    Budget::factory()->count(3)->create([
+    $extraCategories = Category::factory()->count(2)->create([
         'user_id' => $this->user->id,
-        'category_id' => $this->category->id,
+        'type' => 'expense',
     ]);
+
+    $categoryIds = collect([$this->category->id])->merge($extraCategories->pluck('id'));
+
+    foreach ($categoryIds as $categoryId) {
+        Budget::factory()->create([
+            'user_id' => $this->user->id,
+            'category_id' => $categoryId,
+        ]);
+    }
 
     actingAs($this->user)
         ->get(route('budgets.index'))
