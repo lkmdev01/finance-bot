@@ -67,6 +67,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::get('billing/plans/{planCode}/checkout-data', [App\Http\Controllers\BillingPlanController::class, 'showCheckoutData'])->name('billing.checkout-data.show');
     Route::post('billing/plans/{planCode}/checkout-data', [App\Http\Controllers\BillingPlanController::class, 'storeCheckoutData'])->name('billing.checkout-data.store');
     Route::post('billing/plans/{planCode}/subscribe', [App\Http\Controllers\BillingPlanController::class, 'subscribe'])->name('billing.subscribe');
+    Route::post('billing/subscription/cancel', [App\Http\Controllers\BillingSubscriptionController::class, 'cancel'])->name('billing.subscription.cancel');
     Route::post('billing/abacatepay/transparents/pix', [App\Http\Controllers\AbacatePayChargeController::class, 'createTransparentPix'])
         ->name('billing.abacatepay.transparents.pix');
     // Transações

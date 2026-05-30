@@ -32,23 +32,25 @@ new class extends Component {
     }
 }; ?>
 
-<div class="p-6 space-y-6">
-    <div class="flex items-center justify-between">
+<div class="p-4 sm:p-6 space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold">Contas Bancárias</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie contas correntes, poupanças e carteiras.</p>
         </div>
-        <flux:button href="{{ route('bank-accounts.create') }}" wire:navigate variant="primary">
-            Nova Conta
-        </flux:button>
+        <div class="flex sm:justify-end">
+            <flux:button href="{{ route('bank-accounts.create') }}" wire:navigate variant="primary" class="w-full sm:w-auto">
+                Nova Conta
+            </flux:button>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4">
         @forelse($accounts as $account)
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 {{ ! $account->is_active ? 'opacity-60' : '' }}">
-                <div class="flex items-start justify-between gap-4">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-3 mb-3">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2 mb-3">
                             <h2 class="text-lg font-semibold">{{ $account->name }}</h2>
                             <span class="px-2 py-1 text-xs rounded-full {{ $account->is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200' }}">
                                 {{ $account->is_active ? 'Ativa' : 'Inativa' }}
@@ -58,7 +60,7 @@ new class extends Component {
                             </span>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             <div>
                                 <p class="text-xs text-zinc-500">Instituição</p>
                                 <p class="font-medium">{{ $account->institution ?: 'Não informada' }}</p>
@@ -80,10 +82,10 @@ new class extends Component {
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-2">
-                        <flux:button wire:click="toggleActive({{ $account->id }})" variant="ghost" size="sm" icon="{{ $account->is_active ? 'pause' : 'play' }}" />
-                        <flux:button href="{{ route('bank-accounts.edit', $account) }}" wire:navigate variant="ghost" size="sm" icon="pencil" />
-                        <flux:button wire:click="delete({{ $account->id }})" wire:confirm="Deseja excluir esta conta?" variant="ghost" size="sm" icon="trash" class="text-red-600 hover:text-red-700 dark:text-red-400" />
+                    <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                        <flux:button wire:click="toggleActive({{ $account->id }})" variant="ghost" size="sm" icon="{{ $account->is_active ? 'pause' : 'play' }}" title="{{ $account->is_active ? 'Desativar' : 'Ativar' }}" />
+                        <flux:button href="{{ route('bank-accounts.edit', $account) }}" wire:navigate variant="ghost" size="sm" icon="pencil" title="Editar" />
+                        <flux:button wire:click="delete({{ $account->id }})" wire:confirm="Deseja excluir esta conta?" variant="ghost" size="sm" icon="trash" title="Excluir" class="text-red-600 hover:text-red-700 dark:text-red-400" />
                     </div>
                 </div>
             </div>
