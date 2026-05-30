@@ -31,23 +31,25 @@ new class extends Component {
     }
 }; ?>
 
-<div class="p-6 space-y-6">
-    <div class="flex items-center justify-between">
+<div class="p-4 sm:p-6 space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold">Transações Recorrentes</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie transações que se repetem automaticamente</p>
         </div>
-        <flux:button href="{{ route('recurring-transactions.create') }}" wire:navigate variant="primary">
-            Nova Transação Recorrente
-        </flux:button>
+        <div class="flex sm:justify-end">
+            <flux:button href="{{ route('recurring-transactions.create') }}" wire:navigate variant="primary" class="w-full sm:w-auto">
+                Nova Transação Recorrente
+            </flux:button>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4">
         @forelse($recurringTransactions as $recurring)
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 {{ !$recurring->is_active ? 'opacity-60' : '' }}">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-3 mb-2">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2 mb-2">
                             <h3 class="font-semibold text-lg">{{ $recurring->description ?? 'Transação Recorrente' }}</h3>
                             <span class="px-2 py-1 text-xs font-medium rounded-full {{ $recurring->is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200' }}">
                                 {{ $recurring->is_active ? 'Ativa' : 'Inativa' }}
@@ -57,7 +59,7 @@ new class extends Component {
                             </span>
                         </div>
                         
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
                             <div>
                                 <p class="text-xs text-zinc-600 dark:text-zinc-400">Valor</p>
                                 <p class="font-semibold {{ $recurring->type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
@@ -98,7 +100,7 @@ new class extends Component {
                         @endif
                     </div>
 
-                    <div class="flex items-center gap-2 ml-4">
+                    <div class="flex flex-wrap items-center gap-2 sm:justify-end sm:ml-4">
                         <flux:button 
                             wire:click="toggleActive({{ $recurring->id }})"
                             variant="ghost"
@@ -112,6 +114,7 @@ new class extends Component {
                             variant="ghost"
                             size="sm"
                             icon="pencil"
+                            title="Editar"
                         />
                         <flux:button 
                             wire:click="delete({{ $recurring->id }})"
@@ -120,6 +123,7 @@ new class extends Component {
                             size="sm"
                             icon="trash"
                             class="text-red-600 hover:text-red-700 dark:text-red-400"
+                            title="Excluir"
                         />
                     </div>
                 </div>

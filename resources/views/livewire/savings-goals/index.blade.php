@@ -36,22 +36,24 @@ new class extends Component {
     }
 }; ?>
 
-<div class="p-6 space-y-6">
-    <div class="flex items-center justify-between">
+<div class="p-4 sm:p-6 space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold">Metas de Economia</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Defina e acompanhe suas metas de economia</p>
         </div>
-        <flux:button href="{{ route('savings-goals.create') }}" wire:navigate variant="primary">
-            Nova Meta
-        </flux:button>
+        <div class="flex sm:justify-end">
+            <flux:button href="{{ route('savings-goals.create') }}" wire:navigate variant="primary" class="w-full sm:w-auto">
+                Nova Meta
+            </flux:button>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         @forelse($goals as $goal)
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 {{ $goal->is_completed ? 'opacity-75' : '' }}">
-                <div class="flex items-start justify-between mb-4">
-                    <div class="flex-1">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+                    <div class="min-w-0 flex-1">
                         <h3 class="font-semibold text-lg">{{ $goal->name }}</h3>
                         @if($goal->description)
                             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{{ $goal->description }}</p>
@@ -62,7 +64,7 @@ new class extends Component {
                             </p>
                         @endif
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2 sm:justify-end">
                         <flux:button 
                             href="{{ route('savings-goals.deposit', $goal) }}" 
                             wire:navigate
@@ -70,7 +72,7 @@ new class extends Component {
                             size="sm"
                             icon="plus"
                         >
-                            Depositar
+                            <span class="sm:inline">Depositar</span>
                         </flux:button>
                         <flux:button 
                             href="{{ route('savings-goals.alerts', $goal) }}" 
@@ -79,7 +81,7 @@ new class extends Component {
                             size="sm"
                             icon="bell"
                         >
-                            Alertas
+                            <span class="hidden sm:inline">Alertas</span>
                         </flux:button>
                         <flux:button 
                             href="{{ route('savings-goals.edit', $goal) }}" 
@@ -87,6 +89,7 @@ new class extends Component {
                             variant="ghost"
                             size="sm"
                             icon="pencil"
+                            title="Editar"
                         />
                         <flux:button 
                             wire:click="delete({{ $goal->id }})"
@@ -95,6 +98,7 @@ new class extends Component {
                             size="sm"
                             icon="trash"
                             class="text-red-600 hover:text-red-700 dark:text-red-400"
+                            title="Excluir"
                         />
                     </div>
                 </div>
