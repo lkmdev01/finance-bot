@@ -40,7 +40,7 @@
                         </span>
                         @if ($user->hasActiveTrial())
                             <span class="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-emerald-100">
-                                Teste grátis até {{ $user->trial_ends_at?->format('d/m/Y') }}
+                                Teste gratis ate {{ $user->trial_ends_at?->format('d/m/Y') }}
                             </span>
                         @elseif ($user->trial_ends_at)
                             <span class="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-amber-100">
@@ -53,6 +53,17 @@
                             </span>
                         @endif
                     </div>
+
+                    @if (in_array($user->billing_plan_status, ['active', 'renewed'], true) && filled($user->billing_plan_code) && $user->billing_plan_code !== config('billing.default_plan', 'starter'))
+                        <div class="mt-6">
+                            <button type="button" class="inline-flex w-full items-center justify-center rounded-xl border border-rose-300/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15" data-billing-cancel-open>
+                                Cancelar assinatura
+                            </button>
+                            <p class="mt-2 text-xs leading-6 text-slate-400">
+                                Cancelamento e imediato e irreversivel. Seu acesso premium sera encerrado na hora.
+                            </p>
+                        </div>
+                    @endif
                 </div>
             </div>
         </section>
@@ -149,6 +160,41 @@
         </div>
     </div>
 
+    {{-- Cancelamento de assinatura (AbacatePay cancela na hora). --}}
+    <div id="billing-cancel-modal" class="fixed inset-0 z-[999] hidden">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" data-billing-cancel-close></div>
+        <div class="relative mx-auto mt-24 w-[92%] max-w-lg rounded-[1.75rem] border border-white/10 bg-slate-950/90 p-6 shadow-[0_24px_90px_rgba(2,6,23,0.55)]">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.22em] text-rose-200/80">Cancelar assinatura</p>
+                    <h3 class="mt-2 text-2xl font-black text-white">Confirmar cancelamento</h3>
+                    <p class="mt-2 text-sm leading-7 text-slate-300">
+                        Este cancelamento e imediato. Nenhuma cobranca futura sera gerada, mas seu acesso premium sera encerrado agora.
+                    </p>
+                </div>
+                <button type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10" data-billing-cancel-close>
+                    Fechar
+                </button>
+            </div>
+
+            <div class="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                <p class="font-semibold text-white">Plano atual</p>
+                <p class="mt-1">{{ $currentPlan['name'] }}</p>
+            </div>
+
+            <div class="mt-6 flex flex-col gap-3">
+                <button type="button" class="inline-flex w-full items-center justify-center rounded-xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-60" data-billing-cancel-confirm>
+                    Sim, cancelar agora
+                </button>
+                <button type="button" class="inline-flex w-full items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10" data-billing-cancel-close>
+                    Nao, manter assinatura
+                </button>
+                <div class="text-center text-xs text-slate-400" data-billing-cancel-loading style="display:none;">Cancelando...</div>
+                <p class="hidden text-sm text-rose-300" data-billing-cancel-error></p>
+            </div>
+        </div>
+    </div>
+
     <script>
         (function () {
             const modal = document.getElementById('billing-tax-modal');
@@ -241,6 +287,75 @@
                         errorEl.classList.remove('hidden');
                     }
                     confirmButton.disabled = false;
+                    if (loadingEl) loadingEl.style.display = 'none';
+                }
+            });
+        })();
+    </script>
+
+    <script>
+        (function () {
+            const openBtn = document.querySelector('[data-billing-cancel-open]');
+            const modal = document.getElementById('billing-cancel-modal');
+            const closeBtns = modal?.querySelectorAll('[data-billing-cancel-close]') ?? [];
+            const confirmBtn = modal?.querySelector('[data-billing-cancel-confirm]');
+            const loadingEl = modal?.querySelector('[data-billing-cancel-loading]');
+            const errorEl = modal?.querySelector('[data-billing-cancel-error]');
+
+            if (!openBtn || !modal || !confirmBtn) return;
+
+            function show() {
+                if (errorEl) {
+                    errorEl.textContent = '';
+                    errorEl.classList.add('hidden');
+                }
+                modal.classList.remove('hidden');
+            }
+
+            function hide() {
+                modal.classList.add('hidden');
+                confirmBtn.disabled = false;
+                if (loadingEl) loadingEl.style.display = 'none';
+            }
+
+            openBtn.addEventListener('click', show);
+            closeBtns.forEach(btn => btn.addEventListener('click', hide));
+
+            confirmBtn.addEventListener('click', async () => {
+                confirmBtn.disabled = true;
+                if (loadingEl) loadingEl.style.display = 'block';
+
+                try {
+                    const res = await fetch(\"{{ route('billing.subscription.cancel') }}\", {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': \"{{ csrf_token() }}\",
+                        },
+                    });
+
+                    const data = await res.json().catch(() => ({}));
+
+                    if (res.ok && data?.ok) {
+                        window.location.href = \"{{ route('billing.plans') }}\";
+                        return;
+                    }
+
+                    const msg = data?.message || 'Nao foi possivel cancelar sua assinatura agora.';
+                    if (errorEl) {
+                        errorEl.textContent = msg;
+                        errorEl.classList.remove('hidden');
+                    } else {
+                        alert(msg);
+                    }
+                } catch (e) {
+                    if (errorEl) {
+                        errorEl.textContent = 'Falha ao cancelar. Tente novamente.';
+                        errorEl.classList.remove('hidden');
+                    }
+                } finally {
+                    confirmBtn.disabled = false;
                     if (loadingEl) loadingEl.style.display = 'none';
                 }
             });
