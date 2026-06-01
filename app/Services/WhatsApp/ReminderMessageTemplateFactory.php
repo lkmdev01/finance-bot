@@ -48,7 +48,9 @@ class ReminderMessageTemplateFactory
     private static function isAnniversary(string $titleLower): bool
     {
         return str_contains($titleLower, 'aniversario')
-            || str_contains($titleLower, 'niver');
+            || str_contains($titleLower, 'niver')
+            || str_contains($titleLower, 'parabens')
+            || str_contains($titleLower, 'dar parabens');
     }
 
     private static function isPayment(string $titleLower): bool
@@ -91,11 +93,18 @@ class ReminderMessageTemplateFactory
 
     private static function buildAnniversaryMessage(string $greeting, string $title): string
     {
-        $name = preg_replace('/\baniversario\s+(?:de|da|do)?\s*/iu', '', $title) ?? $title;
-        $name = preg_replace('/\bniver\s+(?:de|da|do)?\s*/iu', '', $name) ?? $name;
+        $name = $title;
+        $name = preg_replace('/\b(?:aniversario|niver)\s+(?:de|da|do)?\s*/iu', '', $name) ?? $name;
+        $name = preg_replace('/\b(?:dar\s+)?parabens\s+(?:para|pro|pra)?\s*/iu', '', $name) ?? $name;
         $name = trim((string) $name);
 
-        return "{$greeting}\n\nHoje e o aniversario de {$name}. Nao esquece de dar parabens.\n\nSugestoes:\n- Mandar uma mensagem\n- Ligar\n- Marcar algo para comemorar";
+        if ($name === '') {
+            $name = 'alguem especial';
+        }
+
+        $message = "\"Feliz aniversario, {$name}! Que seu dia seja leve e cheio de coisas boas.\"";
+
+        return "{$greeting}\n\nHoje e dia de celebrar: aniversario de *{$name}*.\nNao esquece de dar parabens.\n\nIdeias rapidas:\n- Mandar uma mensagem\n- Ligar\n- Combinar algo para comemorar\n\nMensagem pronta (copie e cole):\n{$message}";
     }
 
     private static function buildPaymentMessage(string $greeting, string $title, string $frequency): string
@@ -168,4 +177,3 @@ class ReminderMessageTemplateFactory
         return "{$greeting}\n\nLembrete: {$title}\n\nEsse lembrete sai {$frequencyText}.";
     }
 }
-
