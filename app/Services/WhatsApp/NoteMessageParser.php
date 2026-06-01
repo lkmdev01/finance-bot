@@ -11,19 +11,24 @@ class NoteMessageParser
 
     public function looksLikeCreateIntent(string $normalizedMessage): bool
     {
-        return $this->containsAnyText($normalizedMessage, [
-            'anota',
-            'anotar',
-            'anote',
-            'nota:',
-            'nota ',
-            'salvar nota',
-            'salva nota',
-            'salvar isso',
-            'salva isso',
-            'guardar isso',
-            'guarda isso',
-        ]);
+        // IMPORTANT: do NOT use containsAnyText() here because it normalizes needles,
+        // turning "nota " into "nota" and matching "minhas notas" (query) as create intent.
+        // Keep this strict and anchored so "minhas notas" is query, not a new note.
+
+        $message = trim($normalizedMessage);
+
+        // "anota: ..." / "anota ..." / "anote ..." / "anotar ..."
+        if (preg_match('/^(?:anota(?:\\s+isso)?|anote|anotar)\\b/u', $message) === 1) {
+            return true;
+        }
+
+        // "nota: ..." (must be at start and followed by ":" or "-" or "," / unicode dashes)
+        if (preg_match('/^nota\\s*(?:[:\\-,]|\\x{2013}|\\x{2014})/u', $message) === 1) {
+            return true;
+        }
+
+        // "salvar nota ..." / "salva nota ..." / "salvar isso ..." / "guardar isso ..."
+        return preg_match('/^(?:salvar|salva|guardar|guarda)\\s+(?:nota|isso)\\b/u', $message) === 1;
     }
 
     public function parseCreate(string $message): ?array
@@ -119,7 +124,7 @@ class NoteMessageParser
         $body = $message;
 
         // "anota: ..." / "nota: ..." / "salva isso: ..."
-        $body = preg_replace('/^(?:anota(?:\\s+isso)?|anotar|anote|salvar\\s+nota|salva\\s+nota|salvar\\s+isso|salva\\s+isso|guardar\\s+isso|guarda\\s+isso|nota)\\s*[:\\-–,]?\\s*/iu', '', $body) ?? $body;
+        $body = preg_replace('/^(?:anota(?:\\s+isso)?|anotar|anote|salvar\\s+nota|salva\\s+nota|salvar\\s+isso|salva\\s+isso|guardar\\s+isso|guarda\\s+isso|nota)\\s*(?:[:\\-,]|\\x{2013}|\\x{2014})?\\s*/iu', '', $body) ?? $body;
 
         // "anota que ..."
         $body = preg_replace('/^\\s*(?:que|para|pra)\\s+/iu', '', $body) ?? $body;
