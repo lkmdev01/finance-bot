@@ -10,9 +10,27 @@
     $seoImagePath = $image ?? config('seo.default_image', 'mockup.png');
     $seoImage = str_starts_with($seoImagePath, 'http') ? $seoImagePath : asset($seoImagePath);
     $seoUrl = $canonical ?? url()->current();
-    $seoRobots = $robots ?? 'noindex, nofollow';
+
+    $defaultRobots = (string) (config('seo.robots') ?: (app()->isProduction() ? 'index, follow' : 'noindex, nofollow'));
+    $seoRobots = $robots ?? $defaultRobots;
+
     $seoTwitterSite = config('seo.twitter_site');
-    $seoStructuredData = $structuredData ?? [];
+    $seoStructuredData = $structuredData ?? [
+        [
+            '@context' => 'https://schema.org',
+            '@type' => 'Organization',
+            'name' => $seoSiteName,
+            'url' => url('/'),
+            'logo' => asset('social-card.png'),
+        ],
+        [
+            '@context' => 'https://schema.org',
+            '@type' => 'WebSite',
+            'name' => $seoSiteName,
+            'url' => url('/'),
+        ],
+    ];
+
     $faviconVersion = file_exists(public_path('favicon.ico')) ? filemtime(public_path('favicon.ico')) : time();
 @endphp
 
@@ -34,6 +52,8 @@
 <meta property="og:title" content="{{ $seoTitle }}" />
 <meta property="og:description" content="{{ $seoDescription }}" />
 <meta property="og:image" content="{{ $seoImage }}" />
+<meta property="og:image:width" content="{{ (int) config('seo.default_image_width', 1200) }}" />
+<meta property="og:image:height" content="{{ (int) config('seo.default_image_height', 630) }}" />
 <meta property="og:image:alt" content="{{ $seoTitle }}" />
 <meta property="og:url" content="{{ $seoUrl }}" />
 
@@ -85,8 +105,9 @@
         justify-content: center;
         overflow: hidden;
         border-radius: 0.75rem;
-        background: #6366f1;
-        box-shadow: 0 0 15px rgba(99, 102, 241, 0.35);
+        background: #0b1220;
+        border: 1px solid rgba(34, 197, 94, 0.25);
+        box-shadow: 0 0 18px rgba(34, 197, 94, 0.25);
     }
 
     [data-sidebar-logo] img {

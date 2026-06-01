@@ -23,7 +23,7 @@
         <div class="relative z-10 flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
             <div class="flex w-full max-w-sm flex-col gap-6">
                 <a href="{{ route('home') }}" class="flex flex-col items-center gap-3 group" wire:navigate>
-                    <div class="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-transform group-hover:scale-110 p-2">
+                    <div class="w-12 h-12 bg-[#0b1220] border border-emerald-400/20 rounded-xl flex items-center justify-center shadow-[0_0_18px_rgba(34,197,94,0.25)] transition-transform group-hover:scale-110 p-2">
                         <img src="{{ asset('logo.png') }}" alt="InovaFinance" class="h-full w-full object-contain" />
                     </div>
                     <span class="text-2xl font-bold tracking-tight text-white">InovaFinance</span>
