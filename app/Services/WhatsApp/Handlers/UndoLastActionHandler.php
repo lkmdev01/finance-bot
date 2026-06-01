@@ -5,6 +5,7 @@ namespace App\Services\WhatsApp\Handlers;
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Budget;
 use App\Models\CreditCard;
+use App\Models\Note;
 use App\Models\Reminder;
 use App\Models\RecurringTransaction;
 use App\Models\SavingsGoal;
@@ -124,6 +125,10 @@ class UndoLastActionHandler extends BaseHandler
                 'reminder_update' => $this->undoGenericUpdate(Reminder::class, $entry, $user, 'Lembrete desfeito: voltei ao estado anterior.'),
                 'reminder_delete' => $this->undoGenericUpdate(Reminder::class, $entry, $user, 'Lembrete desfeito: reativei o lembrete.'),
 
+                'note_create' => $this->undoGenericDelete(Note::class, $entry, $user, 'Nota desfeita: removi a nota criada.'),
+                'note_update' => $this->undoGenericUpdate(Note::class, $entry, $user, 'Nota desfeita: voltei ao texto anterior.'),
+                'note_delete' => $this->undoNoteDelete($entry, $user),
+
                 'recurring_create' => $this->undoGenericDelete(RecurringTransaction::class, $entry, $user, 'Recorrencia desfeita: removi a recorrencia criada.'),
                 'recurring_update' => $this->undoGenericUpdate(RecurringTransaction::class, $entry, $user, 'Recorrencia desfeita: voltei ao estado anterior.'),
                 'recurring_cancel' => $this->undoGenericUpdate(RecurringTransaction::class, $entry, $user, 'Recorrencia desfeita: reativei a recorrencia.'),
@@ -202,6 +207,32 @@ class UndoLastActionHandler extends BaseHandler
         $restored = Transaction::query()->create($attrs);
 
         return ['ok' => true, 'reply' => 'Desfeito. Eu recuperei a transacao apagada.'];
+    }
+
+    private function undoNoteDelete(array $entry, User $user): array
+    {
+        $attrs = is_array($entry['attributes'] ?? null) ? $entry['attributes'] : null;
+        if ($attrs === null) {
+            return ['ok' => false, 'reply' => 'Nao tenho dados suficientes para recuperar essa nota.'];
+        }
+
+        $allowed = ['title', 'body', 'source', 'metadata', 'created_at', 'updated_at'];
+        $out = [];
+        foreach ($allowed as $key) {
+            if (array_key_exists($key, $attrs)) {
+                $out[$key] = $attrs[$key];
+            }
+        }
+
+        if (isset($out['metadata']) && ! is_array($out['metadata'])) {
+            $out['metadata'] = [];
+        }
+
+        $out['user_id'] = $user->id;
+
+        Note::query()->create($out);
+
+        return ['ok' => true, 'reply' => 'Desfeito. Eu recuperei a nota apagada.'];
     }
 
     private function transactionRestorableAttributes(array $attrs): array

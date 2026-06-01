@@ -36,6 +36,10 @@ final class ActionResultSanitizer
         'create_reminder' => 'reminder_data',
         'edit_reminder' => 'reminder_data',
         'delete_reminder' => 'reminder_data',
+
+        'create_note' => 'note_data',
+        'edit_note' => 'note_data',
+        'delete_note' => 'note_data',
     ];
 
     private const KNOWN_PAYLOAD_KEYS = [
@@ -45,6 +49,7 @@ final class ActionResultSanitizer
         'subscription_data',
         'credit_card_data',
         'reminder_data',
+        'note_data',
         'recurring_data',
         'installment_data',
     ];
@@ -97,4 +102,3 @@ final class ActionResultSanitizer
         return [$result, ['payload_key' => $payloadKey, 'dropped_payload_keys' => $dropped]];
     }
 }
-

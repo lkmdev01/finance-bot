@@ -64,6 +64,25 @@ class ConversationOrchestrator
             ];
         }
 
+        if (($classification['kind'] ?? null) === 'note_needs_content') {
+            return [
+                'handled' => true,
+                'reply' => "Entendi. O que voce quer que eu salve na nota?\n\nExemplos:\n- anota: ideia para o projeto X\n- nota: lembrar de perguntar sobre o contrato",
+                'action' => null,
+                'classification' => $classification['kind'],
+                'domain' => $domain,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'create_note_content',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'note_data' => $classification['payload'] ?? [],
+                    ],
+                ],
+            ];
+        }
+
         if (($state['mode'] ?? 'idle') === 'awaiting_clarification'
             && $this->clarificationResolver->shouldResolve($classification['kind'], $state)) {
             $clarification = $this->clarificationResolver->resolve($message, $state);
