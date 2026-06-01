@@ -138,6 +138,7 @@
                 <a href="#produto" class="hover:text-white transition-colors">Produto</a>
                 <a href="#recursos" class="hover:text-white transition-colors">Recursos</a>
                 <a href="#planos" class="hover:text-white transition-colors">Planos</a>
+                <a href="#depoimentos" class="hover:text-white transition-colors">Historias</a>
                 <a href="#faq" class="hover:text-white transition-colors">FAQ</a>
             </div>
 
@@ -445,21 +446,283 @@
             </div>
         </section>
 
-        <footer class="relative z-10 py-12 px-6 border-t border-slate-800">
-            <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-                <div class="flex items-center gap-2">
-                    <img src="{{ asset('logo.png') }}" alt="InovaFinance" class="h-8 w-8 object-contain" />
-                    <span class="text-xl font-bold">InovaFinance</span>
+        @php
+            $sliderItems = [
+                [
+                    'title' => 'Registro no momento',
+                    'subtitle' => 'WhatsApp',
+                    'quote' => 'Eu mando uma frase simples e ja fica tudo organizado no painel. Sem abrir planilha, sem perder tempo.',
+                    'badge' => 'Gasto/Receita',
+                    'accent' => 'emerald',
+                ],
+                [
+                    'title' => 'Orcamentos com alerta',
+                    'subtitle' => 'Controle',
+                    'quote' => 'Quando uma categoria aperta, eu recebo um aviso natural. Ajuda muito a manter consistencia durante o mes.',
+                    'badge' => 'Orcamento',
+                    'accent' => 'amber',
+                ],
+                [
+                    'title' => 'Cartoes e fontes',
+                    'subtitle' => 'Saldo x limite',
+                    'quote' => 'Se eu digo que foi no cartao, entra no cartao. Se nao digo, vai pro saldo. Fica previsivel e sem conflito.',
+                    'badge' => 'Cartoes',
+                    'accent' => 'sky',
+                ],
+                [
+                    'title' => 'Lembretes que ajudam',
+                    'subtitle' => 'Rotina',
+                    'quote' => 'Eu crio lembretes para pagar algo ou dar parabens. E chega no horario certo, sem ser invasivo.',
+                    'badge' => 'Lembretes',
+                    'accent' => 'violet',
+                ],
+            ];
+
+            $tutorialContactNumber = config('whatsapp.tutorial.contact_number');
+            $tutorialContactDigits = preg_replace('/\\D+/', '', (string) $tutorialContactNumber);
+            $tutorialPrefilledMessage = (string) config('whatsapp.tutorial.prefilled_message', 'Oi! Quero falar com o suporte do InovaFinance.');
+            $supportWhatsappUrl = $tutorialContactDigits
+                ? 'https://wa.me/'.$tutorialContactDigits.'?text='.urlencode($tutorialPrefilledMessage)
+                : null;
+            $supportWhatsappLabel = (string) config('whatsapp.tutorial.contact_label', 'WhatsApp oficial do InovaFinance');
+            $supportEmail = (string) (config('mail.from.address') ?: 'contato@inovaforce.com.br');
+        @endphp
+
+        <section id="depoimentos" class="relative z-10 py-24 px-6">
+            <div class="mx-auto max-w-7xl">
+                <div class="text-center">
+                    <span class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200">
+                        Em minutos
+                    </span>
+                    <h2 class="mt-6 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                        Um assistente financeiro que
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-400">fala a sua lingua</span>
+                    </h2>
+                    <p class="mt-4 text-slate-300">Um carrossel com cenarios comuns de uso. Curto, direto e sem promessas vazias.</p>
                 </div>
-                <div class="flex flex-wrap justify-center gap-6 text-sm text-slate-500">
-                    <a href="#" class="hover:text-white">Privacidade</a>
-                    <a href="#" class="hover:text-white">Termos</a>
-                    <a href="{{ Route::has('login') ? route('login') : '#' }}" class="hover:text-white">Entrar</a>
+
+                <div id="if-slider" class="relative mt-14 overflow-hidden rounded-[2.5rem] border border-white/10 bg-slate-950/60 shadow-[0_32px_120px_rgba(2,6,23,0.70)] backdrop-blur">
+                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.16),_transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(56,189,248,0.14),_transparent_42%)]"></div>
+
+                    <div class="relative p-6 sm:p-10">
+                        <div class="flex flex-wrap items-center justify-center gap-3">
+                            @foreach($sliderItems as $index => $item)
+                                <button
+                                    type="button"
+                                    class="if-avatar group inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5 text-sm font-extrabold text-white shadow-[0_18px_50px_rgba(2,6,23,0.55)] transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/60"
+                                    data-index="{{ $index }}"
+                                    aria-label="Abrir item {{ $index + 1 }}"
+                                >
+                                    <span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/70">
+                                        {{ mb_substr($item['badge'], 0, 1) }}
+                                    </span>
+                                </button>
+                            @endforeach
+                        </div>
+
+                        <div class="mt-10">
+                            @foreach($sliderItems as $index => $item)
+                                <article class="if-slide {{ $index === 0 ? '' : 'hidden' }} text-center" data-index="{{ $index }}">
+                                    <div class="mx-auto max-w-3xl">
+                                        <div class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-200">
+                                            <span class="h-2 w-2 rounded-full bg-primary"></span>
+                                            {{ $item['badge'] }}
+                                        </div>
+
+                                        <h3 class="mt-7 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                                            {{ $item['title'] }}
+                                        </h3>
+                                        <p class="mt-2 text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">{{ $item['subtitle'] }}</p>
+
+                                        <p class="mt-7 text-lg leading-9 text-slate-200 sm:text-xl">
+                                            "{{ $item['quote'] }}"
+                                        </p>
+
+                                        <div class="mt-8 flex items-center justify-center gap-2" aria-label="Avaliacao 5 de 5">
+                                            @for($s = 0; $s < 5; $s++)
+                                                <svg class="h-6 w-6 text-amber-300" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.955a1 1 0 00.95.69h4.157c.969 0 1.371 1.24.588 1.81l-3.363 2.445a1 1 0 00-.364 1.118l1.287 3.955c.3.921-.755 1.688-1.54 1.118l-3.363-2.445a1 1 0 00-1.175 0l-3.363 2.445c-.784.57-1.838-.197-1.539-1.118l1.286-3.955a1 1 0 00-.364-1.118L2.07 9.382c-.783-.57-.38-1.81.588-1.81h4.157a1 1 0 00.95-.69l1.286-3.955z" />
+                                                </svg>
+                                            @endfor
+                                        </div>
+                                    </div>
+                                </article>
+                            @endforeach
+                        </div>
+
+                        <div class="mt-10 flex items-center justify-center gap-4">
+                            <button type="button" class="if-prev inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/60" aria-label="Anterior">
+                                <span aria-hidden="true">‹</span>
+                            </button>
+                            <div class="if-dots flex items-center gap-2" aria-label="Paginacao do carrossel">
+                                @foreach($sliderItems as $index => $item)
+                                    <button type="button" class="if-dot h-2.5 w-2.5 rounded-full bg-white/15 transition focus:outline-none focus:ring-2 focus:ring-primary/60" data-index="{{ $index }}" aria-label="Ir para {{ $index + 1 }}"></button>
+                                @endforeach
+                            </div>
+                            <button type="button" class="if-next inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/60" aria-label="Proximo">
+                                <span aria-hidden="true">›</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="text-sm text-slate-500">
-                    &copy; 2026 InovaForce IT. Todos os direitos reservados.
+            </div>
+        </section>
+
+        <footer class="relative z-10 border-t border-white/10 bg-slate-950/70">
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.14),_transparent_36%)]"></div>
+
+            <div class="relative mx-auto max-w-7xl px-6 py-16">
+                <div class="grid gap-12 lg:grid-cols-[1.15fr_1fr_1fr_1.1fr]">
+                    <div class="space-y-5">
+                        <div class="flex items-center gap-3">
+                            <div class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
+                                <img src="{{ asset('logo.png') }}" alt="InovaFinance" class="h-6 w-6 object-contain" />
+                            </div>
+                            <div>
+                                <div class="text-lg font-black text-white">InovaFinance</div>
+                                <div class="text-sm text-slate-400">Seu amigo financeiro no WhatsApp.</div>
+                            </div>
+                        </div>
+
+                        <p class="max-w-sm text-sm leading-7 text-slate-400">
+                            Registre gastos, receitas e lembretes por conversa. A IA ajuda quando precisa, e o resto fica deterministico e confiavel.
+                        </p>
+
+                        <div class="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+                            <span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
+                                <span class="h-2 w-2 rounded-full bg-primary"></span>
+                                IA no WhatsApp
+                            </span>
+                            <span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
+                                <span class="h-2 w-2 rounded-full bg-sky-300"></span>
+                                Cartoes e contas
+                            </span>
+                            <span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
+                                <span class="h-2 w-2 rounded-full bg-amber-300"></span>
+                                Alertas
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="text-sm font-bold uppercase tracking-[0.22em] text-slate-300">Produto</div>
+                        <ul class="space-y-3 text-sm text-slate-400">
+                            <li><a class="hover:text-white" href="#produto">WhatsApp + Dashboard</a></li>
+                            <li><a class="hover:text-white" href="#recursos">Orcamentos, metas e alertas</a></li>
+                            <li><a class="hover:text-white" href="#como-funciona">Como funciona</a></li>
+                            <li><a class="hover:text-white" href="#planos">Planos</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="text-sm font-bold uppercase tracking-[0.22em] text-slate-300">Conta</div>
+                        <ul class="space-y-3 text-sm text-slate-400">
+                            <li><a class="hover:text-white" href="{{ Route::has('login') ? route('login') : '#' }}">Login</a></li>
+                            <li><a class="hover:text-white" href="{{ Route::has('register') ? route('register') : '#' }}">Criar conta</a></li>
+                            <li><a class="hover:text-white" href="{{ Route::has('billing.plans') ? route('billing.plans') : '#' }}">Assinar plano</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="rounded-3xl border border-white/10 bg-white/5 p-7 shadow-[0_24px_80px_rgba(2,6,23,0.55)]">
+                        <div class="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Suporte humano</div>
+                        <div class="mt-3 text-xl font-black text-white">Fale com a nossa equipe</div>
+                        <p class="mt-3 text-sm leading-7 text-slate-300">
+                            Precisa de ajuda para escolher um plano ou configurar o WhatsApp? A gente te atende por mensagem.
+                        </p>
+
+                        @if($supportWhatsappUrl)
+                            <a href="{{ $supportWhatsappUrl }}" class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 font-extrabold text-space-950 transition hover:brightness-110">
+                                <span aria-hidden="true">WhatsApp</span>
+                                <span class="text-sm font-black">Chamar no WhatsApp</span>
+                            </a>
+                            <div class="mt-3 text-xs text-slate-400">{{ $supportWhatsappLabel }}</div>
+                        @endif
+
+                        <div class="mt-4 text-sm text-slate-300">
+                            <span class="text-slate-500">Email:</span> <a class="font-semibold hover:text-white" href="mailto:{{ $supportEmail }}">{{ $supportEmail }}</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-14 flex flex-col gap-4 border-t border-white/10 pt-8 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="text-sm text-slate-500">
+                        &copy; 2026 InovaForce IT. Todos os direitos reservados.
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <a href="#" class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label="Instagram">
+                            <span aria-hidden="true">IG</span>
+                        </a>
+                        <a href="#" class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label="Facebook">
+                            <span aria-hidden="true">FB</span>
+                        </a>
+                    </div>
                 </div>
             </div>
         </footer>
+
+        <script>
+            (function () {
+                const root = document.getElementById('if-slider');
+                if (!root) return;
+
+                const slides = Array.from(root.querySelectorAll('.if-slide'));
+                const avatars = Array.from(root.querySelectorAll('.if-avatar'));
+                const dots = Array.from(root.querySelectorAll('.if-dot'));
+                const prev = root.querySelector('.if-prev');
+                const next = root.querySelector('.if-next');
+                const max = slides.length;
+
+                let index = 0;
+                let timer = null;
+
+                function setActive(nextIndex) {
+                    index = (nextIndex + max) % max;
+
+                    slides.forEach((el) => {
+                        const isActive = Number(el.dataset.index) === index;
+                        el.classList.toggle('hidden', !isActive);
+                    });
+
+                    avatars.forEach((el) => {
+                        const isActive = Number(el.dataset.index) === index;
+                        el.classList.toggle('ring-2', isActive);
+                        el.classList.toggle('ring-primary/70', isActive);
+                    });
+
+                    dots.forEach((el) => {
+                        const isActive = Number(el.dataset.index) === index;
+                        el.classList.toggle('bg-white/15', !isActive);
+                        el.classList.toggle('bg-primary', isActive);
+                        el.classList.toggle('w-2.5', !isActive);
+                        el.classList.toggle('w-7', isActive);
+                    });
+                }
+
+                function stop() {
+                    if (timer) {
+                        window.clearInterval(timer);
+                        timer = null;
+                    }
+                }
+
+                function start() {
+                    stop();
+                    timer = window.setInterval(() => setActive(index + 1), 6500);
+                }
+
+                avatars.forEach((btn) => btn.addEventListener('click', () => setActive(Number(btn.dataset.index))));
+                dots.forEach((btn) => btn.addEventListener('click', () => setActive(Number(btn.dataset.index))));
+                if (prev) prev.addEventListener('click', () => setActive(index - 1));
+                if (next) next.addEventListener('click', () => setActive(index + 1));
+
+                root.addEventListener('mouseenter', stop);
+                root.addEventListener('mouseleave', start);
+                root.addEventListener('focusin', stop);
+                root.addEventListener('focusout', start);
+
+                setActive(0);
+                start();
+            })();
+        </script>
     </body>
 </html>
