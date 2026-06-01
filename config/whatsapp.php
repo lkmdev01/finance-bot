@@ -1,14 +1,14 @@
-<?php
+﻿<?php
 
 return [
     'tutorial' => [
         'contact_number' => env('WHATSAPP_CONTACT_NUMBER', '+55 13 97605-4715'),
         'contact_label' => env('WHATSAPP_CONTACT_LABEL', 'WhatsApp oficial do InovaFinance'),
-        'prefilled_message' => env('WHATSAPP_TUTORIAL_MESSAGE', 'Oi! Acabei de entrar no InovaFinance e quero testar o robô.'),
+        'prefilled_message' => env('WHATSAPP_TUTORIAL_MESSAGE', 'Oi! Acabei de entrar no InovaFinance e quero testar o robo.'),
     ],
     'activation' => [
         'expires_minutes' => env('WHATSAPP_ACTIVATION_EXPIRES_MINUTES', 30),
-        'success_message' => env('WHATSAPP_ACTIVATION_SUCCESS_MESSAGE', '✅ WhatsApp conectado com sucesso! Seu número foi atualizado.'),
+        'success_message' => env('WHATSAPP_ACTIVATION_SUCCESS_MESSAGE', 'WhatsApp conectado com sucesso! Seu numero foi atualizado.'),
     ],
     'baileys' => [
         'base_url' => env('BAILEYS_SERVICE_URL', 'http://localhost:3001'),
