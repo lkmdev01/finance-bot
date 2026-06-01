@@ -27,6 +27,7 @@ class ClarificationResolver
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
             'create_reminder_schedule' => in_array($classification, ['default', 'reminder_create', 'reminder_needs_schedule'], true),
             'create_note_content' => true,
+            'drive_save_waiting_media' => true,
             'select_credit_card', 'select_card_payment_method', 'select_bank_account' => true,
             default => false,
         };
@@ -42,11 +43,44 @@ class ClarificationResolver
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
             'create_reminder_schedule' => $this->buildReminderScheduleClarificationResult($message, $state),
             'create_note_content' => $this->buildNoteContentClarificationResult($message, $state),
+            'drive_save_waiting_media' => $this->buildDriveWaitMediaClarificationResult($message, $state),
             'select_credit_card' => $this->buildSelectCreditCardClarificationResult($message, $state),
             'select_card_payment_method' => $this->buildSelectCardPaymentMethodClarificationResult($message, $state),
             'select_bank_account' => $this->buildSelectBankAccountClarificationResult($message, $state),
             default => null,
         };
+    }
+
+    private function buildDriveWaitMediaClarificationResult(string $message, array $state): ?array
+    {
+        $incomingMediaId = (int) ($state['last_entities']['incoming_media_id'] ?? 0);
+        if ($incomingMediaId <= 0) {
+            return [
+                'handled' => true,
+                'reply' => "Ainda nao recebi o arquivo.\n\nMe envie o arquivo/foto/audio e eu salvo no Drive.",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_drive_file',
+                'drive_data' => [
+                    'incoming_media_id' => $incomingMediaId,
+                ],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
     }
 
     private function buildNoteContentClarificationResult(string $message, array $state): ?array

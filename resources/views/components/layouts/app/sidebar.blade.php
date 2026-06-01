@@ -58,6 +58,9 @@
                 <flux:sidebar.item icon="document-duplicate" :href="route('notes.index')" :current="request()->routeIs('notes.*')" wire:navigate>
                     Notas
                 </flux:sidebar.item>
+                <flux:sidebar.item icon="folder" :href="route('drive.index')" :current="request()->routeIs('drive.*')" wire:navigate>
+                    Drive Inteligente
+                </flux:sidebar.item>
                 <flux:sidebar.item icon="arrow-path" :href="route('recurring-transactions.index')" :current="request()->routeIs('recurring-transactions.*')" wire:navigate>
                     Transações Recorrentes
                 </flux:sidebar.item>

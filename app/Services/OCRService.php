@@ -47,6 +47,40 @@ class OCRService
         }
     }
 
+    public function extractTextFromFile(string $path): ?string
+    {
+        if (! is_file($path)) {
+            return null;
+        }
+
+        $binary = file_get_contents($path);
+        if ($binary === false || $binary === '') {
+            return null;
+        }
+
+        $apiKey = $this->getApiKey();
+        if (! $apiKey) {
+            return null;
+        }
+
+        return $this->extractTextWithGoogleVisionBase64(base64_encode($binary), $apiKey);
+    }
+
+    public function analyzeImageFromFile(string $path): array
+    {
+        $apiKey = $this->getApiKey();
+        if (! $apiKey || ! is_file($path)) {
+            return ['text' => null, 'labels' => []];
+        }
+
+        $binary = file_get_contents($path);
+        if ($binary === false || $binary === '') {
+            return ['text' => null, 'labels' => []];
+        }
+
+        return $this->analyzeWithGoogleVisionBase64(base64_encode($binary), $apiKey);
+    }
+
     /**
      * Extrai texto usando Google Vision API
      */
@@ -94,6 +128,106 @@ class OCRService
             ]);
 
             return null;
+        }
+    }
+
+    private function extractTextWithGoogleVisionBase64(string $imageBase64, string $apiKey): ?string
+    {
+        try {
+            $response = Http::timeout(30)->post(
+                "https://vision.googleapis.com/v1/images:annotate?key={$apiKey}",
+                [
+                    'requests' => [
+                        [
+                            'image' => [
+                                'content' => $imageBase64,
+                            ],
+                            'features' => [
+                                [
+                                    'type' => 'TEXT_DETECTION',
+                                    'maxResults' => 10,
+                                ],
+                            ],
+                        ],
+                    ],
+                ]
+            );
+
+            if (! $response->successful()) {
+                return null;
+            }
+
+            $data = $response->json();
+            $textAnnotations = $data['responses'][0]['textAnnotations'] ?? [];
+            if (! empty($textAnnotations)) {
+                return $textAnnotations[0]['description'] ?? null;
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Erro ao processar OCR base64 com Google Vision', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function analyzeWithGoogleVisionBase64(string $imageBase64, string $apiKey): array
+    {
+        try {
+            $response = Http::timeout(30)->post(
+                "https://vision.googleapis.com/v1/images:annotate?key={$apiKey}",
+                [
+                    'requests' => [
+                        [
+                            'image' => [
+                                'content' => $imageBase64,
+                            ],
+                            'features' => [
+                                [
+                                    'type' => 'TEXT_DETECTION',
+                                    'maxResults' => 10,
+                                ],
+                                [
+                                    'type' => 'LABEL_DETECTION',
+                                    'maxResults' => 8,
+                                ],
+                            ],
+                        ],
+                    ],
+                ]
+            );
+
+            if (! $response->successful()) {
+                return ['text' => null, 'labels' => []];
+            }
+
+            $data = $response->json();
+            $res = $data['responses'][0] ?? [];
+            $textAnnotations = $res['textAnnotations'] ?? [];
+            $labelAnnotations = $res['labelAnnotations'] ?? [];
+
+            $text = null;
+            if (! empty($textAnnotations)) {
+                $text = $textAnnotations[0]['description'] ?? null;
+            }
+
+            $labels = [];
+            foreach ($labelAnnotations as $label) {
+                $desc = $label['description'] ?? null;
+                if (is_string($desc) && $desc !== '') {
+                    $labels[] = $desc;
+                }
+            }
+
+            return ['text' => $text, 'labels' => $labels];
+        } catch (\Exception $e) {
+            Log::error('Erro ao analisar imagem com Google Vision', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['text' => null, 'labels' => []];
         }
     }
 }

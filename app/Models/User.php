@@ -144,6 +144,16 @@ class User extends Authenticatable
         return $this->hasMany(WhatsAppConversationLog::class);
     }
 
+    public function googleDriveConnection(): HasOne
+    {
+        return $this->hasOne(GoogleDriveConnection::class);
+    }
+
+    public function driveFiles(): HasMany
+    {
+        return $this->hasMany(DriveFile::class);
+    }
+
     public function budgets(): HasMany
     {
         return $this->hasMany(Budget::class);

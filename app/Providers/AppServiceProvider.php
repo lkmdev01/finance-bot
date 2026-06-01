@@ -16,6 +16,7 @@ use App\Services\WhatsApp\Handlers\CancelRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateBudgetHandler;
 use App\Services\WhatsApp\Handlers\CreateCreditCardHandler;
 use App\Services\WhatsApp\Handlers\CreateInstallmentTransactionHandler;
+use App\Services\WhatsApp\Handlers\CreateDriveFileHandler;
 use App\Services\WhatsApp\Handlers\CreateNoteHandler;
 use App\Services\WhatsApp\Handlers\CreateReminderHandler;
 use App\Services\WhatsApp\Handlers\DeleteReminderHandler;
@@ -101,6 +102,7 @@ class AppServiceProvider extends ServiceProvider
                 DeleteReminderHandler::class,
                 EditReminderHandler::class,
                 CreateNoteHandler::class,
+                CreateDriveFileHandler::class,
                 DeleteNoteHandler::class,
                 EditNoteHandler::class,
                 CreateTransactionHandler::class,

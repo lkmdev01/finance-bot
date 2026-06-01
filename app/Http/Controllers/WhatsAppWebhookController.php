@@ -10,6 +10,7 @@ use App\Services\OCRService;
 use App\Services\PhoneNumberService;
 use App\Services\WhatsAppActivationService;
 use App\Services\WhatsAppDocumentService;
+use App\Services\WhatsAppIncomingMediaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +23,7 @@ class WhatsAppWebhookController extends Controller
         private readonly OCRService $ocrService,
         private readonly AudioTranscriptionService $audioTranscriptionService,
         private readonly WhatsAppDocumentService $whatsAppDocumentService,
+        private readonly WhatsAppIncomingMediaService $whatsAppIncomingMediaService,
         private readonly BaileysService $baileysService
     ) {}
 
@@ -149,6 +151,7 @@ class WhatsAppWebhookController extends Controller
             }
 
             $imageUrl = null;
+            $incomingMediaId = null;
             $audioBase64 = $messageData['audioBase64'] ?? null;
             $audioMimeType = $message['audioMessage']['mimetype'] ?? $messageData['audioMimeType'] ?? null;
             $documentBase64 = $messageData['documentBase64'] ?? null;
@@ -167,19 +170,51 @@ class WhatsAppWebhookController extends Controller
                         ? "Imagem recebida. Texto extraido: {$ocrText}"
                         : 'Imagem recebida. Nao consegui extrair texto. Descreva a transacao na mensagem.';
                 }
+
+                if ($imageUrl) {
+                    $incomingMedia = $this->whatsAppIncomingMediaService->storeFromImageUrl($user, $phoneNumber, $imageUrl, [
+                        'caption' => $caption,
+                        'source_url' => $imageUrl,
+                    ]);
+                    $incomingMediaId = $incomingMedia?->id;
+                }
             }
 
             if ($messageType === 'audioMessage' && $audioBase64) {
-                $text = $this->audioTranscriptionService->transcribeBase64($audioBase64, $audioMimeType) ?? '';
+                $transcription = $this->audioTranscriptionService->transcribeBase64($audioBase64, $audioMimeType) ?? '';
+                $text = $transcription;
+
+                $incomingMedia = $this->whatsAppIncomingMediaService->storeFromAudioBase64($user, $phoneNumber, $audioBase64, $audioMimeType, [
+                    'transcription' => $transcription,
+                ]);
+                $incomingMediaId = $incomingMedia?->id;
             }
 
             if ($messageType === 'documentMessage' && $documentBase64) {
-                $documentResult = $this->whatsAppDocumentService->processBase64(
+                $wantsDrive = $this->looksLikeDriveSaveText($text);
+                $incomingMedia = $this->whatsAppIncomingMediaService->storeFromDocumentBase64(
                     $user,
+                    $phoneNumber,
                     $documentBase64,
                     $documentMimeType,
-                    $documentFileName
+                    $documentFileName,
+                    [
+                        'caption' => $text,
+                        'wants_drive' => $wantsDrive,
+                    ]
                 );
+                $incomingMediaId = $incomingMedia?->id;
+
+                if ($wantsDrive) {
+                    // Skip transaction import/text extraction flow when user explicitly wants Drive.
+                    // The queued bot job will handle saving and replying.
+                } else {
+                    $documentResult = $this->whatsAppDocumentService->processBase64(
+                        $user,
+                        $documentBase64,
+                        $documentMimeType,
+                        $documentFileName
+                    );
 
                 if (($documentResult['status'] ?? null) === 'imported') {
                     $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Documento importado com sucesso.');
@@ -206,6 +241,7 @@ class WhatsAppWebhookController extends Controller
                     return response()->json([
                         'status' => $documentResult['status'] ?? 'document_processing_error',
                     ]);
+                }
                 }
             }
 
@@ -247,7 +283,8 @@ class WhatsAppWebhookController extends Controller
                 $user->id,
                 $pushName,
                 $key['remoteJid'] ?? null,
-                $imageUrl
+                $imageUrl,
+                $incomingMediaId
             );
 
             return response()->json(['status' => 'queued']);
@@ -296,6 +333,16 @@ class WhatsAppWebhookController extends Controller
                 'remoteJid' => $key['remoteJid'] ?? null,
             ]);
         }
+    }
+
+    private function looksLikeDriveSaveText(string $text): bool
+    {
+        $t = mb_strtolower(trim($text));
+        if ($t === '') {
+            return false;
+        }
+
+        return preg_match('/\\b(salva|salvar|salve|guarda|guardar|arquiva|arquivar|drive|pasta)\\b/u', $t) === 1;
     }
 
     private function identifyUserByPhoneNumber(string $phoneNumber): ?User
