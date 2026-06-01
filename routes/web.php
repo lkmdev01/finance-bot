@@ -206,6 +206,17 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.reminders.edit', ['reminder' => $reminder]);
     })->middleware('billing.writable')->name('reminders.edit');
 
+    // Notas
+    Route::get('notes', function () {
+        return view('pages.notes.index');
+    })->name('notes.index');
+    Route::get('notes/create', function () {
+        return view('pages.notes.create');
+    })->middleware('billing.writable')->name('notes.create');
+    Route::get('notes/{note}/edit', function (App\Models\Note $note) {
+        return view('pages.notes.edit', ['note' => $note]);
+    })->middleware('billing.writable')->name('notes.edit');
+
     // Assinaturas e contas recorrentes
     Route::get('subscriptions', function () {
         return view('pages.subscriptions.index');

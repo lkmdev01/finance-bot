@@ -5,6 +5,7 @@ namespace App\Services\WhatsApp\Resolvers;
 use App\Services\WhatsApp\Support\NormalizesWhatsAppText;
 use App\Services\WhatsApp\TransactionActionMessageParser;
 use App\Services\WhatsApp\ReminderMessageParser;
+use App\Services\WhatsApp\NoteMessageParser;
 use App\Services\WhatsApp\TransactionSplitMessageParser;
 
 class ClarificationResolver
@@ -13,6 +14,7 @@ class ClarificationResolver
     public function __construct(
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
         private readonly ReminderMessageParser $reminderMessageParser,
+        private readonly NoteMessageParser $noteMessageParser,
         private readonly TransactionSplitMessageParser $transactionSplitMessageParser,
     ) {}
 
@@ -24,6 +26,7 @@ class ClarificationResolver
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
             'create_reminder_schedule' => in_array($classification, ['default', 'reminder_create', 'reminder_needs_schedule'], true),
+            'create_note_content' => true,
             'select_credit_card', 'select_card_payment_method', 'select_bank_account' => true,
             default => false,
         };
@@ -38,11 +41,51 @@ class ClarificationResolver
             'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
             'create_reminder_schedule' => $this->buildReminderScheduleClarificationResult($message, $state),
+            'create_note_content' => $this->buildNoteContentClarificationResult($message, $state),
             'select_credit_card' => $this->buildSelectCreditCardClarificationResult($message, $state),
             'select_card_payment_method' => $this->buildSelectCardPaymentMethodClarificationResult($message, $state),
             'select_bank_account' => $this->buildSelectBankAccountClarificationResult($message, $state),
             default => null,
         };
+    }
+
+    private function buildNoteContentClarificationResult(string $message, array $state): ?array
+    {
+        $pending = is_array($state['pending_payload']['note_data'] ?? null) ? $state['pending_payload']['note_data'] : [];
+
+        $parsed = $this->noteMessageParser->parseCreate('anota: '.$message);
+        if ($parsed === null) {
+            // Try raw message too (user might reply with "nota: ...").
+            $parsed = $this->noteMessageParser->parseCreate($message);
+        }
+
+        if ($parsed === null) {
+            return [
+                'handled' => true,
+                'reply' => "Nao consegui entender a nota. Pode mandar em uma frase?\n\nExemplos:\n- anota: ideia para o projeto X\n- anota que preciso falar com Joao",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                ],
+            ];
+        }
+
+        $noteData = array_merge($pending, $parsed);
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_note',
+                'note_data' => $noteData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
     }
 
     private function buildSelectBankAccountClarificationResult(string $message, array $state): ?array

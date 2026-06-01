@@ -10,6 +10,7 @@ use App\Services\WhatsApp\ConversationStateService;
 use App\Services\WhatsApp\CreditCardConversationService;
 use App\Services\WhatsApp\ProjectionConversationService;
 use App\Services\WhatsApp\ReminderConversationService;
+use App\Services\WhatsApp\NotesConversationService;
 use App\Services\WhatsApp\SavingsConversationService;
 use App\Services\WhatsApp\SubscriptionConversationService;
 use App\Services\WhatsApp\TransactionConversationService;
@@ -30,6 +31,7 @@ class QueryHandler extends BaseHandler
         'query_subscriptions',
         'query_credit_cards',
         'query_reminders',
+        'query_notes',
         'query_income_source',
         'query_categories',
     ];
@@ -82,6 +84,7 @@ class QueryHandler extends BaseHandler
             'query_subscriptions' => $this->buildSubscriptionReplyData($user, $contact, $rawMessage),
             'query_credit_cards' => $this->buildCreditCardReplyData($user, $contact, $rawMessage),
             'query_reminders' => $this->buildReminderReplyData($user, $contact, $rawMessage),
+            'query_notes' => $this->buildNotesReplyData($user, $contact, $rawMessage),
             'query_projections' => $this->buildProjectionReplyData($user, $contact, $rawMessage),
             default => [$fallbackReply, []],
         };
@@ -143,6 +146,14 @@ class QueryHandler extends BaseHandler
         return [$data['reply'], $data['entities'] ?? []];
     }
 
+    private function buildNotesReplyData(User $user, WhatsAppContact $contact, string $rawMessage): array
+    {
+        $state = app(ConversationStateService::class)->getState($contact);
+        $data = app(NotesConversationService::class)->buildReply($user, $rawMessage, $state);
+
+        return [$data['reply'], $data['entities'] ?? []];
+    }
+
     private function extractConversationEntities(?string $action, string $rawMessage): array
     {
         return match ($action) {
@@ -153,6 +164,7 @@ class QueryHandler extends BaseHandler
             'query_subscriptions' => ['topic' => 'subscriptions'],
             'query_credit_cards' => ['topic' => 'credit_cards'],
             'query_reminders' => ['topic' => 'reminders'],
+            'query_notes' => ['topic' => 'notes'],
             'query_projections' => ['topic' => 'projections'],
             default => [],
         };

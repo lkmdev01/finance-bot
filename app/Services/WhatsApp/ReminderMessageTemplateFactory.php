@@ -102,9 +102,10 @@ class ReminderMessageTemplateFactory
             $name = 'alguem especial';
         }
 
-        $message = "\"Feliz aniversario, {$name}! Que seu dia seja leve e cheio de coisas boas.\"";
+        $message = "Feliz aniversario, {$name}! Que seu dia seja leve e cheio de coisas boas.";
 
-        return "{$greeting}\n\nHoje e dia de celebrar: aniversario de *{$name}*.\nNao esquece de dar parabens.\n\nIdeias rapidas:\n- Mandar uma mensagem\n- Ligar\n- Combinar algo para comemorar\n\nMensagem pronta (copie e cole):\n{$message}";
+        // Keep reminders short (<= 255 chars) because this is what we persist and send later.
+        return "{$greeting}\n\nHoje e aniversario de *{$name}*.\nNao esquece de dar parabens.\n\nMensagem pronta:\n{$message}";
     }
 
     private static function buildPaymentMessage(string $greeting, string $title, string $frequency): string

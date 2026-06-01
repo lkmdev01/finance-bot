@@ -164,6 +164,11 @@ class User extends Authenticatable
         return $this->hasMany(Reminder::class);
     }
 
+    public function notes(): HasMany
+    {
+        return $this->hasMany(Note::class);
+    }
+
     public function transactionDuplicates(): HasMany
     {
         return $this->hasMany(TransactionDuplicate::class);

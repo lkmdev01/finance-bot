@@ -8,6 +8,7 @@ use App\Services\WhatsApp\CreditCardMessageParser;
 use App\Services\WhatsApp\InstallmentTransactionMessageParser;
 use App\Services\WhatsApp\RecurringTransactionMessageParser;
 use App\Services\WhatsApp\ReminderMessageParser;
+use App\Services\WhatsApp\NoteMessageParser;
 use App\Services\WhatsApp\SavingsGoalMessageParser;
 use App\Services\WhatsApp\SubscriptionMessageParser;
 use App\Services\WhatsApp\SimpleTransactionMessageParser;
@@ -20,6 +21,7 @@ class DomainRoutingResolver
         private readonly ConversationContextResolver $contextResolver,
         private readonly BudgetMessageParser $budgetMessageParser,
         private readonly ReminderMessageParser $reminderMessageParser,
+        private readonly NoteMessageParser $noteMessageParser,
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
         private readonly CreditCardMessageParser $creditCardMessageParser,
@@ -73,6 +75,7 @@ class DomainRoutingResolver
                 $message
             ),
             'savings_query' => $this->queryResult('query_savings', $message),
+            'note_query' => $this->queryResult('query_notes', $message),
             'reminder_query' => $this->queryResult('query_reminders', $message),
             'subscription_query' => $this->queryResult('query_subscriptions', $message),
             'credit_card_query' => $this->queryResult('query_credit_cards', $message),
@@ -92,6 +95,24 @@ class DomainRoutingResolver
             'reminder_delete' => $this->actionResult(
                 'delete_reminder',
                 'reminder_data',
+                [],
+                $message
+            ),
+            'note_create' => $this->actionResult(
+                'create_note',
+                'note_data',
+                $this->noteMessageParser->parseCreate($message) ?? [],
+                $message
+            ),
+            'note_delete' => $this->actionResult(
+                'delete_note',
+                'note_data',
+                [],
+                $message
+            ),
+            'note_edit' => $this->actionResult(
+                'edit_note',
+                'note_data',
                 [],
                 $message
             ),

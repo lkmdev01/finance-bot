@@ -55,6 +55,9 @@
                 <flux:sidebar.item icon="bell" :href="route('reminders.index')" :current="request()->routeIs('reminders.*')" wire:navigate>
                     Lembretes
                 </flux:sidebar.item>
+                <flux:sidebar.item icon="document-duplicate" :href="route('notes.index')" :current="request()->routeIs('notes.*')" wire:navigate>
+                    Notas
+                </flux:sidebar.item>
                 <flux:sidebar.item icon="arrow-path" :href="route('recurring-transactions.index')" :current="request()->routeIs('recurring-transactions.*')" wire:navigate>
                     Transações Recorrentes
                 </flux:sidebar.item>

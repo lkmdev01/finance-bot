@@ -16,6 +16,10 @@ class DomainGate
             return 'reminder';
         }
 
+        if ($this->looksLikeNotesDomain($normalized, $state)) {
+            return 'notes';
+        }
+
         if ($this->looksLikeTransactionDomain($normalized, $state)) {
             return 'transaction';
         }
@@ -29,6 +33,34 @@ class DomainGate
         }
 
         return 'general';
+    }
+
+    private function looksLikeNotesDomain(string $message, array $state): bool
+    {
+        if (($state['last_entities']['topic'] ?? null) === 'notes') {
+            if ($this->containsAnyText($message, [
+                'apaga', 'apagar', 'deleta', 'deletar', 'remove', 'remover', 'exclui', 'excluir',
+                'editar', 'edita', 'alterar', 'altera', 'atualizar', 'atualiza',
+                'essa', 'esse', 'aquela', 'aquele', 'ultimo', 'ultima',
+            ])) {
+                return true;
+            }
+        }
+
+        // Core cues.
+        if ($this->containsAnyText($message, ['nota', 'notas', 'anota', 'anotar', 'anote', 'salvar nota', 'salva nota'])) {
+            // Avoid "nota fiscal" which is usually a receipt/invoice, not a note.
+            if (str_contains($message, 'nota fiscal')) {
+                return false;
+            }
+            return true;
+        }
+
+        if ($this->containsAnyText($message, ['salva isso', 'guardar isso', 'guarda isso'])) {
+            return true;
+        }
+
+        return false;
     }
 
     private function looksLikeReminderDomain(string $message): bool

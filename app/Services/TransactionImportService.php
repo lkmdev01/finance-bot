@@ -15,9 +15,19 @@ class TransactionImportService
 
     public function importFromCsv(User $user, string $filePath, array $mapping = [], array $defaults = []): array
     {
-        $handle = fopen($filePath, 'r');
         $imported = 0;
         $errors = [];
+
+        $handle = @fopen($filePath, 'r');
+        if ($handle === false) {
+            return [
+                'imported' => 0,
+                'errors' => [[
+                    'row' => null,
+                    'error' => 'Nao consegui abrir o arquivo CSV para importar.',
+                ]],
+            ];
+        }
 
         // Pular cabeçalho se existir
         $header = fgetcsv($handle);
