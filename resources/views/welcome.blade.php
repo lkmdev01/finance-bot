@@ -136,6 +136,7 @@
 
             <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
                 <a href="#produto" class="hover:text-white transition-colors">Produto</a>
+                <a href="#sobre-app" class="hover:text-white transition-colors">Sobre o app</a>
                 <a href="#recursos" class="hover:text-white transition-colors">Recursos</a>
                 <a href="#planos" class="hover:text-white transition-colors">Planos</a>
                 <a href="#depoimentos" class="hover:text-white transition-colors">Historias</a>
@@ -177,11 +178,13 @@
                 </div>
 
                 <h1 class="text-4xl lg:text-6xl font-bold leading-tight tracking-tight">
-                    Seu financeiro em dia,
+                    InovaFinance:
+                    <br>
+                    seu financeiro em dia,
                     <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-400">pelo WhatsApp</span>.
                 </h1>
                 <p class="text-lg lg:text-xl text-slate-300 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                    Registre gastos e ganhos com frases simples (ou audio), e acompanhe tudo no painel: categorias, cartoes, orcamentos, projecoes e alertas.
+                    O InovaFinance e um aplicativo de organizacao financeira com assistente via WhatsApp e painel web. Registre gastos e ganhos com frases simples, acompanhe orcamentos, metas, cartoes, lembretes, notas e arquivos salvos no Google Drive.
                 </p>
 
                 <div class="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
@@ -246,6 +249,56 @@
                         <div class="text-xs uppercase tracking-wider text-slate-400">Assistente</div>
                         <div class="text-lg font-bold">Lembretes e recorrencias</div>
                         <div class="text-sm text-slate-400">Automatize o que sempre volta.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="sobre-app" class="relative z-10 py-12 px-6 max-w-7xl mx-auto">
+            <div class="glass rounded-[32px] p-7 lg:p-10">
+                <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div>
+                        <div class="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                            Informacoes publicas do aplicativo
+                        </div>
+
+                        <h2 class="mt-5 text-3xl font-black tracking-tight text-white lg:text-4xl">
+                            O que o InovaFinance faz
+                        </h2>
+
+                        <p class="mt-4 max-w-3xl text-base leading-8 text-slate-300 lg:text-lg">
+                            O InovaFinance ajuda usuarios a organizar a vida financeira por conversa e painel web. O usuario pode registrar transacoes, criar orcamentos, metas,
+                            recorrencias, lembretes, notas e consultar relatorios diretamente pelo WhatsApp, com apoio de IA e respostas baseadas nos proprios dados.
+                        </p>
+
+                        <p class="mt-4 max-w-3xl text-base leading-8 text-slate-300">
+                            Quando o usuario conecta o Google Drive, o InovaFinance tambem pode salvar arquivos enviados pelo WhatsApp em pastas do proprio Drive do usuario,
+                            para organizacao e busca posterior. Esta pagina e publica e nao exige login.
+                        </p>
+                    </div>
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
+                            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Canais</div>
+                            <div class="mt-3 text-lg font-bold text-white">WhatsApp + painel web</div>
+                            <p class="mt-2 text-sm leading-7 text-slate-400">Conversa natural para registrar e painel para acompanhar, editar e revisar.</p>
+                        </div>
+                        <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
+                            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Integracoes</div>
+                            <div class="mt-3 text-lg font-bold text-white">Google Drive e cobranca</div>
+                            <p class="mt-2 text-sm leading-7 text-slate-400">Arquivos podem ser salvos no Drive do usuario quando a permissao e concedida.</p>
+                        </div>
+                        <div class="rounded-3xl border border-white/10 bg-white/5 p-5 sm:col-span-2">
+                            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Documentos publicos</div>
+                            <div class="mt-3 flex flex-wrap gap-3">
+                                <a href="{{ route('privacy-policy') }}" class="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">
+                                    Politica de privacidade
+                                </a>
+                                <a href="{{ route('terms-of-use') }}" class="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">
+                                    Termos de uso
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
