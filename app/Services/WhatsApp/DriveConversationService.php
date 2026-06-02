@@ -71,6 +71,7 @@ class DriveConversationService
 
         $referenced = match ($followUp) {
             'open_ordinal' => $this->resolveOrdinalFile($user, $state, (int) ($queryData['ordinal'] ?? 0)),
+            'open_reference' => $this->resolveReferenceFile($user, $state, (string) ($queryData['open_reference'] ?? '')),
             default => $this->resolveRecentFile($user, $state),
         };
 
@@ -253,6 +254,41 @@ class DriveConversationService
         $targetId = $recentIds[$ordinal - 1] ?? null;
 
         return $targetId ? $user->driveFiles()->find((int) $targetId) : null;
+    }
+
+    private function resolveReferenceFile(User $user, array $state, string $reference): ?DriveFile
+    {
+        $reference = trim($reference);
+        if ($reference === '') {
+            return null;
+        }
+
+        $recentIds = array_values(array_filter($state['last_entities']['recent_drive_file_ids'] ?? [], fn ($id) => (int) $id > 0));
+        if ($recentIds !== []) {
+            $recentFiles = $user->driveFiles()
+                ->whereIn('id', $recentIds)
+                ->get()
+                ->sortBy(fn (DriveFile $file) => array_search($file->id, $recentIds, true))
+                ->values();
+
+            $matched = $recentFiles->first(function (DriveFile $file) use ($reference) {
+                return str_contains(mb_strtolower((string) $file->title), $reference)
+                    || str_contains(mb_strtolower((string) $file->original_name), $reference);
+            });
+
+            if ($matched) {
+                return $matched;
+            }
+        }
+
+        return $user->driveFiles()
+            ->where(function (Builder $builder) use ($reference) {
+                $builder
+                    ->where('title', 'like', '%'.$reference.'%')
+                    ->orWhere('original_name', 'like', '%'.$reference.'%');
+            })
+            ->latest('id')
+            ->first();
     }
 
     private function displayName(DriveFile $file): string

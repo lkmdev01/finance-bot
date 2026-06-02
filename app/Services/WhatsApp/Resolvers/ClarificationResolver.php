@@ -27,7 +27,7 @@ class ClarificationResolver
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
             'create_reminder_schedule' => in_array($classification, ['default', 'reminder_create', 'reminder_needs_schedule'], true),
             'create_note_content' => true,
-            'drive_save_waiting_media' => true,
+            'drive_save_waiting_media' => in_array($classification, ['default', 'drive_save', 'drive_needs_file'], true),
             'select_credit_card', 'select_card_payment_method', 'select_bank_account' => true,
             default => false,
         };
@@ -644,5 +644,4 @@ class ClarificationResolver
         return $amount > 0 ? $amount : null;
     }
 }
-
 

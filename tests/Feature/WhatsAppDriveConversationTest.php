@@ -4,6 +4,7 @@ use App\Models\DriveFile;
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use App\Services\WhatsApp\ConversationOrchestrator;
 use App\Services\WhatsApp\DriveConversationService;
 use Carbon\CarbonImmutable;
 
@@ -85,6 +86,36 @@ it('responde follow up com a pasta do ultimo arquivo salvo', function () {
         ->and($data['entities']['drive_file_id'])->toBe($file->id);
 });
 
+it('abre arquivo recente por referencia textual', function () {
+    $file = DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => '0424.mp3',
+        'mime_type' => 'audio/mpeg',
+        'drive_file_id' => 'file-42',
+        'drive_path' => 'Musicas',
+        'title' => '0424',
+    ]);
+
+    $state = [
+        'last_action' => 'query_drive_files',
+        'last_entities' => [
+            'topic' => 'drive',
+            'drive_file_id' => $file->id,
+            'recent_drive_file_ids' => [$file->id],
+        ],
+    ];
+
+    $data = app(DriveConversationService::class)->buildReply(
+        $this->user,
+        'abrir o 0424',
+        $state
+    );
+
+    expect($data['reply'])->toContain('Aqui esta 0424.')
+        ->and($data['reply'])->toContain('https://drive.google.com/file/d/file-42/view');
+});
+
 it('filtra arquivos salvos hoje usando o contexto temporal', function () {
     CarbonImmutable::setTestNow('2026-06-02 10:00:00');
 
@@ -128,4 +159,26 @@ it('filtra arquivos salvos hoje usando o contexto temporal', function () {
         ->and($data['reply'])->toContain('Foto hoje')
         ->and($data['reply'])->not->toContain('Foto ontem')
         ->and($data['entities']['drive_file_id'])->toBe($today->id);
+});
+
+it('nao deixa pending de salvar sequestrar consultas de drive', function () {
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'awaiting_clarification',
+            'pending_intent' => 'drive_save_waiting_media',
+            'pending_payload' => ['drive_data' => []],
+            'last_entities' => [
+                'topic' => 'drive',
+            ],
+        ],
+    ]);
+
+    $decision = app(ConversationOrchestrator::class)->beforeAI(
+        'quais arquivos eu tenho no drive?',
+        $this->user,
+        $this->contact->fresh()
+    );
+
+    expect($decision['handled'])->toBeFalse()
+        ->and($decision['result']['action'])->toBe('query_drive_files');
 });

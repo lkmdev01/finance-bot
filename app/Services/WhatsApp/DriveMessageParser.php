@@ -187,6 +187,7 @@ class DriveMessageParser
             'list_mode' => $this->isListingIntent($normalized),
             'follow_up' => $this->detectFollowUp($normalized),
             'ordinal' => $this->extractOrdinal($normalized),
+            'open_reference' => $this->extractOpenReference($normalized),
             'time_scope' => $this->extractTimeScope($normalized),
             'media_kind' => $this->extractMediaKind($normalized),
             'has_drive_context' => ($state['last_entities']['topic'] ?? null) === 'drive',
@@ -284,6 +285,10 @@ class DriveMessageParser
             return 'open_ordinal';
         }
 
+        if ($this->extractOpenReference($normalizedMessage) !== null) {
+            return 'open_reference';
+        }
+
         if ($this->containsAnyText($normalizedMessage, [
             'me mostra esse arquivo',
             'me mostra ele',
@@ -308,7 +313,30 @@ class DriveMessageParser
 
         $ordinal = (int) ($matches[1] ?? 0);
 
-        return $ordinal > 0 ? $ordinal : null;
+        if ($ordinal <= 0 || $ordinal > 20) {
+            return null;
+        }
+
+        return $ordinal;
+    }
+
+    private function extractOpenReference(string $normalizedMessage): ?string
+    {
+        if (preg_match('/\\b(?:abrir|abre|mostrar|mostra)\\s+(?:o|a)?\\s+(.+)$/u', $normalizedMessage, $matches) !== 1) {
+            return null;
+        }
+
+        $reference = trim((string) ($matches[1] ?? ''));
+        if ($reference === '') {
+            return null;
+        }
+
+        $tokens = array_values(array_filter(preg_split('/\\s+/u', $reference) ?: []));
+        $tokens = array_values(array_filter($tokens, fn (string $token) => ! in_array($token, self::QUERY_STOPWORDS, true)));
+
+        $reference = trim(implode(' ', $tokens));
+
+        return $reference !== '' ? $reference : null;
     }
 
     private function extractTimeScope(string $normalizedMessage): ?string
