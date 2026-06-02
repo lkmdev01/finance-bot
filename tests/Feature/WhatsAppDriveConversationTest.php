@@ -202,6 +202,39 @@ it('filtra fotos de hoje sem exigir termo textual literal', function () {
         ->and($data['entities']['drive_file_id'])->toBe($image->id);
 });
 
+it('responde follow up sobre quantidade usando o ultimo filtro', function () {
+    $file = DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'imagem.png',
+        'mime_type' => 'image/png',
+        'drive_file_id' => 'file-only',
+        'drive_path' => 'Fotos',
+        'title' => 'Imagem',
+    ]);
+
+    $state = [
+        'last_action' => 'query_drive_files',
+        'last_entities' => [
+            'topic' => 'drive',
+            'drive_file_id' => $file->id,
+            'drive_media_kind' => 'image',
+            'drive_time_scope' => 'today',
+            'drive_result_count' => 1,
+            'recent_drive_file_ids' => [$file->id],
+        ],
+    ];
+
+    $data = app(DriveConversationService::class)->buildReply(
+        $this->user,
+        'so essa?',
+        $state
+    );
+
+    expect($data['reply'])->toContain('Por enquanto, sim.')
+        ->and($data['reply'])->toContain('So encontrei esta foto salva hoje.');
+});
+
 it('nao deixa pending de salvar sequestrar consultas de drive', function () {
     $this->contact->update([
         'conversation_state' => [

@@ -55,10 +55,11 @@ class DriveConversationService
 
         $reply = $this->buildListReply($files, $queryData);
         $first = $files->first();
+        $count = $files->count();
 
         return [
             'reply' => $reply,
-            'entities' => $this->buildEntities($files, $first, $queryData),
+            'entities' => $this->buildEntities($files, $first, $queryData, $count),
         ];
     }
 
@@ -95,7 +96,23 @@ class DriveConversationService
 
             return [
                 'reply' => $reply,
-                'entities' => $this->buildEntities(collect([$referenced]), $referenced, $queryData),
+                'entities' => $this->buildEntities(collect([$referenced]), $referenced, $queryData, 1),
+            ];
+        }
+
+        if ($followUp === 'only_match') {
+            $count = (int) ($state['last_entities']['drive_result_count'] ?? 0);
+            $mediaKind = $state['last_entities']['drive_media_kind'] ?? null;
+            $timeScope = $state['last_entities']['drive_time_scope'] ?? null;
+
+            $reply = $count <= 1
+                ? 'Por enquanto, sim. '
+                : "Nao. Encontrei {$count} arquivos nesse filtro. ";
+            $reply .= $this->describePreviousFilter($mediaKind, $timeScope);
+
+            return [
+                'reply' => trim($reply),
+                'entities' => $this->buildEntities(collect([$referenced]), $referenced, $queryData, max(1, $count)),
             ];
         }
 
@@ -109,7 +126,7 @@ class DriveConversationService
 
         return [
             'reply' => $reply,
-            'entities' => $this->buildEntities(collect([$referenced]), $referenced, $queryData),
+            'entities' => $this->buildEntities(collect([$referenced]), $referenced, $queryData, 1),
         ];
     }
 
@@ -169,7 +186,8 @@ class DriveConversationService
                 ->where('title', 'like', '%'.$term.'%')
                 ->orWhere('original_name', 'like', '%'.$term.'%')
                 ->orWhere('drive_path', 'like', '%'.$term.'%')
-                ->orWhere('extracted_text', 'like', '%'.$term.'%');
+                ->orWhere('extracted_text', 'like', '%'.$term.'%')
+                ->orWhereJsonContains('tags', $term);
 
             foreach ($tokens as $token) {
                 $builder->orWhere(function (Builder $nested) use ($token) {
@@ -177,7 +195,8 @@ class DriveConversationService
                         ->where('title', 'like', '%'.$token.'%')
                         ->orWhere('original_name', 'like', '%'.$token.'%')
                         ->orWhere('drive_path', 'like', '%'.$token.'%')
-                        ->orWhere('extracted_text', 'like', '%'.$token.'%');
+                        ->orWhere('extracted_text', 'like', '%'.$token.'%')
+                        ->orWhereJsonContains('tags', $token);
                 });
             }
         });
@@ -213,7 +232,7 @@ class DriveConversationService
         return $reply;
     }
 
-    private function buildEntities(Collection $files, ?DriveFile $first, array $queryData): array
+    private function buildEntities(Collection $files, ?DriveFile $first, array $queryData, ?int $count = null): array
     {
         return [
             'topic' => 'drive',
@@ -224,6 +243,7 @@ class DriveConversationService
             'drive_time_scope' => $queryData['time_scope'],
             'drive_media_kind' => $queryData['media_kind'],
             'recent_drive_file_ids' => $files->pluck('id')->values()->all(),
+            'drive_result_count' => $count ?? $files->count(),
         ];
     }
 
@@ -294,5 +314,24 @@ class DriveConversationService
     private function displayName(DriveFile $file): string
     {
         return $file->title ?: ($file->original_name ?: 'Arquivo');
+    }
+
+    private function describePreviousFilter(?string $mediaKind, ?string $timeScope): string
+    {
+        $subject = match ($mediaKind) {
+            'image' => 'So encontrei esta foto',
+            'audio' => 'So encontrei este audio',
+            'document' => 'So encontrei este documento',
+            default => 'So encontrei este arquivo',
+        };
+
+        $period = match ($timeScope) {
+            'today' => ' salva hoje.',
+            'yesterday' => ' salva ontem.',
+            'today_morning' => ' salva hoje de manha.',
+            default => '.',
+        };
+
+        return $subject.$period;
     }
 }

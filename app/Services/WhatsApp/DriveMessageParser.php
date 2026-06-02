@@ -12,6 +12,7 @@ class DriveMessageParser
         'mostra', 'mostrar', 'me', 'meu', 'minha', 'meus', 'minhas', 'o', 'a', 'os', 'as', 'um', 'uma',
         'de', 'do', 'da', 'dos', 'das', 'sobre', 'pra', 'para', 'no', 'na', 'nos', 'nas', 'em', 'que',
         'eu', 'voce', 'voces', 'salvei', 'mandei', 'tenho', 'ficou', 'novo', 'novo', 'de', 'novo',
+        'tem', 'mais', 'so', 'só',
         'esse', 'essa', 'ele', 'ela', 'aquele', 'aquela', 'arquivo', 'arquivos', 'documento', 'documentos',
         'drive', 'hoje', 'ontem', 'manha', 'tarde', 'noite', 'qual', 'quais',
     ];
@@ -283,6 +284,10 @@ class DriveMessageParser
             return 'open_reference';
         }
 
+        if ($this->containsAnyText($normalizedMessage, ['so essa', 'só essa', 'apenas essa'])) {
+            return 'only_match';
+        }
+
         if ($this->containsAnyText($normalizedMessage, [
             'me mostra esse arquivo',
             'me mostra ele',
@@ -373,16 +378,17 @@ class DriveMessageParser
             return null;
         }
 
-        $normalizedTerm = $this->normalizeText($term);
+        $normalizedTerm = preg_replace('/[^a-z0-9\s]+/u', ' ', $this->normalizeText($term)) ?? $this->normalizeText($term);
+        $normalizedTerm = trim(preg_replace('/\s+/u', ' ', $normalizedTerm) ?? $normalizedTerm);
 
         $genericByMediaKind = [
-            'image' => ['foto', 'imagem', 'print'],
-            'audio' => ['audio', 'voz', 'mp3'],
-            'document' => ['documento', 'arquivo', 'pdf', 'comprovante', 'contrato', 'boleto'],
+            'image' => ['foto', 'fotos', 'imagem', 'imagens', 'print', 'prints'],
+            'audio' => ['audio', 'audios', 'áudio', 'áudios', 'voz', 'mp3'],
+            'document' => ['documento', 'documentos', 'arquivo', 'arquivos', 'pdf', 'comprovante', 'comprovantes', 'contrato', 'contratos', 'boleto', 'boletos'],
         ];
 
         $genericTerms = $genericByMediaKind[$mediaKind] ?? [];
-        if (in_array($normalizedTerm, $genericTerms, true) && $timeScope !== null) {
+        if (in_array($normalizedTerm, $genericTerms, true)) {
             return null;
         }
 

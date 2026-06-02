@@ -11,6 +11,7 @@ use App\Services\BillingPlanService;
 use App\Services\DocumentTextExtractorService;
 use App\Services\GoogleDriveService;
 use App\Services\OCRService;
+use App\Services\WhatsApp\IncomingMessageNormalizer;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -106,6 +107,7 @@ class CreateDriveFileHandler extends BaseHandler
             }
 
             $title = $this->inferTitle($media, $tags);
+            $tags = $this->buildSearchTags($title, $fileName, $folderName, $media->kind, $tags);
             $url = $driveFileId !== '' ? $drive->buildFileWebUrl($driveFileId) : null;
 
             $driveFile = DriveFile::create([
@@ -209,5 +211,40 @@ class CreateDriveFileHandler extends BaseHandler
         }
 
         return 'Arquivo';
+    }
+
+    private function buildSearchTags(?string $title, string $fileName, ?string $folderName, string $kind, array $labels): array
+    {
+        $normalizer = app(IncomingMessageNormalizer::class);
+        $sources = array_filter([
+            $title,
+            (string) Str::of($fileName)->beforeLast('.'),
+            $folderName,
+            $kind,
+            ...$labels,
+        ], fn ($value) => is_string($value) && trim($value) !== '');
+
+        $tags = [];
+
+        foreach ($sources as $source) {
+            $normalized = $normalizer->normalize((string) $source);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $tags[] = $normalized;
+
+            $tokens = preg_split('/[^a-z0-9]+/u', $normalized) ?: [];
+            foreach ($tokens as $token) {
+                $token = trim($token);
+                if ($token === '' || mb_strlen($token) < 3) {
+                    continue;
+                }
+
+                $tags[] = $token;
+            }
+        }
+
+        return array_values(array_unique($tags));
     }
 }
