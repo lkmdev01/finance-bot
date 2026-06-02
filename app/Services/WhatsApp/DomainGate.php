@@ -16,6 +16,10 @@ class DomainGate
             return 'reminder';
         }
 
+        if ($this->looksLikeDriveDomain($normalized, $state)) {
+            return 'drive';
+        }
+
         if ($this->looksLikeNotesDomain($normalized, $state)) {
             return 'notes';
         }
@@ -37,6 +41,12 @@ class DomainGate
 
     private function looksLikeNotesDomain(string $message, array $state): bool
     {
+        // If the user has a file/photo/audio pending and asks to "salva isso", prioritize Drive.
+        if (! empty($state['last_entities']['incoming_media_id'] ?? null)
+            && $this->containsAnyText($message, ['salva', 'salvar', 'guarda', 'guardar', 'drive', 'pasta'])) {
+            return false;
+        }
+
         if (($state['last_entities']['topic'] ?? null) === 'notes') {
             if ($this->containsAnyText($message, [
                 'apaga', 'apagar', 'deleta', 'deletar', 'remove', 'remover', 'exclui', 'excluir',
@@ -61,6 +71,26 @@ class DomainGate
         }
 
         return false;
+    }
+
+    private function looksLikeDriveDomain(string $message, array $state): bool
+    {
+        if (($state['last_entities']['topic'] ?? null) === 'drive') {
+            return true;
+        }
+
+        // If there is media pending, "salva/guarda/drive" should route to Drive.
+        if (! empty($state['last_entities']['incoming_media_id'] ?? null)) {
+            if ($this->containsAnyText($message, ['salva', 'salvar', 'salve', 'guarda', 'guardar', 'arquiva', 'arquivar', 'drive', 'pasta'])) {
+                return true;
+            }
+        }
+
+        // Querying files without media: "ache meu comprovante...", "meus documentos", etc.
+        $hasSearchVerb = $this->containsAnyText($message, ['acha', 'ache', 'achar', 'procura', 'procurar', 'buscar', 'busca', 'encontra', 'encontrar', 'meus arquivos', 'meus documentos', 'meu drive']);
+        $hasDocWord = $this->containsAnyText($message, ['arquivo', 'documento', 'comprovante', 'contrato', 'foto', 'imagem', 'pdf', 'boleto', 'nota fiscal']);
+
+        return $hasSearchVerb && $hasDocWord;
     }
 
     private function looksLikeReminderDomain(string $message): bool

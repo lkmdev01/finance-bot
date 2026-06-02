@@ -83,6 +83,25 @@ class ConversationOrchestrator
             ];
         }
 
+        if (($classification['kind'] ?? null) === 'drive_needs_file') {
+            return [
+                'handled' => true,
+                'reply' => "Entendi. Agora me envie o arquivo/foto/audio que voce quer salvar no Drive.\n\nDepois disso, voce pode dizer:\n- salva isso no drive\n- salva na pasta de comprovantes/veiculos",
+                'action' => null,
+                'classification' => $classification['kind'],
+                'domain' => $domain,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'drive_save_waiting_media',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'drive_data' => [],
+                    ],
+                ],
+            ];
+        }
+
         if (($state['mode'] ?? 'idle') === 'awaiting_clarification'
             && $this->clarificationResolver->shouldResolve($classification['kind'], $state)) {
             $clarification = $this->clarificationResolver->resolve($message, $state);

@@ -9,6 +9,7 @@ use App\Services\WhatsApp\InstallmentTransactionMessageParser;
 use App\Services\WhatsApp\RecurringTransactionMessageParser;
 use App\Services\WhatsApp\ReminderMessageParser;
 use App\Services\WhatsApp\NoteMessageParser;
+use App\Services\WhatsApp\DriveMessageParser;
 use App\Services\WhatsApp\SavingsGoalMessageParser;
 use App\Services\WhatsApp\SubscriptionMessageParser;
 use App\Services\WhatsApp\SimpleTransactionMessageParser;
@@ -22,6 +23,7 @@ class DomainRoutingResolver
         private readonly BudgetMessageParser $budgetMessageParser,
         private readonly ReminderMessageParser $reminderMessageParser,
         private readonly NoteMessageParser $noteMessageParser,
+        private readonly DriveMessageParser $driveMessageParser,
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
         private readonly CreditCardMessageParser $creditCardMessageParser,
@@ -48,6 +50,7 @@ class DomainRoutingResolver
                 ],
             ],
             'budget_query' => $this->queryResult('query_budgets', $message),
+            'drive_query' => $this->queryResult('query_drive_files', $message),
             'budget_create' => $this->actionResult(
                 'create_budget',
                 'budget_data',
@@ -102,6 +105,12 @@ class DomainRoutingResolver
                 'create_note',
                 'note_data',
                 $this->noteMessageParser->parseCreate($message) ?? [],
+                $message
+            ),
+            'drive_save' => $this->actionResult(
+                'create_drive_file',
+                'drive_data',
+                $this->driveMessageParser->parseSave($message, $state) ?? [],
                 $message
             ),
             'note_delete' => $this->actionResult(

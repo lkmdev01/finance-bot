@@ -39,5 +39,32 @@ class NotesParsingTest extends TestCase
         $this->assertNotNull($term);
         $this->assertStringContainsString('contrato', strtolower((string) $term));
     }
-}
 
+    public function test_minhas_notas_is_query_not_create(): void
+    {
+        $parser = app(NoteMessageParser::class);
+        $classifier = app(NoteIntentClassifier::class);
+
+        $message = 'minhas notas';
+        $normalized = $message;
+
+        $this->assertFalse($parser->looksLikeCreateIntent($normalized));
+        $this->assertNull($parser->parseCreate($message));
+
+        $result = $classifier->classify($message, $normalized, []);
+        $this->assertNotNull($result);
+        $this->assertEquals('note_query', $result['kind']);
+    }
+
+    public function test_quais_sao_minhas_notas_ativas_is_query_not_create(): void
+    {
+        $classifier = app(NoteIntentClassifier::class);
+
+        $message = 'quais sao minhas notas ativas';
+        $normalized = $message;
+
+        $result = $classifier->classify($message, $normalized, []);
+        $this->assertNotNull($result);
+        $this->assertEquals('note_query', $result['kind']);
+    }
+}

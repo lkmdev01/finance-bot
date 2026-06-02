@@ -34,6 +34,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
         public readonly ?string $pushName = null,
         public readonly ?string $remoteJid = null,
         public readonly ?string $imageUrl = null,
+        public readonly ?int $incomingMediaId = null,
     ) {}
 
     public function middleware(): array
@@ -141,6 +142,12 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $stateService = app(ConversationStateService::class);
             $orchestrator = app(ConversationOrchestrator::class);
             $proactiveTrigger = app(ProactiveConversationTrigger::class);
+
+            if ($this->incomingMediaId !== null && $this->incomingMediaId > 0) {
+                $stateService->rememberIncomingMedia($contact, $this->incomingMediaId, [
+                    'source' => 'whatsapp',
+                ]);
+            }
 
             $preflight = $orchestrator->beforeAI($normalizedMessage, $user, $contact);
 

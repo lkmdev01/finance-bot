@@ -11,6 +11,7 @@ use App\Services\WhatsApp\CreditCardConversationService;
 use App\Services\WhatsApp\ProjectionConversationService;
 use App\Services\WhatsApp\ReminderConversationService;
 use App\Services\WhatsApp\NotesConversationService;
+use App\Services\WhatsApp\DriveConversationService;
 use App\Services\WhatsApp\SavingsConversationService;
 use App\Services\WhatsApp\SubscriptionConversationService;
 use App\Services\WhatsApp\TransactionConversationService;
@@ -32,6 +33,7 @@ class QueryHandler extends BaseHandler
         'query_credit_cards',
         'query_reminders',
         'query_notes',
+        'query_drive_files',
         'query_income_source',
         'query_categories',
     ];
@@ -85,6 +87,7 @@ class QueryHandler extends BaseHandler
             'query_credit_cards' => $this->buildCreditCardReplyData($user, $contact, $rawMessage),
             'query_reminders' => $this->buildReminderReplyData($user, $contact, $rawMessage),
             'query_notes' => $this->buildNotesReplyData($user, $contact, $rawMessage),
+            'query_drive_files' => $this->buildDriveFilesReplyData($user, $contact, $rawMessage),
             'query_projections' => $this->buildProjectionReplyData($user, $contact, $rawMessage),
             default => [$fallbackReply, []],
         };
@@ -150,6 +153,14 @@ class QueryHandler extends BaseHandler
     {
         $state = app(ConversationStateService::class)->getState($contact);
         $data = app(NotesConversationService::class)->buildReply($user, $rawMessage, $state);
+
+        return [$data['reply'], $data['entities'] ?? []];
+    }
+
+    private function buildDriveFilesReplyData(User $user, WhatsAppContact $contact, string $rawMessage): array
+    {
+        $state = app(ConversationStateService::class)->getState($contact);
+        $data = app(DriveConversationService::class)->buildReply($user, $rawMessage, $state);
 
         return [$data['reply'], $data['entities'] ?? []];
     }

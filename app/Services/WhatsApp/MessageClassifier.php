@@ -11,6 +11,7 @@ class MessageClassifier
     public function __construct(
         private readonly DomainGate $domainGate,
         private readonly ReminderIntentClassifier $reminderIntentClassifier,
+        private readonly DriveIntentClassifier $driveIntentClassifier,
         private readonly NoteIntentClassifier $noteIntentClassifier,
         private readonly BudgetIntentClassifier $budgetIntentClassifier,
         private readonly PlanningIntentClassifier $planningIntentClassifier,
@@ -60,12 +61,14 @@ class MessageClassifier
     {
         return match ($domain) {
             'reminder' => [$this->reminderIntentClassifier],
+            'drive' => [$this->driveIntentClassifier],
             'notes' => [$this->noteIntentClassifier],
             'transaction' => [$this->transactionIntentClassifier],
             'planning' => [$this->planningIntentClassifier],
             'budget' => [$this->budgetIntentClassifier],
             default => [
                 $this->reminderIntentClassifier,
+                $this->driveIntentClassifier,
                 $this->noteIntentClassifier,
                 $this->transactionIntentClassifier,
                 $this->planningIntentClassifier,

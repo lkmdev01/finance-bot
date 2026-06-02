@@ -40,6 +40,8 @@ final class ActionResultSanitizer
         'create_note' => 'note_data',
         'edit_note' => 'note_data',
         'delete_note' => 'note_data',
+
+        'create_drive_file' => 'drive_data',
     ];
 
     private const KNOWN_PAYLOAD_KEYS = [
@@ -50,6 +52,7 @@ final class ActionResultSanitizer
         'credit_card_data',
         'reminder_data',
         'note_data',
+        'drive_data',
         'recurring_data',
         'installment_data',
     ];

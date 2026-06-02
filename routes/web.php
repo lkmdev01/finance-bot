@@ -56,6 +56,12 @@ Route::middleware('auth')->group(function () {
         ->name('whatsapp.activation.phone');
     Route::post('/auth/whatsapp-activation/complete', [App\Http\Controllers\Auth\WhatsAppActivationController::class, 'complete'])
         ->name('whatsapp.activation.complete');
+
+    // Google Drive integration (separate OAuth flow to request Drive scopes).
+    Route::get('/auth/google-drive/redirect', [App\Http\Controllers\Auth\GoogleDriveAuthController::class, 'redirect'])
+        ->name('google-drive.redirect');
+    Route::get('/auth/google-drive/callback', [App\Http\Controllers\Auth\GoogleDriveAuthController::class, 'callback'])
+        ->name('google-drive.callback');
 });
 
 Route::view('dashboard', 'pages.dashboard')
@@ -63,6 +69,11 @@ Route::view('dashboard', 'pages.dashboard')
     ->name('dashboard');
 
 Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
+    Route::get('integrations/google-drive', [App\Http\Controllers\Integrations\GoogleDriveController::class, 'index'])
+        ->name('integrations.google-drive');
+    Route::post('integrations/google-drive/disconnect', [App\Http\Controllers\Integrations\GoogleDriveController::class, 'disconnect'])
+        ->name('integrations.google-drive.disconnect');
+
     Route::get('billing/plans', [App\Http\Controllers\BillingPlanController::class, 'index'])->name('billing.plans');
     Route::get('billing/plans/{planCode}/checkout-data', [App\Http\Controllers\BillingPlanController::class, 'showCheckoutData'])->name('billing.checkout-data.show');
     Route::post('billing/plans/{planCode}/checkout-data', [App\Http\Controllers\BillingPlanController::class, 'storeCheckoutData'])->name('billing.checkout-data.store');
@@ -133,6 +144,11 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
 
     // Tags
     Volt::route('tags', 'tags.index')->name('tags.index');
+
+    // Drive Inteligente
+    Route::get('drive', function () {
+        return view('pages.drive.index');
+    })->name('drive.index');
     
     Route::get('reports/export/pdf', [App\Http\Controllers\ReportsExportController::class, 'exportPdf'])->name('reports.export.pdf');
     Route::get('reports/export/excel', [App\Http\Controllers\ReportsExportController::class, 'exportExcel'])->name('reports.export.excel');

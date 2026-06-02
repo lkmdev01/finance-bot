@@ -45,6 +45,16 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
+    'google_drive' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_DRIVE_REDIRECT_URI', '/auth/google-drive/callback'),
+        'scopes' => [
+            // Limit access to files created by this app (preferred for privacy).
+            'https://www.googleapis.com/auth/drive.file',
+        ],
+    ],
+
     'transcription' => [
         'provider' => env('TRANSCRIPTION_PROVIDER', env('AI_PROVIDER', 'groq')),
         'api_key' => env('TRANSCRIPTION_API_KEY', env('AI_API_KEY')),

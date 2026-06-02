@@ -76,6 +76,18 @@ class ConversationStateService
         $this->persistState($contact, $state);
     }
 
+    public function rememberIncomingMedia(WhatsAppContact $contact, int $incomingMediaId, array $mediaMeta = []): void
+    {
+        $state = $this->getState($contact);
+        $state['last_entities'] = is_array($state['last_entities'] ?? null) ? $state['last_entities'] : [];
+        $state['last_entities']['incoming_media_id'] = $incomingMediaId;
+        if ($mediaMeta !== []) {
+            $state['last_entities']['incoming_media_meta'] = $this->sanitizeValue($mediaMeta);
+        }
+        $state['updated_at'] = now()->toIso8601String();
+        $this->persistState($contact, $state);
+    }
+
     public function rememberInteraction(WhatsAppContact $contact, string $message, string $reply, ?string $action, array $meta = []): void
     {
         $context = $this->sanitizeValue($contact->context ?? []);
