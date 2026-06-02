@@ -620,6 +620,8 @@
                             <li><a class="hover:text-white" href="{{ Route::has('login') ? route('login') : '#' }}">Login</a></li>
                             <li><a class="hover:text-white" href="{{ Route::has('register') ? route('register') : '#' }}">Criar conta</a></li>
                             <li><a class="hover:text-white" href="{{ Route::has('billing.plans') ? route('billing.plans') : '#' }}">Assinar plano</a></li>
+                            <li><a class="hover:text-white" href="{{ route('terms-of-use') }}">Termos de uso</a></li>
+                            <li><a class="hover:text-white" href="{{ route('privacy-policy') }}">Politica de privacidade</a></li>
                         </ul>
                     </div>
 

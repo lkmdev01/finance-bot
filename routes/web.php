@@ -8,6 +8,9 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+Route::view('/politica-de-privacidade', 'pages.privacy-policy')->name('privacy-policy');
+Route::view('/termos-de-uso', 'pages.terms-of-use')->name('terms-of-use');
+
 Route::get('/sitemap.xml', function () {
     $urls = collect([
         [
@@ -15,6 +18,18 @@ Route::get('/sitemap.xml', function () {
             'lastmod' => now()->toDateString(),
             'changefreq' => 'weekly',
             'priority' => '1.0',
+        ],
+        [
+            'loc' => route('privacy-policy'),
+            'lastmod' => now()->toDateString(),
+            'changefreq' => 'yearly',
+            'priority' => '0.4',
+        ],
+        [
+            'loc' => route('terms-of-use'),
+            'lastmod' => now()->toDateString(),
+            'changefreq' => 'yearly',
+            'priority' => '0.4',
         ],
     ]);
 
@@ -293,4 +308,3 @@ Route::post('/webhook/whatsapp', [App\Http\Controllers\WhatsAppWebhookController
 Route::post('/webhook/abacatepay', [App\Http\Controllers\AbacatePayWebhookController::class, 'handle'])
     ->middleware('throttle:120,1')
     ->name('webhook.abacatepay');
-

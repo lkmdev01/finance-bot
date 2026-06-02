@@ -173,8 +173,14 @@
                         class="mt-1 h-5 w-5 rounded border-white/20 bg-transparent text-fuchsia-500 focus:ring-fuchsia-400"
                     />
                     <span class="text-sm leading-7 text-slate-300">
-                        Li e concordo com os <span class="font-semibold text-fuchsia-200">termos de uso</span> e a
-                        <span class="font-semibold text-fuchsia-200">política de privacidade</span>.
+                        Li e concordo com os
+                        <a href="{{ route('terms-of-use') }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-fuchsia-200 underline decoration-fuchsia-400/50 underline-offset-4 hover:text-fuchsia-100">
+                            termos de uso
+                        </a>
+                        e a
+                        <a href="{{ route('privacy-policy') }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-fuchsia-200 underline decoration-fuchsia-400/50 underline-offset-4 hover:text-fuchsia-100">
+                            política de privacidade
+                        </a>.
                     </span>
                 </label>
 
