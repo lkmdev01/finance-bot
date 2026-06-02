@@ -121,7 +121,7 @@ class GoogleDriveService
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
-            throw new RuntimeException('Falha ao enviar arquivo ao Google Drive.');
+            throw new RuntimeException($this->friendlyErrorMessage($response, 'Falha ao enviar arquivo ao Google Drive.'));
         }
 
         return $response->json();
@@ -151,7 +151,7 @@ class GoogleDriveService
                 'status' => $start->status(),
                 'body' => $start->body(),
             ]);
-            throw new RuntimeException('Falha ao iniciar upload no Google Drive.');
+            throw new RuntimeException($this->friendlyErrorMessage($start, 'Falha ao iniciar upload no Google Drive.'));
         }
 
         $uploadUrl = $start->header('Location');
@@ -179,7 +179,7 @@ class GoogleDriveService
                 'status' => $finish->status(),
                 'body' => $finish->body(),
             ]);
-            throw new RuntimeException('Falha ao enviar arquivo ao Google Drive.');
+            throw new RuntimeException($this->friendlyErrorMessage($finish, 'Falha ao enviar arquivo ao Google Drive.'));
         }
 
         return $finish->json();
@@ -208,7 +208,7 @@ class GoogleDriveService
                 'name' => $name,
                 'parent_id' => $parentId,
             ]);
-            throw new RuntimeException('Falha ao criar pasta no Google Drive.');
+            throw new RuntimeException($this->friendlyErrorMessage($response, 'Falha ao criar pasta no Google Drive.'));
         }
 
         return $response->json();
@@ -287,6 +287,25 @@ class GoogleDriveService
         return str_contains($body, 'Invalid Credentials')
             || str_contains($body, 'insufficient authentication scopes')
             || str_contains($body, 'Request had insufficient authentication scopes');
+    }
+
+    private function friendlyErrorMessage(Response $response, string $fallback): string
+    {
+        $body = (string) $response->body();
+
+        if (str_contains($body, 'accessNotConfigured') || str_contains($body, 'SERVICE_DISABLED') || str_contains($body, 'Google Drive API has not been used')) {
+            return 'Sua conexao com o Google Drive esta quase pronta, mas a Google Drive API ainda nao esta habilitada no projeto do Google Cloud. Ative a API do Google Drive no console e tente novamente em alguns minutos.';
+        }
+
+        if (str_contains($body, 'insufficient authentication scopes') || str_contains($body, 'Request had insufficient authentication scopes')) {
+            return 'Sua conexao com o Google Drive nao tem as permissoes necessarias. Desconecte e conecte novamente o Google Drive para atualizar as permissoes.';
+        }
+
+        if (str_contains($body, 'Invalid Credentials') || $response->status() === 401) {
+            return 'Sua conexao com o Google Drive expirou. Desconecte e conecte novamente para continuar salvando arquivos.';
+        }
+
+        return $fallback;
     }
 
     private function getConnection(User $user): GoogleDriveConnection

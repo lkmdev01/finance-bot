@@ -169,7 +169,12 @@ class CreateDriveFileHandler extends BaseHandler
                 'error' => $e->getMessage(),
             ]);
 
-            $this->sendErrorMessage($job, 'Nao consegui salvar esse arquivo no Drive agora. Tente novamente em alguns instantes.');
+            $friendly = trim((string) $e->getMessage());
+            if ($friendly === '' || str_starts_with($friendly, 'Falha ao ')) {
+                $friendly = 'Nao consegui salvar esse arquivo no Drive agora. Tente novamente em alguns instantes.';
+            }
+
+            $this->sendErrorMessage($job, $friendly);
             return true;
         }
     }
