@@ -334,3 +334,62 @@ test('webhook trata documentMessage mesmo quando o messageType vem como messageC
             && $job->incomingMediaId !== null;
     });
 });
+
+test('webhook encaminha imagem em base64 com legenda para fila e salva a midia recebida', function () {
+    Queue::fake();
+
+    config(['whatsapp.baileys.webhook_secret' => 'test-secret']);
+
+    $user = User::factory()->create([
+        'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
+    ]);
+
+    $image = 'fake-image-binary';
+
+    $this->mock(\App\Services\OCRService::class, function ($mock) {
+        $mock->shouldReceive('analyzeImageBase64')
+            ->never();
+    });
+
+    $response = $this->postJson(route('webhook.whatsapp'), [
+        'event' => 'messages.upsert',
+        'data' => [
+            'key' => [
+                'remoteJid' => '5511999999999@s.whatsapp.net',
+                'fromMe' => false,
+            ],
+            'message' => [
+                'messageType' => 'imageMessage',
+                'imageMessage' => [
+                    'mimetype' => 'image/png',
+                    'fileName' => 'perfil-discord-6.png',
+                    'caption' => 'salva isso no drive',
+                ],
+            ],
+            'imageBase64' => base64_encode($image),
+            'imageMimeType' => 'image/png',
+            'imageFileName' => 'perfil-discord-6.png',
+        ],
+        'secret' => 'test-secret',
+    ]);
+
+    $response->assertSuccessful();
+    $response->assertJson(['status' => 'queued']);
+
+    Queue::assertPushed(ProcessWhatsAppMessage::class, function ($job) use ($user) {
+        return $job->phoneNumber === '5511999999999'
+            && $job->message === 'salva isso no drive'
+            && $job->userId === $user->id
+            && $job->incomingMediaId !== null;
+    });
+
+    $media = \App\Models\WhatsAppIncomingMedia::query()
+        ->where('user_id', $user->id)
+        ->latest('id')
+        ->first();
+
+    expect($media)->not->toBeNull();
+    expect($media?->kind)->toBe('image');
+    expect($media?->original_name)->toContain('perfil-discord-6');
+});

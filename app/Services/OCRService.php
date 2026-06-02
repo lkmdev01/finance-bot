@@ -81,6 +81,26 @@ class OCRService
         return $this->analyzeWithGoogleVisionBase64(base64_encode($binary), $apiKey);
     }
 
+    public function extractTextFromBase64(string $imageBase64): ?string
+    {
+        $apiKey = $this->getApiKey();
+        if (! $apiKey || $imageBase64 === '') {
+            return null;
+        }
+
+        return $this->extractTextWithGoogleVisionBase64($imageBase64, $apiKey);
+    }
+
+    public function analyzeImageBase64(string $imageBase64): array
+    {
+        $apiKey = $this->getApiKey();
+        if (! $apiKey || $imageBase64 === '') {
+            return ['text' => null, 'labels' => []];
+        }
+
+        return $this->analyzeWithGoogleVisionBase64($imageBase64, $apiKey);
+    }
+
     /**
      * Extrai texto usando Google Vision API
      */

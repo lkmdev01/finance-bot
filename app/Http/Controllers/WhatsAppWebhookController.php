@@ -152,6 +152,9 @@ class WhatsAppWebhookController extends Controller
 
             $imageUrl = null;
             $incomingMediaId = null;
+            $imageBase64 = $messageData['imageBase64'] ?? null;
+            $imageMimeType = $message['imageMessage']['mimetype'] ?? $messageData['imageMimeType'] ?? null;
+            $imageFileName = $message['imageMessage']['fileName'] ?? $messageData['imageFileName'] ?? 'imagem';
             $audioBase64 = $messageData['audioBase64'] ?? null;
             $audioMimeType = $message['audioMessage']['mimetype'] ?? $messageData['audioMimeType'] ?? null;
             $documentBase64 = $messageData['documentBase64'] ?? null;
@@ -164,6 +167,12 @@ class WhatsAppWebhookController extends Controller
 
                 if ($caption !== '') {
                     $text = $caption;
+                } elseif ($imageBase64) {
+                    $analysis = $this->ocrService->analyzeImageBase64($imageBase64);
+                    $ocrText = $analysis['text'] ?? null;
+                    $text = $ocrText
+                        ? "Imagem recebida. Texto extraido: {$ocrText}"
+                        : 'Imagem recebida. Nao consegui extrair texto. Descreva a transacao na mensagem.';
                 } elseif ($imageUrl) {
                     $ocrText = $this->ocrService->extractText($imageUrl);
                     $text = $ocrText
@@ -171,7 +180,19 @@ class WhatsAppWebhookController extends Controller
                         : 'Imagem recebida. Nao consegui extrair texto. Descreva a transacao na mensagem.';
                 }
 
-                if ($imageUrl) {
+                if ($imageBase64) {
+                    $incomingMedia = $this->whatsAppIncomingMediaService->storeFromImageBase64(
+                        $user,
+                        $phoneNumber,
+                        $imageBase64,
+                        $imageMimeType,
+                        $imageFileName,
+                        [
+                            'caption' => $caption,
+                        ]
+                    );
+                    $incomingMediaId = $incomingMedia?->id;
+                } elseif ($imageUrl) {
                     $incomingMedia = $this->whatsAppIncomingMediaService->storeFromImageUrl($user, $phoneNumber, $imageUrl, [
                         'caption' => $caption,
                         'source_url' => $imageUrl,
@@ -250,7 +271,7 @@ class WhatsAppWebhookController extends Controller
                 }
             }
 
-            if (empty($text) && empty($imageUrl)) {
+            if (empty($text) && empty($imageUrl) && $incomingMediaId === null) {
                 if ($messageType === 'audioMessage') {
                     $this->sendReply($key, $phoneNumber, 'Nao consegui transcrever sua mensagem de voz. Pode me enviar em texto?');
 

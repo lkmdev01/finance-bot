@@ -48,6 +48,25 @@ class WhatsAppIncomingMediaService
         return $this->persistBinary($user, $phoneNumber, 'audio', $binary, $safeName, $mimeType, $metadata);
     }
 
+    public function storeFromImageBase64(
+        User $user,
+        string $phoneNumber,
+        string $imageBase64,
+        ?string $mimeType = null,
+        ?string $fileName = null,
+        array $metadata = []
+    ): ?WhatsAppIncomingMedia {
+        $binary = base64_decode($imageBase64, true);
+        if ($binary === false || $binary === '') {
+            return null;
+        }
+
+        $extension = $this->resolveExtension($mimeType, $fileName);
+        $safeName = $this->safeFileName($fileName ?: 'imagem', $extension);
+
+        return $this->persistBinary($user, $phoneNumber, 'image', $binary, $safeName, $mimeType, $metadata);
+    }
+
     public function storeFromImageUrl(
         User $user,
         string $phoneNumber,
@@ -149,4 +168,3 @@ class WhatsAppIncomingMediaService
         };
     }
 }
-

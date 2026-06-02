@@ -36,6 +36,49 @@ let isConnected = false;
 // Logger
 const logger = pino({ level: 'silent' });
 
+function resolveMessageEnvelope(message) {
+    const raw = message?.message || {};
+    const unwrapKeys = [
+        'ephemeralMessage',
+        'viewOnceMessage',
+        'viewOnceMessageV2',
+        'viewOnceMessageV2Extension',
+        'documentWithCaptionMessage',
+        'editedMessage',
+    ];
+
+    let current = raw;
+    let guard = 0;
+
+    while (current && typeof current === 'object' && guard < 10) {
+        guard += 1;
+
+        const directType = Object.keys(current).find((key) => key !== 'messageContextInfo');
+        if (directType && ! unwrapKeys.includes(directType)) {
+            return {
+                messageType: directType,
+                content: current[directType] || {},
+                raw,
+            };
+        }
+
+        const unwrapKey = unwrapKeys.find((key) => current[key]?.message);
+        if (! unwrapKey) {
+            break;
+        }
+
+        current = current[unwrapKey].message;
+    }
+
+    const fallbackType = Object.keys(raw)[0] || null;
+
+    return {
+        messageType: fallbackType,
+        content: fallbackType ? (raw[fallbackType] || {}) : {},
+        raw,
+    };
+}
+
 /**
  * Inicializa a conexão com WhatsApp
  */
@@ -138,7 +181,7 @@ async function startWhatsApp() {
 
     sock.ev.on('messages.upsert', async (m) => {
         const message = m.messages[0];
-        const messageType = Object.keys(message.message || {})[0];
+        const { messageType, content: messageContent, raw: rawMessage } = resolveMessageEnvelope(message);
         
         // Ignora mensagens de status
         if (message.key.remoteJid === 'status@broadcast') {
@@ -227,18 +270,17 @@ async function startWhatsApp() {
         phoneNumber = phoneNumber.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '').replace('@c.us', '');
         
         let text = '';
+        let imagePayload = {};
         let audioPayload = {};
         let documentPayload = {};
         
         // Extrai texto da mensagem dependendo do tipo
         if (messageType === 'conversation') {
-            text = message.message.conversation;
+            text = rawMessage.conversation || '';
         } else if (messageType === 'extendedTextMessage') {
-            text = message.message.extendedTextMessage.text;
+            text = rawMessage.extendedTextMessage?.text || '';
         } else if (messageType === 'imageMessage' || messageType === 'videoMessage' || messageType === 'audioMessage') {
-            // Mensagens de mídia podem ter legenda
-            const mediaMessage = message.message[messageType];
-            text = mediaMessage?.caption || '';
+            text = messageContent?.caption || '';
         }
 
         if (messageType === 'audioMessage') {
@@ -256,14 +298,40 @@ async function startWhatsApp() {
                 if (audioBuffer?.length) {
                     audioPayload = {
                         audioBase64: audioBuffer.toString('base64'),
-                        audioMimeType: message.message.audioMessage?.mimetype || 'audio/ogg; codecs=opus',
-                        audioSeconds: message.message.audioMessage?.seconds || null,
+                        audioMimeType: messageContent?.mimetype || 'audio/ogg; codecs=opus',
+                        audioSeconds: messageContent?.seconds || null,
                     };
 
                     console.log(`   🎙️ Áudio baixado para transcrição (${audioBuffer.length} bytes)`);
                 }
             } catch (mediaError) {
                 console.log(`   ⚠️  Não foi possível baixar o áudio: ${mediaError.message}`);
+            }
+        }
+
+        if (messageType === 'imageMessage') {
+            try {
+                const imageBuffer = await downloadMediaMessage(
+                    message,
+                    'buffer',
+                    {},
+                    {
+                        logger,
+                        reuploadRequest: sock.updateMediaMessage,
+                    }
+                );
+
+                if (imageBuffer?.length) {
+                    imagePayload = {
+                        imageBase64: imageBuffer.toString('base64'),
+                        imageMimeType: messageContent?.mimetype || 'image/jpeg',
+                        imageFileName: messageContent?.fileName || 'imagem',
+                    };
+
+                    console.log(`   🖼️ Imagem baixada para processamento (${imageBuffer.length} bytes)`);
+                }
+            } catch (mediaError) {
+                console.log(`   ⚠️  Não foi possível baixar a imagem: ${mediaError.message}`);
             }
         }
 
@@ -282,8 +350,8 @@ async function startWhatsApp() {
                 if (documentBuffer?.length) {
                     documentPayload = {
                         documentBase64: documentBuffer.toString('base64'),
-                        documentMimeType: message.message.documentMessage?.mimetype || 'application/octet-stream',
-                        documentFileName: message.message.documentMessage?.fileName || 'documento',
+                        documentMimeType: messageContent?.mimetype || 'application/octet-stream',
+                        documentFileName: messageContent?.fileName || 'documento',
                     };
 
                     console.log(`   📄 Documento baixado para processamento (${documentBuffer.length} bytes)`);
@@ -331,14 +399,19 @@ async function startWhatsApp() {
                         messageType: messageType,
                         conversation: messageType === 'conversation' ? text : undefined,
                         extendedTextMessage: messageType === 'extendedTextMessage' ? { text } : undefined,
+                        imageMessage: messageType === 'imageMessage' ? {
+                            mimetype: messageContent?.mimetype || null,
+                            fileName: messageContent?.fileName || null,
+                            caption: messageContent?.caption || null,
+                        } : undefined,
                         audioMessage: messageType === 'audioMessage' ? {
-                            mimetype: message.message.audioMessage?.mimetype || null,
-                            seconds: message.message.audioMessage?.seconds || null,
+                            mimetype: messageContent?.mimetype || null,
+                            seconds: messageContent?.seconds || null,
                         } : undefined,
                         documentMessage: messageType === 'documentMessage' ? {
-                            mimetype: message.message.documentMessage?.mimetype || null,
-                            fileName: message.message.documentMessage?.fileName || null,
-                            caption: message.message.documentMessage?.caption || null,
+                            mimetype: messageContent?.mimetype || null,
+                            fileName: messageContent?.fileName || null,
+                            caption: messageContent?.caption || null,
                         } : undefined,
                     },
                     // Envia informações adicionais para ajudar na identificação
@@ -348,6 +421,7 @@ async function startWhatsApp() {
                     remoteJidAlt: message.key.remoteJidAlt || null,
                     participantAlt: message.key.participantAlt || null,
                     isLid: isLid || false,
+                    ...imagePayload,
                     ...audioPayload,
                     ...documentPayload,
                 },
@@ -460,4 +534,3 @@ app.listen(PORT, () => {
     console.log(`📡 Webhook URL: ${LARAVEL_URL}/webhook/whatsapp`);
     startWhatsApp();
 });
-
