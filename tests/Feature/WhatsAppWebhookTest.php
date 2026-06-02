@@ -286,3 +286,51 @@ test('webhook encaminha texto extraido de pdf para fila', function () {
             && str_contains($job->message, 'Compra mercado');
     });
 });
+
+test('webhook trata documentMessage mesmo quando o messageType vem como messageContextInfo', function () {
+    Queue::fake();
+
+    config(['whatsapp.baileys.webhook_secret' => 'test-secret']);
+
+    $user = User::factory()->create([
+        'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
+    ]);
+
+    $document = 'fake-binary-document';
+
+    $response = $this->postJson(route('webhook.whatsapp'), [
+        'event' => 'messages.upsert',
+        'data' => [
+            'key' => [
+                'remoteJid' => '5511999999999@s.whatsapp.net',
+                'fromMe' => false,
+            ],
+            'message' => [
+                'messageType' => 'messageContextInfo',
+                'documentMessage' => [
+                    'mimetype' => 'application/pdf',
+                    'fileName' => 'perfil-discord-6.png',
+                    'caption' => 'salva isso no drive',
+                ],
+                'messageContextInfo' => [
+                    'deviceListMetadataVersion' => 2,
+                ],
+            ],
+            'documentBase64' => base64_encode($document),
+            'documentMimeType' => 'application/pdf',
+            'documentFileName' => 'perfil-discord-6.png',
+        ],
+        'secret' => 'test-secret',
+    ]);
+
+    $response->assertSuccessful();
+    $response->assertJson(['status' => 'queued']);
+
+    Queue::assertPushed(ProcessWhatsAppMessage::class, function ($job) use ($user) {
+        return $job->phoneNumber === '5511999999999'
+            && $job->message === 'salva isso no drive'
+            && $job->userId === $user->id
+            && $job->incomingMediaId !== null;
+    });
+});

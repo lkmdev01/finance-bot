@@ -72,7 +72,7 @@ class WhatsAppWebhookController extends Controller
 
             $key = $messageData['key'] ?? [];
             $message = $messageData['message'] ?? [];
-            $messageType = $message['messageType'] ?? null;
+            $messageType = $this->detectMessageType($message);
             $pushName = $messageData['pushName'] ?? $data['pushName'] ?? null;
 
             if (! in_array($messageType, ['conversation', 'extendedTextMessage', 'imageMessage', 'audioMessage', 'documentMessage'], true)) {
@@ -103,7 +103,7 @@ class WhatsAppWebhookController extends Controller
                 'phoneNumber_processado' => $phoneNumber,
             ]);
 
-            $text = $message['conversation'] ?? $message['extendedTextMessage']['text'] ?? '';
+            $text = $this->extractTextFromMessage($message);
 
             if ($activation = $this->whatsAppActivationService->verifyCodeFromIncomingMessage($text, $phoneNumber)) {
                 $this->sendReply(
@@ -191,6 +191,11 @@ class WhatsAppWebhookController extends Controller
             }
 
             if ($messageType === 'documentMessage' && $documentBase64) {
+                $caption = (string) ($message['documentMessage']['caption'] ?? '');
+                if ($caption !== '') {
+                    $text = $caption;
+                }
+
                 $wantsDrive = $this->looksLikeDriveSaveText($text);
                 $incomingMedia = $this->whatsAppIncomingMediaService->storeFromDocumentBase64(
                     $user,
@@ -343,6 +348,45 @@ class WhatsAppWebhookController extends Controller
         }
 
         return preg_match('/\\b(salva|salvar|salve|guarda|guardar|arquiva|arquivar|drive|pasta)\\b/u', $t) === 1;
+    }
+
+    private function detectMessageType(array $message): ?string
+    {
+        $supportedTypes = ['conversation', 'extendedTextMessage', 'imageMessage', 'audioMessage', 'documentMessage'];
+        $declaredType = $message['messageType'] ?? null;
+
+        if (is_string($declaredType) && in_array($declaredType, $supportedTypes, true)) {
+            return $declaredType;
+        }
+
+        foreach ($supportedTypes as $type) {
+            if (array_key_exists($type, $message)) {
+                return $type;
+            }
+        }
+
+        return is_string($declaredType) ? $declaredType : null;
+    }
+
+    private function extractTextFromMessage(array $message): string
+    {
+        if (isset($message['conversation']) && is_string($message['conversation'])) {
+            return $message['conversation'];
+        }
+
+        if (isset($message['extendedTextMessage']['text']) && is_string($message['extendedTextMessage']['text'])) {
+            return $message['extendedTextMessage']['text'];
+        }
+
+        if (isset($message['imageMessage']['caption']) && is_string($message['imageMessage']['caption'])) {
+            return $message['imageMessage']['caption'];
+        }
+
+        if (isset($message['documentMessage']['caption']) && is_string($message['documentMessage']['caption'])) {
+            return $message['documentMessage']['caption'];
+        }
+
+        return '';
     }
 
     private function identifyUserByPhoneNumber(string $phoneNumber): ?User
