@@ -161,6 +161,47 @@ it('filtra arquivos salvos hoje usando o contexto temporal', function () {
         ->and($data['entities']['drive_file_id'])->toBe($today->id);
 });
 
+it('filtra fotos de hoje sem exigir termo textual literal', function () {
+    CarbonImmutable::setTestNow('2026-06-02 10:00:00');
+
+    $image = DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'snow-trip.png',
+        'mime_type' => 'image/png',
+        'drive_file_id' => 'file-img',
+        'drive_path' => 'Fotos',
+        'title' => 'Imagem',
+    ]);
+    $image->forceFill([
+        'created_at' => CarbonImmutable::now()->subHour(),
+        'updated_at' => CarbonImmutable::now()->subHour(),
+    ])->save();
+
+    DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'contract.pdf',
+        'mime_type' => 'application/pdf',
+        'drive_file_id' => 'file-doc',
+        'drive_path' => 'Documentos',
+        'title' => 'Contrato',
+    ]);
+
+    $data = app(DriveConversationService::class)->buildReply(
+        $this->user,
+        'procura a foto que eu mandei hoje',
+        ['last_entities' => ['topic' => 'drive']]
+    );
+
+    CarbonImmutable::setTestNow();
+
+    expect($data['reply'])->toContain('Arquivos salvos hoje:')
+        ->and($data['reply'])->toContain('Imagem')
+        ->and($data['reply'])->not->toContain('Contrato')
+        ->and($data['entities']['drive_file_id'])->toBe($image->id);
+});
+
 it('nao deixa pending de salvar sequestrar consultas de drive', function () {
     $this->contact->update([
         'conversation_state' => [

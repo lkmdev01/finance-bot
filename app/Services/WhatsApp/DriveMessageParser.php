@@ -171,15 +171,19 @@ class DriveMessageParser
     public function parseQuery(string $message, array $state): array
     {
         $normalized = $this->normalizeText($message);
+        $mediaKind = $this->extractMediaKind($normalized);
+        $timeScope = $this->extractTimeScope($normalized);
+        $term = $this->extractQueryTerm($message);
+        $term = $this->sanitizeQueryTerm($term, $mediaKind, $timeScope);
 
         return [
-            'term' => $this->extractQueryTerm($message),
+            'term' => $term,
             'list_mode' => $this->isListingIntent($normalized),
             'follow_up' => $this->detectFollowUp($normalized),
             'ordinal' => $this->extractOrdinal($normalized),
             'open_reference' => $this->extractOpenReference($normalized),
-            'time_scope' => $this->extractTimeScope($normalized),
-            'media_kind' => $this->extractMediaKind($normalized),
+            'time_scope' => $timeScope,
+            'media_kind' => $mediaKind,
             'has_drive_context' => ($state['last_entities']['topic'] ?? null) === 'drive',
         ];
     }
@@ -361,5 +365,27 @@ class DriveMessageParser
         }
 
         return null;
+    }
+
+    private function sanitizeQueryTerm(?string $term, ?string $mediaKind, ?string $timeScope): ?string
+    {
+        if ($term === null) {
+            return null;
+        }
+
+        $normalizedTerm = $this->normalizeText($term);
+
+        $genericByMediaKind = [
+            'image' => ['foto', 'imagem', 'print'],
+            'audio' => ['audio', 'voz', 'mp3'],
+            'document' => ['documento', 'arquivo', 'pdf', 'comprovante', 'contrato', 'boleto'],
+        ];
+
+        $genericTerms = $genericByMediaKind[$mediaKind] ?? [];
+        if (in_array($normalizedTerm, $genericTerms, true) && $timeScope !== null) {
+            return null;
+        }
+
+        return $term;
     }
 }

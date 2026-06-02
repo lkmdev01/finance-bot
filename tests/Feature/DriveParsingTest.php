@@ -64,12 +64,16 @@ class DriveParsingTest extends TestCase
         $folder = $parser->parseQuery('em qual pasta ficou?', ['last_entities' => ['topic' => 'drive']]);
         $today = $parser->parseQuery('quais arquivos eu salvei hoje?', ['last_entities' => ['topic' => 'drive']]);
         $openReference = $parser->parseQuery('abrir o 0424', ['last_entities' => ['topic' => 'drive']]);
+        $imageToday = $parser->parseQuery('procura a foto que eu mandei hoje', ['last_entities' => ['topic' => 'drive']]);
 
         $this->assertEquals('show_folder', $folder['follow_up']);
         $this->assertEquals('today', $today['time_scope']);
         $this->assertTrue($today['list_mode']);
         $this->assertEquals('open_reference', $openReference['follow_up']);
         $this->assertEquals('0424', $openReference['open_reference']);
+        $this->assertEquals('image', $imageToday['media_kind']);
+        $this->assertEquals('today', $imageToday['time_scope']);
+        $this->assertNull($imageToday['term']);
     }
 
     public function test_does_not_misclassify_savings_language_as_drive(): void
