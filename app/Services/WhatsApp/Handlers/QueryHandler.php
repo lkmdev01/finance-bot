@@ -176,6 +176,7 @@ class QueryHandler extends BaseHandler
             'query_credit_cards' => ['topic' => 'credit_cards'],
             'query_reminders' => ['topic' => 'reminders'],
             'query_notes' => ['topic' => 'notes'],
+            'query_drive_files' => ['topic' => 'drive'],
             'query_projections' => ['topic' => 'projections'],
             default => [],
         };

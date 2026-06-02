@@ -39,6 +39,26 @@ class DriveParsingTest extends TestCase
         $this->assertEquals('drive_query', $result['kind']);
     }
 
+    public function test_drive_query_treats_generic_listing_as_query_without_term(): void
+    {
+        $parser = app(DriveMessageParser::class);
+
+        $this->assertTrue($parser->looksLikeQueryIntent('quais arquivos eu tenho no drive', []));
+        $this->assertNull($parser->extractQueryTerm('quais arquivos eu tenho no drive?'));
+    }
+
+    public function test_drive_query_parses_follow_up_and_time_scope(): void
+    {
+        $parser = app(DriveMessageParser::class);
+
+        $folder = $parser->parseQuery('em qual pasta ficou?', ['last_entities' => ['topic' => 'drive']]);
+        $today = $parser->parseQuery('quais arquivos eu salvei hoje?', ['last_entities' => ['topic' => 'drive']]);
+
+        $this->assertEquals('show_folder', $folder['follow_up']);
+        $this->assertEquals('today', $today['time_scope']);
+        $this->assertTrue($today['list_mode']);
+    }
+
     public function test_does_not_misclassify_savings_language_as_drive(): void
     {
         $classifier = app(DriveIntentClassifier::class);

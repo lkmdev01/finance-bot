@@ -9,6 +9,15 @@ class DriveMessageParser
 {
     use NormalizesWhatsAppText;
 
+    private const QUERY_STOPWORDS = [
+        'acha', 'ache', 'achar', 'procura', 'procurar', 'buscar', 'busca', 'encontra', 'encontrar',
+        'mostra', 'mostrar', 'me', 'meu', 'minha', 'meus', 'minhas', 'o', 'a', 'os', 'as', 'um', 'uma',
+        'de', 'do', 'da', 'dos', 'das', 'sobre', 'pra', 'para', 'no', 'na', 'nos', 'nas', 'em', 'que',
+        'eu', 'voce', 'voces', 'salvei', 'mandei', 'tenho', 'ficou', 'novo', 'novo', 'de', 'novo',
+        'esse', 'essa', 'ele', 'ela', 'aquele', 'aquela', 'arquivo', 'arquivos', 'documento', 'documentos',
+        'drive', 'hoje', 'ontem', 'manha', 'tarde', 'noite', 'qual', 'quais',
+    ];
+
     public function looksLikeSaveIntent(string $normalizedMessage, array $state): bool
     {
         $hasMedia = ! empty($state['last_entities']['incoming_media_id'] ?? null);
@@ -98,6 +107,18 @@ class DriveMessageParser
             'meus arquivos',
             'meu drive',
             'meus documentos',
+            'quais arquivos',
+            'quais documentos',
+            'listar arquivos',
+            'lista meus arquivos',
+            'arquivos eu tenho',
+            'arquivos eu salvei',
+            'me mostra esse arquivo',
+            'em qual pasta ficou',
+            'qual pasta ficou',
+            'procura ele de novo',
+            'abrir o ',
+            'abre o ',
         ])) {
             return true;
         }
@@ -136,16 +157,40 @@ class DriveMessageParser
         $clean = trim($message);
         $normalized = $this->normalizeText($clean);
 
-        if ($normalized === '' || $normalized === 'meus arquivos' || $normalized === 'meus documentos') {
+        if ($normalized === '' || $this->isListingIntent($normalized) || $this->isContextualFollowUp($normalized)) {
             return null;
         }
 
-        // Drop common verbs and generic words.
-        $subject = preg_replace('/\\b(?:acha|ache|achar|procura|procurar|buscar|busca|encontra|encontrar|mostrar|mostra|meu|minha|meus|minhas|arquivos?|documentos?|arquivo|documento)\\b/iu', ' ', $clean) ?? $clean;
-        $subject = preg_replace('/\\b(?:o|a|os|as|um|uma|de|do|da|dos|das|sobre|pra|para|no|na|em)\\b/iu', ' ', $subject) ?? $subject;
-        $subject = trim(preg_replace('/\\s+/u', ' ', $subject) ?? $subject);
+        $words = preg_split('/\\s+/u', $normalized) ?: [];
+        $filtered = [];
+
+        foreach ($words as $word) {
+            $word = trim($word);
+            if ($word === '' || in_array($word, self::QUERY_STOPWORDS, true)) {
+                continue;
+            }
+
+            $filtered[] = $word;
+        }
+
+        $subject = trim(implode(' ', $filtered));
 
         return $subject !== '' ? $subject : null;
+    }
+
+    public function parseQuery(string $message, array $state): array
+    {
+        $normalized = $this->normalizeText($message);
+
+        return [
+            'term' => $this->extractQueryTerm($message),
+            'list_mode' => $this->isListingIntent($normalized),
+            'follow_up' => $this->detectFollowUp($normalized),
+            'ordinal' => $this->extractOrdinal($normalized),
+            'time_scope' => $this->extractTimeScope($normalized),
+            'media_kind' => $this->extractMediaKind($normalized),
+            'has_drive_context' => ($state['last_entities']['topic'] ?? null) === 'drive',
+        ];
     }
 
     private function extractFolderHint(string $message): ?string
@@ -194,6 +239,107 @@ class DriveMessageParser
 
         if ($this->containsAnyText($normalizedMessage, ['audio', 'voz'])) {
             return 'audios';
+        }
+
+        return null;
+    }
+
+    private function isListingIntent(string $normalizedMessage): bool
+    {
+        return $this->containsAnyText($normalizedMessage, [
+            'meus arquivos',
+            'meu drive',
+            'meus documentos',
+            'quais arquivos',
+            'quais documentos',
+            'lista meus arquivos',
+            'listar arquivos',
+            'arquivos eu tenho',
+            'arquivos eu salvei',
+        ]);
+    }
+
+    private function isContextualFollowUp(string $normalizedMessage): bool
+    {
+        return $this->containsAnyText($normalizedMessage, [
+            'em qual pasta ficou',
+            'qual pasta ficou',
+            'me mostra esse arquivo',
+            'me mostra ele',
+            'mostra esse arquivo',
+            'procura ele de novo',
+            'procura esse arquivo de novo',
+            'abrir o ',
+            'abre o ',
+        ]);
+    }
+
+    private function detectFollowUp(string $normalizedMessage): ?string
+    {
+        if ($this->containsAnyText($normalizedMessage, ['em qual pasta ficou', 'qual pasta ficou', 'que pasta ficou'])) {
+            return 'show_folder';
+        }
+
+        if ($this->extractOrdinal($normalizedMessage) !== null) {
+            return 'open_ordinal';
+        }
+
+        if ($this->containsAnyText($normalizedMessage, [
+            'me mostra esse arquivo',
+            'me mostra ele',
+            'mostra esse arquivo',
+            'mostra ele',
+            'procura ele de novo',
+            'procura esse arquivo de novo',
+            'abre esse arquivo',
+            'abre ele',
+        ])) {
+            return 'show_recent';
+        }
+
+        return null;
+    }
+
+    private function extractOrdinal(string $normalizedMessage): ?int
+    {
+        if (preg_match('/\\b(?:abrir|abre|mostrar|mostra)\\s+(?:o|a)?\\s*(\\d+)\\b/u', $normalizedMessage, $matches) !== 1) {
+            return null;
+        }
+
+        $ordinal = (int) ($matches[1] ?? 0);
+
+        return $ordinal > 0 ? $ordinal : null;
+    }
+
+    private function extractTimeScope(string $normalizedMessage): ?string
+    {
+        if ($this->containsAnyText($normalizedMessage, ['hoje de manha', 'hoje manha'])) {
+            return 'today_morning';
+        }
+
+        if ($this->containsAnyText($normalizedMessage, ['hoje'])) {
+            return 'today';
+        }
+
+        if ($this->containsAnyText($normalizedMessage, ['ontem'])) {
+            return 'yesterday';
+        }
+
+        return null;
+    }
+
+    private function extractMediaKind(string $normalizedMessage): ?string
+    {
+        if ($this->containsAnyText($normalizedMessage, ['foto', 'imagem', 'print'])) {
+            return 'image';
+        }
+
+        if ($this->containsAnyText($normalizedMessage, ['audio', 'voz', 'mp3'])) {
+            return 'audio';
+        }
+
+        if ($this->containsAnyText($normalizedMessage, ['pdf', 'contrato', 'comprovante', 'boleto', 'documento'])) {
+            return 'document';
         }
 
         return null;
