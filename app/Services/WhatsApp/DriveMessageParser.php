@@ -3,8 +3,6 @@
 namespace App\Services\WhatsApp;
 
 use App\Services\WhatsApp\Support\NormalizesWhatsAppText;
-use Illuminate\Support\Str;
-
 class DriveMessageParser
 {
     use NormalizesWhatsAppText;
@@ -25,18 +23,9 @@ class DriveMessageParser
             return false;
         }
 
-        // When there is media, "salva/guarda/drive/pasta" are strong enough signals.
-        return $this->containsAnyText($normalizedMessage, [
-            'salva',
-            'salvar',
-            'salve',
-            'guarda',
-            'guardar',
-            'arquiva',
-            'arquivar',
-            'drive',
-            'pasta',
-        ]);
+        // When there is media, explicit save commands or folder/drive directives are strong signals.
+        return $this->hasExplicitSaveCue($normalizedMessage)
+            || $this->containsAnyText($normalizedMessage, ['drive', 'pasta']);
     }
 
     public function looksLikeSaveWithoutMediaIntent(string $normalizedMessage, array $state): bool
@@ -46,17 +35,13 @@ class DriveMessageParser
             return false;
         }
 
+        if ($this->looksLikeQueryIntent($normalizedMessage, $state)) {
+            return false;
+        }
+
         // Without media, only treat as a Drive save intent when the user explicitly mentions
         // Drive/file semantics. Avoid misclassifying "quero guardar 5 mil" (savings goal).
-        $hasSaveVerb = $this->containsAnyText($normalizedMessage, [
-            'salva',
-            'salvar',
-            'salve',
-            'guarda',
-            'guardar',
-            'arquiva',
-            'arquivar',
-        ]);
+        $hasSaveVerb = $this->hasExplicitSaveCue($normalizedMessage);
 
         if (! $hasSaveVerb) {
             return false;
@@ -73,6 +58,11 @@ class DriveMessageParser
         ]);
 
         return $hasDriveNoun;
+    }
+
+    private function hasExplicitSaveCue(string $normalizedMessage): bool
+    {
+        return preg_match('/\b(?:salva(?:r)?|salve|guarda(?:r)?|arquiva(?:r)?)\b/u', $normalizedMessage) === 1;
     }
 
     public function parseSave(string $message, array $state): ?array

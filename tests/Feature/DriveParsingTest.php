@@ -42,9 +42,19 @@ class DriveParsingTest extends TestCase
     public function test_drive_query_treats_generic_listing_as_query_without_term(): void
     {
         $parser = app(DriveMessageParser::class);
+        $classifier = app(DriveIntentClassifier::class);
 
         $this->assertTrue($parser->looksLikeQueryIntent('quais arquivos eu tenho no drive', []));
         $this->assertNull($parser->extractQueryTerm('quais arquivos eu tenho no drive?'));
+
+        $classified = $classifier->classify(
+            'quais arquivos eu salvei hoje?',
+            'quais arquivos eu salvei hoje',
+            ['last_entities' => ['topic' => 'drive']]
+        );
+
+        $this->assertNotNull($classified);
+        $this->assertEquals('drive_query', $classified['kind']);
     }
 
     public function test_drive_query_parses_follow_up_and_time_scope(): void
