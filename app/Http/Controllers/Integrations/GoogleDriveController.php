@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Integrations;
 
 use App\Http\Controllers\Controller;
+use App\Services\GoogleDriveOAuthService;
 use App\Services\GoogleDriveService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -10,6 +11,10 @@ use Illuminate\View\View;
 
 class GoogleDriveController extends Controller
 {
+    public function __construct(
+        private readonly GoogleDriveOAuthService $oauth
+    ) {}
+
     public function index(GoogleDriveService $drive): View
     {
         $user = Auth::user();
@@ -39,10 +44,13 @@ class GoogleDriveController extends Controller
             $connection->forceFill([
                 'revoked_at' => now(),
             ])->save();
+
+            if ($user) {
+                $this->oauth->clearCachedToken($user);
+            }
         }
 
         return redirect()->route('integrations.google-drive')
             ->with('message', 'Google Drive desconectado.');
     }
 }
-

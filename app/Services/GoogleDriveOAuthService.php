@@ -11,9 +11,14 @@ use RuntimeException;
 
 class GoogleDriveOAuthService
 {
+    public function clearCachedToken(User $user): void
+    {
+        Cache::forget($this->cacheKey($user));
+    }
+
     public function getAccessToken(User $user, bool $forceRefresh = false): string
     {
-        $cacheKey = 'google_drive_access_token_user_'.$user->id;
+        $cacheKey = $this->cacheKey($user);
 
         if (! $forceRefresh) {
             $cached = Cache::get($cacheKey);
@@ -59,5 +64,9 @@ class GoogleDriveOAuthService
 
         return $token;
     }
-}
 
+    private function cacheKey(User $user): string
+    {
+        return 'google_drive_access_token_user_'.$user->id;
+    }
+}

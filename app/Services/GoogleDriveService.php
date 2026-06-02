@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
+use Illuminate\Http\Client\Response;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -106,12 +107,13 @@ class GoogleDriveService
         $body .= $binary."\r\n";
         $body .= "--{$boundary}--";
 
-        $response = $this->request($user)
+        $response = $this->send($user, fn (PendingRequest $request) => $request
             ->withHeaders([
                 'Content-Type' => 'multipart/related; boundary='.$boundary,
             ])
             ->withBody($body, 'multipart/related; boundary='.$boundary)
-            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,parents,mimeType,size,webViewLink');
+            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,parents,mimeType,size,webViewLink')
+        );
 
         if (! $response->successful()) {
             Log::warning('Falha no upload multipart para Google Drive', [
@@ -134,13 +136,14 @@ class GoogleDriveService
             $metadata['parents'] = [$parentId];
         }
 
-        $start = $this->request($user)
+        $start = $this->send($user, fn (PendingRequest $request) => $request
             ->withHeaders([
                 'X-Upload-Content-Type' => $mimeType,
                 'X-Upload-Content-Length' => (string) $size,
                 'Content-Type' => 'application/json; charset=UTF-8',
             ])
-            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,parents,mimeType,size,webViewLink', $metadata);
+            ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,parents,mimeType,size,webViewLink', $metadata)
+        );
 
         if (! $start->successful()) {
             Log::warning('Falha ao iniciar upload resumable no Google Drive', [
@@ -161,13 +164,14 @@ class GoogleDriveService
             throw new RuntimeException('Falha ao ler arquivo local.');
         }
 
-        $finish = $this->request($user)
+        $finish = $this->send($user, fn (PendingRequest $request) => $request
             ->withHeaders([
                 'Content-Length' => (string) $size,
                 'Content-Type' => $mimeType,
             ])
             ->withBody($binary, $mimeType)
-            ->put($uploadUrl);
+            ->put($uploadUrl)
+        );
 
         if (! $finish->successful()) {
             Log::warning('Falha no upload resumable para Google Drive', [
@@ -192,8 +196,9 @@ class GoogleDriveService
             $payload['parents'] = [$parentId];
         }
 
-        $response = $this->request($user)
-            ->post('https://www.googleapis.com/drive/v3/files?fields=id,name,parents,mimeType', $payload);
+        $response = $this->send($user, fn (PendingRequest $request) => $request
+            ->post('https://www.googleapis.com/drive/v3/files?fields=id,name,parents,mimeType', $payload)
+        );
 
         if (! $response->successful()) {
             Log::warning('Falha ao criar pasta no Google Drive', [
@@ -201,6 +206,7 @@ class GoogleDriveService
                 'status' => $response->status(),
                 'body' => $response->body(),
                 'name' => $name,
+                'parent_id' => $parentId,
             ]);
             throw new RuntimeException('Falha ao criar pasta no Google Drive.');
         }
@@ -216,12 +222,13 @@ class GoogleDriveService
             str_replace("'", "\\'", $parentId),
         );
 
-        $response = $this->request($user)
+        $response = $this->send($user, fn (PendingRequest $request) => $request
             ->get('https://www.googleapis.com/drive/v3/files', [
                 'q' => $q,
                 'fields' => 'files(id,name,parents,mimeType)',
                 'pageSize' => 1,
-            ]);
+            ])
+        );
 
         if (! $response->successful()) {
             return null;
@@ -241,6 +248,47 @@ class GoogleDriveService
         ]);
     }
 
+    private function requestWithFreshToken(User $user): PendingRequest
+    {
+        $this->oauth->clearCachedToken($user);
+        $token = $this->oauth->getAccessToken($user, true);
+
+        return Http::timeout(30)->withHeaders([
+            'Authorization' => 'Bearer '.$token,
+            'Accept' => 'application/json',
+        ]);
+    }
+
+    private function send(User $user, callable $callback): Response
+    {
+        $response = $callback($this->request($user));
+
+        if (! $response->successful() && $this->shouldRetryWithFreshToken($response)) {
+            Log::info('Google Drive: tentando novamente com token renovado', [
+                'user_id' => $user->id,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            $response = $callback($this->requestWithFreshToken($user));
+        }
+
+        return $response;
+    }
+
+    private function shouldRetryWithFreshToken(Response $response): bool
+    {
+        if (in_array($response->status(), [401, 403], true)) {
+            return true;
+        }
+
+        $body = (string) $response->body();
+
+        return str_contains($body, 'Invalid Credentials')
+            || str_contains($body, 'insufficient authentication scopes')
+            || str_contains($body, 'Request had insufficient authentication scopes');
+    }
+
     private function getConnection(User $user): GoogleDriveConnection
     {
         $connection = $user->googleDriveConnection;
@@ -251,4 +299,3 @@ class GoogleDriveService
         return $connection;
     }
 }
-

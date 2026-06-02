@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\GoogleDriveConnection;
+use App\Services\GoogleDriveOAuthService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -12,6 +13,10 @@ use Throwable;
 
 class GoogleDriveAuthController extends Controller
 {
+    public function __construct(
+        private readonly GoogleDriveOAuthService $oauth
+    ) {}
+
     public function redirect(): RedirectResponse
     {
         $scopes = (array) config('services.google_drive.scopes', []);
@@ -58,6 +63,8 @@ class GoogleDriveAuthController extends Controller
                 'revoked_at' => null,
             ])->save();
 
+            $this->oauth->clearCachedToken($user);
+
             return redirect()->route('integrations.google-drive')
                 ->with('message', 'Google Drive reconectado com sucesso.');
         }
@@ -72,8 +79,9 @@ class GoogleDriveAuthController extends Controller
             ]
         );
 
+        $this->oauth->clearCachedToken($user);
+
         return redirect()->route('integrations.google-drive')
             ->with('message', 'Google Drive conectado com sucesso.');
     }
 }
-
