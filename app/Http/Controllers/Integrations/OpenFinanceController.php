@@ -36,7 +36,6 @@ class OpenFinanceController extends Controller
                 ->get(),
             'pluggyEnabled' => filled(config('openfinance.pluggy.client_id')) && filled(config('openfinance.pluggy.client_secret')),
             'pluggyWidgetScript' => (string) config('openfinance.pluggy.connect_widget_script'),
-            'pluggyWidgetHelperScript' => (string) config('openfinance.pluggy.connect_helper_script'),
             'pluggyIncludeSandbox' => (bool) config('openfinance.pluggy.include_sandbox', false),
         ]);
     }

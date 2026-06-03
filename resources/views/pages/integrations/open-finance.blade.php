@@ -16,7 +16,7 @@
 
             <div class="flex flex-wrap gap-2">
                 @if($pluggyEnabled)
-                    <button type="button" class="pluggy-connect-button inline-flex items-center justify-center rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400">
+                    <button type="button" data-open-finance-connect class="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400">
                         Conectar conta via Open Finance
                     </button>
                 @else
@@ -83,7 +83,9 @@
                                 <div class="flex flex-wrap gap-2 lg:justify-end">
                                     <button
                                         type="button"
-                                        class="pluggy-update-{{ $connection->id }} inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
+                                        data-open-finance-connect
+                                        data-item-id="{{ $connection->item_id }}"
+                                        class="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
                                     >
                                         Atualizar acesso
                                     </button>
@@ -176,25 +178,40 @@
         @push('scripts')
             <script src="{{ $pluggyWidgetScript }}"></script>
             <script>
-                window.pluggy = {
-                    includeSandbox: @json($pluggyIncludeSandbox),
-                    connectTokenUrl: @json(route('integrations.open-finance.connect-token')),
-                    buttons: [
-                        {
-                            clientUserId: @json((string) auth()->id()),
-                            buttonClassName: 'pluggy-connect-button',
-                            updateItem: null,
-                        },
-                        @foreach($connections as $connection)
-                        {
-                            clientUserId: @json((string) auth()->id()),
-                            buttonClassName: @json('pluggy-update-'.$connection->id),
-                            updateItem: @json($connection->item_id),
-                        },
-                        @endforeach
-                    ],
-                    onSuccess: async ({ item }) => {
-                        const response = await fetch(@json(route('integrations.open-finance.connections.store')), {
+                (function () {
+                    const connectTokenUrl = @json(route('integrations.open-finance.connect-token'));
+                    const storeConnectionUrl = @json(route('integrations.open-finance.connections.store'));
+                    const includeSandbox = @json($pluggyIncludeSandbox);
+
+                    async function fetchConnectToken(itemId = null) {
+                        const response = await fetch(connectTokenUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                itemId,
+                            }),
+                        });
+
+                        const data = await response.json().catch(() => ({}));
+
+                        if (! response.ok || ! data.accessToken) {
+                            throw new Error(data.message || 'Nao foi possivel gerar o token de conexao Open Finance.');
+                        }
+
+                        return data.accessToken;
+                    }
+
+                    async function persistConnection(itemData) {
+                        const itemId = itemData?.item?.id || itemData?.id || null;
+
+                        if (! itemId) {
+                            throw new Error('A conexao foi concluida, mas o provedor nao retornou um item valido.');
+                        }
+
+                        const response = await fetch(storeConnectionUrl, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -202,27 +219,67 @@
                                 'Accept': 'application/json',
                             },
                             body: JSON.stringify({
-                                item_id: item?.id,
+                                item_id: itemId,
                                 provider: 'pluggy',
                             }),
                         });
 
+                        const data = await response.json().catch(() => ({}));
+
                         if (! response.ok) {
-                            const data = await response.json().catch(() => ({}));
                             throw new Error(data.message || 'Nao consegui salvar a conexao Open Finance.');
                         }
+                    }
 
-                        window.location.reload();
-                    },
-                    onError: (error) => {
-                        window.Livewire?.dispatch('toast', {
-                            type: 'error',
-                            message: error?.message || 'Nao foi possivel concluir a conexao Open Finance.',
+                    async function openConnectFlow(itemId = null) {
+                        const connectToken = await fetchConnectToken(itemId);
+
+                        const pluggyConnect = new window.PluggyConnect({
+                            connectToken,
+                            includeSandbox,
+                            onSuccess: async (itemData) => {
+                                try {
+                                    await persistConnection(itemData);
+                                    window.location.reload();
+                                } catch (error) {
+                                    window.Livewire?.dispatch('toast', {
+                                        type: 'error',
+                                        message: error?.message || 'A conexao foi criada, mas nao consegui salvar o item no sistema.',
+                                    });
+                                }
+                            },
+                            onError: (error) => {
+                                window.Livewire?.dispatch('toast', {
+                                    type: 'error',
+                                    message: error?.message || 'Nao foi possivel concluir a conexao Open Finance.',
+                                });
+                            },
                         });
-                    },
-                };
+
+                        pluggyConnect.init();
+                    }
+
+                    document.querySelectorAll('[data-open-finance-connect]').forEach((button) => {
+                        button.addEventListener('click', async () => {
+                            const originalText = button.textContent;
+                            button.disabled = true;
+                            button.textContent = 'Abrindo...';
+
+                            try {
+                                await openConnectFlow(button.dataset.itemId || null);
+                            } catch (error) {
+                                window.Livewire?.dispatch('toast', {
+                                    type: 'error',
+                                    message: error?.message || 'Nao foi possivel iniciar o Open Finance.',
+                                });
+                            } finally {
+                                button.disabled = false;
+                                button.textContent = originalText;
+                            }
+                        });
+                    });
+                })();
             </script>
-            <script src="{{ $pluggyWidgetHelperScript }}"></script>
         @endpush
     @endif
 </x-layouts.app.sidebar>
