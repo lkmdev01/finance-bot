@@ -22,6 +22,7 @@ class PluggyService implements OpenFinanceProvider
             'options' => [
                 'clientUserId' => (string) $user->id,
                 'avoidDuplicates' => true,
+                'webhookUrl' => route('webhook.pluggy'),
             ],
         ];
 

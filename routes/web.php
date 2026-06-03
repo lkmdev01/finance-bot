@@ -318,3 +318,7 @@ Route::post('/webhook/whatsapp', [App\Http\Controllers\WhatsAppWebhookController
 Route::post('/webhook/abacatepay', [App\Http\Controllers\AbacatePayWebhookController::class, 'handle'])
     ->middleware('throttle:120,1')
     ->name('webhook.abacatepay');
+
+Route::post('/webhook/pluggy', [App\Http\Controllers\PluggyWebhookController::class, 'handle'])
+    ->middleware('throttle:120,1')
+    ->name('webhook.pluggy');
