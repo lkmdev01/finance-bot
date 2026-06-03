@@ -9,7 +9,7 @@ new class extends Component {
         $account = Auth::user()->bankAccounts()->findOrFail($accountId);
         $account->delete();
 
-        session()->flash('message', 'Conta bancária excluída com sucesso.');
+        session()->flash('message', 'Conta bancÃ¡ria excluÃ­da com sucesso.');
     }
 
     public function toggleActive(int $accountId): void
@@ -35,10 +35,13 @@ new class extends Component {
 <div class="p-4 sm:p-6 space-y-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl font-bold">Contas Bancárias</h1>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie contas correntes, poupanças e carteiras.</p>
+            <h1 class="text-2xl font-bold">Contas BancÃ¡rias</h1>
+            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie contas correntes, poupanÃ§as e carteiras.</p>
         </div>
-        <div class="flex sm:justify-end">
+        <div class="flex flex-wrap gap-2 sm:justify-end">
+            <flux:button href="{{ route('integrations.open-finance') }}" wire:navigate variant="ghost" class="w-full sm:w-auto">
+                Open Finance
+            </flux:button>
             <flux:button href="{{ route('bank-accounts.create') }}" wire:navigate variant="primary" class="w-full sm:w-auto">
                 Nova Conta
             </flux:button>
@@ -58,12 +61,17 @@ new class extends Component {
                             <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                 {{ ucfirst($account->type) }}
                             </span>
+                            @if($account->open_finance_account_id)
+                                <span class="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/70 dark:text-emerald-200">
+                                    Open Finance
+                                </span>
+                            @endif
                         </div>
 
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             <div>
-                                <p class="text-xs text-zinc-500">Instituição</p>
-                                <p class="font-medium">{{ $account->institution ?: 'Não informada' }}</p>
+                                <p class="text-xs text-zinc-500">InstituiÃ§Ã£o</p>
+                                <p class="font-medium">{{ $account->institution ?: 'NÃ£o informada' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-zinc-500">Saldo inicial</p>
@@ -76,10 +84,27 @@ new class extends Component {
                                 </p>
                             </div>
                             <div>
-                                <p class="text-xs text-zinc-500">Transações</p>
+                                <p class="text-xs text-zinc-500">TransaÃ§Ãµes</p>
                                 <p class="font-medium">{{ $account->transactions->count() }}</p>
                             </div>
                         </div>
+
+                        @if($account->open_finance_account_id)
+                            <div class="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/5 px-4 py-3">
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm">
+                                    <div>
+                                        <p class="font-medium text-emerald-300">Saldo sincronizado do banco</p>
+                                        <p class="text-zinc-300">
+                                            R$ {{ number_format((float) ($account->open_finance_balance ?? 0), 2, ',', '.') }}
+                                        </p>
+                                    </div>
+                                    <div class="text-zinc-400">
+                                        Última sync:
+                                        {{ optional($account->open_finance_synced_at)->format('d/m/Y H:i') ?: 'pendente' }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -91,7 +116,7 @@ new class extends Component {
             </div>
         @empty
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
-                <p class="text-zinc-500 dark:text-zinc-400 mb-4">Nenhuma conta bancária cadastrada.</p>
+                <p class="text-zinc-500 dark:text-zinc-400 mb-4">Nenhuma conta bancÃ¡ria cadastrada.</p>
                 <flux:button href="{{ route('bank-accounts.create') }}" wire:navigate variant="primary">
                     Criar primeira conta
                 </flux:button>

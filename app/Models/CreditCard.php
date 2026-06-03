@@ -16,9 +16,15 @@ class CreditCard extends Model
         'name',
         'issuer',
         'brand',
+        'open_finance_connection_id',
+        'open_finance_provider',
+        'open_finance_account_id',
         'last_four',
         'credit_limit',
         'opening_balance',
+        'open_finance_balance',
+        'open_finance_available_limit',
+        'open_finance_synced_at',
         'closing_day',
         'due_day',
         'is_active',
@@ -29,6 +35,9 @@ class CreditCard extends Model
         return [
             'credit_limit' => 'decimal:2',
             'opening_balance' => 'decimal:2',
+            'open_finance_balance' => 'decimal:2',
+            'open_finance_available_limit' => 'decimal:2',
+            'open_finance_synced_at' => 'datetime',
             'closing_day' => 'integer',
             'due_day' => 'integer',
             'is_active' => 'boolean',
@@ -38,6 +47,11 @@ class CreditCard extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function openFinanceConnection(): BelongsTo
+    {
+        return $this->belongsTo(OpenFinanceConnection::class);
     }
 
     public function transactions(): HasMany

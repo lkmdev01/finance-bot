@@ -88,6 +88,16 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         ->name('integrations.google-drive');
     Route::post('integrations/google-drive/disconnect', [App\Http\Controllers\Integrations\GoogleDriveController::class, 'disconnect'])
         ->name('integrations.google-drive.disconnect');
+    Route::get('integrations/open-finance', [App\Http\Controllers\Integrations\OpenFinanceController::class, 'index'])
+        ->name('integrations.open-finance');
+    Route::post('integrations/open-finance/connect-token', [App\Http\Controllers\Integrations\OpenFinanceController::class, 'createConnectToken'])
+        ->name('integrations.open-finance.connect-token');
+    Route::post('integrations/open-finance/connections', [App\Http\Controllers\Integrations\OpenFinanceController::class, 'storeConnection'])
+        ->name('integrations.open-finance.connections.store');
+    Route::post('integrations/open-finance/{openFinanceConnection}/sync', [App\Http\Controllers\Integrations\OpenFinanceController::class, 'sync'])
+        ->name('integrations.open-finance.sync');
+    Route::post('integrations/open-finance/{openFinanceConnection}/disconnect', [App\Http\Controllers\Integrations\OpenFinanceController::class, 'disconnect'])
+        ->name('integrations.open-finance.disconnect');
 
     Route::get('billing/plans', [App\Http\Controllers\BillingPlanController::class, 'index'])->name('billing.plans');
     Route::get('billing/plans/{planCode}/checkout-data', [App\Http\Controllers\BillingPlanController::class, 'showCheckoutData'])->name('billing.checkout-data.show');
@@ -100,19 +110,19 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::get('transactions', function () {
         return view('pages.transactions.index');
     })->name('transactions.index');
-    
+
     Route::get('transactions/create', function () {
         return view('pages.transactions.create');
     })->middleware('billing.writable')->name('transactions.create');
-    
+
     Route::get('transactions/{transaction}/edit', function (App\Models\Transaction $transaction) {
         return view('pages.transactions.edit', ['transaction' => $transaction]);
     })->name('transactions.edit');
-    
+
     Route::get('transactions/import', function () {
         return view('pages.transactions.import');
     })->middleware('billing.writable')->name('transactions.import');
-    
+
     Route::get('transactions/duplicates', function () {
         return view('pages.transactions.duplicates');
     })->name('transactions.duplicates');
@@ -121,11 +131,11 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::get('categories', function () {
         return view('pages.categories.index');
     })->name('categories.index');
-    
+
     Route::get('categories/create', function () {
         return view('pages.categories.create');
     })->middleware('billing.writable')->name('categories.create');
-    
+
     Route::get('categories/{category}/edit', function (App\Models\Category $category) {
         return view('pages.categories.edit', ['category' => $category]);
     })->name('categories.edit');
@@ -134,11 +144,11 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::get('budgets', function () {
         return view('pages.budgets.index');
     })->name('budgets.index');
-    
+
     Route::get('budgets/create', function () {
         return view('pages.budgets.create');
     })->middleware('billing.writable')->name('budgets.create');
-    
+
     Route::get('budgets/{budget}/edit', function (App\Models\Budget $budget) {
         return view('pages.budgets.edit', ['budget' => $budget]);
     })->name('budgets.edit');
@@ -164,10 +174,10 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::get('drive', function () {
         return view('pages.drive.index');
     })->name('drive.index');
-    
+
     Route::get('reports/export/pdf', [App\Http\Controllers\ReportsExportController::class, 'exportPdf'])->name('reports.export.pdf');
     Route::get('reports/export/excel', [App\Http\Controllers\ReportsExportController::class, 'exportExcel'])->name('reports.export.excel');
-    
+
     // Exportação de Transações
     Route::get('transactions/export/csv', [App\Http\Controllers\TransactionExportController::class, 'exportCsv'])->name('transactions.export.csv');
     Route::get('transactions/export/excel', [App\Http\Controllers\TransactionExportController::class, 'exportExcel'])->name('transactions.export.excel');
@@ -178,15 +188,15 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::get('savings-goals', function () {
         return view('pages.savings-goals.index');
     })->name('savings-goals.index');
-    
+
     Route::get('savings-goals/create', function () {
         return view('pages.savings-goals.create');
     })->middleware('billing.writable')->name('savings-goals.create');
-    
+
     Route::get('savings-goals/{savingsGoal}/edit', function (App\Models\SavingsGoal $savingsGoal) {
         return view('pages.savings-goals.edit', ['savingsGoal' => $savingsGoal]);
     })->name('savings-goals.edit');
-    
+
     Route::get('savings-goals/{savingsGoal}/deposit', function (App\Models\SavingsGoal $savingsGoal) {
         return view('pages.savings-goals.deposit', ['savingsGoal' => $savingsGoal]);
     })->middleware('billing.writable')->name('savings-goals.deposit');
@@ -195,11 +205,11 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Route::get('recurring-transactions', function () {
         return view('pages.recurring-transactions.index');
     })->name('recurring-transactions.index');
-    
+
     Route::get('recurring-transactions/create', function () {
         return view('pages.recurring-transactions.create');
     })->middleware('billing.writable')->name('recurring-transactions.create');
-    
+
     Route::get('recurring-transactions/{recurringTransaction}/edit', function (App\Models\RecurringTransaction $recurringTransaction) {
         return view('pages.recurring-transactions.edit', ['recurringTransaction' => $recurringTransaction]);
     })->name('recurring-transactions.edit');

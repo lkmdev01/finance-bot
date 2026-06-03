@@ -19,6 +19,10 @@ class Transaction extends Model
         'bank_account_id',
         'credit_card_id',
         'subscription_id',
+        'open_finance_connection_id',
+        'open_finance_provider',
+        'open_finance_account_id',
+        'open_finance_transaction_id',
         'type',
         'amount',
         'description',
@@ -63,6 +67,11 @@ class Transaction extends Model
     public function subscription(): BelongsTo
     {
         return $this->belongsTo(Subscription::class);
+    }
+
+    public function openFinanceConnection(): BelongsTo
+    {
+        return $this->belongsTo(OpenFinanceConnection::class);
     }
 
     public function tags(): BelongsToMany

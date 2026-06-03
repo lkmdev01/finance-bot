@@ -16,7 +16,12 @@ class BankAccount extends Model
         'name',
         'institution',
         'type',
+        'open_finance_connection_id',
+        'open_finance_provider',
+        'open_finance_account_id',
         'opening_balance',
+        'open_finance_balance',
+        'open_finance_synced_at',
         'currency',
         'color',
         'is_active',
@@ -26,6 +31,8 @@ class BankAccount extends Model
     {
         return [
             'opening_balance' => 'decimal:2',
+            'open_finance_balance' => 'decimal:2',
+            'open_finance_synced_at' => 'datetime',
             'is_active' => 'boolean',
         ];
     }
@@ -33,6 +40,11 @@ class BankAccount extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function openFinanceConnection(): BelongsTo
+    {
+        return $this->belongsTo(OpenFinanceConnection::class);
     }
 
     public function transactions(): HasMany
