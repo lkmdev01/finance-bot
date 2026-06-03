@@ -188,6 +188,7 @@
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': @json(csrf_token()),
                                 'Accept': 'application/json',
                             },
                             body: JSON.stringify({
