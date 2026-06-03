@@ -19,8 +19,10 @@ class PluggyService implements OpenFinanceProvider
     public function createConnectToken(User $user, ?string $itemId = null): array
     {
         $payload = [
-            'clientUserId' => (string) $user->id,
-            'avoidDuplicates' => true,
+            'options' => [
+                'clientUserId' => (string) $user->id,
+                'avoidDuplicates' => true,
+            ],
         ];
 
         if ($itemId) {
