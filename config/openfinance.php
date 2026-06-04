@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'enabled' => (bool) env('OPENFINANCE_ENABLED', false),
+
     'provider' => env('OPENFINANCE_PROVIDER', 'pluggy'),
 
     'default_sync_days' => (int) env('OPENFINANCE_DEFAULT_SYNC_DAYS', 90),

@@ -61,9 +61,11 @@
                 <flux:sidebar.item icon="folder" :href="route('drive.index')" :current="request()->routeIs('drive.*')" wire:navigate>
                     Drive Inteligente
                 </flux:sidebar.item>
-                <flux:sidebar.item icon="wifi" :href="route('integrations.open-finance')" :current="request()->routeIs('integrations.open-finance*')" wire:navigate>
-                    Open Finance
-                </flux:sidebar.item>
+                @if (config('openfinance.enabled', false))
+                    <flux:sidebar.item icon="wifi" :href="route('integrations.open-finance')" :current="request()->routeIs('integrations.open-finance*')" wire:navigate>
+                        Open Finance
+                    </flux:sidebar.item>
+                @endif
                 <flux:sidebar.item icon="arrow-path" :href="route('recurring-transactions.index')" :current="request()->routeIs('recurring-transactions.*')" wire:navigate>
                     Transações Recorrentes
                 </flux:sidebar.item>

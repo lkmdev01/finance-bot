@@ -72,7 +72,9 @@ class GoogleAuthController extends Controller
         request()->session()->regenerate();
 
         if (! $user->whatsapp_verified_at) {
-            return redirect()->route('whatsapp.activation.show');
+            return redirect()
+                ->route('whatsapp.activation.show')
+                ->with('status', 'Falta conectar seu WhatsApp para liberar a conta. Se preferir, voce pode abrir o WhatsApp oficial por la e concluir em poucos passos.');
         }
 
         return redirect()->intended(route('dashboard'));

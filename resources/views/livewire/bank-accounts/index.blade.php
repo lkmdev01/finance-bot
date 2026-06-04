@@ -39,9 +39,11 @@ new class extends Component {
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie contas correntes, poupanÃ§as e carteiras.</p>
         </div>
         <div class="flex flex-wrap gap-2 sm:justify-end">
-            <flux:button href="{{ route('integrations.open-finance') }}" wire:navigate variant="ghost" class="w-full sm:w-auto">
-                Open Finance
-            </flux:button>
+            @if (config('openfinance.enabled', false))
+                <flux:button href="{{ route('integrations.open-finance') }}" wire:navigate variant="ghost" class="w-full sm:w-auto">
+                    Open Finance
+                </flux:button>
+            @endif
             <flux:button href="{{ route('bank-accounts.create') }}" wire:navigate variant="primary" class="w-full sm:w-auto">
                 Nova Conta
             </flux:button>

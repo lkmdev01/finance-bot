@@ -76,9 +76,11 @@ new class extends Component {
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Acompanhe limite, vencimento e uso da fatura.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <flux:button href="{{ route('integrations.open-finance') }}" wire:navigate variant="ghost">
-                Open Finance
-            </flux:button>
+            @if (config('openfinance.enabled', false))
+                <flux:button href="{{ route('integrations.open-finance') }}" wire:navigate variant="ghost">
+                    Open Finance
+                </flux:button>
+            @endif
             <flux:button href="{{ route('credit-cards.create') }}" wire:navigate variant="primary">
                 Novo CartÃ£o
             </flux:button>

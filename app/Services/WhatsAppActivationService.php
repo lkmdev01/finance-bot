@@ -170,6 +170,18 @@ class WhatsAppActivationService
         return "https://wa.me/{$contactNumber}?text={$message}";
     }
 
+    public function buildSupportWhatsAppUrl(?string $phoneNumber = null): string
+    {
+        $contactNumber = app(PhoneNumberService::class)->clean((string) config('whatsapp.tutorial.contact_number'));
+        $message = 'Oi! Preciso ativar meu WhatsApp no InovaFinance.';
+
+        if (filled($phoneNumber)) {
+            $message .= ' Meu numero e '.$phoneNumber.'.';
+        }
+
+        return 'https://wa.me/'.$contactNumber.'?text='.rawurlencode($message);
+    }
+
     public function activationSuccessMessage(): string
     {
         return (string) config('whatsapp.activation.success_message', '✅ WhatsApp conectado com sucesso! Seu número foi atualizado.');

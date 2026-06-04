@@ -15,8 +15,15 @@ use Illuminate\View\View;
 
 class OpenFinanceController extends Controller
 {
+    private function ensureEnabled(): void
+    {
+        abort_unless(config('openfinance.enabled', false), 404);
+    }
+
     public function index(): View
     {
+        $this->ensureEnabled();
+
         $user = Auth::user();
 
         return view('pages.integrations.open-finance', [
@@ -42,6 +49,8 @@ class OpenFinanceController extends Controller
 
     public function createConnectToken(Request $request, OpenFinanceManager $manager): JsonResponse
     {
+        $this->ensureEnabled();
+
         $data = $request->validate([
             'itemId' => ['nullable', 'string', 'max:128'],
         ]);
@@ -55,6 +64,8 @@ class OpenFinanceController extends Controller
 
     public function storeConnection(Request $request, OpenFinanceManager $manager, OpenFinanceSyncService $sync): JsonResponse
     {
+        $this->ensureEnabled();
+
         $data = $request->validate([
             'provider' => ['nullable', 'string', Rule::in(['pluggy'])],
             'item_id' => ['required', 'string', 'max:128'],
@@ -91,6 +102,8 @@ class OpenFinanceController extends Controller
 
     public function sync(OpenFinanceConnection $connection, OpenFinanceSyncService $sync): RedirectResponse
     {
+        $this->ensureEnabled();
+
         abort_unless($connection->user_id === Auth::id(), 403);
 
         try {
@@ -108,6 +121,8 @@ class OpenFinanceController extends Controller
 
     public function disconnect(OpenFinanceConnection $connection, OpenFinanceManager $manager): RedirectResponse
     {
+        $this->ensureEnabled();
+
         abort_unless($connection->user_id === Auth::id(), 403);
 
         try {
