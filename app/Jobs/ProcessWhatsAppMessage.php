@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Assistant\DTO\IncomingMessageDTO;
+use App\Assistant\Orchestrators\FinancialAssistantOrchestrator;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
@@ -116,7 +118,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $this->finalReply = null;
             $user = User::findOrFail($this->userId);
             $telemetry = app(ConversationTelemetryService::class);
-            $normalizer = app(\App\Services\WhatsApp\IncomingMessageNormalizer::class);
+            $assistant = app(FinancialAssistantOrchestrator::class);
 
             $contact = WhatsAppContact::firstOrCreate(
                 [
@@ -134,13 +136,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 $contact->update(['name' => $this->pushName]);
             }
 
-            // Normalize WhatsApp text early so classifier/parsers/handlers receive clean UTF-8.
-            // Keep the raw message available via $this->message for audit metadata in handlers.
-            $normalizedMessage = $normalizer->clean($this->message);
-            $this->setNormalizedMessage($normalizedMessage);
-
             $stateService = app(ConversationStateService::class);
-            $orchestrator = app(ConversationOrchestrator::class);
             $proactiveTrigger = app(ProactiveConversationTrigger::class);
 
             if ($this->incomingMediaId !== null && $this->incomingMediaId > 0) {
@@ -149,14 +145,29 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 ]);
             }
 
-            $preflight = $orchestrator->beforeAI($normalizedMessage, $user, $contact);
+            $assistantResponse = $assistant->handle(
+                $user,
+                $contact,
+                new IncomingMessageDTO(
+                    rawMessage: $this->message,
+                    phoneNumber: $this->phoneNumber,
+                    pushName: $this->pushName,
+                    remoteJid: $this->remoteJid,
+                    imageUrl: $this->imageUrl,
+                    incomingMediaId: $this->incomingMediaId,
+                ),
+            );
+
+            $normalizedMessage = $assistantResponse->normalizedMessage;
+            $this->setNormalizedMessage($normalizedMessage);
+            $preflight = $assistantResponse->preflight;
 
             Log::info('WhatsApp preflight processado', [
                 'user_id' => $user->id,
                 'message' => mb_substr($normalizedMessage, 0, 160),
                 'handled' => $preflight['handled'] ?? false,
                 'action' => $preflight['action'] ?? ($preflight['result']['action'] ?? null),
-                'classification' => $preflight['classification'] ?? null,
+                'classification' => $assistantResponse->intent->legacyKind,
             ]);
 
             if (($preflight['handled'] ?? false) === true) {
@@ -167,9 +178,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 $proactiveTrigger->dispatch($user, $contact, $preflight['action'] ?? null, $preflight, $this);
                 $telemetry->record($user, $contact, $this->message, [
                     'classification' => $preflight['classification'] ?? null,
+                    'assistant_intent' => $assistantResponse->intent->intent->value,
                     'action' => $preflight['action'] ?? null,
                     'handler' => 'preflight',
-                    'used_ai' => false,
+                    'used_ai' => $assistantResponse->usedAI,
                     'status' => 'handled_preflight',
                     'reply' => $reply,
                     'metadata' => [
@@ -180,8 +192,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 return;
             }
 
-            if (isset($preflight['result'])) {
-                $result = $preflight['result'];
+            if ($assistantResponse->result !== []) {
+                $result = $assistantResponse->result;
             } else {
                 $startTime = microtime(true);
                 $result = $processor->process($normalizedMessage, $user, $contact);
@@ -249,9 +261,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
                 $telemetry->record($user, $contact, $this->message, [
                     'classification' => $preflight['classification'] ?? null,
+                    'assistant_intent' => $assistantResponse->intent->intent->value,
                     'action' => $effectiveAction,
                     'handler' => $result['_selected_handler'] ?? null,
-                    'used_ai' => ! isset($preflight['result']),
+                    'used_ai' => $assistantResponse->usedAI,
                     'status' => 'handled',
                     'reply' => $reply,
                     'metadata' => [
@@ -276,9 +289,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $proactiveTrigger->dispatch($user, $contact, $effectiveAction, $result, $this);
             $telemetry->record($user, $contact, $this->message, [
                 'classification' => $preflight['classification'] ?? null,
+                'assistant_intent' => $assistantResponse->intent->intent->value,
                 'action' => $effectiveAction,
                 'handler' => $result['_selected_handler'] ?? null,
-                'used_ai' => ! isset($preflight['result']),
+                'used_ai' => $assistantResponse->usedAI,
                 'status' => 'fallback_reply',
                 'reply' => $formattedReply,
                 'metadata' => [
@@ -319,9 +333,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
             if (isset($user) && $telemetry instanceof ConversationTelemetryService) {
                 $telemetry->record($user, $contact, $this->message, [
                     'classification' => $preflight['classification'] ?? null,
+                    'assistant_intent' => $assistantResponse->intent->intent->value ?? null,
                     'action' => $action ?? null,
                     'handler' => $result['_selected_handler'] ?? null,
-                    'used_ai' => isset($result) && ! isset($preflight['result']),
+                    'used_ai' => $assistantResponse->usedAI ?? (isset($result) && ! isset($preflight['result'])),
                     'status' => 'error',
                     'reply' => $errorMessage,
                     'error_type' => get_class($e),
