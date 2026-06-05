@@ -8,21 +8,19 @@ use App\Assistant\Enums\FinancialIntent;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\WhatsApp\MessageClassifier;
+use App\Services\WhatsApp\SimpleTransactionMessageParser;
 
 it('maps legacy classifier kinds into the assistant financial intents catalog', function () {
     $user = new User(['id' => 1, 'name' => 'Lucas', 'email' => 'lucas@example.com']);
     $contact = new WhatsAppContact(['id' => 1, 'user_id' => 1, 'phone_number' => '5513999999999']);
 
     $legacyClassifier = Mockery::mock(MessageClassifier::class);
-    $legacyClassifier->shouldReceive('classify')
-        ->once()
-        ->with('qual e meu saldo?', [])
-        ->andReturn([
-            'kind' => 'query_balance',
-            'domain' => 'transaction',
-        ]);
+    $legacyClassifier->shouldNotReceive('classify');
 
-    $classifier = new IntentClassifier($legacyClassifier);
+    $simpleParser = Mockery::mock(SimpleTransactionMessageParser::class);
+    $simpleParser->shouldNotReceive('parse');
+
+    $classifier = new IntentClassifier($legacyClassifier, $simpleParser);
 
     $parsed = $classifier->classify(
         'qual e meu saldo?',

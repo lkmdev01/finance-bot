@@ -6,15 +6,21 @@ use App\Assistant\DTO\AssistantContextDTO;
 use App\Assistant\DTO\ParsedIntentDTO;
 use App\Assistant\Enums\FinancialIntent;
 use App\Services\WhatsApp\MessageClassifier;
+use App\Services\WhatsApp\SimpleTransactionMessageParser;
 
 class IntentClassifier
 {
     public function __construct(
         private readonly MessageClassifier $messageClassifier,
+        private readonly SimpleTransactionMessageParser $simpleTransactionMessageParser,
     ) {}
 
     public function classify(string $message, AssistantContextDTO $context): ParsedIntentDTO
     {
+        if ($financialIntent = $this->classifyFinancialIntent($message)) {
+            return $financialIntent;
+        }
+
         $raw = $this->messageClassifier->classify($message, $context->state);
         $kind = $raw['kind'] ?? 'default';
 
@@ -28,6 +34,57 @@ class IntentClassifier
             legacyKind: $kind,
             raw: $raw,
         );
+    }
+
+    private function classifyFinancialIntent(string $message): ?ParsedIntentDTO
+    {
+        $normalized = mb_strtolower(trim($message));
+
+        if ($this->looksLikeBalanceQuery($normalized)) {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::QUERY_BALANCE,
+                confidence: 0.96,
+                domain: 'transaction',
+                legacyKind: 'query_balance',
+                raw: ['kind' => 'query_balance'],
+            );
+        }
+
+        if ($this->looksLikeMonthReportQuery($normalized)) {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::QUERY_MONTH_REPORT,
+                confidence: 0.93,
+                domain: 'transaction',
+                legacyKind: 'query_month_report',
+                raw: ['kind' => 'query_month_report'],
+            );
+        }
+
+        $transactionData = $this->simpleTransactionMessageParser->parse($message);
+
+        if (($transactionData['type'] ?? null) === 'expense') {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::CREATE_EXPENSE,
+                confidence: 0.95,
+                data: $transactionData,
+                domain: 'transaction',
+                legacyKind: 'transaction_create',
+                raw: ['kind' => 'transaction_create', 'payload' => $transactionData],
+            );
+        }
+
+        if (($transactionData['type'] ?? null) === 'income') {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::CREATE_INCOME,
+                confidence: 0.95,
+                data: $transactionData,
+                domain: 'transaction',
+                legacyKind: 'transaction_create',
+                raw: ['kind' => 'transaction_create', 'payload' => $transactionData],
+            );
+        }
+
+        return null;
     }
 
     private function mapIntent(string $kind): FinancialIntent
@@ -67,5 +124,44 @@ class IntentClassifier
             'recurring_transaction_needs_amount' => ['amount'],
             default => [],
         };
+    }
+
+    private function looksLikeBalanceQuery(string $message): bool
+    {
+        foreach ([
+            'qual e meu saldo',
+            'qual é meu saldo',
+            'quanto tenho',
+            'quanto sobrou',
+            'saldo de hoje',
+            'meu saldo',
+        ] as $pattern) {
+            if (str_contains($message, $pattern)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function looksLikeMonthReportQuery(string $message): bool
+    {
+        foreach ([
+            'quanto gastei esse mes',
+            'quanto gastei este mes',
+            'resumo do mes',
+            'resumo desse mes',
+            'relatorio do mes',
+            'relatório do mes',
+            'resumo mensal',
+            'gastos do mes',
+            'gastos desse mes',
+        ] as $pattern) {
+            if (str_contains($message, $pattern)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -27,11 +27,11 @@ class AIResponseParser
                 if (isset($json['reply']) && is_string($json['reply']) && str_starts_with(trim($json['reply']), '{')) {
                     $innerJson = json_decode($json['reply'], true);
                     if (json_last_error() === JSON_ERROR_NONE) {
-                        return array_merge($json, $innerJson);
+                        return $this->normalizeStructuredContract(array_merge($json, $innerJson));
                     }
                 }
                 // ...
-                return $json;
+                return $this->normalizeStructuredContract($json);
             }
 
             // --- NOVO: Fallback via Regex se o JSON for malformado ---
@@ -55,10 +55,10 @@ class AIResponseParser
             if (!empty($extracted['reply'])) {
                 // Tira escapes de barra pra exibir texto limpo
                 $extracted['reply'] = stripslashes($extracted['reply']);
-                return array_merge([
+                return $this->normalizeStructuredContract(array_merge([
                     'action' => null,
                     'transaction_data' => null,
-                ], $extracted);
+                ], $extracted));
             }
         }
 
@@ -74,5 +74,53 @@ class AIResponseParser
             'action' => null,
             'transaction_data' => null,
         ];
+    }
+
+    private function normalizeStructuredContract(array $payload): array
+    {
+        $intent = $payload['intent'] ?? null;
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+
+        if (! isset($payload['reply']) && isset($payload['user_friendly_summary']) && is_string($payload['user_friendly_summary'])) {
+            $payload['reply'] = $payload['user_friendly_summary'];
+        }
+
+        if (! isset($payload['missing_fields'])) {
+            $payload['missing_fields'] = [];
+        }
+
+        if (! isset($payload['needs_confirmation'])) {
+            $payload['needs_confirmation'] = false;
+        }
+
+        if (! isset($payload['confidence'])) {
+            $payload['confidence'] = null;
+        }
+
+        if (! isset($payload['action']) && is_string($intent)) {
+            $payload['action'] = $this->mapIntentToLegacyAction($intent);
+        }
+
+        if (($payload['action'] ?? null) === 'create_transaction' && ! isset($payload['transaction_data']) && $data !== []) {
+            $payload['transaction_data'] = $data;
+        }
+
+        return $payload;
+    }
+
+    private function mapIntentToLegacyAction(string $intent): ?string
+    {
+        return match ($intent) {
+            'create_expense', 'create_income' => 'create_transaction',
+            'query_balance' => 'query_balance',
+            'query_category_spending' => 'query_category',
+            'query_month_report' => 'query_expenses',
+            'list_transactions' => 'query_transactions',
+            'create_budget' => 'create_budget',
+            'update_transaction' => 'edit_transaction',
+            'delete_transaction' => 'delete_transaction',
+            'help' => null,
+            default => null,
+        };
     }
 }
