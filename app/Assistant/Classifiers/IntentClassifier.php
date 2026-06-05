@@ -12,9 +12,13 @@ use App\Services\WhatsApp\DriveMessageParser;
 use App\Services\WhatsApp\MessageClassifier;
 use App\Services\WhatsApp\NoteIntentClassifier;
 use App\Services\WhatsApp\NoteMessageParser;
+use App\Services\WhatsApp\PlanningIntentClassifier;
+use App\Services\WhatsApp\RecurringTransactionMessageParser;
 use App\Services\WhatsApp\ReminderIntentClassifier;
 use App\Services\WhatsApp\ReminderMessageParser;
+use App\Services\WhatsApp\SavingsGoalMessageParser;
 use App\Services\WhatsApp\SimpleTransactionMessageParser;
+use App\Services\WhatsApp\SubscriptionMessageParser;
 
 class IntentClassifier
 {
@@ -25,6 +29,10 @@ class IntentClassifier
         private readonly BudgetMessageParser $budgetMessageParser,
         private readonly NoteIntentClassifier $noteIntentClassifier,
         private readonly NoteMessageParser $noteMessageParser,
+        private readonly PlanningIntentClassifier $planningIntentClassifier,
+        private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
+        private readonly SubscriptionMessageParser $subscriptionMessageParser,
+        private readonly RecurringTransactionMessageParser $recurringTransactionMessageParser,
         private readonly ReminderIntentClassifier $reminderIntentClassifier,
         private readonly ReminderMessageParser $reminderMessageParser,
         private readonly DriveIntentClassifier $driveIntentClassifier,
@@ -138,6 +146,14 @@ class IntentClassifier
             return $budgetPartial;
         }
 
+        if ($planning = $this->classifyStructuredPlanningIntent($message, $normalized, $state)) {
+            return $planning;
+        }
+
+        if ($recurring = $this->classifyStructuredRecurringIntent($message, $normalized)) {
+            return $recurring;
+        }
+
         $drive = $this->driveIntentClassifier->classify($message, $normalized, $state);
         if ($drive !== null) {
             $drivePayload = match ($drive['kind']) {
@@ -230,6 +246,69 @@ class IntentClassifier
         );
     }
 
+    private function classifyStructuredPlanningIntent(string $message, string $normalized, array $state): ?ParsedIntentDTO
+    {
+        $planning = $this->planningIntentClassifier->classify($message, $normalized, $state);
+        if ($planning === null) {
+            return null;
+        }
+
+        $payload = match ($planning['kind']) {
+            'savings_create' => $this->savingsGoalMessageParser->parse($message) ?? [],
+            'savings_edit' => $this->savingsGoalMessageParser->parseEdit($message, $state['last_entities']['goal_name'] ?? null) ?? [],
+            'subscription_create' => $this->subscriptionMessageParser->parse($message) ?? [],
+            'subscription_edit' => $this->subscriptionMessageParser->parseEdit($message, $state['last_entities']['subscription_name'] ?? null) ?? [],
+            'subscription_cancel' => $this->subscriptionMessageParser->parseCancel($message, $state['last_entities']['subscription_name'] ?? null) ?? [],
+            default => $planning['payload'] ?? [],
+        };
+
+        return new ParsedIntentDTO(
+            intent: $this->mapIntent($planning['kind']),
+            confidence: 0.9,
+            data: $payload,
+            missingFields: $this->missingFieldsForKind($planning['kind']),
+            domain: 'planning',
+            legacyKind: $planning['kind'],
+            raw: $planning,
+        );
+    }
+
+    private function classifyStructuredRecurringIntent(string $message, string $normalized): ?ParsedIntentDTO
+    {
+        foreach (['me lembra', 'me lembre', 'lembrete', 'lembrar de', 'lembra de'] as $cue) {
+            if (str_contains($normalized, $cue)) {
+                return null;
+            }
+        }
+
+        $partial = $this->recurringTransactionMessageParser->parsePartialCreate($message);
+        if (! $this->recurringTransactionMessageParser->looksLikeCreateIntent($normalized) || $partial === null) {
+            return null;
+        }
+
+        if (! array_key_exists('amount', $partial)) {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::CREATE_RECURRING_TRANSACTION,
+                confidence: 0.88,
+                data: $partial,
+                missingFields: ['amount'],
+                domain: 'transaction',
+                legacyKind: 'recurring_transaction_needs_amount',
+                raw: ['kind' => 'recurring_transaction_needs_amount', 'payload' => $partial],
+            );
+        }
+
+        return new ParsedIntentDTO(
+            intent: FinancialIntent::CREATE_RECURRING_TRANSACTION,
+            confidence: 0.91,
+            data: $this->recurringTransactionMessageParser->parse($message) ?? $partial,
+            missingFields: [],
+            domain: 'transaction',
+            legacyKind: 'recurring_transaction_create',
+            raw: ['kind' => 'recurring_transaction_create', 'payload' => $partial],
+        );
+    }
+
     private function classifyContextualFinancialIntent(string $message, AssistantContextDTO $context): ?ParsedIntentDTO
     {
         $normalized = mb_strtolower(trim($message));
@@ -296,7 +375,16 @@ class IntentClassifier
             'delete_transaction', 'transaction_delete', 'undo' => FinancialIntent::DELETE_TRANSACTION,
             'create_budget', 'budget_create', 'budget_needs_details' => FinancialIntent::CREATE_BUDGET,
             'query_budgets', 'budget_query' => FinancialIntent::QUERY_BUDGETS,
-            'create_savings_goal' => FinancialIntent::CREATE_GOAL,
+            'create_savings_goal', 'savings_create' => FinancialIntent::CREATE_GOAL,
+            'query_savings', 'savings_query' => FinancialIntent::QUERY_SAVINGS,
+            'update_savings_goal', 'savings_edit' => FinancialIntent::UPDATE_SAVINGS_GOAL,
+            'create_subscription', 'subscription_create' => FinancialIntent::CREATE_SUBSCRIPTION,
+            'query_subscriptions', 'subscription_query' => FinancialIntent::QUERY_SUBSCRIPTIONS,
+            'update_subscription', 'subscription_edit' => FinancialIntent::UPDATE_SUBSCRIPTION,
+            'cancel_subscription', 'subscription_cancel' => FinancialIntent::CANCEL_SUBSCRIPTION,
+            'create_recurring_transaction', 'recurring_transaction_create', 'recurring_transaction_needs_amount' => FinancialIntent::CREATE_RECURRING_TRANSACTION,
+            'update_recurring_transaction', 'recurring_transaction_edit' => FinancialIntent::UPDATE_RECURRING_TRANSACTION,
+            'cancel_recurring_transaction', 'recurring_transaction_delete' => FinancialIntent::CANCEL_RECURRING_TRANSACTION,
             'create_note', 'note_create', 'note_needs_content' => FinancialIntent::CREATE_NOTE,
             'query_notes', 'note_query' => FinancialIntent::QUERY_NOTES,
             'create_reminder', 'reminder_create', 'reminder_needs_schedule' => FinancialIntent::CREATE_REMINDER,

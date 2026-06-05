@@ -22,6 +22,7 @@ class AssistantObservabilityService
             'by_intent' => $this->buildIntentBreakdown($logs),
             'recent_failures' => $this->buildRecentFailures($logs),
             'top_unknown_messages' => $this->buildTopUnknownMessages($logs),
+            'regression_backlog' => $this->buildRegressionBacklog($logs),
         ];
     }
 
@@ -118,6 +119,78 @@ class AssistantObservabilityService
             ])
             ->sortByDesc('count')
             ->take(10)
+            ->values()
+            ->all();
+    }
+
+    private function buildRegressionBacklog(Collection $logs): array
+    {
+        $items = collect();
+
+        $unknowns = $logs
+            ->filter(fn (WhatsAppConversationLog $log) => $this->assistantIntent($log) === 'unknown')
+            ->groupBy('message')
+            ->map(function (Collection $group, string $message) {
+                return [
+                    'priority' => 'high',
+                    'reason' => 'Mensagem recorrente ainda cai como unknown',
+                    'message' => $message,
+                    'intent' => 'unknown',
+                    'count' => $group->count(),
+                    'suggested_example' => [
+                        'message' => $message,
+                        'expected_intent' => 'unknown',
+                    ],
+                ];
+            })
+            ->sortByDesc('count')
+            ->take(5)
+            ->values();
+
+        $items = $items->merge($unknowns);
+
+        $missingFieldHotspots = $logs
+            ->groupBy(fn (WhatsAppConversationLog $log) => $this->assistantIntent($log))
+            ->flatMap(function (Collection $intentLogs, string $intent) {
+                return $intentLogs
+                    ->flatMap(function (WhatsAppConversationLog $log) use ($intent) {
+                        $fields = data_get($log->metadata, 'assistant_missing_fields', []);
+                        if (! is_array($fields) || $fields === []) {
+                            return [];
+                        }
+
+                        return array_map(fn (string $field) => [
+                            'intent' => $intent,
+                            'field' => $field,
+                            'message' => $log->message,
+                        ], $fields);
+                    });
+            })
+            ->groupBy(fn (array $row) => $row['intent'].'|'.$row['field'])
+            ->map(function (Collection $group) {
+                $first = $group->first();
+
+                return [
+                    'priority' => 'medium',
+                    'reason' => 'Campo pendente aparece com frequencia e merece fixture de follow-up',
+                    'message' => $first['message'],
+                    'intent' => $first['intent'],
+                    'count' => $group->count(),
+                    'suggested_example' => [
+                        'message' => $first['message'],
+                        'expected_intent' => $first['intent'],
+                        'expected_missing_field' => $first['field'],
+                    ],
+                ];
+            })
+            ->sortByDesc('count')
+            ->take(5)
+            ->values();
+
+        $items = $items->merge($missingFieldHotspots);
+
+        return $items
+            ->sortByDesc(fn (array $item) => ($item['priority'] === 'high' ? 1000 : 100) + $item['count'])
             ->values()
             ->all();
     }

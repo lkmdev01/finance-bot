@@ -13,6 +13,7 @@ test('authenticated users can visit the dashboard', function () {
 
     $response = $this->get(route('dashboard'));
     $response->assertStatus(200);
+    $response->assertSee('Observabilidade IA ligada no fluxo');
 });
 
 test('dashboard layout does not use unsupported flux sidebar toggle expression', function () {

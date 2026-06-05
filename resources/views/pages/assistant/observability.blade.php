@@ -18,6 +18,7 @@
                             <option value="{{ $option }}" @selected($days === $option)>{{ $option }} dias</option>
                         @endforeach
                     </select>
+                    <input type="hidden" name="focus" value="{{ $focus }}" />
                     <button type="submit" class="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-space-950 transition hover:bg-cyan-300">
                         Atualizar
                     </button>
@@ -97,6 +98,52 @@
         </section>
 
         <div class="grid gap-6 xl:grid-cols-2">
+            <section class="rounded-3xl border border-white/10 bg-black/20 p-6 xl:col-span-2">
+                <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h2 class="text-xl font-semibold text-white">Fila priorizada de regressao</h2>
+                        <p class="mt-1 text-sm text-slate-400">Transforma `unknown` e `missing_fields` recorrentes em candidatos reais para fixtures e testes.</p>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                        <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'unknown']) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'unknown' ? 'border-amber-300/50 bg-amber-300/15 text-amber-100' : 'border-white/10 bg-white/5 text-slate-300' }}">
+                            Focar unknown
+                        </a>
+                        <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'missing']) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'missing' ? 'border-cyan-300/50 bg-cyan-300/15 text-cyan-100' : 'border-white/10 bg-white/5 text-slate-300' }}">
+                            Focar missing_fields
+                        </a>
+                        <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'all']) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'all' ? 'border-white/20 bg-white/10 text-white' : 'border-white/10 bg-white/5 text-slate-300' }}">
+                            Ver tudo
+                        </a>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    @forelse (collect($summary['regression_backlog'])->filter(function ($item) use ($focus) {
+                        return match ($focus) {
+                            'unknown' => ($item['intent'] ?? null) === 'unknown',
+                            'missing' => ($item['intent'] ?? null) !== 'unknown',
+                            default => true,
+                        };
+                    }) as $item)
+                        <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $item['priority'] === 'high' ? 'bg-rose-400/15 text-rose-200' : 'bg-cyan-400/15 text-cyan-200' }}">
+                                    {{ $item['priority'] }}
+                                </span>
+                                <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-300">{{ $item['intent'] }}</span>
+                                <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-400">{{ $item['count'] }}x</span>
+                            </div>
+                            <p class="mt-3 text-sm text-white">{{ $item['message'] }}</p>
+                            <p class="mt-2 text-xs text-slate-400">{{ $item['reason'] }}</p>
+                            <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ json_encode($item['suggested_example'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                        </article>
+                    @empty
+                        <p class="text-sm text-slate-400">Nenhum candidato de regressao encontrado nesta janela.</p>
+                    @endforelse
+                </div>
+            </section>
+
             <section class="rounded-3xl border border-white/10 bg-black/20 p-6">
                 <div class="mb-4">
                     <h2 class="text-xl font-semibold text-white">Mensagens desconhecidas mais frequentes</h2>

@@ -148,7 +148,10 @@ query_balance, query_expenses, query_income, query_transactions, query_category,
 query_report, query_report_pdf, query_report_csv, query_report_excel,
 query_savings, query_budgets, query_notes, query_reminders, query_drive_files,
 query_evolution, query_projections, query_subscriptions,
-create_budget, create_note, create_reminder, create_drive_file
+create_budget, create_note, create_reminder, create_drive_file,
+create_savings_goal, update_savings_goal,
+create_subscription, update_subscription, cancel_subscription,
+create_recurring_transaction, update_recurring_transaction, cancel_recurring_transaction
 
 Regras técnicas (JSON válido - crítico):
 1. Responda apenas um objeto JSON em uma única linha.
@@ -157,7 +160,11 @@ Regras técnicas (JSON válido - crítico):
 4. "intent" deve ser uma destas chaves:
    create_expense, create_income, query_balance, query_category_spending, query_month_report,
    update_transaction, delete_transaction, create_budget, query_budgets, create_note, query_notes,
-   create_reminder, query_reminders, create_drive_file, query_drive_files, list_transactions, help, unknown
+   create_reminder, query_reminders, create_drive_file, query_drive_files,
+   create_savings_goal, query_savings, update_savings_goal,
+   create_subscription, query_subscriptions, update_subscription, cancel_subscription,
+   create_recurring_transaction, update_recurring_transaction, cancel_recurring_transaction,
+   list_transactions, help, unknown
 5. "data" deve ser um objeto. Se não houver dados, use {}.
 6. "missing_fields" deve ser uma lista. Se não faltar nada, use [].
 7. "needs_confirmation" deve ser true ou false.

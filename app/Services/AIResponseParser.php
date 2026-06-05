@@ -109,6 +109,18 @@ class AIResponseParser
             $payload['budget_data'] = $data;
         }
 
+        if (in_array(($payload['action'] ?? null), ['create_savings_goal', 'update_savings_goal'], true) && ! isset($payload['goal_data']) && $data !== []) {
+            $payload['goal_data'] = $data;
+        }
+
+        if (in_array(($payload['action'] ?? null), ['create_subscription', 'update_subscription', 'cancel_subscription'], true) && ! isset($payload['subscription_data']) && $data !== []) {
+            $payload['subscription_data'] = $data;
+        }
+
+        if (in_array(($payload['action'] ?? null), ['create_recurring_transaction', 'update_recurring_transaction', 'cancel_recurring_transaction'], true) && ! isset($payload['recurring_data']) && $data !== []) {
+            $payload['recurring_data'] = $data;
+        }
+
         if (in_array(($payload['action'] ?? null), ['create_note', 'query_notes'], true) && ! isset($payload['note_data']) && $data !== []) {
             $payload['note_data'] = $data;
         }
@@ -134,6 +146,16 @@ class AIResponseParser
             'list_transactions' => 'query_transactions',
             'create_budget' => 'create_budget',
             'query_budgets' => 'query_budgets',
+            'create_savings_goal' => 'create_savings_goal',
+            'query_savings' => 'query_savings',
+            'update_savings_goal' => 'update_savings_goal',
+            'create_subscription' => 'create_subscription',
+            'query_subscriptions' => 'query_subscriptions',
+            'update_subscription' => 'update_subscription',
+            'cancel_subscription' => 'cancel_subscription',
+            'create_recurring_transaction' => 'create_recurring_transaction',
+            'update_recurring_transaction' => 'update_recurring_transaction',
+            'cancel_recurring_transaction' => 'cancel_recurring_transaction',
             'create_note' => 'create_note',
             'query_notes' => 'query_notes',
             'create_reminder' => 'create_reminder',

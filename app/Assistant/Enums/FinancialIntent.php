@@ -14,6 +14,15 @@ enum FinancialIntent: string
     case CREATE_BUDGET = 'create_budget';
     case QUERY_BUDGETS = 'query_budgets';
     case CREATE_GOAL = 'create_goal';
+    case QUERY_SAVINGS = 'query_savings';
+    case UPDATE_SAVINGS_GOAL = 'update_savings_goal';
+    case CREATE_SUBSCRIPTION = 'create_subscription';
+    case QUERY_SUBSCRIPTIONS = 'query_subscriptions';
+    case UPDATE_SUBSCRIPTION = 'update_subscription';
+    case CANCEL_SUBSCRIPTION = 'cancel_subscription';
+    case CREATE_RECURRING_TRANSACTION = 'create_recurring_transaction';
+    case UPDATE_RECURRING_TRANSACTION = 'update_recurring_transaction';
+    case CANCEL_RECURRING_TRANSACTION = 'cancel_recurring_transaction';
     case CREATE_NOTE = 'create_note';
     case QUERY_NOTES = 'query_notes';
     case CREATE_REMINDER = 'create_reminder';

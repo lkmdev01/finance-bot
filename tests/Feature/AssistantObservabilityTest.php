@@ -60,8 +60,10 @@ it('aggregates assistant observability by intent', function () {
         ->and(collect($summary['by_intent'])->pluck('intent')->all())->toContain('query_balance', 'create_note', 'unknown');
 
     $noteRow = collect($summary['by_intent'])->firstWhere('intent', 'create_note');
+    $backlog = collect($summary['regression_backlog']);
 
     expect($noteRow['top_missing_fields'])->toHaveKey('content');
+    expect($backlog->pluck('intent')->all())->toContain('unknown', 'create_note');
 });
 
 it('renders the assistant observability page for authenticated users', function () {
@@ -73,4 +75,5 @@ it('renders the assistant observability page for authenticated users', function 
     $response->assertOk();
     $response->assertSee('Observabilidade do Assistente');
     $response->assertSee('Saude do assistente por intencao');
+    $response->assertSee('Fila priorizada de regressao');
 });

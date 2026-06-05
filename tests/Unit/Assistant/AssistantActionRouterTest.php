@@ -152,3 +152,69 @@ it('returns a deterministic drive query result for drive intents', function () {
         ->and($result->result['action'])->toBe('query_drive_files')
         ->and($result->result['drive_data']['list_mode'])->toBeTrue();
 });
+
+it('returns a deterministic subscription result for planning intents', function () {
+    $router = new AssistantActionRouter(
+        Mockery::mock(ConversationOrchestrator::class),
+        Mockery::mock(WhatsAppMessageProcessor::class),
+    );
+
+    $result = $router->execute(
+        new IncomingMessageDTO(rawMessage: 'criar assinatura Netflix mensal dia 10 19 reais', normalizedMessage: 'criar assinatura Netflix mensal dia 10 19 reais'),
+        new AssistantContextDTO(
+            user: new User(['id' => 1, 'name' => 'Lucas', 'email' => 'lucas@example.com']),
+            contact: new WhatsAppContact(['id' => 1, 'user_id' => 1, 'phone_number' => '5513999999999']),
+            state: [],
+            timezone: 'America/Sao_Paulo',
+            currentMonth: '2026-06',
+            currentYear: 2026,
+            lastAction: null,
+            pendingAction: null,
+        ),
+        new ParsedIntentDTO(
+            intent: FinancialIntent::CREATE_SUBSCRIPTION,
+            confidence: 0.9,
+            data: ['name' => 'Netflix', 'amount' => 19.0, 'billing_cycle' => 'monthly', 'due_day' => 10],
+            domain: 'planning',
+            legacyKind: 'subscription_create',
+        ),
+        [],
+    );
+
+    expect($result->usedAI)->toBeFalse()
+        ->and($result->result['action'])->toBe('create_subscription')
+        ->and($result->result['subscription_data']['name'])->toBe('Netflix');
+});
+
+it('returns a deterministic recurring result for recurring intents', function () {
+    $router = new AssistantActionRouter(
+        Mockery::mock(ConversationOrchestrator::class),
+        Mockery::mock(WhatsAppMessageProcessor::class),
+    );
+
+    $result = $router->execute(
+        new IncomingMessageDTO(rawMessage: 'todo dia 5 pago academia 89', normalizedMessage: 'todo dia 5 pago academia 89'),
+        new AssistantContextDTO(
+            user: new User(['id' => 1, 'name' => 'Lucas', 'email' => 'lucas@example.com']),
+            contact: new WhatsAppContact(['id' => 1, 'user_id' => 1, 'phone_number' => '5513999999999']),
+            state: [],
+            timezone: 'America/Sao_Paulo',
+            currentMonth: '2026-06',
+            currentYear: 2026,
+            lastAction: null,
+            pendingAction: null,
+        ),
+        new ParsedIntentDTO(
+            intent: FinancialIntent::CREATE_RECURRING_TRANSACTION,
+            confidence: 0.9,
+            data: ['description' => 'Academia', 'amount' => 89.0, 'frequency' => 'monthly', 'day_of_month' => 5],
+            domain: 'transaction',
+            legacyKind: 'recurring_transaction_create',
+        ),
+        [],
+    );
+
+    expect($result->usedAI)->toBeFalse()
+        ->and($result->result['action'])->toBe('create_recurring_transaction')
+        ->and((float) $result->result['recurring_data']['amount'])->toBe(89.0);
+});

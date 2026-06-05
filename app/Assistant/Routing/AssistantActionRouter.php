@@ -165,6 +165,54 @@ class AssistantActionRouter
                 'action' => 'query_budgets',
                 'reply' => $intent->raw['reply'] ?? '',
             ],
+            FinancialIntent::CREATE_GOAL => [
+                'action' => 'create_savings_goal',
+                'reply' => $intent->raw['reply'] ?? '',
+                'goal_data' => $intent->data,
+            ],
+            FinancialIntent::QUERY_SAVINGS => [
+                'action' => 'query_savings',
+                'reply' => $intent->raw['reply'] ?? '',
+            ],
+            FinancialIntent::UPDATE_SAVINGS_GOAL => [
+                'action' => 'update_savings_goal',
+                'reply' => $intent->raw['reply'] ?? '',
+                'goal_data' => $intent->data,
+            ],
+            FinancialIntent::CREATE_SUBSCRIPTION => [
+                'action' => 'create_subscription',
+                'reply' => $intent->raw['reply'] ?? '',
+                'subscription_data' => $intent->data,
+            ],
+            FinancialIntent::QUERY_SUBSCRIPTIONS => [
+                'action' => 'query_subscriptions',
+                'reply' => $intent->raw['reply'] ?? '',
+            ],
+            FinancialIntent::UPDATE_SUBSCRIPTION => [
+                'action' => 'update_subscription',
+                'reply' => $intent->raw['reply'] ?? '',
+                'subscription_data' => $intent->data,
+            ],
+            FinancialIntent::CANCEL_SUBSCRIPTION => [
+                'action' => 'cancel_subscription',
+                'reply' => $intent->raw['reply'] ?? '',
+                'subscription_data' => $intent->data,
+            ],
+            FinancialIntent::CREATE_RECURRING_TRANSACTION => [
+                'action' => 'create_recurring_transaction',
+                'reply' => $intent->raw['reply'] ?? '',
+                'recurring_data' => $intent->data,
+            ],
+            FinancialIntent::UPDATE_RECURRING_TRANSACTION => [
+                'action' => 'update_recurring_transaction',
+                'reply' => $intent->raw['reply'] ?? '',
+                'recurring_data' => $intent->data,
+            ],
+            FinancialIntent::CANCEL_RECURRING_TRANSACTION => [
+                'action' => 'cancel_recurring_transaction',
+                'reply' => $intent->raw['reply'] ?? '',
+                'recurring_data' => $intent->data,
+            ],
             FinancialIntent::CREATE_NOTE => [
                 'action' => 'create_note',
                 'reply' => $intent->raw['reply'] ?? '',
