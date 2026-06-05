@@ -57,6 +57,36 @@ class SubscriptionMessageParser
         return array_filter($merged, fn ($value) => $value !== null && $value !== '');
     }
 
+    public function parseEditFollowUp(string $message, array $pendingSubscription = []): ?array
+    {
+        $normalized = $this->normalize($message);
+        $partial = $this->parsePartialCreate($message) ?? [];
+
+        $merged = array_merge($pendingSubscription, $partial);
+
+        $merged['amount'] = $partial['amount'] ?? $this->extractAmount($normalized) ?? ($pendingSubscription['amount'] ?? null);
+        $merged['billing_cycle'] = $partial['billing_cycle'] ?? $this->extractBillingCycle($normalized) ?? ($pendingSubscription['billing_cycle'] ?? null);
+        $merged['due_day'] = $partial['due_day'] ?? $this->extractDueDay($normalized) ?? ($pendingSubscription['due_day'] ?? null);
+        $merged['name'] = $partial['name'] ?? $this->extractName($message) ?? ($pendingSubscription['name'] ?? null);
+        $merged['bank_account_name'] = $partial['bank_account_name'] ?? ($pendingSubscription['bank_account_name'] ?? null);
+        $merged['credit_card_name'] = $partial['credit_card_name'] ?? ($pendingSubscription['credit_card_name'] ?? null);
+
+        return array_filter($merged, fn ($value) => $value !== null && $value !== '');
+    }
+
+    public function parseCancelFollowUp(string $message, array $pendingSubscription = []): ?array
+    {
+        $name = $this->extractName($message)
+            ?? ($pendingSubscription['name'] ?? null)
+            ?? $this->cleanupEntityName($message);
+
+        if ($name === null || $name === '') {
+            return null;
+        }
+
+        return ['name' => $name];
+    }
+
     public function parseEdit(string $message, ?string $fallbackName = null): ?array
     {
         $normalized = $this->normalize($message);
@@ -294,6 +324,16 @@ class SubscriptionMessageParser
         }
 
         $value = trim((string) ($matches[1] ?? ''));
+
+        return $value !== '' ? mb_convert_case($value, MB_CASE_TITLE, 'UTF-8') : null;
+    }
+
+    private function cleanupEntityName(string $message): ?string
+    {
+        $value = trim($message);
+        $value = preg_replace('/\b(?:assinatura|mensalidade|cancelar|cancela|desativar|desativa|pausar|pausa|parar|editar|edita|ajustar|ajusta|mudar|muda|atualizar|atualiza|a|o|da|do|de)\b/iu', ' ', $value) ?? $value;
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? $value;
+        $value = trim((string) $value, " \t\n\r\0\x0B-:");
 
         return $value !== '' ? mb_convert_case($value, MB_CASE_TITLE, 'UTF-8') : null;
     }

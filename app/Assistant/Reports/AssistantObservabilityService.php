@@ -26,6 +26,25 @@ class AssistantObservabilityService
         ];
     }
 
+    public function fixtureExport(int $days = 14, int $sampleSize = 1000, string $focus = 'all'): string
+    {
+        $summary = $this->summary($days, $sampleSize);
+
+        $items = collect($summary['regression_backlog'])
+            ->filter(function (array $item) use ($focus) {
+                return match ($focus) {
+                    'unknown' => ($item['intent'] ?? null) === 'unknown',
+                    'missing' => ($item['intent'] ?? null) !== 'unknown',
+                    default => true,
+                };
+            })
+            ->map(fn (array $item) => $item['suggested_example'])
+            ->values()
+            ->all();
+
+        return "<?php\n\nreturn ".var_export($items, true).";\n";
+    }
+
     private function buildTotals(Collection $logs): array
     {
         $total = $logs->count();

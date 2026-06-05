@@ -90,7 +90,7 @@ class PlanningIntentClassifier
             : null;
 
         if ($this->savingsGoalMessageParser->looksLikeEditIntent($normalizedMessage)) {
-            return $this->savingsGoalMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
+            return $this->savingsGoalMessageParser->parseEdit($originalMessage, $fallbackName) !== null || $fallbackName !== null;
         }
 
         if (($state['last_action'] ?? null) !== 'query_savings') {
@@ -101,8 +101,7 @@ class PlanningIntentClassifier
             return false;
         }
 
-        return $fallbackName !== null
-            && $this->savingsGoalMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
+        return $fallbackName !== null;
     }
 
     private function looksLikeSubscriptionEdit(string $originalMessage, string $normalizedMessage, array $state): bool
@@ -112,7 +111,7 @@ class PlanningIntentClassifier
             : null;
 
         if ($this->subscriptionMessageParser->looksLikeEditIntent($normalizedMessage)) {
-            return $this->subscriptionMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
+            return $this->subscriptionMessageParser->parseEdit($originalMessage, $fallbackName) !== null || $fallbackName !== null;
         }
 
         if (($state['last_entities']['topic'] ?? null) !== 'subscriptions') {
@@ -123,7 +122,7 @@ class PlanningIntentClassifier
             return false;
         }
 
-        return $this->subscriptionMessageParser->parseEdit($originalMessage, $fallbackName) !== null;
+        return $fallbackName !== null;
     }
 
     private function looksLikeSubscriptionCancel(string $originalMessage, string $normalizedMessage, array $state): bool
@@ -133,7 +132,10 @@ class PlanningIntentClassifier
             : null;
 
         if ($this->subscriptionMessageParser->looksLikeCancelIntent($normalizedMessage)) {
-            return $this->subscriptionMessageParser->parseCancel($originalMessage, $fallbackName) !== null;
+            return $this->subscriptionMessageParser->parseCancel($originalMessage, $fallbackName) !== null
+                || str_contains($normalizedMessage, 'assinatura')
+                || str_contains($normalizedMessage, 'mensalidade')
+                || $fallbackName !== null;
         }
 
         if (($state['last_entities']['topic'] ?? null) !== 'subscriptions') {

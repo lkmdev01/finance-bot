@@ -4,6 +4,7 @@ namespace App\Services\WhatsApp\Resolvers;
 
 use App\Services\WhatsApp\Support\NormalizesWhatsAppText;
 use App\Services\WhatsApp\BudgetMessageParser;
+use App\Services\WhatsApp\RecurringTransactionMessageParser;
 use App\Services\WhatsApp\SavingsGoalMessageParser;
 use App\Services\WhatsApp\SubscriptionMessageParser;
 use App\Services\WhatsApp\TransactionActionMessageParser;
@@ -16,6 +17,7 @@ class ClarificationResolver
     use NormalizesWhatsAppText;
     public function __construct(
         private readonly BudgetMessageParser $budgetMessageParser,
+        private readonly RecurringTransactionMessageParser $recurringTransactionMessageParser,
         private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
         private readonly SubscriptionMessageParser $subscriptionMessageParser,
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
@@ -31,6 +33,10 @@ class ClarificationResolver
             'create_budget_details' => in_array($classification, ['default', 'budget_create', 'budget_needs_details'], true),
             'create_savings_goal_details' => in_array($classification, ['default', 'savings_create', 'savings_needs_details'], true),
             'create_subscription_details' => in_array($classification, ['default', 'subscription_create', 'subscription_needs_details'], true),
+            'update_savings_goal_details' => in_array($classification, ['default', 'savings_edit', 'savings_edit_needs_change'], true),
+            'update_subscription_details' => in_array($classification, ['default', 'subscription_edit', 'subscription_edit_needs_change'], true),
+            'cancel_subscription_target' => in_array($classification, ['default', 'subscription_cancel', 'subscription_cancel_needs_target'], true),
+            'update_recurring_transaction_details' => in_array($classification, ['default', 'recurring_transaction_edit', 'recurring_transaction_edit_needs_change'], true),
             'edit_transaction_details' => in_array($classification, ['default', 'transaction_edit'], true),
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
@@ -50,6 +56,10 @@ class ClarificationResolver
             'create_budget_details' => $this->buildCreateBudgetClarificationResult($message, $state),
             'create_savings_goal_details' => $this->buildCreateSavingsGoalClarificationResult($message, $state),
             'create_subscription_details' => $this->buildCreateSubscriptionClarificationResult($message, $state),
+            'update_savings_goal_details' => $this->buildUpdateSavingsGoalClarificationResult($message, $state),
+            'update_subscription_details' => $this->buildUpdateSubscriptionClarificationResult($message, $state),
+            'cancel_subscription_target' => $this->buildCancelSubscriptionClarificationResult($message, $state),
+            'update_recurring_transaction_details' => $this->buildUpdateRecurringClarificationResult($message, $state),
             'edit_transaction_details' => $this->buildTransactionEditClarificationResult($message, $state),
             'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
@@ -212,6 +222,168 @@ class ClarificationResolver
                 'reply' => '',
                 'action' => 'create_subscription',
                 'subscription_data' => $subscriptionData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildUpdateSavingsGoalClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['goal_data'] ?? [];
+        $goalData = $this->savingsGoalMessageParser->parseEditFollowUp($message, $pending);
+
+        if ($goalData === null || empty($goalData['name'])) {
+            return null;
+        }
+
+        $hasChange = isset($goalData['target_amount']) || isset($goalData['target_date']);
+
+        if (! $hasChange) {
+            return [
+                'handled' => true,
+                'reply' => "Ainda faltou dizer o que mudar nessa meta.\n\nExemplos:\n- para 7000\n- ate dezembro de 2026",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'update_savings_goal_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'goal_data' => $goalData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'update_savings_goal',
+                'goal_data' => $goalData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildUpdateSubscriptionClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['subscription_data'] ?? [];
+        $subscriptionData = $this->subscriptionMessageParser->parseEditFollowUp($message, $pending);
+
+        if ($subscriptionData === null || empty($subscriptionData['name'])) {
+            return null;
+        }
+
+        $hasChange = isset($subscriptionData['amount'])
+            || isset($subscriptionData['billing_cycle'])
+            || isset($subscriptionData['due_day'])
+            || isset($subscriptionData['bank_account_name'])
+            || isset($subscriptionData['credit_card_name']);
+
+        if (! $hasChange) {
+            return [
+                'handled' => true,
+                'reply' => "Ainda faltou dizer o que mudar nessa assinatura.\n\nExemplos:\n- 39,90 dia 10\n- anual\n- no cartao Nubank",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'update_subscription_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'subscription_data' => $subscriptionData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'update_subscription',
+                'subscription_data' => $subscriptionData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildCancelSubscriptionClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['subscription_data'] ?? [];
+        $subscriptionData = $this->subscriptionMessageParser->parseCancelFollowUp($message, $pending);
+
+        if ($subscriptionData === null || empty($subscriptionData['name'])) {
+            return null;
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'cancel_subscription',
+                'subscription_data' => $subscriptionData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildUpdateRecurringClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['recurring_data'] ?? [];
+        $recurringData = $this->recurringTransactionMessageParser->parseEditFollowUp($message, $pending);
+
+        if ($recurringData === null || empty($recurringData['description'])) {
+            return null;
+        }
+
+        $hasChange = isset($recurringData['amount'])
+            || isset($recurringData['frequency'])
+            || isset($recurringData['day_of_month'])
+            || isset($recurringData['category_name'])
+            || isset($recurringData['bank_account_name'])
+            || isset($recurringData['credit_card_name']);
+
+        if (! $hasChange) {
+            return [
+                'handled' => true,
+                'reply' => "Ainda faltou dizer o que mudar nessa recorrencia.\n\nExemplos:\n- para 99\n- dia 8\n- semanal",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'update_recurring_transaction_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'recurring_data' => $recurringData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'update_recurring_transaction',
+                'recurring_data' => $recurringData,
                 '_resolved_message' => $message,
                 '_conversation_metadata' => [
                     'clear_pending' => true,

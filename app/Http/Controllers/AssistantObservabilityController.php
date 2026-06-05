@@ -18,4 +18,19 @@ class AssistantObservabilityController extends Controller
             'focus' => $focus,
         ]);
     }
+
+    public function exportFixtures(Request $request, AssistantObservabilityService $observabilityService)
+    {
+        $days = max(1, min(30, (int) $request->integer('days', 14)));
+        $focus = (string) $request->query('focus', 'all');
+
+        return response(
+            $observabilityService->fixtureExport($days, 1000, $focus),
+            200,
+            [
+                'Content-Type' => 'text/plain; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="assistant_observability_fixtures.php"',
+            ]
+        );
+    }
 }

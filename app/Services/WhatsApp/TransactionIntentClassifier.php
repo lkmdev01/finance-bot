@@ -170,7 +170,11 @@ class TransactionIntentClassifier
             ? ($state['last_entities']['recurring_description'] ?? null)
             : null;
 
-        return $this->recurringTransactionMessageParser->parseEdit($originalMessage, $fallback) !== null;
+        if ($this->recurringTransactionMessageParser->parseEdit($originalMessage, $fallback) !== null) {
+            return true;
+        }
+
+        return $fallback !== null && $this->containsAnyText($normalizedMessage, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza']);
     }
 
     private function looksLikeRecurringTransactionDelete(string $originalMessage, string $normalizedMessage, array $state): bool
@@ -179,7 +183,11 @@ class TransactionIntentClassifier
             ? ($state['last_entities']['recurring_description'] ?? null)
             : null;
 
-        return $this->recurringTransactionMessageParser->parseCancel($originalMessage, $fallback) !== null;
+        if ($this->recurringTransactionMessageParser->parseCancel($originalMessage, $fallback) !== null) {
+            return true;
+        }
+
+        return $fallback !== null && $this->containsAnyText($normalizedMessage, ['cancelar', 'cancela', 'desativar', 'desativa', 'parar', 'para', 'pausar', 'pausa']);
     }
 
     private function looksLikeInstallmentTransactionCreate(string $originalMessage, string $normalizedMessage): bool

@@ -54,6 +54,20 @@ class SavingsGoalMessageParser
         ], fn ($value) => $value !== null && $value !== '');
     }
 
+    public function parseEditFollowUp(string $message, array $pendingGoal = []): ?array
+    {
+        $normalized = $this->normalize($message);
+        $amount = $this->extractAmount($normalized) ?? ($pendingGoal['target_amount'] ?? null);
+        $name = $this->extractGoalName($message, $normalized) ?? ($pendingGoal['name'] ?? null);
+        $targetDate = $this->extractTargetDate($normalized) ?? ($pendingGoal['target_date'] ?? null);
+
+        return array_filter([
+            'name' => $name,
+            'target_amount' => $amount,
+            'target_date' => $targetDate,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
     public function parseEdit(string $message, ?string $fallbackName = null): ?array
     {
         $normalized = $this->normalize($message);

@@ -106,6 +106,9 @@
                     </div>
 
                     <div class="flex flex-wrap gap-2">
+                        <a href="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus]) }}" class="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                            Exportar fixtures
+                        </a>
                         <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'unknown']) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'unknown' ? 'border-amber-300/50 bg-amber-300/15 text-amber-100' : 'border-white/10 bg-white/5 text-slate-300' }}">
                             Focar unknown
                         </a>

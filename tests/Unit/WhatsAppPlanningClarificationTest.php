@@ -51,4 +51,64 @@ class WhatsAppPlanningClarificationTest extends TestCase
         $this->assertSame(39.90, $result['result']['subscription_data']['amount']);
         $this->assertSame(10, $result['result']['subscription_data']['due_day']);
     }
+
+    public function test_update_savings_goal_clarification_merges_follow_up_change(): void
+    {
+        $resolver = app(ClarificationResolver::class);
+
+        $state = [
+            'pending_intent' => 'update_savings_goal_details',
+            'pending_payload' => [
+                'goal_data' => [
+                    'name' => 'Viagem',
+                ],
+            ],
+        ];
+
+        $result = $resolver->resolve('para 7000', $state);
+
+        $this->assertFalse($result['handled']);
+        $this->assertSame('update_savings_goal', $result['result']['action']);
+        $this->assertSame('Viagem', $result['result']['goal_data']['name']);
+        $this->assertSame(7000.0, $result['result']['goal_data']['target_amount']);
+    }
+
+    public function test_cancel_subscription_clarification_accepts_short_target_name(): void
+    {
+        $resolver = app(ClarificationResolver::class);
+
+        $state = [
+            'pending_intent' => 'cancel_subscription_target',
+            'pending_payload' => [
+                'subscription_data' => [],
+            ],
+        ];
+
+        $result = $resolver->resolve('Netflix', $state);
+
+        $this->assertFalse($result['handled']);
+        $this->assertSame('cancel_subscription', $result['result']['action']);
+        $this->assertSame('Netflix', $result['result']['subscription_data']['name']);
+    }
+
+    public function test_update_recurring_clarification_merges_short_follow_up_change(): void
+    {
+        $resolver = app(ClarificationResolver::class);
+
+        $state = [
+            'pending_intent' => 'update_recurring_transaction_details',
+            'pending_payload' => [
+                'recurring_data' => [
+                    'description' => 'Academia',
+                ],
+            ],
+        ];
+
+        $result = $resolver->resolve('para 99', $state);
+
+        $this->assertFalse($result['handled']);
+        $this->assertSame('update_recurring_transaction', $result['result']['action']);
+        $this->assertSame('Academia', $result['result']['recurring_data']['description']);
+        $this->assertSame(99.0, $result['result']['recurring_data']['amount']);
+    }
 }

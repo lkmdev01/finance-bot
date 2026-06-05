@@ -11,6 +11,7 @@ use App\Services\WhatsApp\BudgetIntentClassifier;
 use App\Services\WhatsApp\BudgetMessageParser;
 use App\Services\WhatsApp\DriveIntentClassifier;
 use App\Services\WhatsApp\DriveMessageParser;
+use App\Services\WhatsApp\IncomingMessageNormalizer;
 use App\Services\WhatsApp\MessageClassifier;
 use App\Services\WhatsApp\NoteIntentClassifier;
 use App\Services\WhatsApp\NoteMessageParser;
@@ -32,6 +33,9 @@ it('maps legacy classifier kinds into the assistant financial intents catalog', 
     $simpleParser = Mockery::mock(SimpleTransactionMessageParser::class);
     $simpleParser->shouldNotReceive('parse');
 
+    $normalizer = Mockery::mock(IncomingMessageNormalizer::class);
+    $normalizer->shouldReceive('normalize')->andReturnUsing(fn (string $message) => mb_strtolower(trim($message)));
+
     $classifier = new IntentClassifier(
         $legacyClassifier,
         $simpleParser,
@@ -47,6 +51,7 @@ it('maps legacy classifier kinds into the assistant financial intents catalog', 
         Mockery::mock(ReminderMessageParser::class),
         Mockery::mock(DriveIntentClassifier::class),
         Mockery::mock(DriveMessageParser::class),
+        $normalizer,
     );
 
     $parsed = $classifier->classify(

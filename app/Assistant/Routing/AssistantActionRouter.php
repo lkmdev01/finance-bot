@@ -95,6 +95,11 @@ class AssistantActionRouter
                 'create_budget_details',
                 ['budget_data' => $intent->data],
             ],
+            FinancialIntent::CREATE_RECURRING_TRANSACTION => [
+                $this->recurringCreateMissingFieldReply($intent->missingFields),
+                'create_recurring_transaction_amount',
+                ['recurring_data' => $intent->data],
+            ],
             FinancialIntent::CREATE_GOAL => [
                 $this->goalMissingFieldReply($intent->missingFields),
                 'create_savings_goal_details',
@@ -104,6 +109,26 @@ class AssistantActionRouter
                 $this->subscriptionMissingFieldReply($intent->missingFields),
                 'create_subscription_details',
                 ['subscription_data' => $intent->data],
+            ],
+            FinancialIntent::UPDATE_SAVINGS_GOAL => [
+                $this->goalEditMissingFieldReply($intent->missingFields),
+                'update_savings_goal_details',
+                ['goal_data' => $intent->data],
+            ],
+            FinancialIntent::UPDATE_SUBSCRIPTION => [
+                $this->subscriptionEditMissingFieldReply($intent->missingFields),
+                'update_subscription_details',
+                ['subscription_data' => $intent->data],
+            ],
+            FinancialIntent::CANCEL_SUBSCRIPTION => [
+                $this->subscriptionCancelMissingFieldReply($intent->missingFields),
+                'cancel_subscription_target',
+                ['subscription_data' => $intent->data],
+            ],
+            FinancialIntent::UPDATE_RECURRING_TRANSACTION => [
+                $this->recurringEditMissingFieldReply($intent->missingFields),
+                'update_recurring_transaction_details',
+                ['recurring_data' => $intent->data],
             ],
             default => [null, null, null],
         };
@@ -299,5 +324,50 @@ class AssistantActionRouter
             $needsName => "Perfeito. Agora me diga o nome da assinatura.\n\nExemplos:\n- Netflix\n- Spotify",
             default => "Me manda mais um detalhe para eu terminar essa assinatura.",
         };
+    }
+
+    private function goalEditMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('change', $missingFields, true)) {
+            return "Entendi qual meta voce quer ajustar. Agora me diga o que mudar.\n\nExemplos:\n- para 7000\n- ate dezembro de 2026";
+        }
+
+        return "Me diga o que voce quer ajustar nessa meta.";
+    }
+
+    private function subscriptionEditMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('change', $missingFields, true)) {
+            return "Entendi qual assinatura voce quer ajustar. Agora me diga o que mudar.\n\nExemplos:\n- 39,90 dia 10\n- anual\n- no cartao Nubank";
+        }
+
+        return "Me diga o que voce quer ajustar nessa assinatura.";
+    }
+
+    private function subscriptionCancelMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('name', $missingFields, true)) {
+            return "Qual assinatura voce quer cancelar?\n\nExemplos:\n- Netflix\n- Spotify";
+        }
+
+        return "Me diga qual assinatura voce quer cancelar.";
+    }
+
+    private function recurringEditMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('change', $missingFields, true)) {
+            return "Entendi qual recorrencia voce quer ajustar. Agora me diga o que mudar.\n\nExemplos:\n- para 99\n- dia 8\n- semanal";
+        }
+
+        return "Me diga o que voce quer ajustar nessa recorrencia.";
+    }
+
+    private function recurringCreateMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('amount', $missingFields, true)) {
+            return 'Entendi a recorrencia. Agora me diga o valor para eu terminar o cadastro.';
+        }
+
+        return 'Me diga o que falta nessa recorrencia para eu concluir.';
     }
 }

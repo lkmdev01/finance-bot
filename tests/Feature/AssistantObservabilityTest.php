@@ -77,3 +77,30 @@ it('renders the assistant observability page for authenticated users', function 
     $response->assertSee('Saude do assistente por intencao');
     $response->assertSee('Fila priorizada de regressao');
 });
+
+it('exports regression backlog as fixture candidates', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    WhatsAppConversationLog::query()->create([
+        'user_id' => $user->id,
+        'message' => 'cancelar assinatura',
+        'classification' => 'subscription_cancel_needs_target',
+        'action' => null,
+        'used_ai' => false,
+        'status' => 'handled_preflight',
+        'reply' => 'Qual assinatura voce quer cancelar?',
+        'metadata' => [
+            'assistant_intent' => 'cancel_subscription',
+            'assistant_confidence' => 0.83,
+            'assistant_missing_fields' => ['name'],
+        ],
+    ]);
+
+    $response = $this->get(route('assistant.observability.export-fixtures', ['focus' => 'missing']));
+
+    $response->assertOk();
+    $response->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
+    $response->assertSee('cancelar assinatura');
+    $response->assertSee('expected_missing_field');
+});

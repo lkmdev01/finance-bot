@@ -593,6 +593,43 @@ it('cria recorrencia mensal com valor e dia sem confundir o dia com o valor', fu
     ]);
 });
 
+it('completa criacao de recorrencia em duas mensagens quando falta o valor', function () {
+    Http::preventStrayRequests();
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $first = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'todo dia 5 pago academia',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($first);
+
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('create_recurring_transaction_amount');
+
+    $second = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: '89',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($second);
+
+    assertDatabaseHas('recurring_transactions', [
+        'user_id' => currentTestCase()->user->id,
+        'amount' => 89.00,
+        'description' => 'Academia',
+        'frequency' => 'monthly',
+        'day_of_month' => 5,
+    ]);
+});
+
 it('edita recorrencia por contexto recente', function () {
     Http::preventStrayRequests();
 

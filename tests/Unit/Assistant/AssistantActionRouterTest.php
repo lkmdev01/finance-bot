@@ -286,3 +286,71 @@ it('returns a clarification preflight when subscription details are still missin
         ->and($result->preflight['handled'])->toBeTrue()
         ->and($result->preflight['metadata']['pending_intent'])->toBe('create_subscription_details');
 });
+
+it('returns a clarification preflight when savings goal edit still needs a concrete change', function () {
+    $router = new AssistantActionRouter(
+        Mockery::mock(ConversationOrchestrator::class),
+        Mockery::mock(WhatsAppMessageProcessor::class),
+    );
+
+    $result = $router->execute(
+        new IncomingMessageDTO(rawMessage: 'ajusta a meta viagem', normalizedMessage: 'ajusta a meta viagem'),
+        new AssistantContextDTO(
+            user: new User(['id' => 1, 'name' => 'Lucas', 'email' => 'lucas@example.com']),
+            contact: new WhatsAppContact(['id' => 1, 'user_id' => 1, 'phone_number' => '5513999999999']),
+            state: [],
+            timezone: 'America/Sao_Paulo',
+            currentMonth: '2026-06',
+            currentYear: 2026,
+            lastAction: null,
+            pendingAction: null,
+        ),
+        new ParsedIntentDTO(
+            intent: FinancialIntent::UPDATE_SAVINGS_GOAL,
+            confidence: 0.83,
+            data: ['name' => 'Viagem'],
+            missingFields: ['change'],
+            domain: 'planning',
+            legacyKind: 'savings_edit_needs_change',
+        ),
+        [],
+    );
+
+    expect($result->usedAI)->toBeFalse()
+        ->and($result->preflight['handled'])->toBeTrue()
+        ->and($result->preflight['metadata']['pending_intent'])->toBe('update_savings_goal_details');
+});
+
+it('returns a clarification preflight when subscription cancel still needs a target', function () {
+    $router = new AssistantActionRouter(
+        Mockery::mock(ConversationOrchestrator::class),
+        Mockery::mock(WhatsAppMessageProcessor::class),
+    );
+
+    $result = $router->execute(
+        new IncomingMessageDTO(rawMessage: 'cancelar assinatura', normalizedMessage: 'cancelar assinatura'),
+        new AssistantContextDTO(
+            user: new User(['id' => 1, 'name' => 'Lucas', 'email' => 'lucas@example.com']),
+            contact: new WhatsAppContact(['id' => 1, 'user_id' => 1, 'phone_number' => '5513999999999']),
+            state: [],
+            timezone: 'America/Sao_Paulo',
+            currentMonth: '2026-06',
+            currentYear: 2026,
+            lastAction: null,
+            pendingAction: null,
+        ),
+        new ParsedIntentDTO(
+            intent: FinancialIntent::CANCEL_SUBSCRIPTION,
+            confidence: 0.83,
+            data: [],
+            missingFields: ['name'],
+            domain: 'planning',
+            legacyKind: 'subscription_cancel_needs_target',
+        ),
+        [],
+    );
+
+    expect($result->usedAI)->toBeFalse()
+        ->and($result->preflight['handled'])->toBeTrue()
+        ->and($result->preflight['metadata']['pending_intent'])->toBe('cancel_subscription_target');
+});

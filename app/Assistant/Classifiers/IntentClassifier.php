@@ -5,6 +5,7 @@ namespace App\Assistant\Classifiers;
 use App\Assistant\DTO\AssistantContextDTO;
 use App\Assistant\DTO\ParsedIntentDTO;
 use App\Assistant\Enums\FinancialIntent;
+use App\Services\WhatsApp\IncomingMessageNormalizer;
 use App\Services\WhatsApp\BudgetIntentClassifier;
 use App\Services\WhatsApp\BudgetMessageParser;
 use App\Services\WhatsApp\DriveIntentClassifier;
@@ -37,6 +38,7 @@ class IntentClassifier
         private readonly ReminderMessageParser $reminderMessageParser,
         private readonly DriveIntentClassifier $driveIntentClassifier,
         private readonly DriveMessageParser $driveMessageParser,
+        private readonly IncomingMessageNormalizer $incomingMessageNormalizer,
     ) {}
 
     public function classify(string $message, AssistantContextDTO $context): ParsedIntentDTO
@@ -70,7 +72,7 @@ class IntentClassifier
 
     private function classifyFinancialIntent(string $message): ?ParsedIntentDTO
     {
-        $normalized = mb_strtolower(trim($message));
+        $normalized = $this->normalizeAssistantText($message);
 
         if ($this->looksLikeBalanceQuery($normalized)) {
             return new ParsedIntentDTO(
@@ -121,7 +123,7 @@ class IntentClassifier
 
     private function classifyStructuredDomainIntent(string $message, AssistantContextDTO $context): ?ParsedIntentDTO
     {
-        $normalized = mb_strtolower(trim($message));
+        $normalized = $this->normalizeAssistantText($message);
         $state = $context->state;
 
         $budget = $this->budgetIntentClassifier->classify($message, $normalized, $state);
@@ -150,7 +152,7 @@ class IntentClassifier
             return $planning;
         }
 
-        if ($recurring = $this->classifyStructuredRecurringIntent($message, $normalized)) {
+        if ($recurring = $this->classifyStructuredRecurringIntent($message, $normalized, $state)) {
             return $recurring;
         }
 
@@ -311,6 +313,57 @@ class IntentClassifier
             }
         }
 
+        if ($planning['kind'] === 'savings_edit') {
+            $fallbackName = $state['last_entities']['goal_name'] ?? null;
+            $payload = $this->savingsGoalMessageParser->parseEdit($message, $fallbackName) ?? [];
+
+            if ($payload === [] && $fallbackName !== null) {
+                return new ParsedIntentDTO(
+                    intent: FinancialIntent::UPDATE_SAVINGS_GOAL,
+                    confidence: 0.82,
+                    data: ['name' => $fallbackName],
+                    missingFields: ['change'],
+                    domain: 'planning',
+                    legacyKind: 'savings_edit_needs_change',
+                    raw: ['kind' => 'savings_edit_needs_change', 'payload' => ['name' => $fallbackName]],
+                );
+            }
+        }
+
+        if ($planning['kind'] === 'subscription_edit') {
+            $fallbackName = $state['last_entities']['subscription_name'] ?? null;
+            $payload = $this->subscriptionMessageParser->parseEdit($message, $fallbackName) ?? [];
+
+            if ($payload === [] && $fallbackName !== null) {
+                return new ParsedIntentDTO(
+                    intent: FinancialIntent::UPDATE_SUBSCRIPTION,
+                    confidence: 0.82,
+                    data: ['name' => $fallbackName],
+                    missingFields: ['change'],
+                    domain: 'planning',
+                    legacyKind: 'subscription_edit_needs_change',
+                    raw: ['kind' => 'subscription_edit_needs_change', 'payload' => ['name' => $fallbackName]],
+                );
+            }
+        }
+
+        if ($planning['kind'] === 'subscription_cancel') {
+            $fallbackName = $state['last_entities']['subscription_name'] ?? null;
+            $payload = $this->subscriptionMessageParser->parseCancel($message, $fallbackName) ?? [];
+
+            if ($payload === []) {
+                return new ParsedIntentDTO(
+                    intent: FinancialIntent::CANCEL_SUBSCRIPTION,
+                    confidence: 0.8,
+                    data: [],
+                    missingFields: ['name'],
+                    domain: 'planning',
+                    legacyKind: 'subscription_cancel_needs_target',
+                    raw: ['kind' => 'subscription_cancel_needs_target', 'payload' => []],
+                );
+            }
+        }
+
         $payload = match ($planning['kind']) {
             'savings_create' => $this->savingsGoalMessageParser->parse($message) ?? [],
             'savings_edit' => $this->savingsGoalMessageParser->parseEdit($message, $state['last_entities']['goal_name'] ?? null) ?? [],
@@ -331,7 +384,7 @@ class IntentClassifier
         );
     }
 
-    private function classifyStructuredRecurringIntent(string $message, string $normalized): ?ParsedIntentDTO
+    private function classifyStructuredRecurringIntent(string $message, string $normalized, array $state): ?ParsedIntentDTO
     {
         foreach (['me lembra', 'me lembre', 'lembrete', 'lembrar de', 'lembra de'] as $cue) {
             if (str_contains($normalized, $cue)) {
@@ -341,6 +394,38 @@ class IntentClassifier
 
         $partial = $this->recurringTransactionMessageParser->parsePartialCreate($message);
         if (! $this->recurringTransactionMessageParser->looksLikeCreateIntent($normalized) || $partial === null) {
+            $fallbackDescription = is_array($state) ? ($state['last_entities']['recurring_description'] ?? null) : null;
+
+            $editPayload = $this->recurringTransactionMessageParser->parseEdit($message, $fallbackDescription) ?? [];
+            if ($fallbackDescription !== null && $editPayload === [] && preg_match('/\b(editar|edita|alterar|altera|ajustar|ajusta|mudar|muda|atualizar|atualiza)\b/u', $normalized) === 1) {
+                return new ParsedIntentDTO(
+                    intent: FinancialIntent::UPDATE_RECURRING_TRANSACTION,
+                    confidence: 0.82,
+                    data: ['description' => $fallbackDescription],
+                    missingFields: ['change'],
+                    domain: 'transaction',
+                    legacyKind: 'recurring_transaction_edit_needs_change',
+                    raw: ['kind' => 'recurring_transaction_edit_needs_change', 'payload' => ['description' => $fallbackDescription]],
+                );
+            }
+
+            $cancelPayload = $this->recurringTransactionMessageParser->parseCancel($message, $fallbackDescription) ?? [];
+            if ($fallbackDescription !== null && $cancelPayload !== []) {
+                return new ParsedIntentDTO(
+                    intent: FinancialIntent::CANCEL_RECURRING_TRANSACTION,
+                    confidence: 0.88,
+                    data: $cancelPayload,
+                    missingFields: [],
+                    domain: 'transaction',
+                    legacyKind: 'recurring_transaction_delete',
+                    raw: ['kind' => 'recurring_transaction_delete', 'payload' => $cancelPayload],
+                );
+            }
+
+            return null;
+        }
+
+        if (! array_key_exists('amount', $partial) && $this->looksLikeReminderStyleRecurringWithoutAmount($normalized)) {
             return null;
         }
 
@@ -369,7 +454,7 @@ class IntentClassifier
 
     private function classifyContextualFinancialIntent(string $message, AssistantContextDTO $context): ?ParsedIntentDTO
     {
-        $normalized = mb_strtolower(trim($message));
+        $normalized = $this->normalizeAssistantText($message);
         $lastEntities = $context->state['last_entities'] ?? [];
         $lastAction = $context->lastAction;
 
@@ -435,13 +520,13 @@ class IntentClassifier
             'query_budgets', 'budget_query' => FinancialIntent::QUERY_BUDGETS,
             'create_savings_goal', 'savings_create', 'savings_needs_details' => FinancialIntent::CREATE_GOAL,
             'query_savings', 'savings_query' => FinancialIntent::QUERY_SAVINGS,
-            'update_savings_goal', 'savings_edit' => FinancialIntent::UPDATE_SAVINGS_GOAL,
+            'update_savings_goal', 'savings_edit', 'savings_edit_needs_change' => FinancialIntent::UPDATE_SAVINGS_GOAL,
             'create_subscription', 'subscription_create', 'subscription_needs_details' => FinancialIntent::CREATE_SUBSCRIPTION,
             'query_subscriptions', 'subscription_query' => FinancialIntent::QUERY_SUBSCRIPTIONS,
-            'update_subscription', 'subscription_edit' => FinancialIntent::UPDATE_SUBSCRIPTION,
-            'cancel_subscription', 'subscription_cancel' => FinancialIntent::CANCEL_SUBSCRIPTION,
+            'update_subscription', 'subscription_edit', 'subscription_edit_needs_change' => FinancialIntent::UPDATE_SUBSCRIPTION,
+            'cancel_subscription', 'subscription_cancel', 'subscription_cancel_needs_target' => FinancialIntent::CANCEL_SUBSCRIPTION,
             'create_recurring_transaction', 'recurring_transaction_create', 'recurring_transaction_needs_amount' => FinancialIntent::CREATE_RECURRING_TRANSACTION,
-            'update_recurring_transaction', 'recurring_transaction_edit' => FinancialIntent::UPDATE_RECURRING_TRANSACTION,
+            'update_recurring_transaction', 'recurring_transaction_edit', 'recurring_transaction_edit_needs_change' => FinancialIntent::UPDATE_RECURRING_TRANSACTION,
             'cancel_recurring_transaction', 'recurring_transaction_delete' => FinancialIntent::CANCEL_RECURRING_TRANSACTION,
             'create_note', 'note_create', 'note_needs_content' => FinancialIntent::CREATE_NOTE,
             'query_notes', 'note_query' => FinancialIntent::QUERY_NOTES,
@@ -461,7 +546,7 @@ class IntentClassifier
             'default', 'acknowledgement' => 0.35,
             'confirmation', 'cancellation' => 0.72,
             'greeting', 'help' => 0.95,
-            'budget_needs_details', 'savings_needs_details', 'subscription_needs_details' => 0.83,
+            'budget_needs_details', 'savings_needs_details', 'subscription_needs_details', 'savings_edit_needs_change', 'subscription_edit_needs_change', 'subscription_cancel_needs_target', 'recurring_transaction_edit_needs_change' => 0.83,
             default => 0.9,
         };
     }
@@ -475,7 +560,11 @@ class IntentClassifier
             'recurring_transaction_needs_amount' => ['amount'],
             'budget_needs_details' => ['amount', 'category_name'],
             'savings_needs_details' => ['name', 'target_amount'],
+            'savings_edit_needs_change' => ['change'],
             'subscription_needs_details' => ['name', 'amount', 'billing_cycle', 'due_day'],
+            'subscription_edit_needs_change' => ['change'],
+            'subscription_cancel_needs_target' => ['name'],
+            'recurring_transaction_edit_needs_change' => ['change'],
             default => [],
         };
     }
@@ -517,5 +606,18 @@ class IntentClassifier
         }
 
         return false;
+    }
+
+    private function looksLikeReminderStyleRecurringWithoutAmount(string $message): bool
+    {
+        $hasInfinitiveOnly = preg_match('/\b(pagar|gastar|receber|ganhar)\b/u', $message) === 1;
+        $hasAccountingVerb = preg_match('/\b(pago|gasto|recebo|ganho|debito|debitar)\b/u', $message) === 1;
+
+        return $hasInfinitiveOnly && ! $hasAccountingVerb;
+    }
+
+    private function normalizeAssistantText(string $message): string
+    {
+        return $this->incomingMessageNormalizer->normalize($message);
     }
 }
