@@ -3,6 +3,7 @@
 namespace App\Services\WhatsApp\Resolvers;
 
 use App\Services\WhatsApp\Support\NormalizesWhatsAppText;
+use App\Services\WhatsApp\BudgetMessageParser;
 use App\Services\WhatsApp\TransactionActionMessageParser;
 use App\Services\WhatsApp\ReminderMessageParser;
 use App\Services\WhatsApp\NoteMessageParser;
@@ -12,6 +13,7 @@ class ClarificationResolver
 {
     use NormalizesWhatsAppText;
     public function __construct(
+        private readonly BudgetMessageParser $budgetMessageParser,
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
         private readonly ReminderMessageParser $reminderMessageParser,
         private readonly NoteMessageParser $noteMessageParser,
@@ -22,6 +24,7 @@ class ClarificationResolver
     {
         return match ($state['pending_intent'] ?? null) {
             'update_budget_category', 'delete_budget_category' => in_array($classification, ['default', 'budget_query'], true),
+            'create_budget_details' => in_array($classification, ['default', 'budget_create', 'budget_needs_details'], true),
             'edit_transaction_details' => in_array($classification, ['default', 'transaction_edit'], true),
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
@@ -38,6 +41,7 @@ class ClarificationResolver
         return match ($state['pending_intent'] ?? null) {
             'update_budget_category' => $this->buildBudgetClarificationResult('update_budget', $message, $state),
             'delete_budget_category' => $this->buildBudgetClarificationResult('delete_budget', $message, $state),
+            'create_budget_details' => $this->buildCreateBudgetClarificationResult($message, $state),
             'edit_transaction_details' => $this->buildTransactionEditClarificationResult($message, $state),
             'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
@@ -49,6 +53,56 @@ class ClarificationResolver
             'select_bank_account' => $this->buildSelectBankAccountClarificationResult($message, $state),
             default => null,
         };
+    }
+
+    private function buildCreateBudgetClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['budget_data'] ?? [];
+        $budgetData = $this->budgetMessageParser->parseCreateFollowUp($message, $pending);
+
+        if ($budgetData === null) {
+            return null;
+        }
+
+        $missingFields = [];
+        if (! isset($budgetData['amount'])) {
+            $missingFields[] = 'amount';
+        }
+
+        if (empty($budgetData['category_name'])) {
+            $missingFields[] = 'category_name';
+        }
+
+        if ($missingFields !== []) {
+            return [
+                'handled' => true,
+                'reply' => $this->buildBudgetDetailsReply($missingFields),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'create_budget_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'budget_data' => $budgetData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_budget',
+                'budget_data' => $budgetData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
     }
 
     private function buildDriveWaitMediaClarificationResult(string $message, array $state): ?array
@@ -643,5 +697,17 @@ class ClarificationResolver
 
         return $amount > 0 ? $amount : null;
     }
-}
 
+    private function buildBudgetDetailsReply(array $missingFields): string
+    {
+        $needsAmount = in_array('amount', $missingFields, true);
+        $needsCategory = in_array('category_name', $missingFields, true);
+
+        return match (true) {
+            $needsAmount && $needsCategory => "Ainda faltou o valor e a categoria do orcamento.\n\nExemplos:\n- 500 para compras\n- 800 para mercado em junho",
+            $needsAmount => "Perfeito. Agora me diga o valor do orcamento.\n\nExemplos:\n- 500\n- 800 em junho",
+            $needsCategory => "Perfeito. Agora me diga a categoria desse orcamento.\n\nExemplos:\n- para compras\n- mercado",
+            default => "Me manda mais um detalhe para eu terminar esse orcamento.",
+        };
+    }
+}

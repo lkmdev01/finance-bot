@@ -5,7 +5,15 @@ namespace App\Assistant\Classifiers;
 use App\Assistant\DTO\AssistantContextDTO;
 use App\Assistant\DTO\ParsedIntentDTO;
 use App\Assistant\Enums\FinancialIntent;
+use App\Services\WhatsApp\BudgetIntentClassifier;
+use App\Services\WhatsApp\BudgetMessageParser;
+use App\Services\WhatsApp\DriveIntentClassifier;
+use App\Services\WhatsApp\DriveMessageParser;
 use App\Services\WhatsApp\MessageClassifier;
+use App\Services\WhatsApp\NoteIntentClassifier;
+use App\Services\WhatsApp\NoteMessageParser;
+use App\Services\WhatsApp\ReminderIntentClassifier;
+use App\Services\WhatsApp\ReminderMessageParser;
 use App\Services\WhatsApp\SimpleTransactionMessageParser;
 
 class IntentClassifier
@@ -13,6 +21,14 @@ class IntentClassifier
     public function __construct(
         private readonly MessageClassifier $messageClassifier,
         private readonly SimpleTransactionMessageParser $simpleTransactionMessageParser,
+        private readonly BudgetIntentClassifier $budgetIntentClassifier,
+        private readonly BudgetMessageParser $budgetMessageParser,
+        private readonly NoteIntentClassifier $noteIntentClassifier,
+        private readonly NoteMessageParser $noteMessageParser,
+        private readonly ReminderIntentClassifier $reminderIntentClassifier,
+        private readonly ReminderMessageParser $reminderMessageParser,
+        private readonly DriveIntentClassifier $driveIntentClassifier,
+        private readonly DriveMessageParser $driveMessageParser,
     ) {}
 
     public function classify(string $message, AssistantContextDTO $context): ParsedIntentDTO
@@ -23,6 +39,10 @@ class IntentClassifier
 
         if ($contextualIntent = $this->classifyContextualFinancialIntent($message, $context)) {
             return $contextualIntent;
+        }
+
+        if ($domainIntent = $this->classifyStructuredDomainIntent($message, $context)) {
+            return $domainIntent;
         }
 
         $raw = $this->messageClassifier->classify($message, $context->state);
@@ -91,6 +111,125 @@ class IntentClassifier
         return null;
     }
 
+    private function classifyStructuredDomainIntent(string $message, AssistantContextDTO $context): ?ParsedIntentDTO
+    {
+        $normalized = mb_strtolower(trim($message));
+        $state = $context->state;
+
+        $budget = $this->budgetIntentClassifier->classify($message, $normalized, $state);
+        if ($budget !== null) {
+            $budgetPayload = match ($budget['kind']) {
+                'budget_create' => $this->budgetMessageParser->parseCreate($message) ?? ($budget['payload'] ?? []),
+                default => $budget['payload'] ?? [],
+            };
+
+            return new ParsedIntentDTO(
+                intent: $this->mapIntent($budget['kind']),
+                confidence: 0.92,
+                data: $budgetPayload,
+                missingFields: $this->missingFieldsForKind($budget['kind']),
+                domain: 'budget',
+                legacyKind: $budget['kind'],
+                raw: $budget,
+            );
+        }
+
+        if ($budgetPartial = $this->classifyBudgetCreateWithMissingFields($message)) {
+            return $budgetPartial;
+        }
+
+        $drive = $this->driveIntentClassifier->classify($message, $normalized, $state);
+        if ($drive !== null) {
+            $drivePayload = match ($drive['kind']) {
+                'drive_save' => $this->driveMessageParser->parseSave($message, $state) ?? ($drive['payload'] ?? []),
+                'drive_query' => $this->driveMessageParser->parseQuery($message, $state),
+                default => $drive['payload'] ?? [],
+            };
+
+            return new ParsedIntentDTO(
+                intent: $this->mapIntent($drive['kind']),
+                confidence: 0.91,
+                data: $drivePayload,
+                missingFields: $this->missingFieldsForKind($drive['kind']),
+                domain: 'drive',
+                legacyKind: $drive['kind'],
+                raw: $drive,
+            );
+        }
+
+        $note = $this->noteIntentClassifier->classify($message, $normalized, $state);
+        if ($note !== null) {
+            $notePayload = match ($note['kind']) {
+                'note_create' => $this->noteMessageParser->parseCreate($message) ?? ($note['payload'] ?? []),
+                'note_query' => ['term' => $this->noteMessageParser->extractQueryTerm($message)],
+                default => $note['payload'] ?? [],
+            };
+
+            return new ParsedIntentDTO(
+                intent: $this->mapIntent($note['kind']),
+                confidence: 0.92,
+                data: $notePayload,
+                missingFields: $this->missingFieldsForKind($note['kind']),
+                domain: 'notes',
+                legacyKind: $note['kind'],
+                raw: $note,
+            );
+        }
+
+        $reminder = $this->reminderIntentClassifier->classify($message, $normalized, $state);
+        if ($reminder !== null) {
+            $reminderPayload = match ($reminder['kind']) {
+                'reminder_create' => $this->reminderMessageParser->parse($message) ?? ($reminder['payload'] ?? []),
+                'reminder_query' => [],
+                default => $reminder['payload'] ?? [],
+            };
+
+            return new ParsedIntentDTO(
+                intent: $this->mapIntent($reminder['kind']),
+                confidence: 0.92,
+                data: $reminderPayload,
+                missingFields: $this->missingFieldsForKind($reminder['kind']),
+                domain: 'reminders',
+                legacyKind: $reminder['kind'],
+                raw: $reminder,
+            );
+        }
+
+        return null;
+    }
+
+    private function classifyBudgetCreateWithMissingFields(string $message): ?ParsedIntentDTO
+    {
+        $partial = $this->budgetMessageParser->parsePartialCreate($message);
+        if ($partial === null) {
+            return null;
+        }
+
+        $missingFields = [];
+
+        if (! array_key_exists('amount', $partial)) {
+            $missingFields[] = 'amount';
+        }
+
+        if (empty($partial['category_name'])) {
+            $missingFields[] = 'category_name';
+        }
+
+        if ($missingFields === []) {
+            return null;
+        }
+
+        return new ParsedIntentDTO(
+            intent: FinancialIntent::CREATE_BUDGET,
+            confidence: 0.83,
+            data: $partial,
+            missingFields: $missingFields,
+            domain: 'budget',
+            legacyKind: 'budget_needs_details',
+            raw: ['kind' => 'budget_needs_details', 'payload' => $partial],
+        );
+    }
+
     private function classifyContextualFinancialIntent(string $message, AssistantContextDTO $context): ?ParsedIntentDTO
     {
         $normalized = mb_strtolower(trim($message));
@@ -151,13 +290,20 @@ class IntentClassifier
             'create_income' => FinancialIntent::CREATE_INCOME,
             'query_balance' => FinancialIntent::QUERY_BALANCE,
             'query_category', 'query_category_spending' => FinancialIntent::QUERY_CATEGORY_SPENDING,
-            'query_report', 'query_month_report', 'query_budgets' => FinancialIntent::QUERY_MONTH_REPORT,
+            'query_report', 'query_month_report' => FinancialIntent::QUERY_MONTH_REPORT,
             'query_transactions' => FinancialIntent::LIST_TRANSACTIONS,
             'edit_transaction', 'transaction_edit' => FinancialIntent::UPDATE_TRANSACTION,
             'delete_transaction', 'transaction_delete', 'undo' => FinancialIntent::DELETE_TRANSACTION,
-            'create_budget' => FinancialIntent::CREATE_BUDGET,
+            'create_budget', 'budget_create', 'budget_needs_details' => FinancialIntent::CREATE_BUDGET,
+            'query_budgets', 'budget_query' => FinancialIntent::QUERY_BUDGETS,
             'create_savings_goal' => FinancialIntent::CREATE_GOAL,
-            'attach_receipt', 'drive_needs_file', 'create_drive_file', 'query_drive_files' => FinancialIntent::ATTACH_RECEIPT,
+            'create_note', 'note_create', 'note_needs_content' => FinancialIntent::CREATE_NOTE,
+            'query_notes', 'note_query' => FinancialIntent::QUERY_NOTES,
+            'create_reminder', 'reminder_create', 'reminder_needs_schedule' => FinancialIntent::CREATE_REMINDER,
+            'query_reminders', 'reminder_query' => FinancialIntent::QUERY_REMINDERS,
+            'attach_receipt' => FinancialIntent::ATTACH_RECEIPT,
+            'drive_save', 'drive_needs_file', 'create_drive_file' => FinancialIntent::CREATE_DRIVE_FILE,
+            'query_drive_files', 'drive_query' => FinancialIntent::QUERY_DRIVE_FILES,
             'help', 'greeting' => FinancialIntent::HELP,
             default => FinancialIntent::UNKNOWN,
         };
@@ -169,6 +315,7 @@ class IntentClassifier
             'default', 'acknowledgement' => 0.35,
             'confirmation', 'cancellation' => 0.72,
             'greeting', 'help' => 0.95,
+            'budget_needs_details' => 0.83,
             default => 0.9,
         };
     }
@@ -180,6 +327,7 @@ class IntentClassifier
             'note_needs_content' => ['content'],
             'reminder_needs_schedule' => ['schedule'],
             'recurring_transaction_needs_amount' => ['amount'],
+            'budget_needs_details' => ['amount', 'category_name'],
             default => [],
         };
     }

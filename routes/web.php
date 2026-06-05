@@ -158,6 +158,9 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.reports.index');
     })->name('reports.index');
 
+    Route::get('assistant/observability', \App\Http\Controllers\AssistantObservabilityController::class)
+        ->name('assistant.observability');
+
     // Projeções Financeiras
     Route::get('financial-projections', function () {
         return view('pages.financial-projections.index');

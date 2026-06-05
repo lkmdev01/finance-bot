@@ -138,6 +138,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
             $stateService = app(ConversationStateService::class);
             $proactiveTrigger = app(ProactiveConversationTrigger::class);
+            $orchestrator = app(ConversationOrchestrator::class);
 
             if ($this->incomingMediaId !== null && $this->incomingMediaId > 0) {
                 $stateService->rememberIncomingMedia($contact, $this->incomingMediaId, [

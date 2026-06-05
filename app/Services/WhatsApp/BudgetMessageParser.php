@@ -6,7 +6,7 @@ use Illuminate\Support\Str;
 
 class BudgetMessageParser
 {
-    public function parseCreate(string $message): ?array
+    public function parsePartialCreate(string $message): ?array
     {
         $normalized = $this->normalize($message);
 
@@ -18,16 +18,47 @@ class BudgetMessageParser
         $categoryName = $this->extractCategoryNameForCreate($message);
         $period = $this->extractPeriod($normalized, []);
 
-        if ($amount === null || $categoryName === null) {
-            return null;
-        }
-
         return array_filter([
             'category_name' => $categoryName,
             'amount' => $amount,
             'period' => $period['period'] ?? 'monthly',
             'year' => $period['year'] ?? now()->year,
             'month' => ($period['period'] ?? 'monthly') === 'monthly' ? ($period['month'] ?? now()->month) : null,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    public function parseCreate(string $message): ?array
+    {
+        $partial = $this->parsePartialCreate($message);
+
+        if ($partial === null || empty($partial['amount']) || empty($partial['category_name'])) {
+            return null;
+        }
+
+        return $partial;
+    }
+
+    public function parseCreateFollowUp(string $message, array $pendingBudget = []): ?array
+    {
+        $normalized = $this->normalize($message);
+        $amount = $this->extractAmount($message) ?? $this->extractAmount($normalized) ?? ($pendingBudget['amount'] ?? null);
+        $categoryName = $this->extractCategoryNameForCreate($message)
+            ?? $this->extractCategoryName($message)
+            ?? ($pendingBudget['category_name'] ?? null);
+        $period = $this->extractPeriod($normalized, [
+            'period' => $pendingBudget['period'] ?? 'monthly',
+            'year' => $pendingBudget['year'] ?? now()->year,
+            'month' => $pendingBudget['month'] ?? now()->month,
+        ]);
+
+        return array_filter([
+            'category_name' => $categoryName,
+            'amount' => $amount,
+            'period' => $period['period'] ?? ($pendingBudget['period'] ?? 'monthly'),
+            'year' => $period['year'] ?? ($pendingBudget['year'] ?? now()->year),
+            'month' => ($period['period'] ?? ($pendingBudget['period'] ?? 'monthly')) === 'monthly'
+                ? ($period['month'] ?? ($pendingBudget['month'] ?? now()->month))
+                : null,
         ], fn ($value) => $value !== null && $value !== '');
     }
 

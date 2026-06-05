@@ -37,6 +37,9 @@
                 <flux:sidebar.item icon="document-text" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
                     Relatórios
                 </flux:sidebar.item>
+                <flux:sidebar.item icon="command-line" :href="route('assistant.observability')" :current="request()->routeIs('assistant.observability')" wire:navigate>
+                    Observabilidade IA
+                </flux:sidebar.item>
                 <flux:sidebar.item icon="chart-bar" :href="route('financial-projections.index')" :current="request()->routeIs('financial-projections.*')" wire:navigate>
                     Projeções
                 </flux:sidebar.item>

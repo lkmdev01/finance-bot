@@ -27,3 +27,26 @@ it('normalizes the structured assistant contract into the legacy action payload'
         ->and($parsed['transaction_data']['type'])->toBe('expense')
         ->and((float) $parsed['transaction_data']['amount'])->toBe(50.0);
 });
+
+it('normalizes note contracts into note payloads', function () {
+    $parser = new AIResponseParser();
+
+    $payload = json_encode([
+        'intent' => 'create_note',
+        'confidence' => 0.91,
+        'data' => [
+            'title' => 'Ligar Para O Contador',
+            'body' => 'ligar para o contador',
+            'source' => 'whatsapp',
+        ],
+        'missing_fields' => [],
+        'needs_confirmation' => false,
+        'user_friendly_summary' => 'Nota pronta para salvar',
+    ]);
+
+    $parsed = $parser->parse($payload);
+
+    expect($parsed['intent'])->toBe('create_note')
+        ->and($parsed['action'])->toBe('create_note')
+        ->and($parsed['note_data']['title'])->toBe('Ligar Para O Contador');
+});

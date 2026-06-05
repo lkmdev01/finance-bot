@@ -105,6 +105,22 @@ class AIResponseParser
             $payload['transaction_data'] = $data;
         }
 
+        if (($payload['action'] ?? null) === 'create_budget' && ! isset($payload['budget_data']) && $data !== []) {
+            $payload['budget_data'] = $data;
+        }
+
+        if (in_array(($payload['action'] ?? null), ['create_note', 'query_notes'], true) && ! isset($payload['note_data']) && $data !== []) {
+            $payload['note_data'] = $data;
+        }
+
+        if (($payload['action'] ?? null) === 'create_reminder' && ! isset($payload['reminder_data']) && $data !== []) {
+            $payload['reminder_data'] = $data;
+        }
+
+        if (in_array(($payload['action'] ?? null), ['create_drive_file', 'query_drive_files'], true) && ! isset($payload['drive_data']) && $data !== []) {
+            $payload['drive_data'] = $data;
+        }
+
         return $payload;
     }
 
@@ -117,6 +133,13 @@ class AIResponseParser
             'query_month_report' => 'query_expenses',
             'list_transactions' => 'query_transactions',
             'create_budget' => 'create_budget',
+            'query_budgets' => 'query_budgets',
+            'create_note' => 'create_note',
+            'query_notes' => 'query_notes',
+            'create_reminder' => 'create_reminder',
+            'query_reminders' => 'query_reminders',
+            'create_drive_file' => 'create_drive_file',
+            'query_drive_files' => 'query_drive_files',
             'update_transaction' => 'edit_transaction',
             'delete_transaction' => 'delete_transaction',
             'help' => null,

@@ -146,7 +146,9 @@ AÇÕES permitidas:
 create_transaction, edit_transaction, delete_transaction,
 query_balance, query_expenses, query_income, query_transactions, query_category,
 query_report, query_report_pdf, query_report_csv, query_report_excel,
-query_savings, query_budgets, query_evolution, query_projections, query_subscriptions
+query_savings, query_budgets, query_notes, query_reminders, query_drive_files,
+query_evolution, query_projections, query_subscriptions,
+create_budget, create_note, create_reminder, create_drive_file
 
 Regras técnicas (JSON válido - crítico):
 1. Responda apenas um objeto JSON em uma única linha.
@@ -154,7 +156,8 @@ Regras técnicas (JSON válido - crítico):
 3. Sempre inclua os campos: intent, confidence, data, missing_fields, needs_confirmation, user_friendly_summary, reply, action.
 4. "intent" deve ser uma destas chaves:
    create_expense, create_income, query_balance, query_category_spending, query_month_report,
-   update_transaction, delete_transaction, create_budget, list_transactions, help, unknown
+   update_transaction, delete_transaction, create_budget, query_budgets, create_note, query_notes,
+   create_reminder, query_reminders, create_drive_file, query_drive_files, list_transactions, help, unknown
 5. "data" deve ser um objeto. Se não houver dados, use {}.
 6. "missing_fields" deve ser uma lista. Se não faltar nada, use [].
 7. "needs_confirmation" deve ser true ou false.
@@ -163,6 +166,7 @@ Exemplos de resposta (JSON apenas):
 {"intent":"create_expense","confidence":0.97,"data":{"type":"expense","amount":50.0,"description":"Burger King","category_id":1,"date":"\$today"},"missing_fields":[],"needs_confirmation":false,"user_friendly_summary":"Despesa de R$ 50,00 em Burger King","reply":"OK. Registrei R$ 50,00 em Alimentacao (Burger King).","action":"create_transaction","transaction_data":{"type":"expense","amount":50.0,"description":"Burger King","category_id":1,"date":"\$today"},"transaction_id":null}
 {"intent":"create_income","confidence":0.96,"data":{"type":"income","amount":1200.0,"description":"Salario","category_id":null,"date":"\$today"},"missing_fields":[],"needs_confirmation":false,"user_friendly_summary":"Receita de R$ 1.200,00 registrada","reply":"OK. Receita de R$ 1.200,00 registrada.","action":"create_transaction","transaction_data":{"type":"income","amount":1200.0,"description":"Salario","category_id":null,"date":"\$today"},"transaction_id":null}
 {"intent":"list_transactions","confidence":0.93,"data":{},"missing_fields":[],"needs_confirmation":false,"user_friendly_summary":"Lista das ultimas transacoes","reply":"Seus ultimos gastos:\\n- 02/04 - Uber: R$ 18,00\\n- 01/04 - Supermercado: R$ 45,00","action":"query_transactions","transaction_data":null,"transaction_id":null}
+{"intent":"create_note","confidence":0.91,"data":{"title":"Ligar Para O Contador","body":"ligar para o contador","source":"whatsapp"},"missing_fields":[],"needs_confirmation":false,"user_friendly_summary":"Nota pronta para salvar","reply":"Entendi. Vou salvar essa nota.","action":"create_note"}
 PROMPT;
     }
 
