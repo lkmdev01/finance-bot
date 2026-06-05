@@ -187,6 +187,11 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'metadata' => [
                         'preflight_handled' => true,
                         'domain' => $preflight['domain'] ?? null,
+                        'assistant_intent' => $assistantResponse->intent->intent->value,
+                        'assistant_confidence' => $assistantResponse->intent->confidence,
+                        'assistant_missing_fields' => $assistantResponse->intent->missingFields,
+                        'assistant_domain' => $assistantResponse->intent->domain,
+                        'assistant_used_ai' => $assistantResponse->usedAI,
                     ],
                 ]);
                 return;
@@ -275,6 +280,11 @@ class ProcessWhatsAppMessage implements ShouldQueue
                         'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
                         'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                         'entities' => $result['_conversation_metadata']['entities'] ?? null,
+                        'assistant_intent' => $assistantResponse->intent->intent->value,
+                        'assistant_confidence' => $assistantResponse->intent->confidence,
+                        'assistant_missing_fields' => $assistantResponse->intent->missingFields,
+                        'assistant_domain' => $assistantResponse->intent->domain,
+                        'assistant_used_ai' => $assistantResponse->usedAI,
                     ],
                 ]);
                 return;
@@ -302,6 +312,11 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
                     'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                     'entities' => $result['_conversation_metadata']['entities'] ?? null,
+                    'assistant_intent' => $assistantResponse->intent->intent->value,
+                    'assistant_confidence' => $assistantResponse->intent->confidence,
+                    'assistant_missing_fields' => $assistantResponse->intent->missingFields,
+                    'assistant_domain' => $assistantResponse->intent->domain,
+                    'assistant_used_ai' => $assistantResponse->usedAI,
                 ],
             ]);
         } catch (\Exception $e) {
@@ -346,6 +361,11 @@ class ProcessWhatsAppMessage implements ShouldQueue
                         'file' => $e->getFile(),
                         'domain' => $preflight['domain'] ?? null,
                         'contract' => $result['_contract_meta'] ?? null,
+                        'assistant_intent' => $assistantResponse->intent->intent->value ?? null,
+                        'assistant_confidence' => $assistantResponse->intent->confidence ?? null,
+                        'assistant_missing_fields' => $assistantResponse->intent->missingFields ?? [],
+                        'assistant_domain' => $assistantResponse->intent->domain ?? null,
+                        'assistant_used_ai' => $assistantResponse->usedAI ?? null,
                     ],
                 ]);
             }
