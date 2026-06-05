@@ -24,6 +24,14 @@
                     </button>
                 </form>
             </div>
+
+            <div class="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Sync de Fixtures</p>
+                <p class="mt-2 text-sm text-slate-300">
+                    Quando quisermos materializar o backlog em arquivos de teste por categoria, o comando ja esta pronto:
+                </p>
+                <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-cyan-100">php artisan assistant:sync-observability-fixtures --days={{ $days }} --focus={{ $focus }}</pre>
+            </div>
         </section>
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -121,26 +129,57 @@
                     </div>
                 </div>
 
-                <div class="space-y-3">
-                    @forelse (collect($summary['regression_backlog'])->filter(function ($item) use ($focus) {
-                        return match ($focus) {
-                            'unknown' => ($item['intent'] ?? null) === 'unknown',
-                            'missing' => ($item['intent'] ?? null) !== 'unknown',
-                            default => true,
-                        };
-                    }) as $item)
-                        <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $item['priority'] === 'high' ? 'bg-rose-400/15 text-rose-200' : 'bg-cyan-400/15 text-cyan-200' }}">
-                                    {{ $item['priority'] }}
-                                </span>
-                                <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-300">{{ $item['intent'] }}</span>
-                                <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-400">{{ $item['count'] }}x</span>
+                <div class="space-y-5">
+                    @php
+                        $filteredBacklog = collect($summary['regression_backlog'])->filter(function ($item) use ($focus) {
+                            return match ($focus) {
+                                'unknown' => ($item['intent'] ?? null) === 'unknown',
+                                'missing' => ($item['intent'] ?? null) !== 'unknown',
+                                default => true,
+                            };
+                        })->groupBy(fn ($item) => $item['domain'] ?? 'unknown')->sortKeys();
+                    @endphp
+
+                    @forelse ($filteredBacklog as $domain => $items)
+                        <section class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div class="flex flex-col gap-3 border-b border-white/10 pb-4 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                    <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Dominio</p>
+                                    <h3 class="mt-1 text-lg font-semibold text-white">{{ $domain }}</h3>
+                                </div>
+
+                                <div class="flex flex-wrap gap-2">
+                                    <a href="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus, 'domain' => $domain]) }}" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">
+                                        Baixar fixture
+                                    </a>
+                                    <button
+                                        type="button"
+                                        data-copy-fixture
+                                        data-url="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus, 'domain' => $domain]) }}"
+                                        class="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold text-cyan-100"
+                                    >
+                                        Copiar para fixture
+                                    </button>
+                                </div>
                             </div>
-                            <p class="mt-3 text-sm text-white">{{ $item['message'] }}</p>
-                            <p class="mt-2 text-xs text-slate-400">{{ $item['reason'] }}</p>
-                            <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ json_encode($item['suggested_example'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                        </article>
+
+                            <div class="mt-4 space-y-3">
+                                @foreach ($items as $item)
+                                    <article class="rounded-2xl border border-white/10 bg-black/20 p-4">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $item['priority'] === 'high' ? 'bg-rose-400/15 text-rose-200' : 'bg-cyan-400/15 text-cyan-200' }}">
+                                                {{ $item['priority'] }}
+                                            </span>
+                                            <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-300">{{ $item['intent'] }}</span>
+                                            <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-400">{{ $item['count'] }}x</span>
+                                        </div>
+                                        <p class="mt-3 text-sm text-white">{{ $item['message'] }}</p>
+                                        <p class="mt-2 text-xs text-slate-400">{{ $item['reason'] }}</p>
+                                        <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ json_encode($item['suggested_example'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                    </article>
+                                @endforeach
+                            </div>
+                        </section>
                     @empty
                         <p class="text-sm text-slate-400">Nenhum candidato de regressao encontrado nesta janela.</p>
                     @endforelse
@@ -197,4 +236,35 @@
             </section>
         </div>
     </div>
+
+    @push('scripts')
+        <script>
+            document.addEventListener('click', async (event) => {
+                const button = event.target.closest('[data-copy-fixture]');
+                if (!button) {
+                    return;
+                }
+
+                const original = button.textContent;
+
+                try {
+                    const response = await fetch(button.dataset.url, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+
+                    const text = await response.text();
+                    await navigator.clipboard.writeText(text);
+                    button.textContent = 'Fixture copiada';
+                } catch (error) {
+                    button.textContent = 'Falhou ao copiar';
+                } finally {
+                    setTimeout(() => {
+                        button.textContent = original;
+                    }, 1800);
+                }
+            });
+        </script>
+    @endpush
 </x-layouts.app.sidebar>

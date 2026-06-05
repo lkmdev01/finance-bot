@@ -80,9 +80,29 @@ class AssistantActionRouter
                 'create_note_content',
                 ['note_data' => $intent->data],
             ],
+            FinancialIntent::UPDATE_NOTE => [
+                $this->noteEditMissingFieldReply($intent->missingFields),
+                in_array('target', $intent->missingFields, true) ? 'update_note_target' : 'update_note_details',
+                ['note_data' => $intent->data],
+            ],
+            FinancialIntent::DELETE_NOTE => [
+                $this->noteDeleteMissingFieldReply($intent->missingFields),
+                'delete_note_target',
+                ['note_data' => $intent->data],
+            ],
             FinancialIntent::CREATE_REMINDER => [
                 'Entendi o lembrete. Agora me diga quando devo te lembrar.',
                 'create_reminder_schedule',
+                ['reminder_data' => $intent->data],
+            ],
+            FinancialIntent::UPDATE_REMINDER => [
+                $this->reminderEditMissingFieldReply($intent->missingFields),
+                in_array('target', $intent->missingFields, true) ? 'update_reminder_target' : 'update_reminder_details',
+                ['reminder_data' => $intent->data],
+            ],
+            FinancialIntent::DELETE_REMINDER => [
+                $this->reminderDeleteMissingFieldReply($intent->missingFields),
+                'delete_reminder_target',
                 ['reminder_data' => $intent->data],
             ],
             FinancialIntent::CREATE_DRIVE_FILE => [
@@ -258,6 +278,16 @@ class AssistantActionRouter
                 'reply' => $intent->raw['reply'] ?? '',
                 'note_data' => $intent->data,
             ],
+            FinancialIntent::UPDATE_NOTE => [
+                'action' => 'edit_note',
+                'reply' => $intent->raw['reply'] ?? '',
+                'note_data' => $intent->data,
+            ],
+            FinancialIntent::DELETE_NOTE => [
+                'action' => 'delete_note',
+                'reply' => $intent->raw['reply'] ?? '',
+                'note_data' => $intent->data,
+            ],
             FinancialIntent::CREATE_REMINDER => [
                 'action' => 'create_reminder',
                 'reply' => $intent->raw['reply'] ?? '',
@@ -266,6 +296,16 @@ class AssistantActionRouter
             FinancialIntent::QUERY_REMINDERS => [
                 'action' => 'query_reminders',
                 'reply' => $intent->raw['reply'] ?? '',
+            ],
+            FinancialIntent::UPDATE_REMINDER => [
+                'action' => 'edit_reminder',
+                'reply' => $intent->raw['reply'] ?? '',
+                'reminder_data' => $intent->data,
+            ],
+            FinancialIntent::DELETE_REMINDER => [
+                'action' => 'delete_reminder',
+                'reply' => $intent->raw['reply'] ?? '',
+                'reminder_data' => $intent->data,
             ],
             FinancialIntent::CREATE_DRIVE_FILE => [
                 'action' => 'create_drive_file',
@@ -369,5 +409,41 @@ class AssistantActionRouter
         }
 
         return 'Me diga o que falta nessa recorrencia para eu concluir.';
+    }
+
+    private function noteEditMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('target', $missingFields, true)) {
+            return "Qual nota voce quer editar?\n\nExemplos:\n- ideia do projeto X\n- nota do contrato";
+        }
+
+        return "Entendi qual nota voce quer editar. Agora me diga o novo conteudo.\n\nExemplos:\n- ligar para o contador amanha\n- atualizar escopo do projeto";
+    }
+
+    private function noteDeleteMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('target', $missingFields, true)) {
+            return "Qual nota voce quer apagar?\n\nExemplos:\n- ideia do projeto X\n- nota do contrato";
+        }
+
+        return 'Me diga qual nota voce quer apagar.';
+    }
+
+    private function reminderEditMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('target', $missingFields, true)) {
+            return "Qual lembrete voce quer editar?\n\nExemplos:\n- tomar agua\n- pagar academia";
+        }
+
+        return "Entendi qual lembrete voce quer ajustar. Agora me diga o que mudar.\n\nExemplos:\n- amanha as 10:00\n- todo dia 5";
+    }
+
+    private function reminderDeleteMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('target', $missingFields, true)) {
+            return "Qual lembrete voce quer apagar?\n\nExemplos:\n- tomar agua\n- pagar academia";
+        }
+
+        return 'Me diga qual lembrete voce quer apagar.';
     }
 }

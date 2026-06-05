@@ -78,6 +78,51 @@ class NoteMessageParser
         ];
     }
 
+    public function extractActionTarget(string $message): ?string
+    {
+        $subject = preg_replace('/\b(?:editar|edita|alterar|altera|atualizar|atualiza|apagar|apaga|apague|deletar|deleta|remover|remove|excluir|exclui|cancelar|cancela)\b/iu', ' ', $message) ?? $message;
+        $subject = preg_replace('/\b(?:nota|notas)\b/iu', ' ', $subject) ?? $subject;
+
+        if (preg_match('/\b(?:para|pra)\b/iu', $subject, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            $offset = (int) ($matches[0][1] ?? 0);
+            $subject = mb_substr($subject, 0, $offset);
+        }
+
+        $subject = preg_replace('/\b(?:o|a|os|as|um|uma|minha|minhas|meu|meus|essa|esse|esta|este)\b/iu', ' ', $subject) ?? $subject;
+        $subject = trim(preg_replace('/\s+/u', ' ', $subject) ?? $subject, " \t\n\r\0\x0B-:.,;");
+
+        return $subject !== '' ? mb_convert_case($subject, MB_CASE_TITLE, 'UTF-8') : null;
+    }
+
+    public function extractEditBody(string $message): ?string
+    {
+        $clean = trim($message);
+
+        if (preg_match('/^(?:para|pra)\b\s*(.+)$/iu', $clean, $matches) === 1) {
+            $body = trim((string) ($matches[1] ?? ''));
+
+            return $body !== '' ? $body : null;
+        }
+
+        return null;
+    }
+
+    public function parseEditFollowUp(string $message, array $pendingNote = []): ?array
+    {
+        $body = $this->extractEditBody($message) ?? trim($message);
+        $body = trim($body, " \t\n\r\0\x0B-:.,;");
+
+        if ($body === '') {
+            return null;
+        }
+
+        return array_filter([
+            'note_id' => $pendingNote['note_id'] ?? null,
+            'current_title' => $pendingNote['current_title'] ?? null,
+            'body' => $body,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
     public function extractQueryTerm(string $message): ?string
     {
         $clean = trim($message);

@@ -4,6 +4,7 @@ namespace App\Assistant\Reports;
 
 use App\Models\WhatsAppConversationLog;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 
 class AssistantObservabilityService
 {
@@ -15,6 +16,8 @@ class AssistantObservabilityService
             ->limit($sampleSize)
             ->get();
 
+        $regressionBacklog = $this->buildRegressionBacklog($logs);
+
         return [
             'period_days' => $days,
             'sample_size' => $logs->count(),
@@ -22,27 +25,41 @@ class AssistantObservabilityService
             'by_intent' => $this->buildIntentBreakdown($logs),
             'recent_failures' => $this->buildRecentFailures($logs),
             'top_unknown_messages' => $this->buildTopUnknownMessages($logs),
-            'regression_backlog' => $this->buildRegressionBacklog($logs),
+            'regression_backlog' => $regressionBacklog,
+            'regression_backlog_by_domain' => $this->groupRegressionBacklogByDomain($regressionBacklog),
         ];
     }
 
-    public function fixtureExport(int $days = 14, int $sampleSize = 1000, string $focus = 'all'): string
+    public function fixtureExport(int $days = 14, int $sampleSize = 1000, string $focus = 'all', ?string $domain = null): string
     {
-        $summary = $this->summary($days, $sampleSize);
-
-        $items = collect($summary['regression_backlog'])
-            ->filter(function (array $item) use ($focus) {
-                return match ($focus) {
-                    'unknown' => ($item['intent'] ?? null) === 'unknown',
-                    'missing' => ($item['intent'] ?? null) !== 'unknown',
-                    default => true,
-                };
-            })
+        $items = $this->filteredRegressionBacklog($days, $sampleSize, $focus, $domain)
             ->map(fn (array $item) => $item['suggested_example'])
             ->values()
             ->all();
 
         return "<?php\n\nreturn ".var_export($items, true).";\n";
+    }
+
+    public function syncFixtureFiles(
+        int $days = 14,
+        int $sampleSize = 1000,
+        string $focus = 'all',
+        ?string $outputDirectory = null
+    ): array {
+        $outputDirectory ??= base_path('tests/Fixtures/generated');
+        File::ensureDirectoryExists($outputDirectory);
+
+        $domains = array_keys($this->summary($days, $sampleSize)['regression_backlog_by_domain'] ?? []);
+        $written = [];
+
+        foreach ($domains as $domain) {
+            $content = $this->fixtureExport($days, $sampleSize, $focus, $domain);
+            $path = rtrim($outputDirectory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$this->fixtureFileName($domain);
+            file_put_contents($path, $content);
+            $written[$domain] = $path;
+        }
+
+        return $written;
     }
 
     private function buildTotals(Collection $logs): array
@@ -155,6 +172,7 @@ class AssistantObservabilityService
                     'reason' => 'Mensagem recorrente ainda cai como unknown',
                     'message' => $message,
                     'intent' => 'unknown',
+                    'domain' => $this->inferDomainFromLog($group->first()),
                     'count' => $group->count(),
                     'suggested_example' => [
                         'message' => $message,
@@ -180,6 +198,7 @@ class AssistantObservabilityService
 
                         return array_map(fn (string $field) => [
                             'intent' => $intent,
+                            'domain' => $this->inferDomainFromLog($log),
                             'field' => $field,
                             'message' => $log->message,
                         ], $fields);
@@ -194,6 +213,7 @@ class AssistantObservabilityService
                     'reason' => 'Campo pendente aparece com frequencia e merece fixture de follow-up',
                     'message' => $first['message'],
                     'intent' => $first['intent'],
+                    'domain' => $first['domain'] ?? $this->inferDomainFromIntent($first['intent'] ?? null),
                     'count' => $group->count(),
                     'suggested_example' => [
                         'message' => $first['message'],
@@ -219,5 +239,66 @@ class AssistantObservabilityService
         return (string) (data_get($log->metadata, 'assistant_intent')
             ?? $log->classification
             ?? 'unknown');
+    }
+
+    private function filteredRegressionBacklog(int $days, int $sampleSize, string $focus, ?string $domain): Collection
+    {
+        $summary = $this->summary($days, $sampleSize);
+
+        return collect($summary['regression_backlog'])
+            ->filter(function (array $item) use ($focus) {
+                return match ($focus) {
+                    'unknown' => ($item['intent'] ?? null) === 'unknown',
+                    'missing' => ($item['intent'] ?? null) !== 'unknown',
+                    default => true,
+                };
+            })
+            ->filter(function (array $item) use ($domain) {
+                return $domain === null || ($item['domain'] ?? 'unknown') === $domain;
+            })
+            ->values();
+    }
+
+    private function groupRegressionBacklogByDomain(array $items): array
+    {
+        return collect($items)
+            ->groupBy(fn (array $item) => $item['domain'] ?? 'unknown')
+            ->map(fn (Collection $group) => $group->values()->all())
+            ->sortKeys()
+            ->all();
+    }
+
+    private function inferDomainFromLog(?WhatsAppConversationLog $log): string
+    {
+        if (! $log) {
+            return 'unknown';
+        }
+
+        return (string) (data_get($log->metadata, 'assistant_domain')
+            ?? data_get($log->metadata, 'domain')
+            ?? $this->inferDomainFromIntent($this->assistantIntent($log)));
+    }
+
+    private function inferDomainFromIntent(?string $intent): string
+    {
+        return match ($intent) {
+            'create_note', 'query_notes', 'update_note', 'delete_note' => 'notes',
+            'create_reminder', 'query_reminders', 'update_reminder', 'delete_reminder' => 'reminders',
+            'create_drive_file', 'query_drive_files' => 'drive',
+            'create_budget', 'query_budgets' => 'budget',
+            'create_goal', 'query_savings', 'update_savings_goal',
+            'create_subscription', 'query_subscriptions', 'update_subscription', 'cancel_subscription' => 'planning',
+            'create_recurring_transaction', 'update_recurring_transaction', 'cancel_recurring_transaction',
+            'create_expense', 'create_income', 'query_balance', 'query_category_spending', 'query_month_report', 'update_transaction', 'delete_transaction', 'list_transactions' => 'transaction',
+            'unknown', null, '' => 'unknown',
+            default => 'assistant',
+        };
+    }
+
+    private function fixtureFileName(string $domain): string
+    {
+        $safe = preg_replace('/[^a-z0-9_]+/i', '_', strtolower($domain)) ?: 'unknown';
+
+        return "assistant_observability_{$safe}_examples.php";
     }
 }

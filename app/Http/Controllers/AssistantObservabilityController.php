@@ -23,13 +23,17 @@ class AssistantObservabilityController extends Controller
     {
         $days = max(1, min(30, (int) $request->integer('days', 14)));
         $focus = (string) $request->query('focus', 'all');
+        $domain = $request->query('domain');
+        $filename = $domain
+            ? "assistant_observability_{$domain}_fixtures.php"
+            : 'assistant_observability_fixtures.php';
 
         return response(
-            $observabilityService->fixtureExport($days, 1000, $focus),
+            $observabilityService->fixtureExport($days, 1000, $focus, is_string($domain) && $domain !== '' ? $domain : null),
             200,
             [
                 'Content-Type' => 'text/plain; charset=UTF-8',
-                'Content-Disposition' => 'attachment; filename="assistant_observability_fixtures.php"',
+                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
             ]
         );
     }

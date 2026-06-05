@@ -43,6 +43,19 @@ class IntentClassifier
 
     public function classify(string $message, AssistantContextDTO $context): ParsedIntentDTO
     {
+        if (($context->state['mode'] ?? null) === 'awaiting_clarification') {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::UNKNOWN,
+                confidence: 0.35,
+                data: [],
+                missingFields: [],
+                needsConfirmation: false,
+                domain: $context->state['last_entities']['topic'] ?? null,
+                legacyKind: 'default',
+                raw: ['kind' => 'default'],
+            );
+        }
+
         if ($financialIntent = $this->classifyFinancialIntent($message)) {
             return $financialIntent;
         }
@@ -177,6 +190,10 @@ class IntentClassifier
 
         $note = $this->noteIntentClassifier->classify($message, $normalized, $state);
         if ($note !== null) {
+            if ($structuredNote = $this->classifyStructuredNoteIntent($message, $normalized, $state, $note)) {
+                return $structuredNote;
+            }
+
             $notePayload = match ($note['kind']) {
                 'note_create' => $this->noteMessageParser->parseCreate($message) ?? ($note['payload'] ?? []),
                 'note_query' => ['term' => $this->noteMessageParser->extractQueryTerm($message)],
@@ -196,6 +213,10 @@ class IntentClassifier
 
         $reminder = $this->reminderIntentClassifier->classify($message, $normalized, $state);
         if ($reminder !== null) {
+            if ($structuredReminder = $this->classifyStructuredReminderIntent($message, $normalized, $state, $reminder)) {
+                return $structuredReminder;
+            }
+
             $reminderPayload = match ($reminder['kind']) {
                 'reminder_create' => $this->reminderMessageParser->parse($message) ?? ($reminder['payload'] ?? []),
                 'reminder_query' => [],
@@ -214,6 +235,169 @@ class IntentClassifier
         }
 
         return null;
+    }
+
+    private function classifyStructuredNoteIntent(string $message, string $normalized, array $state, array $note): ?ParsedIntentDTO
+    {
+        if (! in_array($note['kind'], ['note_edit', 'note_delete'], true)) {
+            return null;
+        }
+
+        $contextNoteId = (int) ($state['last_entities']['note_id'] ?? 0);
+        $contextNoteTitle = $state['last_entities']['note_title'] ?? null;
+        $usesContextTarget = (($state['last_entities']['topic'] ?? null) === 'notes')
+            && ($this->referencesRecentEntity($normalized) || preg_match('/\b(?:nota|notas)\b/u', $normalized) === 1);
+
+        $targetTitle = $this->noteMessageParser->extractActionTarget($message);
+        $noteData = array_filter([
+            'note_id' => $usesContextTarget && $contextNoteId > 0 ? $contextNoteId : null,
+            'current_title' => $targetTitle ?: ($usesContextTarget ? $contextNoteTitle : null),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        if ($note['kind'] === 'note_delete') {
+            if (($noteData['note_id'] ?? null) === null && empty($noteData['current_title'])) {
+                return new ParsedIntentDTO(
+                    intent: FinancialIntent::DELETE_NOTE,
+                    confidence: $this->confidenceForKind('note_delete_needs_target'),
+                    data: [],
+                    missingFields: ['target'],
+                    domain: 'notes',
+                    legacyKind: 'note_delete_needs_target',
+                    raw: ['kind' => 'note_delete_needs_target', 'payload' => []],
+                );
+            }
+
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::DELETE_NOTE,
+                confidence: $this->confidenceForKind($note['kind']),
+                data: $noteData,
+                missingFields: [],
+                domain: 'notes',
+                legacyKind: $note['kind'],
+                raw: $note,
+            );
+        }
+
+        $body = $this->noteMessageParser->extractEditBody($message);
+        if (($noteData['note_id'] ?? null) === null && empty($noteData['current_title'])) {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::UPDATE_NOTE,
+                confidence: $this->confidenceForKind('note_edit_needs_target'),
+                data: [],
+                missingFields: ['target'],
+                domain: 'notes',
+                legacyKind: 'note_edit_needs_target',
+                raw: ['kind' => 'note_edit_needs_target', 'payload' => []],
+            );
+        }
+
+        if ($body === null || trim($body) === '') {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::UPDATE_NOTE,
+                confidence: $this->confidenceForKind('note_edit_needs_content'),
+                data: $noteData,
+                missingFields: ['content'],
+                domain: 'notes',
+                legacyKind: 'note_edit_needs_content',
+                raw: ['kind' => 'note_edit_needs_content', 'payload' => $noteData],
+            );
+        }
+
+        return new ParsedIntentDTO(
+            intent: FinancialIntent::UPDATE_NOTE,
+            confidence: $this->confidenceForKind($note['kind']),
+            data: array_merge($noteData, ['body' => $body]),
+            missingFields: [],
+            domain: 'notes',
+            legacyKind: $note['kind'],
+            raw: $note,
+        );
+    }
+
+    private function classifyStructuredReminderIntent(string $message, string $normalized, array $state, array $reminder): ?ParsedIntentDTO
+    {
+        if (! in_array($reminder['kind'], ['reminder_edit', 'reminder_delete'], true)) {
+            return null;
+        }
+
+        $contextReminderId = (int) ($state['last_entities']['reminder_id'] ?? 0);
+        $contextReminderTitle = $state['last_entities']['reminder_title'] ?? null;
+        $usesContextTarget = (($state['last_entities']['topic'] ?? null) === 'reminders')
+            && ($this->referencesRecentEntity($normalized) || preg_match('/\b(?:lembrete|lembretes)\b/u', $normalized) === 1);
+
+        $targetTitle = $this->reminderMessageParser->extractActionTarget($message);
+        $reminderData = array_filter([
+            'reminder_id' => $usesContextTarget && $contextReminderId > 0 ? $contextReminderId : null,
+            'current_title' => $targetTitle ?: ($usesContextTarget ? $contextReminderTitle : null),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        if ($reminder['kind'] === 'reminder_delete') {
+            if (($reminderData['reminder_id'] ?? null) === null && empty($reminderData['current_title'])) {
+                return new ParsedIntentDTO(
+                    intent: FinancialIntent::DELETE_REMINDER,
+                    confidence: $this->confidenceForKind('reminder_delete_needs_target'),
+                    data: [],
+                    missingFields: ['target'],
+                    domain: 'reminders',
+                    legacyKind: 'reminder_delete_needs_target',
+                    raw: ['kind' => 'reminder_delete_needs_target', 'payload' => []],
+                );
+            }
+
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::DELETE_REMINDER,
+                confidence: $this->confidenceForKind($reminder['kind']),
+                data: $reminderData,
+                missingFields: [],
+                domain: 'reminders',
+                legacyKind: $reminder['kind'],
+                raw: $reminder,
+            );
+        }
+
+        if (($reminderData['reminder_id'] ?? null) === null && empty($reminderData['current_title'])) {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::UPDATE_REMINDER,
+                confidence: $this->confidenceForKind('reminder_edit_needs_target'),
+                data: [],
+                missingFields: ['target'],
+                domain: 'reminders',
+                legacyKind: 'reminder_edit_needs_target',
+                raw: ['kind' => 'reminder_edit_needs_target', 'payload' => []],
+            );
+        }
+
+        $changes = $this->reminderMessageParser->parseEditFollowUp($message, $reminderData) ?? [];
+        $scheduleFields = array_filter([
+            'frequency' => $changes['frequency'] ?? null,
+            'day_of_week' => $changes['day_of_week'] ?? null,
+            'day_of_month' => $changes['day_of_month'] ?? null,
+            'month_of_year' => $changes['month_of_year'] ?? null,
+            'trigger_time' => $changes['trigger_time'] ?? null,
+            'next_trigger_at' => $changes['next_trigger_at'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        if ($scheduleFields === []) {
+            return new ParsedIntentDTO(
+                intent: FinancialIntent::UPDATE_REMINDER,
+                confidence: $this->confidenceForKind('reminder_edit_needs_change'),
+                data: $reminderData,
+                missingFields: ['change'],
+                domain: 'reminders',
+                legacyKind: 'reminder_edit_needs_change',
+                raw: ['kind' => 'reminder_edit_needs_change', 'payload' => $reminderData],
+            );
+        }
+
+        return new ParsedIntentDTO(
+            intent: FinancialIntent::UPDATE_REMINDER,
+            confidence: $this->confidenceForKind($reminder['kind']),
+            data: array_merge($reminderData, $scheduleFields),
+            missingFields: [],
+            domain: 'reminders',
+            legacyKind: $reminder['kind'],
+            raw: $reminder,
+        );
     }
 
     private function classifyBudgetCreateWithMissingFields(string $message): ?ParsedIntentDTO
@@ -530,8 +714,12 @@ class IntentClassifier
             'cancel_recurring_transaction', 'recurring_transaction_delete' => FinancialIntent::CANCEL_RECURRING_TRANSACTION,
             'create_note', 'note_create', 'note_needs_content' => FinancialIntent::CREATE_NOTE,
             'query_notes', 'note_query' => FinancialIntent::QUERY_NOTES,
+            'edit_note', 'note_edit', 'note_edit_needs_target', 'note_edit_needs_content' => FinancialIntent::UPDATE_NOTE,
+            'delete_note', 'note_delete', 'note_delete_needs_target' => FinancialIntent::DELETE_NOTE,
             'create_reminder', 'reminder_create', 'reminder_needs_schedule' => FinancialIntent::CREATE_REMINDER,
             'query_reminders', 'reminder_query' => FinancialIntent::QUERY_REMINDERS,
+            'edit_reminder', 'reminder_edit', 'reminder_edit_needs_target', 'reminder_edit_needs_change' => FinancialIntent::UPDATE_REMINDER,
+            'delete_reminder', 'reminder_delete', 'reminder_delete_needs_target' => FinancialIntent::DELETE_REMINDER,
             'attach_receipt' => FinancialIntent::ATTACH_RECEIPT,
             'drive_save', 'drive_needs_file', 'create_drive_file' => FinancialIntent::CREATE_DRIVE_FILE,
             'query_drive_files', 'drive_query' => FinancialIntent::QUERY_DRIVE_FILES,
@@ -546,7 +734,7 @@ class IntentClassifier
             'default', 'acknowledgement' => 0.35,
             'confirmation', 'cancellation' => 0.72,
             'greeting', 'help' => 0.95,
-            'budget_needs_details', 'savings_needs_details', 'subscription_needs_details', 'savings_edit_needs_change', 'subscription_edit_needs_change', 'subscription_cancel_needs_target', 'recurring_transaction_edit_needs_change' => 0.83,
+            'budget_needs_details', 'savings_needs_details', 'subscription_needs_details', 'savings_edit_needs_change', 'subscription_edit_needs_change', 'subscription_cancel_needs_target', 'recurring_transaction_edit_needs_change', 'note_edit_needs_target', 'note_edit_needs_content', 'note_delete_needs_target', 'reminder_edit_needs_target', 'reminder_edit_needs_change', 'reminder_delete_needs_target' => 0.83,
             default => 0.9,
         };
     }
@@ -556,7 +744,10 @@ class IntentClassifier
         return match ($kind) {
             'drive_needs_file' => ['file'],
             'note_needs_content' => ['content'],
+            'note_edit_needs_target', 'note_delete_needs_target', 'reminder_edit_needs_target', 'reminder_delete_needs_target' => ['target'],
+            'note_edit_needs_content' => ['content'],
             'reminder_needs_schedule' => ['schedule'],
+            'reminder_edit_needs_change' => ['change'],
             'recurring_transaction_needs_amount' => ['amount'],
             'budget_needs_details' => ['amount', 'category_name'],
             'savings_needs_details' => ['name', 'target_amount'],
@@ -614,6 +805,11 @@ class IntentClassifier
         $hasAccountingVerb = preg_match('/\b(pago|gasto|recebo|ganho|debito|debitar)\b/u', $message) === 1;
 
         return $hasInfinitiveOnly && ! $hasAccountingVerb;
+    }
+
+    private function referencesRecentEntity(string $message): bool
+    {
+        return preg_match('/\b(?:essa|esse|esta|este|ela|ele|ultima|ultimo)\b/u', $message) === 1;
     }
 
     private function normalizeAssistantText(string $message): string

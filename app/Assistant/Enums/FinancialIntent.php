@@ -25,8 +25,12 @@ enum FinancialIntent: string
     case CANCEL_RECURRING_TRANSACTION = 'cancel_recurring_transaction';
     case CREATE_NOTE = 'create_note';
     case QUERY_NOTES = 'query_notes';
+    case UPDATE_NOTE = 'update_note';
+    case DELETE_NOTE = 'delete_note';
     case CREATE_REMINDER = 'create_reminder';
     case QUERY_REMINDERS = 'query_reminders';
+    case UPDATE_REMINDER = 'update_reminder';
+    case DELETE_REMINDER = 'delete_reminder';
     case CREATE_DRIVE_FILE = 'create_drive_file';
     case QUERY_DRIVE_FILES = 'query_drive_files';
     case ATTACH_RECEIPT = 'attach_receipt';

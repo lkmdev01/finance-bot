@@ -3,6 +3,7 @@
 use App\Assistant\Reports\AssistantObservabilityService;
 use App\Models\User;
 use App\Models\WhatsAppConversationLog;
+use Illuminate\Support\Facades\File;
 
 it('aggregates assistant observability by intent', function () {
     $user = User::factory()->create();
@@ -61,9 +62,11 @@ it('aggregates assistant observability by intent', function () {
 
     $noteRow = collect($summary['by_intent'])->firstWhere('intent', 'create_note');
     $backlog = collect($summary['regression_backlog']);
+    $byDomain = $summary['regression_backlog_by_domain'];
 
     expect($noteRow['top_missing_fields'])->toHaveKey('content');
-    expect($backlog->pluck('intent')->all())->toContain('unknown', 'create_note');
+    expect($backlog->pluck('intent')->all())->toContain('unknown', 'create_note')
+        ->and($byDomain)->toHaveKey('notes');
 });
 
 it('renders the assistant observability page for authenticated users', function () {
@@ -97,10 +100,46 @@ it('exports regression backlog as fixture candidates', function () {
         ],
     ]);
 
-    $response = $this->get(route('assistant.observability.export-fixtures', ['focus' => 'missing']));
+    $response = $this->get(route('assistant.observability.export-fixtures', ['focus' => 'missing', 'domain' => 'planning']));
 
     $response->assertOk();
     $response->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
     $response->assertSee('cancelar assinatura');
     $response->assertSee('expected_missing_field');
+});
+
+it('syncs regression backlog into generated fixture files by domain', function () {
+    $user = User::factory()->create();
+
+    WhatsAppConversationLog::query()->create([
+        'user_id' => $user->id,
+        'message' => 'apaga a nota',
+        'classification' => 'note_delete_needs_target',
+        'action' => null,
+        'used_ai' => false,
+        'status' => 'handled_preflight',
+        'reply' => 'Qual nota voce quer apagar?',
+        'metadata' => [
+            'assistant_intent' => 'delete_note',
+            'assistant_domain' => 'notes',
+            'assistant_confidence' => 0.84,
+            'assistant_missing_fields' => ['target'],
+        ],
+    ]);
+
+    $directory = base_path('tests/Fixtures/generated-observability-test');
+    File::deleteDirectory($directory);
+
+    $written = app(AssistantObservabilityService::class)->syncFixtureFiles(
+        days: 14,
+        sampleSize: 100,
+        focus: 'missing',
+        outputDirectory: $directory,
+    );
+
+    expect($written)->toHaveKey('notes');
+    expect(File::exists($written['notes']))->toBeTrue();
+    expect(File::get($written['notes']))->toContain('apaga a nota');
+
+    File::deleteDirectory($directory);
 });

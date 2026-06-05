@@ -20,6 +20,7 @@ class DeleteReminderHandler extends BaseHandler
     public function handle(?string $action, array &$result, User $user, WhatsAppContact $contact, ProcessWhatsAppMessage $job): bool
     {
         $normalized = $this->normalizeMessage($result['_resolved_message'] ?? $job->message ?? '');
+        $reminderData = is_array($result['reminder_data'] ?? null) ? $result['reminder_data'] : [];
 
         if ($this->isDeleteAllIntent($normalized)) {
             $this->deleteAllReminders($user, $job);
@@ -35,7 +36,31 @@ class DeleteReminderHandler extends BaseHandler
             return true;
         }
 
-        $title = $this->extractReminderTitleFromMessage($job->message);
+        $resolvedReminder = $this->resolveFromResult($reminders, $reminderData);
+        if ($resolvedReminder) {
+            $before = $resolvedReminder->only(['is_active']);
+            $resolvedReminder->update(['is_active' => false]);
+
+            $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
+                'reply_kind' => 'action',
+                'undo' => [
+                    'kind' => 'reminder_delete',
+                    'id' => $resolvedReminder->id,
+                    'before' => $before,
+                    'expires_at' => now()->addSeconds(60)->toIso8601String(),
+                ],
+                'entities' => [
+                    'topic' => 'reminders',
+                    'reminder_id' => $resolvedReminder->id,
+                    'reminder_title' => $resolvedReminder->title,
+                ],
+            ]);
+
+            $this->sendResponse($job, "Lembrete '{$resolvedReminder->title}' apagado com sucesso.", $user);
+            return true;
+        }
+
+        $title = trim((string) ($reminderData['current_title'] ?? '')) ?: $this->extractReminderTitleFromMessage($job->message);
         if ($title !== null) {
             $matches = $this->findMatchingReminders($reminders, $title);
 
@@ -98,6 +123,23 @@ class DeleteReminderHandler extends BaseHandler
 
         $this->sendErrorMessage($job, "Voce tem varios lembretes. Qual deles voce quer apagar?\n\n{$this->renderReminderOptions($reminders)}");
         return true;
+    }
+
+    private function resolveFromResult(\Illuminate\Support\Collection $reminders, array $reminderData): ?Reminder
+    {
+        $reminderId = (int) ($reminderData['reminder_id'] ?? 0);
+        if ($reminderId > 0) {
+            return $reminders->firstWhere('id', $reminderId);
+        }
+
+        $title = trim((string) ($reminderData['current_title'] ?? ''));
+        if ($title === '') {
+            return null;
+        }
+
+        $matches = $this->findMatchingReminders($reminders, $title);
+
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     private function deleteAllReminders(User $user, ProcessWhatsAppMessage $job): void
@@ -179,4 +221,3 @@ class DeleteReminderHandler extends BaseHandler
         return app(IncomingMessageNormalizer::class)->normalize($message);
     }
 }
-
