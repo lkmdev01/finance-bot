@@ -4,6 +4,8 @@ namespace App\Services\WhatsApp\Resolvers;
 
 use App\Services\WhatsApp\Support\NormalizesWhatsAppText;
 use App\Services\WhatsApp\BudgetMessageParser;
+use App\Services\WhatsApp\SavingsGoalMessageParser;
+use App\Services\WhatsApp\SubscriptionMessageParser;
 use App\Services\WhatsApp\TransactionActionMessageParser;
 use App\Services\WhatsApp\ReminderMessageParser;
 use App\Services\WhatsApp\NoteMessageParser;
@@ -14,6 +16,8 @@ class ClarificationResolver
     use NormalizesWhatsAppText;
     public function __construct(
         private readonly BudgetMessageParser $budgetMessageParser,
+        private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
+        private readonly SubscriptionMessageParser $subscriptionMessageParser,
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
         private readonly ReminderMessageParser $reminderMessageParser,
         private readonly NoteMessageParser $noteMessageParser,
@@ -25,6 +29,8 @@ class ClarificationResolver
         return match ($state['pending_intent'] ?? null) {
             'update_budget_category', 'delete_budget_category' => in_array($classification, ['default', 'budget_query'], true),
             'create_budget_details' => in_array($classification, ['default', 'budget_create', 'budget_needs_details'], true),
+            'create_savings_goal_details' => in_array($classification, ['default', 'savings_create', 'savings_needs_details'], true),
+            'create_subscription_details' => in_array($classification, ['default', 'subscription_create', 'subscription_needs_details'], true),
             'edit_transaction_details' => in_array($classification, ['default', 'transaction_edit'], true),
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
@@ -42,6 +48,8 @@ class ClarificationResolver
             'update_budget_category' => $this->buildBudgetClarificationResult('update_budget', $message, $state),
             'delete_budget_category' => $this->buildBudgetClarificationResult('delete_budget', $message, $state),
             'create_budget_details' => $this->buildCreateBudgetClarificationResult($message, $state),
+            'create_savings_goal_details' => $this->buildCreateSavingsGoalClarificationResult($message, $state),
+            'create_subscription_details' => $this->buildCreateSubscriptionClarificationResult($message, $state),
             'edit_transaction_details' => $this->buildTransactionEditClarificationResult($message, $state),
             'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
@@ -96,6 +104,114 @@ class ClarificationResolver
                 'reply' => '',
                 'action' => 'create_budget',
                 'budget_data' => $budgetData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildCreateSavingsGoalClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['goal_data'] ?? [];
+        $goalData = $this->savingsGoalMessageParser->parseCreateFollowUp($message, $pending);
+
+        if ($goalData === null) {
+            return null;
+        }
+
+        $missingFields = [];
+        if (empty($goalData['name'])) {
+            $missingFields[] = 'name';
+        }
+
+        if (! isset($goalData['target_amount'])) {
+            $missingFields[] = 'target_amount';
+        }
+
+        if ($missingFields !== []) {
+            return [
+                'handled' => true,
+                'reply' => $this->buildSavingsGoalDetailsReply($missingFields),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'create_savings_goal_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'goal_data' => $goalData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_savings_goal',
+                'goal_data' => $goalData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildCreateSubscriptionClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['subscription_data'] ?? [];
+        $subscriptionData = $this->subscriptionMessageParser->parseCreateFollowUp($message, $pending);
+
+        if ($subscriptionData === null) {
+            return null;
+        }
+
+        $missingFields = [];
+        if (empty($subscriptionData['name'])) {
+            $missingFields[] = 'name';
+        }
+
+        if (! isset($subscriptionData['amount'])) {
+            $missingFields[] = 'amount';
+        }
+
+        if (empty($subscriptionData['billing_cycle'])) {
+            $missingFields[] = 'billing_cycle';
+        }
+
+        if (! isset($subscriptionData['due_day'])) {
+            $missingFields[] = 'due_day';
+        }
+
+        if ($missingFields !== []) {
+            return [
+                'handled' => true,
+                'reply' => $this->buildSubscriptionDetailsReply($missingFields),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'create_subscription_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'subscription_data' => $subscriptionData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_subscription',
+                'subscription_data' => $subscriptionData,
                 '_resolved_message' => $message,
                 '_conversation_metadata' => [
                     'clear_pending' => true,
@@ -708,6 +824,38 @@ class ClarificationResolver
             $needsAmount => "Perfeito. Agora me diga o valor do orcamento.\n\nExemplos:\n- 500\n- 800 em junho",
             $needsCategory => "Perfeito. Agora me diga a categoria desse orcamento.\n\nExemplos:\n- para compras\n- mercado",
             default => "Me manda mais um detalhe para eu terminar esse orcamento.",
+        };
+    }
+
+    private function buildSavingsGoalDetailsReply(array $missingFields): string
+    {
+        $needsName = in_array('name', $missingFields, true);
+        $needsAmount = in_array('target_amount', $missingFields, true);
+
+        return match (true) {
+            $needsName && $needsAmount => "Ainda faltou o nome e o valor dessa meta.\n\nExemplos:\n- viagem 5000\n- reserva de emergencia 10000",
+            $needsName => "Perfeito. Agora me diga o nome dessa meta.\n\nExemplos:\n- viagem europa\n- reserva de emergencia",
+            $needsAmount => "Perfeito. Agora me diga o valor objetivo dessa meta.\n\nExemplos:\n- 5000\n- 30000 ate dezembro",
+            default => "Me manda mais um detalhe para eu terminar essa meta.",
+        };
+    }
+
+    private function buildSubscriptionDetailsReply(array $missingFields): string
+    {
+        $needsName = in_array('name', $missingFields, true);
+        $needsAmount = in_array('amount', $missingFields, true);
+        $needsCycle = in_array('billing_cycle', $missingFields, true);
+        $needsDueDay = in_array('due_day', $missingFields, true);
+
+        return match (true) {
+            $needsName && $needsAmount && $needsCycle && $needsDueDay => "Ainda faltou o nome, valor, ciclo e dia de vencimento da assinatura.\n\nExemplo:\n- Netflix mensal dia 10 39,90",
+            $needsAmount && $needsCycle && $needsDueDay => "Perfeito. Agora me diga o valor, se ela e mensal ou anual, e o dia do vencimento.\n\nExemplo:\n- 39,90 mensal dia 10",
+            $needsAmount && $needsDueDay => "Perfeito. Agora me diga o valor e o dia do vencimento.\n\nExemplo:\n- 39,90 dia 10",
+            $needsAmount => "Perfeito. Agora me diga o valor dessa assinatura.\n\nExemplos:\n- 39,90\n- 19 reais",
+            $needsCycle => "Perfeito. Agora me diga se essa assinatura e mensal ou anual.",
+            $needsDueDay => "Perfeito. Agora me diga o dia do vencimento.\n\nExemplos:\n- dia 10\n- vence dia 5",
+            $needsName => "Perfeito. Agora me diga o nome da assinatura.\n\nExemplos:\n- Netflix\n- Spotify",
+            default => "Me manda mais um detalhe para eu terminar essa assinatura.",
         };
     }
 }

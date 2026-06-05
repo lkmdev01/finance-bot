@@ -95,6 +95,16 @@ class AssistantActionRouter
                 'create_budget_details',
                 ['budget_data' => $intent->data],
             ],
+            FinancialIntent::CREATE_GOAL => [
+                $this->goalMissingFieldReply($intent->missingFields),
+                'create_savings_goal_details',
+                ['goal_data' => $intent->data],
+            ],
+            FinancialIntent::CREATE_SUBSCRIPTION => [
+                $this->subscriptionMissingFieldReply($intent->missingFields),
+                'create_subscription_details',
+                ['subscription_data' => $intent->data],
+            ],
             default => [null, null, null],
         };
 
@@ -256,6 +266,38 @@ class AssistantActionRouter
             $needsAmount => "Entendi a categoria do orcamento. Agora me diga o valor.\n\nExemplos:\n- 500\n- 800 em junho",
             $needsCategory => "Entendi o valor do orcamento. Agora me diga a categoria.\n\nExemplos:\n- para compras\n- mercado",
             default => "Me manda mais um detalhe para eu terminar esse orcamento.",
+        };
+    }
+
+    private function goalMissingFieldReply(array $missingFields): string
+    {
+        $needsName = in_array('name', $missingFields, true);
+        $needsAmount = in_array('target_amount', $missingFields, true);
+
+        return match (true) {
+            $needsName && $needsAmount => "Entendi a meta, mas faltou o nome e o valor objetivo.\n\nExemplos:\n- viagem 5000\n- meta carro 30000",
+            $needsName => "Perfeito. Agora me diga o nome dessa meta.\n\nExemplos:\n- viagem europa\n- reserva de emergencia",
+            $needsAmount => "Perfeito. Agora me diga o valor objetivo dessa meta.\n\nExemplos:\n- 5000\n- 30000 ate dezembro",
+            default => "Me manda mais um detalhe para eu terminar essa meta.",
+        };
+    }
+
+    private function subscriptionMissingFieldReply(array $missingFields): string
+    {
+        $needsName = in_array('name', $missingFields, true);
+        $needsAmount = in_array('amount', $missingFields, true);
+        $needsCycle = in_array('billing_cycle', $missingFields, true);
+        $needsDueDay = in_array('due_day', $missingFields, true);
+
+        return match (true) {
+            $needsName && $needsAmount && $needsCycle && $needsDueDay => "Entendi a assinatura, mas faltaram nome, valor, ciclo e dia de vencimento.\n\nExemplo:\n- Netflix mensal dia 10 39,90",
+            $needsAmount && $needsCycle && $needsDueDay => "Perfeito. Agora me diga o valor, se ela e mensal ou anual, e o dia do vencimento.\n\nExemplo:\n- 39,90 mensal dia 10",
+            $needsAmount && $needsDueDay => "Perfeito. Agora me diga o valor e o dia do vencimento.\n\nExemplo:\n- 39,90 dia 10",
+            $needsAmount => "Perfeito. Agora me diga o valor dessa assinatura.\n\nExemplos:\n- 39,90\n- 19 reais",
+            $needsCycle => "Perfeito. Agora me diga se essa assinatura e mensal ou anual.",
+            $needsDueDay => "Perfeito. Agora me diga o dia do vencimento.\n\nExemplos:\n- dia 10\n- vence dia 5",
+            $needsName => "Perfeito. Agora me diga o nome da assinatura.\n\nExemplos:\n- Netflix\n- Spotify",
+            default => "Me manda mais um detalhe para eu terminar essa assinatura.",
         };
     }
 }

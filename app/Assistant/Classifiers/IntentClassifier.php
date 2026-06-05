@@ -253,6 +253,64 @@ class IntentClassifier
             return null;
         }
 
+        if ($planning['kind'] === 'savings_create') {
+            $partial = $this->savingsGoalMessageParser->parsePartialCreate($message) ?? [];
+            $missingFields = [];
+
+            if (empty($partial['name'])) {
+                $missingFields[] = 'name';
+            }
+
+            if (! array_key_exists('target_amount', $partial)) {
+                $missingFields[] = 'target_amount';
+            }
+
+            if ($missingFields !== []) {
+                return new ParsedIntentDTO(
+                    intent: FinancialIntent::CREATE_GOAL,
+                    confidence: 0.84,
+                    data: $partial,
+                    missingFields: $missingFields,
+                    domain: 'planning',
+                    legacyKind: 'savings_needs_details',
+                    raw: ['kind' => 'savings_needs_details', 'payload' => $partial],
+                );
+            }
+        }
+
+        if ($planning['kind'] === 'subscription_create') {
+            $partial = $this->subscriptionMessageParser->parsePartialCreate($message) ?? [];
+            $missingFields = [];
+
+            if (empty($partial['name'])) {
+                $missingFields[] = 'name';
+            }
+
+            if (! array_key_exists('amount', $partial)) {
+                $missingFields[] = 'amount';
+            }
+
+            if (empty($partial['billing_cycle'])) {
+                $missingFields[] = 'billing_cycle';
+            }
+
+            if (! array_key_exists('due_day', $partial)) {
+                $missingFields[] = 'due_day';
+            }
+
+            if ($missingFields !== []) {
+                return new ParsedIntentDTO(
+                    intent: FinancialIntent::CREATE_SUBSCRIPTION,
+                    confidence: 0.84,
+                    data: $partial,
+                    missingFields: $missingFields,
+                    domain: 'planning',
+                    legacyKind: 'subscription_needs_details',
+                    raw: ['kind' => 'subscription_needs_details', 'payload' => $partial],
+                );
+            }
+        }
+
         $payload = match ($planning['kind']) {
             'savings_create' => $this->savingsGoalMessageParser->parse($message) ?? [],
             'savings_edit' => $this->savingsGoalMessageParser->parseEdit($message, $state['last_entities']['goal_name'] ?? null) ?? [],
@@ -375,10 +433,10 @@ class IntentClassifier
             'delete_transaction', 'transaction_delete', 'undo' => FinancialIntent::DELETE_TRANSACTION,
             'create_budget', 'budget_create', 'budget_needs_details' => FinancialIntent::CREATE_BUDGET,
             'query_budgets', 'budget_query' => FinancialIntent::QUERY_BUDGETS,
-            'create_savings_goal', 'savings_create' => FinancialIntent::CREATE_GOAL,
+            'create_savings_goal', 'savings_create', 'savings_needs_details' => FinancialIntent::CREATE_GOAL,
             'query_savings', 'savings_query' => FinancialIntent::QUERY_SAVINGS,
             'update_savings_goal', 'savings_edit' => FinancialIntent::UPDATE_SAVINGS_GOAL,
-            'create_subscription', 'subscription_create' => FinancialIntent::CREATE_SUBSCRIPTION,
+            'create_subscription', 'subscription_create', 'subscription_needs_details' => FinancialIntent::CREATE_SUBSCRIPTION,
             'query_subscriptions', 'subscription_query' => FinancialIntent::QUERY_SUBSCRIPTIONS,
             'update_subscription', 'subscription_edit' => FinancialIntent::UPDATE_SUBSCRIPTION,
             'cancel_subscription', 'subscription_cancel' => FinancialIntent::CANCEL_SUBSCRIPTION,
@@ -403,7 +461,7 @@ class IntentClassifier
             'default', 'acknowledgement' => 0.35,
             'confirmation', 'cancellation' => 0.72,
             'greeting', 'help' => 0.95,
-            'budget_needs_details' => 0.83,
+            'budget_needs_details', 'savings_needs_details', 'subscription_needs_details' => 0.83,
             default => 0.9,
         };
     }
@@ -416,6 +474,8 @@ class IntentClassifier
             'reminder_needs_schedule' => ['schedule'],
             'recurring_transaction_needs_amount' => ['amount'],
             'budget_needs_details' => ['amount', 'category_name'],
+            'savings_needs_details' => ['name', 'target_amount'],
+            'subscription_needs_details' => ['name', 'amount', 'billing_cycle', 'due_day'],
             default => [],
         };
     }

@@ -218,3 +218,71 @@ it('returns a deterministic recurring result for recurring intents', function ()
         ->and($result->result['action'])->toBe('create_recurring_transaction')
         ->and((float) $result->result['recurring_data']['amount'])->toBe(89.0);
 });
+
+it('returns a clarification preflight when savings goal details are still missing', function () {
+    $router = new AssistantActionRouter(
+        Mockery::mock(ConversationOrchestrator::class),
+        Mockery::mock(WhatsAppMessageProcessor::class),
+    );
+
+    $result = $router->execute(
+        new IncomingMessageDTO(rawMessage: 'criar meta viagem', normalizedMessage: 'criar meta viagem'),
+        new AssistantContextDTO(
+            user: new User(['id' => 1, 'name' => 'Lucas', 'email' => 'lucas@example.com']),
+            contact: new WhatsAppContact(['id' => 1, 'user_id' => 1, 'phone_number' => '5513999999999']),
+            state: [],
+            timezone: 'America/Sao_Paulo',
+            currentMonth: '2026-06',
+            currentYear: 2026,
+            lastAction: null,
+            pendingAction: null,
+        ),
+        new ParsedIntentDTO(
+            intent: FinancialIntent::CREATE_GOAL,
+            confidence: 0.83,
+            data: ['name' => 'Viagem'],
+            missingFields: ['target_amount'],
+            domain: 'planning',
+            legacyKind: 'savings_needs_details',
+        ),
+        [],
+    );
+
+    expect($result->usedAI)->toBeFalse()
+        ->and($result->preflight['handled'])->toBeTrue()
+        ->and($result->preflight['metadata']['pending_intent'])->toBe('create_savings_goal_details');
+});
+
+it('returns a clarification preflight when subscription details are still missing', function () {
+    $router = new AssistantActionRouter(
+        Mockery::mock(ConversationOrchestrator::class),
+        Mockery::mock(WhatsAppMessageProcessor::class),
+    );
+
+    $result = $router->execute(
+        new IncomingMessageDTO(rawMessage: 'criar assinatura Netflix mensal', normalizedMessage: 'criar assinatura Netflix mensal'),
+        new AssistantContextDTO(
+            user: new User(['id' => 1, 'name' => 'Lucas', 'email' => 'lucas@example.com']),
+            contact: new WhatsAppContact(['id' => 1, 'user_id' => 1, 'phone_number' => '5513999999999']),
+            state: [],
+            timezone: 'America/Sao_Paulo',
+            currentMonth: '2026-06',
+            currentYear: 2026,
+            lastAction: null,
+            pendingAction: null,
+        ),
+        new ParsedIntentDTO(
+            intent: FinancialIntent::CREATE_SUBSCRIPTION,
+            confidence: 0.83,
+            data: ['name' => 'Netflix', 'billing_cycle' => 'monthly'],
+            missingFields: ['amount', 'due_day'],
+            domain: 'planning',
+            legacyKind: 'subscription_needs_details',
+        ),
+        [],
+    );
+
+    expect($result->usedAI)->toBeFalse()
+        ->and($result->preflight['handled'])->toBeTrue()
+        ->and($result->preflight['metadata']['pending_intent'])->toBe('create_subscription_details');
+});

@@ -69,3 +69,33 @@ it('exposes missing amount for recurring transactions through assistant metadata
     expect($parsed->intent->value)->toBe('create_recurring_transaction')
         ->and($parsed->missingFields)->toContain('amount');
 });
+
+it('exposes active missing fields for savings goals and subscriptions', function () {
+    $user = User::factory()->create();
+    $contact = WhatsAppContact::factory()->create([
+        'user_id' => $user->id,
+        'phone_number' => '5513991290256',
+    ]);
+
+    $context = new AssistantContextDTO(
+        user: $user,
+        contact: $contact,
+        state: [],
+        timezone: 'America/Sao_Paulo',
+        currentMonth: '2026-06',
+        currentYear: 2026,
+        lastAction: null,
+        pendingAction: null,
+    );
+
+    $classifier = app(IntentClassifier::class);
+
+    $goal = $classifier->classify('criar meta viagem', $context);
+    $subscription = $classifier->classify('criar assinatura Netflix mensal', $context);
+
+    expect($goal->intent->value)->toBe('create_goal')
+        ->and($goal->missingFields)->toContain('target_amount')
+        ->and($subscription->intent->value)->toBe('create_subscription')
+        ->and($subscription->missingFields)->toContain('amount')
+        ->and($subscription->missingFields)->toContain('due_day');
+});

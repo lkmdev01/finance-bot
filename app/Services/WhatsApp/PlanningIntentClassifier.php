@@ -68,13 +68,13 @@ class PlanningIntentClassifier
     private function looksLikeSavingsCreate(string $originalMessage, string $normalizedMessage): bool
     {
         return $this->savingsGoalMessageParser->looksLikeCreateIntent($normalizedMessage)
-            && $this->savingsGoalMessageParser->parse($originalMessage) !== null;
+            && $this->savingsGoalMessageParser->parsePartialCreate($originalMessage) !== null;
     }
 
     private function looksLikeSubscriptionCreate(string $originalMessage, string $normalizedMessage): bool
     {
         return $this->subscriptionMessageParser->looksLikeCreateIntent($normalizedMessage)
-            && $this->subscriptionMessageParser->parse($originalMessage) !== null;
+            && $this->subscriptionMessageParser->parsePartialCreate($originalMessage) !== null;
     }
 
     private function looksLikeCreditCardCreate(string $originalMessage, string $normalizedMessage): bool
