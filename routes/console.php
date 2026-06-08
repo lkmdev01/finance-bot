@@ -38,3 +38,7 @@ Schedule::command('notifications:proactive')->dailyAt('09:00');
 Schedule::command('assistant:weekly-review --days=7 --sync')
     ->weeklyOn(1, '09:30')
     ->withoutOverlapping();
+
+Schedule::command('assistant:send-weekly-summary')
+    ->weeklyOn(1, '09:40')
+    ->withoutOverlapping();

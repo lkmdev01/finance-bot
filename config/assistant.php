@@ -6,4 +6,5 @@ return [
         'item_approvals' => (int) env('ASSISTANT_WEEKLY_GOAL_ITEM_APPROVALS', 10),
         'sync_runs' => (int) env('ASSISTANT_WEEKLY_GOAL_SYNC_RUNS', 1),
     ],
+    'admin_whatsapp_number' => (string) env('ASSISTANT_ADMIN_WHATSAPP', ''),
 ];

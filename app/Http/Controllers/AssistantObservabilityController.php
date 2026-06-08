@@ -160,4 +160,22 @@ class AssistantObservabilityController extends Controller
             ]
         );
     }
+
+    public function runReview(Request $request, AssistantObservabilityService $observabilityService)
+    {
+        $days = max(1, min(30, (int) $request->integer('days', 7)));
+        $focus = (string) $request->input('focus', 'all');
+        $sync = $request->boolean('sync', true);
+
+        $result = $observabilityService->weeklyReviewNow(
+            days: $days,
+            sample: 1000,
+            focus: $focus,
+            sync: $sync,
+        );
+
+        return redirect()
+            ->route('assistant.observability', ['days' => $days, 'focus' => $focus])
+            ->with('message', 'Review executado agora. '.($result['output'] !== '' ? 'Saida atualizada no log do comando.' : ''));
+    }
 }

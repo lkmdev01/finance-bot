@@ -331,10 +331,12 @@ class AssistantObservabilityService
 
     public function weeklyGoals(): array
     {
+        $settings = app(\App\Services\AssistantOperationsSettingsService::class)->current();
+
         return [
-            'review_runs' => max(0, (int) config('assistant.weekly_goals.review_runs', 1)),
-            'item_approvals' => max(0, (int) config('assistant.weekly_goals.item_approvals', 10)),
-            'sync_runs' => max(0, (int) config('assistant.weekly_goals.sync_runs', 1)),
+            'review_runs' => max(0, (int) ($settings['weekly_goal_review_runs'] ?? config('assistant.weekly_goals.review_runs', 1))),
+            'item_approvals' => max(0, (int) ($settings['weekly_goal_item_approvals'] ?? config('assistant.weekly_goals.item_approvals', 10))),
+            'sync_runs' => max(0, (int) ($settings['weekly_goal_sync_runs'] ?? config('assistant.weekly_goals.sync_runs', 1))),
         ];
     }
 
@@ -389,6 +391,44 @@ class AssistantObservabilityService
                 goals: $goals
             ),
         ];
+    }
+
+    public function weeklyReviewNow(int $days = 7, int $sample = 1000, string $focus = 'all', bool $sync = true): array
+    {
+        $exitCode = \Illuminate\Support\Facades\Artisan::call('assistant:weekly-review', [
+            '--days' => $days,
+            '--sample' => $sample,
+            '--focus' => $focus,
+            '--sync' => $sync,
+        ]);
+
+        return [
+            'exit_code' => $exitCode,
+            'output' => trim(\Illuminate\Support\Facades\Artisan::output()),
+        ];
+    }
+
+    public function renderWeeklySlaAdminMessage(?string $source = null): string
+    {
+        $snapshot = $this->weeklyOperationalSnapshot($source);
+        $usage = $this->weeklyReviewUsage(7, $source);
+        $sla = $snapshot['sla'] ?? ['label' => 'SLA em atencao'];
+        $goals = $snapshot['goals'] ?? [];
+        $observabilityUrl = rtrim((string) config('app.url'), '/').'/assistant/observability';
+
+        return trim(sprintf(
+            "Resumo semanal do assistente\nSLA: %s\n\nRevisoes: %d/%d\nSyncs: %d/%d\nAprovacoes: %d/%d\nDominios: %d\n\nUltima revisao: %s\n\nAbrir observabilidade:\n%s",
+            $sla['label'] ?? 'SLA em atencao',
+            (int) ($goals['review_runs']['current'] ?? 0),
+            (int) ($goals['review_runs']['target'] ?? 0),
+            (int) ($goals['sync_runs']['current'] ?? 0),
+            (int) ($goals['sync_runs']['target'] ?? 0),
+            (int) ($goals['item_approvals']['current'] ?? 0),
+            (int) ($goals['item_approvals']['target'] ?? 0),
+            count($usage['approved_domains'] ?? []),
+            $usage['last_review_run_at'] ?? 'nao registrada',
+            $observabilityUrl
+        ));
     }
 
     private function buildTotals(Collection $logs): array
