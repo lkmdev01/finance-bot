@@ -347,6 +347,9 @@ it('renders weekly review usage metrics on the observability page', function () 
 
 it('builds weekly operational snapshot with goals alerts and comparison', function () {
     $service = app(AssistantObservabilityService::class);
+    config()->set('assistant.weekly_goals.review_runs', 1);
+    config()->set('assistant.weekly_goals.item_approvals', 10);
+    config()->set('assistant.weekly_goals.sync_runs', 1);
 
     $service->recordReviewRun([
         'occurred_at' => now()->subWeek()->startOfWeek()->addDay()->toIso8601String(),
@@ -400,7 +403,21 @@ it('builds weekly operational snapshot with goals alerts and comparison', functi
         ->and($snapshot['goals']['review_runs']['met'])->toBeTrue()
         ->and($snapshot['goals']['item_approvals']['met'])->toBeFalse()
         ->and($snapshot['comparison']['item_approvals']['delta'])->toBe(-1)
-        ->and(collect($snapshot['alerts'])->pluck('title')->all())->toContain('Sync semanal pendente', 'Meta de aprovacoes em aberto');
+        ->and(collect($snapshot['alerts'])->pluck('title')->all())->toContain('Sync semanal pendente', 'Meta de aprovacoes em aberto')
+        ->and($snapshot['sla']['status'])->toBe('yellow')
+        ->and($snapshot['alerts'][0]['cta']['label'] ?? null)->toBe('Abrir ritual');
+});
+
+it('uses assistant weekly goals from configuration', function () {
+    config()->set('assistant.weekly_goals.review_runs', 2);
+    config()->set('assistant.weekly_goals.item_approvals', 6);
+    config()->set('assistant.weekly_goals.sync_runs', 3);
+
+    $goals = app(AssistantObservabilityService::class)->weeklyGoals();
+
+    expect($goals['review_runs'])->toBe(2)
+        ->and($goals['item_approvals'])->toBe(6)
+        ->and($goals['sync_runs'])->toBe(3);
 });
 
 it('filters approved weekly exports by approval source', function () {

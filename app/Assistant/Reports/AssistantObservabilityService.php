@@ -332,9 +332,9 @@ class AssistantObservabilityService
     public function weeklyGoals(): array
     {
         return [
-            'review_runs' => 1,
-            'item_approvals' => 10,
-            'sync_runs' => 1,
+            'review_runs' => max(0, (int) config('assistant.weekly_goals.review_runs', 1)),
+            'item_approvals' => max(0, (int) config('assistant.weekly_goals.item_approvals', 10)),
+            'sync_runs' => max(0, (int) config('assistant.weekly_goals.sync_runs', 1)),
         ];
     }
 
@@ -381,9 +381,11 @@ class AssistantObservabilityService
                 'sync_runs' => $this->buildTrendDelta($currentWeek['sync_runs'] ?? 0, $previousWeek['sync_runs'] ?? 0),
                 'item_approvals' => $this->buildTrendDelta($currentWeek['item_approvals'] ?? 0, $previousWeek['item_approvals'] ?? 0),
             ],
+            'sla' => $this->buildWeeklySlaStatus($currentWeek, $lastReviewAt, $goals),
             'alerts' => $this->buildWeeklyOperationalAlerts(
                 currentWeek: $currentWeek,
                 lastReviewAt: $lastReviewAt,
+                source: $source,
                 goals: $goals
             ),
         ];
@@ -737,15 +739,17 @@ class AssistantObservabilityService
         ];
     }
 
-    private function buildWeeklyOperationalAlerts(array $currentWeek, ?string $lastReviewAt, array $goals): array
+    private function buildWeeklyOperationalAlerts(array $currentWeek, ?string $lastReviewAt, ?string $source, array $goals): array
     {
         $alerts = [];
+        $cta = $this->observabilityCta($source);
 
         if (($currentWeek['review_runs'] ?? 0) < $goals['review_runs']) {
             $alerts[] = [
                 'tone' => 'warning',
                 'title' => 'Revisao semanal pendente',
                 'text' => 'A revisao operacional desta semana ainda nao bateu a meta minima.',
+                'cta' => $cta,
             ];
         }
 
@@ -754,6 +758,7 @@ class AssistantObservabilityService
                 'tone' => 'warning',
                 'title' => 'Sync semanal pendente',
                 'text' => 'Ainda nao houve sync suficiente de fixtures nesta semana.',
+                'cta' => $cta,
             ];
         }
 
@@ -762,6 +767,7 @@ class AssistantObservabilityService
                 'tone' => 'info',
                 'title' => 'Meta de aprovacoes em aberto',
                 'text' => 'Ainda faltam aprovacoes para fechar a meta semanal do assistente.',
+                'cta' => $cta,
             ];
         }
 
@@ -770,6 +776,7 @@ class AssistantObservabilityService
                 'tone' => 'warning',
                 'title' => 'Revisao atrasada',
                 'text' => 'A ultima revisao registrada passou de 7 dias e precisa ser retomada.',
+                'cta' => $cta,
             ];
         }
 
@@ -778,10 +785,66 @@ class AssistantObservabilityService
                 'tone' => 'ok',
                 'title' => 'Ritual semanal em dia',
                 'text' => 'Revisao, sync e aprovacoes estao dentro da meta nesta semana.',
+                'cta' => $cta,
             ];
         }
 
         return $alerts;
+    }
+
+    private function buildWeeklySlaStatus(array $currentWeek, ?string $lastReviewAt, array $goals): array
+    {
+        $meetsReview = ($currentWeek['review_runs'] ?? 0) >= $goals['review_runs'];
+        $meetsSync = ($currentWeek['sync_runs'] ?? 0) >= $goals['sync_runs'];
+        $meetsApprovals = ($currentWeek['item_approvals'] ?? 0) >= $goals['item_approvals'];
+        $reviewLate = $lastReviewAt !== null && \Illuminate\Support\Carbon::parse($lastReviewAt)->lt(now()->subDays(7));
+
+        $score = 0;
+        $score += $meetsReview ? 1 : 0;
+        $score += $meetsSync ? 1 : 0;
+        $score += $meetsApprovals ? 1 : 0;
+        $score += $reviewLate ? 0 : 1;
+
+        $status = match (true) {
+            $score >= 4 => 'green',
+            $score >= 2 => 'yellow',
+            default => 'red',
+        };
+
+        $label = match ($status) {
+            'green' => 'SLA saudavel',
+            'yellow' => 'SLA em atencao',
+            default => 'SLA critico',
+        };
+
+        return [
+            'status' => $status,
+            'label' => $label,
+            'score' => $score,
+            'checks' => [
+                'review_runs' => $meetsReview,
+                'sync_runs' => $meetsSync,
+                'item_approvals' => $meetsApprovals,
+                'recent_review' => ! $reviewLate,
+            ],
+        ];
+    }
+
+    private function observabilityCta(?string $source): array
+    {
+        $params = [
+            'days' => 14,
+            'approved_days' => 7,
+        ];
+
+        if ($source !== null && $source !== '' && $source !== 'all') {
+            $params['source'] = $source;
+        }
+
+        return [
+            'label' => 'Abrir ritual',
+            'route' => route('assistant.observability', $params),
+        ];
     }
 
     private function loadFixtureExamples(string $path): array

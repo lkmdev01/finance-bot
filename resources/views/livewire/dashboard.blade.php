@@ -1588,6 +1588,27 @@ new class extends Component
                     </div>
                 </div>
 
+                @php
+                    $sla = $assistantWeeklySnapshot['sla'] ?? ['status' => 'yellow', 'label' => 'SLA em atencao'];
+                    $slaClass = match ($sla['status']) {
+                        'green' => 'border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-200',
+                        'red' => 'border-rose-500/20 bg-rose-50/70 dark:bg-rose-500/10 text-rose-900 dark:text-rose-200',
+                        default => 'border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200',
+                    };
+                @endphp
+
+                <div class="mt-4 rounded-2xl border {{ $slaClass }} px-4 py-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-xs uppercase tracking-[0.18em]">SLA da operacao do assistente</p>
+                            <p class="mt-2 text-lg font-black">{{ $sla['label'] }}</p>
+                        </div>
+                        <a href="{{ route('assistant.observability') }}" wire:navigate class="text-xs font-bold underline underline-offset-4">
+                            Abrir observabilidade
+                        </a>
+                    </div>
+                </div>
+
                 <div class="mt-4 grid gap-3 xl:grid-cols-3">
                     @foreach (['review_runs' => 'Revisoes', 'sync_runs' => 'Syncs', 'item_approvals' => 'Aprovacoes'] as $metricKey => $metricLabel)
                         @php
@@ -1626,6 +1647,11 @@ new class extends Component
                         <div class="rounded-2xl border {{ $alertClass }} px-4 py-3">
                             <p class="text-sm font-semibold">{{ $alert['title'] ?? 'Alerta' }}</p>
                             <p class="mt-1 text-xs">{{ $alert['text'] ?? '' }}</p>
+                            @if(!empty($alert['cta']['route']) && !empty($alert['cta']['label']))
+                                <a href="{{ $alert['cta']['route'] }}" wire:navigate class="mt-2 inline-flex text-xs font-bold underline underline-offset-4">
+                                    {{ $alert['cta']['label'] }}
+                                </a>
+                            @endif
                         </div>
                     @endforeach
                 </div>

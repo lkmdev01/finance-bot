@@ -155,6 +155,28 @@
                 @endforeach
             </div>
 
+            @php
+                $sla = $weeklyOperationalSnapshot['sla'] ?? ['status' => 'yellow', 'label' => 'SLA em atencao'];
+                $slaClass = match ($sla['status']) {
+                    'green' => 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100',
+                    'red' => 'border-rose-300/30 bg-rose-300/10 text-rose-100',
+                    default => 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+                };
+            @endphp
+
+            <div class="mt-4 rounded-2xl border {{ $slaClass }} px-4 py-4">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.22em]">SLA da operacao do assistente</p>
+                        <p class="mt-2 text-lg font-semibold">{{ $sla['label'] }}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 text-xs">
+                        <span class="rounded-full border border-current/20 px-2.5 py-1">score {{ $sla['score'] }}/4</span>
+                        <span class="rounded-full border border-current/20 px-2.5 py-1">{{ $sla['status'] }}</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="mt-4 space-y-2">
                 @foreach (($weeklyOperationalSnapshot['alerts'] ?? []) as $alert)
                     @php
@@ -167,6 +189,11 @@
                     <article class="rounded-2xl border {{ $alertClass }} px-4 py-3">
                         <p class="text-sm font-semibold">{{ $alert['title'] ?? 'Alerta' }}</p>
                         <p class="mt-1 text-xs">{{ $alert['text'] ?? '' }}</p>
+                        @if(!empty($alert['cta']['route']) && !empty($alert['cta']['label']))
+                            <a href="{{ $alert['cta']['route'] }}" class="mt-2 inline-flex text-xs font-semibold underline underline-offset-4">
+                                {{ $alert['cta']['label'] }}
+                            </a>
+                        @endif
                     </article>
                 @endforeach
             </div>

@@ -44,6 +44,8 @@ test('authenticated users can visit the dashboard', function () {
     $response->assertSee('Aprovacoes');
     $response->assertSee('Meta ok');
     $response->assertSee('Comparativo com a semana passada');
+    $response->assertSee('SLA da operacao do assistente');
+    $response->assertSee('Abrir observabilidade');
 });
 
 test('dashboard layout does not use unsupported flux sidebar toggle expression', function () {
