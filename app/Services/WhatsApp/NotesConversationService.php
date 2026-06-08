@@ -12,6 +12,10 @@ class NotesConversationService
         $normalizer = app(IncomingMessageNormalizer::class);
         $normalized = $normalizer->normalize($message);
 
+        if (($followUpReply = $this->buildFollowUpReply($user, $normalized, $state)) !== null) {
+            return $followUpReply;
+        }
+
         $parser = app(NoteMessageParser::class);
         $term = $parser->extractQueryTerm($message);
 
@@ -73,8 +77,107 @@ class NotesConversationService
                 'note_id' => $first?->id,
                 'note_title' => $first?->title,
                 'query_term' => $term,
+                'recent_note_ids' => $notes->pluck('id')->values()->all(),
+                'note_result_count' => $notes->count(),
             ],
         ];
     }
-}
 
+    private function buildFollowUpReply(User $user, string $normalized, array $state): ?array
+    {
+        if (($state['last_entities']['topic'] ?? null) !== 'notes') {
+            return null;
+        }
+
+        $recentNote = $this->resolveRecentNote($user, $state);
+        $count = (int) ($state['last_entities']['note_result_count'] ?? 0);
+        $queryTerm = $state['last_entities']['query_term'] ?? null;
+
+        if ($this->containsAny($normalized, ['me mostra essa nota', 'me mostra ela', 'mostra essa nota', 'abre essa nota'])) {
+            if (! $recentNote) {
+                return null;
+            }
+
+            return [
+                'reply' => "Aqui esta a nota {$recentNote->title}.\n\n{$recentNote->body}",
+                'entities' => [
+                    'topic' => 'notes',
+                    'note_id' => $recentNote->id,
+                    'note_title' => $recentNote->title,
+                    'query_term' => $queryTerm,
+                    'recent_note_ids' => $state['last_entities']['recent_note_ids'] ?? [],
+                    'note_result_count' => max(1, $count),
+                ],
+            ];
+        }
+
+        if ($this->containsAny($normalized, ['so essa', 'só essa', 'apenas essa'])) {
+            $reply = $count <= 1
+                ? 'Por enquanto, sim. '
+                : "Nao. Encontrei {$count} notas nesse filtro. ";
+            $reply .= $queryTerm ? "O filtro atual ainda esta em \"{$queryTerm}\"." : 'Essa e a nota mais recente da lista.';
+
+            return [
+                'reply' => trim($reply),
+                'entities' => [
+                    'topic' => 'notes',
+                    'note_id' => $recentNote?->id,
+                    'note_title' => $recentNote?->title,
+                    'query_term' => $queryTerm,
+                    'recent_note_ids' => $state['last_entities']['recent_note_ids'] ?? [],
+                    'note_result_count' => max(1, $count),
+                ],
+            ];
+        }
+
+        if ($this->containsAny($normalized, ['tem mais nota', 'tem mais notas'])) {
+            $reply = $count > 1
+                ? "Sim. Eu encontrei {$count} notas nesse filtro."
+                : 'Por enquanto, nao. So encontrei essa nota nesse filtro.';
+
+            if ($queryTerm) {
+                $reply .= "\n\nFiltro atual: {$queryTerm}";
+            }
+
+            return [
+                'reply' => $reply,
+                'entities' => [
+                    'topic' => 'notes',
+                    'note_id' => $recentNote?->id,
+                    'note_title' => $recentNote?->title,
+                    'query_term' => $queryTerm,
+                    'recent_note_ids' => $state['last_entities']['recent_note_ids'] ?? [],
+                    'note_result_count' => max(1, $count),
+                ],
+            ];
+        }
+
+        return null;
+    }
+
+    private function resolveRecentNote(User $user, array $state): ?Note
+    {
+        $noteId = (int) ($state['last_entities']['note_id'] ?? 0);
+        if ($noteId > 0) {
+            return $user->notes()->find($noteId);
+        }
+
+        $recentIds = array_values(array_filter($state['last_entities']['recent_note_ids'] ?? [], fn ($id) => (int) $id > 0));
+        if ($recentIds === []) {
+            return null;
+        }
+
+        return $user->notes()->find((int) $recentIds[0]);
+    }
+
+    private function containsAny(string $normalized, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if (str_contains($normalized, app(IncomingMessageNormalizer::class)->normalize($needle))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

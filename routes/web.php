@@ -160,6 +160,8 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
 
     Route::get('assistant/observability', \App\Http\Controllers\AssistantObservabilityController::class)
         ->name('assistant.observability');
+    Route::post('assistant/observability/sync-fixtures', [\App\Http\Controllers\AssistantObservabilityController::class, 'syncFixtures'])
+        ->name('assistant.observability.sync-fixtures');
     Route::get('assistant/observability/export-fixtures', [\App\Http\Controllers\AssistantObservabilityController::class, 'exportFixtures'])
         ->name('assistant.observability.export-fixtures');
 

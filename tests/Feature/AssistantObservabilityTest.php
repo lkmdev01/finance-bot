@@ -140,6 +140,42 @@ it('syncs regression backlog into generated fixture files by domain', function (
     expect($written)->toHaveKey('notes');
     expect(File::exists($written['notes']))->toBeTrue();
     expect(File::get($written['notes']))->toContain('apaga a nota');
+    expect($written['notes'])->toContain('notes');
 
     File::deleteDirectory($directory);
+});
+
+it('syncs fixtures from the observability page for a specific domain', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    WhatsAppConversationLog::query()->create([
+        'user_id' => $user->id,
+        'message' => 'tem mais notas?',
+        'classification' => 'default',
+        'action' => null,
+        'used_ai' => false,
+        'status' => 'handled',
+        'reply' => 'Sim',
+        'metadata' => [
+            'assistant_intent' => 'unknown',
+            'assistant_domain' => 'notes',
+            'assistant_confidence' => 0.3,
+            'assistant_missing_fields' => [],
+        ],
+    ]);
+
+    File::deleteDirectory(base_path('tests/Fixtures/generated/notes'));
+
+    $response = $this->post(route('assistant.observability.sync-fixtures'), [
+        'days' => 14,
+        'focus' => 'all',
+        'domain' => 'notes',
+    ]);
+
+    $response->assertRedirect(route('assistant.observability', ['days' => 14, 'focus' => 'all']));
+    $response->assertSessionHas('message');
+    expect(File::exists(base_path('tests/Fixtures/generated/notes/assistant_observability_notes_examples.php')))->toBeTrue();
+
+    File::deleteDirectory(base_path('tests/Fixtures/generated/notes'));
 });

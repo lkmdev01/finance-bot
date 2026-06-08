@@ -11,6 +11,7 @@ class SyncAssistantObservabilityFixtures extends Command
         {--days=14 : Janela em dias}
         {--sample=1000 : Tamanho da amostra}
         {--focus=all : all|unknown|missing}
+        {--domain= : Filtra um dominio especifico}
         {--output= : Diretorio de saida}';
 
     protected $description = 'Gera fixtures de regressao do assistente por dominio em tests/Fixtures/generated.';
@@ -22,6 +23,7 @@ class SyncAssistantObservabilityFixtures extends Command
             sampleSize: max(10, min(5000, (int) $this->option('sample'))),
             focus: (string) $this->option('focus'),
             outputDirectory: $this->option('output') ? (string) $this->option('output') : null,
+            domain: $this->option('domain') ? (string) $this->option('domain') : null,
         );
 
         if ($files === []) {

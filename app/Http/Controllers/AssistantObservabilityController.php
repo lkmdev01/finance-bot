@@ -19,6 +19,28 @@ class AssistantObservabilityController extends Controller
         ]);
     }
 
+    public function syncFixtures(Request $request, AssistantObservabilityService $observabilityService)
+    {
+        $days = max(1, min(30, (int) $request->integer('days', 14)));
+        $focus = (string) $request->input('focus', 'all');
+        $domain = $request->input('domain');
+
+        $written = $observabilityService->syncFixtureFiles(
+            days: $days,
+            sampleSize: 1000,
+            focus: $focus,
+            domain: is_string($domain) && $domain !== '' ? $domain : null,
+        );
+
+        $message = $written === []
+            ? 'Nenhum backlog elegivel para sincronizar em fixtures.'
+            : 'Fixtures sincronizadas: '.implode(', ', array_keys($written));
+
+        return redirect()
+            ->route('assistant.observability', ['days' => $days, 'focus' => $focus])
+            ->with('message', $message);
+    }
+
     public function exportFixtures(Request $request, AssistantObservabilityService $observabilityService)
     {
         $days = max(1, min(30, (int) $request->integer('days', 14)));

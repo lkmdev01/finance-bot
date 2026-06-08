@@ -44,17 +44,26 @@ class AssistantObservabilityService
         int $days = 14,
         int $sampleSize = 1000,
         string $focus = 'all',
-        ?string $outputDirectory = null
+        ?string $outputDirectory = null,
+        ?string $domain = null
     ): array {
         $outputDirectory ??= base_path('tests/Fixtures/generated');
         File::ensureDirectoryExists($outputDirectory);
 
-        $domains = array_keys($this->summary($days, $sampleSize)['regression_backlog_by_domain'] ?? []);
+        $domains = $domain !== null && $domain !== ''
+            ? [$domain]
+            : array_keys($this->summary($days, $sampleSize)['regression_backlog_by_domain'] ?? []);
         $written = [];
 
         foreach ($domains as $domain) {
             $content = $this->fixtureExport($days, $sampleSize, $focus, $domain);
-            $path = rtrim($outputDirectory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$this->fixtureFileName($domain);
+            if (trim($content) === "<?php\n\nreturn array (\n);\n") {
+                continue;
+            }
+
+            $domainDirectory = rtrim($outputDirectory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$this->fixtureDirectoryName($domain);
+            File::ensureDirectoryExists($domainDirectory);
+            $path = $domainDirectory.DIRECTORY_SEPARATOR.$this->fixtureFileName($domain);
             file_put_contents($path, $content);
             $written[$domain] = $path;
         }
@@ -300,5 +309,10 @@ class AssistantObservabilityService
         $safe = preg_replace('/[^a-z0-9_]+/i', '_', strtolower($domain)) ?: 'unknown';
 
         return "assistant_observability_{$safe}_examples.php";
+    }
+
+    private function fixtureDirectoryName(string $domain): string
+    {
+        return preg_replace('/[^a-z0-9_]+/i', '-', strtolower($domain)) ?: 'unknown';
     }
 }
