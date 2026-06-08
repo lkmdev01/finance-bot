@@ -10,6 +10,12 @@ class SubscriptionConversationService
 {
     public function buildReply(User $user, string $message, array $state = []): array
     {
+        $normalized = $this->normalize($message);
+
+        if (($followUpReply = $this->buildFollowUpReply($user, $normalized, $state)) !== null) {
+            return $followUpReply;
+        }
+
         $context = $this->buildContext($user, $message, $state);
         $subscriptions = $this->loadSubscriptions($user, $context);
 
@@ -34,6 +40,7 @@ class SubscriptionConversationService
             'reply' => $this->buildSummaryReply($subscriptions, $context),
             'entities' => $this->buildEntities($context, [
                 'subscription_count' => $subscriptions->count(),
+                'recent_subscription_ids' => $subscriptions->pluck('id')->values()->all(),
             ]),
         ];
     }
@@ -243,6 +250,74 @@ class SubscriptionConversationService
         ], $extra), fn ($value) => $value !== null && $value !== [] && $value !== '');
     }
 
+    private function buildFollowUpReply(User $user, string $normalizedMessage, array $state): ?array
+    {
+        $entities = $this->resolveRelevantEntities($state);
+        if (($entities['topic'] ?? null) !== 'subscriptions') {
+            return null;
+        }
+
+        $subscription = $this->resolveRecentSubscription($user, $entities);
+        $count = (int) ($entities['subscription_count'] ?? 0);
+
+        if ($this->containsAny($normalizedMessage, ['me mostra essa assinatura', 'me mostra ela', 'mostra essa assinatura', 'abre essa assinatura'])) {
+            if (! $subscription) {
+                return null;
+            }
+
+            return [
+                'reply' => $this->buildSubscriptionReply(collect([$subscription])),
+                'entities' => array_filter([
+                    'topic' => 'subscriptions',
+                    'subscription_name' => $subscription->name,
+                    'subscription_count' => max(1, $count),
+                    'recent_subscription_ids' => $entities['recent_subscription_ids'] ?? [],
+                    'subscription_due_filter' => $entities['subscription_due_filter'] ?? null,
+                    'subscription_status_filter' => $entities['subscription_status_filter'] ?? null,
+                ], fn ($value) => $value !== null && $value !== [] && $value !== ''),
+            ];
+        }
+
+        if ($this->containsAny($normalizedMessage, ['so essa', 'só essa', 'apenas essa'])) {
+            $reply = $count <= 1
+                ? 'Por enquanto, sim. '
+                : "Nao. Encontrei {$count} assinaturas nesse filtro. ";
+            $reply .= 'Essa e a assinatura mais relevante da lista atual.';
+
+            return [
+                'reply' => trim($reply),
+                'entities' => array_filter([
+                    'topic' => 'subscriptions',
+                    'subscription_name' => $subscription?->name,
+                    'subscription_count' => max(1, $count),
+                    'recent_subscription_ids' => $entities['recent_subscription_ids'] ?? [],
+                    'subscription_due_filter' => $entities['subscription_due_filter'] ?? null,
+                    'subscription_status_filter' => $entities['subscription_status_filter'] ?? null,
+                ], fn ($value) => $value !== null && $value !== [] && $value !== ''),
+            ];
+        }
+
+        if ($this->containsAny($normalizedMessage, ['tem mais assinatura', 'tem mais assinaturas'])) {
+            $reply = $count > 1
+                ? "Sim. Eu encontrei {$count} assinaturas nesse filtro."
+                : 'Por enquanto, nao. So encontrei essa assinatura nesse filtro.';
+
+            return [
+                'reply' => $reply,
+                'entities' => array_filter([
+                    'topic' => 'subscriptions',
+                    'subscription_name' => $subscription?->name,
+                    'subscription_count' => max(1, $count),
+                    'recent_subscription_ids' => $entities['recent_subscription_ids'] ?? [],
+                    'subscription_due_filter' => $entities['subscription_due_filter'] ?? null,
+                    'subscription_status_filter' => $entities['subscription_status_filter'] ?? null,
+                ], fn ($value) => $value !== null && $value !== [] && $value !== ''),
+            ];
+        }
+
+        return null;
+    }
+
     private function looksLikeFollowUp(string $message): bool
     {
         if (! preg_match('/^(?:e\s+)?(?:a|o|as|os)?\s*([\p{L}\p{N} _-]+)$/u', $message, $matches)) {
@@ -296,5 +371,20 @@ class SubscriptionConversationService
         }
 
         return $lastEntities;
+    }
+
+    private function resolveRecentSubscription(User $user, array $entities): ?Subscription
+    {
+        $name = $entities['subscription_name'] ?? null;
+        if (is_string($name) && $name !== '') {
+            return $user->subscriptions()->where('name', $name)->first();
+        }
+
+        $recentIds = array_values(array_filter($entities['recent_subscription_ids'] ?? [], fn ($id) => (int) $id > 0));
+        if ($recentIds === []) {
+            return null;
+        }
+
+        return $user->subscriptions()->find((int) $recentIds[0]);
     }
 }

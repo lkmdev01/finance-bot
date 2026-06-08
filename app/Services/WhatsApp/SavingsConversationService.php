@@ -10,6 +10,12 @@ class SavingsConversationService
 {
     public function buildReply(User $user, string $message, array $state = []): array
     {
+        $normalized = $this->normalize($message);
+
+        if (($followUpReply = $this->buildFollowUpReply($user, $normalized, $state)) !== null) {
+            return $followUpReply;
+        }
+
         $context = $this->buildContext($user, $message, $state);
         $goals = $this->loadGoals($user, $context);
 
@@ -34,6 +40,7 @@ class SavingsConversationService
             'reply' => $this->buildSummaryReply($goals, $context),
             'entities' => $this->buildEntities($context, [
                 'goal_count' => $goals->count(),
+                'recent_goal_ids' => $goals->pluck('id')->values()->all(),
             ]),
         ];
     }
@@ -196,6 +203,68 @@ class SavingsConversationService
         ], $extra), fn ($value) => $value !== null && $value !== [] && $value !== '');
     }
 
+    private function buildFollowUpReply(User $user, string $normalizedMessage, array $state): ?array
+    {
+        $entities = $this->resolveRelevantEntities($state);
+        if (($entities['topic'] ?? null) !== 'savings') {
+            return null;
+        }
+
+        $goal = $this->resolveRecentGoal($user, $entities);
+        $count = (int) ($entities['goal_count'] ?? 0);
+
+        if ($this->containsAny($normalizedMessage, ['me mostra essa meta', 'me mostra ela', 'mostra essa meta', 'abre essa meta'])) {
+            if (! $goal) {
+                return null;
+            }
+
+            return [
+                'reply' => $this->buildGoalReply(collect([$goal]), ['goal_names' => [$goal->name]]),
+                'entities' => array_filter([
+                    'topic' => 'savings',
+                    'goal_name' => $goal->name,
+                    'goal_count' => max(1, $count),
+                    'recent_goal_ids' => $entities['recent_goal_ids'] ?? [],
+                ], fn ($value) => $value !== null && $value !== [] && $value !== ''),
+            ];
+        }
+
+        if ($this->containsAny($normalizedMessage, ['so essa', 'só essa', 'apenas essa'])) {
+            $reply = $count <= 1
+                ? 'Por enquanto, sim. '
+                : "Nao. Encontrei {$count} metas nesse filtro. ";
+            $reply .= 'Essa e a meta mais relevante da lista atual.';
+
+            return [
+                'reply' => trim($reply),
+                'entities' => array_filter([
+                    'topic' => 'savings',
+                    'goal_name' => $goal?->name,
+                    'goal_count' => max(1, $count),
+                    'recent_goal_ids' => $entities['recent_goal_ids'] ?? [],
+                ], fn ($value) => $value !== null && $value !== [] && $value !== ''),
+            ];
+        }
+
+        if ($this->containsAny($normalizedMessage, ['tem mais meta', 'tem mais metas'])) {
+            $reply = $count > 1
+                ? "Sim. Eu encontrei {$count} metas nesse filtro."
+                : 'Por enquanto, nao. So encontrei essa meta nesse filtro.';
+
+            return [
+                'reply' => $reply,
+                'entities' => array_filter([
+                    'topic' => 'savings',
+                    'goal_name' => $goal?->name,
+                    'goal_count' => max(1, $count),
+                    'recent_goal_ids' => $entities['recent_goal_ids'] ?? [],
+                ], fn ($value) => $value !== null && $value !== [] && $value !== ''),
+            ];
+        }
+
+        return null;
+    }
+
     private function looksLikeGoalFollowUp(string $message): bool
     {
         if (! preg_match('/^(?:e\s+)?(?:a|o|as|os)?\s*([\p{L}\p{N} _-]+)$/u', $message, $matches)) {
@@ -259,5 +328,20 @@ class SavingsConversationService
         }
 
         return $lastEntities;
+    }
+
+    private function resolveRecentGoal(User $user, array $entities): ?SavingsGoal
+    {
+        $name = $entities['goal_name'] ?? null;
+        if (is_string($name) && $name !== '') {
+            return $user->savingsGoals()->where('name', $name)->first();
+        }
+
+        $recentIds = array_values(array_filter($entities['recent_goal_ids'] ?? [], fn ($id) => (int) $id > 0));
+        if ($recentIds === []) {
+            return null;
+        }
+
+        return $user->savingsGoals()->find((int) $recentIds[0]);
     }
 }

@@ -4,7 +4,7 @@ namespace App\Services\WhatsApp;
 
 class SubscriptionMessageParser
 {
-    public function parse(string $message): ?array
+    public function parsePartialCreate(string $message): ?array
     {
         $normalized = $this->normalize($message);
 
@@ -12,7 +12,79 @@ class SubscriptionMessageParser
             return null;
         }
 
-        return $this->buildPayload($message, $normalized);
+        return $this->buildPayload($message, $normalized, allowPartial: true);
+    }
+
+    public function parse(string $message): ?array
+    {
+        $partial = $this->parsePartialCreate($message);
+
+        if ($partial === null
+            || empty($partial['name'])
+            || ! isset($partial['amount'])
+            || empty($partial['billing_cycle'])
+            || ! isset($partial['due_day'])) {
+            return null;
+        }
+
+        return $partial;
+    }
+
+    public function parseCreateFollowUp(string $message, array $pendingSubscription = []): ?array
+    {
+        $normalized = $this->normalize($message);
+        $partial = $this->parsePartialCreate($message) ?? [];
+
+        $merged = array_merge($pendingSubscription, $partial);
+
+        $merged['amount'] = $partial['amount'] ?? $this->extractAmount($normalized) ?? ($pendingSubscription['amount'] ?? null);
+        $merged['billing_cycle'] = $partial['billing_cycle'] ?? $this->extractBillingCycle($normalized) ?? ($pendingSubscription['billing_cycle'] ?? null);
+        $merged['due_day'] = $partial['due_day'] ?? $this->extractDueDay($normalized) ?? ($pendingSubscription['due_day'] ?? null);
+        $merged['name'] = $partial['name'] ?? $this->extractName($message) ?? ($pendingSubscription['name'] ?? null);
+        $merged['bank_account_name'] = $partial['bank_account_name'] ?? ($pendingSubscription['bank_account_name'] ?? null);
+        $merged['credit_card_name'] = $partial['credit_card_name'] ?? ($pendingSubscription['credit_card_name'] ?? null);
+        $merged['category_name'] = $pendingSubscription['category_name'] ?? 'Assinaturas';
+        $merged['start_date'] = $pendingSubscription['start_date'] ?? now()->toDateString();
+        $merged['auto_record'] = $pendingSubscription['auto_record'] ?? false;
+        $merged['is_active'] = $pendingSubscription['is_active'] ?? true;
+
+        if (! isset($merged['billing_cycle']) && str_contains($normalized, 'anual')) {
+            $merged['billing_cycle'] = 'yearly';
+        } elseif (! isset($merged['billing_cycle']) && str_contains($normalized, 'mensal')) {
+            $merged['billing_cycle'] = 'monthly';
+        }
+
+        return array_filter($merged, fn ($value) => $value !== null && $value !== '');
+    }
+
+    public function parseEditFollowUp(string $message, array $pendingSubscription = []): ?array
+    {
+        $normalized = $this->normalize($message);
+        $partial = $this->parsePartialCreate($message) ?? [];
+
+        $merged = array_merge($pendingSubscription, $partial);
+
+        $merged['amount'] = $partial['amount'] ?? $this->extractAmount($normalized) ?? ($pendingSubscription['amount'] ?? null);
+        $merged['billing_cycle'] = $partial['billing_cycle'] ?? $this->extractBillingCycle($normalized) ?? ($pendingSubscription['billing_cycle'] ?? null);
+        $merged['due_day'] = $partial['due_day'] ?? $this->extractDueDay($normalized) ?? ($pendingSubscription['due_day'] ?? null);
+        $merged['name'] = $partial['name'] ?? $this->extractName($message) ?? ($pendingSubscription['name'] ?? null);
+        $merged['bank_account_name'] = $partial['bank_account_name'] ?? ($pendingSubscription['bank_account_name'] ?? null);
+        $merged['credit_card_name'] = $partial['credit_card_name'] ?? ($pendingSubscription['credit_card_name'] ?? null);
+
+        return array_filter($merged, fn ($value) => $value !== null && $value !== '');
+    }
+
+    public function parseCancelFollowUp(string $message, array $pendingSubscription = []): ?array
+    {
+        $name = $this->extractName($message)
+            ?? ($pendingSubscription['name'] ?? null)
+            ?? $this->cleanupEntityName($message);
+
+        if ($name === null || $name === '') {
+            return null;
+        }
+
+        return ['name' => $name];
     }
 
     public function parseEdit(string $message, ?string $fallbackName = null): ?array
@@ -131,7 +203,7 @@ class SubscriptionMessageParser
         return false;
     }
 
-    private function buildPayload(string $originalMessage, string $normalizedMessage, ?string $fallbackName = null): ?array
+    private function buildPayload(string $originalMessage, string $normalizedMessage, ?string $fallbackName = null, bool $allowPartial = false): ?array
     {
         $name = $this->extractName($originalMessage) ?? $fallbackName;
         $amount = $this->extractAmount($normalizedMessage);
@@ -142,7 +214,7 @@ class SubscriptionMessageParser
             return null;
         }
 
-        if ($amount === null && $dueDay === null && $billingCycle === null) {
+        if (! $allowPartial && $amount === null && $dueDay === null && $billingCycle === null) {
             return null;
         }
 
@@ -252,6 +324,16 @@ class SubscriptionMessageParser
         }
 
         $value = trim((string) ($matches[1] ?? ''));
+
+        return $value !== '' ? mb_convert_case($value, MB_CASE_TITLE, 'UTF-8') : null;
+    }
+
+    private function cleanupEntityName(string $message): ?string
+    {
+        $value = trim($message);
+        $value = preg_replace('/\b(?:assinatura|mensalidade|cancelar|cancela|desativar|desativa|pausar|pausa|parar|editar|edita|ajustar|ajusta|mudar|muda|atualizar|atualiza|a|o|da|do|de)\b/iu', ' ', $value) ?? $value;
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? $value;
+        $value = trim((string) $value, " \t\n\r\0\x0B-:");
 
         return $value !== '' ? mb_convert_case($value, MB_CASE_TITLE, 'UTF-8') : null;
     }

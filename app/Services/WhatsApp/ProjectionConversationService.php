@@ -15,6 +15,12 @@ class ProjectionConversationService
 
     public function buildReply(User $user, string $message, array $state = []): array
     {
+        $normalized = $this->normalize($message);
+
+        if (($followUpReply = $this->buildFollowUpReply($user, $normalized, $state)) !== null) {
+            return $followUpReply;
+        }
+
         $context = $this->buildContext($message, $state);
         $projections = $this->loadProjections($user, $context);
 
@@ -28,7 +34,10 @@ class ProjectionConversationService
         if ($context['target_month'] !== null) {
             return [
                 'reply' => $this->buildPointReply($projections, $context),
-                'entities' => $this->buildEntities($context),
+                'entities' => $this->buildEntities($context, [
+                    'projection_count' => $projections->count(),
+                    'recent_projection_months' => $projections->pluck('month')->values()->all(),
+                ]),
             ];
         }
 
@@ -36,6 +45,8 @@ class ProjectionConversationService
             'reply' => $this->buildSummaryReply($projections, $context),
             'entities' => $this->buildEntities($context, [
                 'projection_count' => $projections->count(),
+                'recent_projection_months' => $projections->pluck('month')->values()->all(),
+                'projection_month' => $projections->first()['month'] ?? null,
             ]),
         ];
     }
@@ -163,6 +174,61 @@ class ProjectionConversationService
         ], $extra), fn ($value) => $value !== null && $value !== [] && $value !== '');
     }
 
+    private function buildFollowUpReply(User $user, string $normalizedMessage, array $state): ?array
+    {
+        $entities = $this->resolveRelevantEntities($state);
+        if (($entities['topic'] ?? null) !== 'projections') {
+            return null;
+        }
+
+        $projection = $this->resolveRecentProjection($user, $entities);
+        $count = (int) ($entities['projection_count'] ?? 0);
+
+        if ($this->containsAny($normalizedMessage, ['me mostra essa projecao', 'mostra essa projecao', 'me mostra ela', 'abre essa projecao'])) {
+            if ($projection === null) {
+                return null;
+            }
+
+            return [
+                'reply' => $this->buildPointReply(collect([$projection]), ['target_month' => $projection['month']]),
+                'entities' => array_filter([
+                    'topic' => 'projections',
+                    'projection_month' => $projection['month'],
+                    'projection_count' => max(1, $count),
+                    'recent_projection_months' => $entities['recent_projection_months'] ?? [],
+                ], fn ($value) => $value !== null && $value !== [] && $value !== ''),
+            ];
+        }
+
+        if ($this->containsAny($normalizedMessage, ['so essa', 'so essa projecao', 'tem mais projecoes', 'tem mais projecao'])) {
+            if ($this->containsAny($normalizedMessage, ['tem mais projecoes', 'tem mais projecao'])) {
+                $reply = $count <= 1
+                    ? 'Por enquanto, nao. So encontrei 1 projecao nesse recorte.'
+                    : "Sim. Encontrei {$count} projecoes nesse recorte.";
+            } else {
+                $reply = $count <= 1
+                    ? 'Sim. Nesse recorte eu trouxe apenas 1 projecao.'
+                    : "Nao. Nesse recorte eu trouxe {$count} projecoes.";
+            }
+
+            if ($projection !== null) {
+                $reply .= ' A referencia atual esta em '.$projection['label'].'.';
+            }
+
+            return [
+                'reply' => $reply,
+                'entities' => array_filter([
+                    'topic' => 'projections',
+                    'projection_month' => $projection['month'] ?? ($entities['projection_month'] ?? null),
+                    'projection_count' => max(1, $count),
+                    'recent_projection_months' => $entities['recent_projection_months'] ?? [],
+                ], fn ($value) => $value !== null && $value !== [] && $value !== ''),
+            ];
+        }
+
+        return null;
+    }
+
     private function containsAny(string $haystack, array $needles): bool
     {
         foreach ($needles as $needle) {
@@ -205,5 +271,22 @@ class ProjectionConversationService
         }
 
         return $lastEntities;
+    }
+
+    private function resolveRecentProjection(User $user, array $entities): ?array
+    {
+        $month = collect($entities['recent_projection_months'] ?? [])
+            ->filter(fn ($value) => is_string($value) && $value !== '')
+            ->first();
+
+        if (! $month && ! empty($entities['projection_month'])) {
+            $month = (string) $entities['projection_month'];
+        }
+
+        if (! $month) {
+            return null;
+        }
+
+        return $this->loadProjections($user, ['target_month' => $month])->first();
     }
 }

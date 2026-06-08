@@ -80,7 +80,7 @@ class QueryHandler extends BaseHandler
     private function buildQueryReply(User $user, WhatsAppContact $contact, ?string $action, string $fallbackReply, string $rawMessage): array
     {
         return match ($action) {
-            'query_transactions', 'query_category', 'query_expenses', 'query_income' => $this->buildTransactionReplyData($user, $contact, $rawMessage, $action),
+            'query_balance', 'query_transactions', 'query_category', 'query_expenses', 'query_income' => $this->buildTransactionReplyData($user, $contact, $rawMessage, $action),
             'query_budgets' => $this->buildBudgetReplyData($user, $contact, $rawMessage),
             'query_savings' => $this->buildSavingsReplyData($user, $contact, $rawMessage),
             'query_subscriptions' => $this->buildSubscriptionReplyData($user, $contact, $rawMessage),
@@ -170,6 +170,7 @@ class QueryHandler extends BaseHandler
         return match ($action) {
             'query_budgets' => ['topic' => 'budget'],
             'query_category' => ['topic' => 'expense_category'],
+            'query_balance' => ['topic' => 'transactions'],
             'query_transactions' => ['topic' => 'transactions'],
             'query_savings' => ['topic' => 'savings'],
             'query_subscriptions' => ['topic' => 'subscriptions'],

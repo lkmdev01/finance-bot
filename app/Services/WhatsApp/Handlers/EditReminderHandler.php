@@ -28,9 +28,11 @@ class EditReminderHandler extends BaseHandler
         }
 
         $parser = app(ReminderMessageParser::class);
-        $title = $this->extractReminderTitleFromMessage($job->message);
+        $reminderData = is_array($result['reminder_data'] ?? null) ? $result['reminder_data'] : [];
+        $title = trim((string) ($reminderData['current_title'] ?? '')) ?: $this->extractReminderTitleFromMessage($job->message);
+        $resolvedReminderId = (int) ($reminderData['reminder_id'] ?? 0);
 
-        if ($title === null) {
+        if ($title === null && $resolvedReminderId <= 0) {
             if ($reminders->count() === 1) {
                 $reminder = $reminders->first();
                 $this->sendErrorMessage(
@@ -44,7 +46,9 @@ class EditReminderHandler extends BaseHandler
             return true;
         }
 
-        $matches = $this->findMatchingReminders($reminders, $title);
+        $matches = $resolvedReminderId > 0
+            ? $reminders->where('id', $resolvedReminderId)
+            : $this->findMatchingReminders($reminders, $title);
 
         if ($matches->count() === 0) {
             $this->sendErrorMessage($job, "Nao encontrei nenhum lembrete com o nome '{$title}'.\n\n{$this->renderReminderOptions($reminders)}");
@@ -59,8 +63,9 @@ class EditReminderHandler extends BaseHandler
         /** @var Reminder $reminder */
         $reminder = $matches->first();
 
-        $parseable = $this->normalizeForParsing($job->message);
-        $parsed = $parser->parsePartialCreate($parseable);
+        $parsed = $reminderData !== []
+            ? array_merge(['current_title' => $title], $reminderData)
+            : ($parser->parsePartialCreate($this->normalizeForParsing($job->message)) ?? null);
         $updates = [];
 
         if ($parsed !== null) {
@@ -184,4 +189,3 @@ class EditReminderHandler extends BaseHandler
         return $reminders->values()->map(fn ($reminder, $index) => ($index + 1).". {$reminder->title}")->implode("\n");
     }
 }
-

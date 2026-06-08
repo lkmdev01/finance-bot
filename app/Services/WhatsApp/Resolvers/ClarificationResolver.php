@@ -3,6 +3,10 @@
 namespace App\Services\WhatsApp\Resolvers;
 
 use App\Services\WhatsApp\Support\NormalizesWhatsAppText;
+use App\Services\WhatsApp\BudgetMessageParser;
+use App\Services\WhatsApp\RecurringTransactionMessageParser;
+use App\Services\WhatsApp\SavingsGoalMessageParser;
+use App\Services\WhatsApp\SubscriptionMessageParser;
 use App\Services\WhatsApp\TransactionActionMessageParser;
 use App\Services\WhatsApp\ReminderMessageParser;
 use App\Services\WhatsApp\NoteMessageParser;
@@ -12,6 +16,10 @@ class ClarificationResolver
 {
     use NormalizesWhatsAppText;
     public function __construct(
+        private readonly BudgetMessageParser $budgetMessageParser,
+        private readonly RecurringTransactionMessageParser $recurringTransactionMessageParser,
+        private readonly SavingsGoalMessageParser $savingsGoalMessageParser,
+        private readonly SubscriptionMessageParser $subscriptionMessageParser,
         private readonly TransactionActionMessageParser $transactionActionMessageParser,
         private readonly ReminderMessageParser $reminderMessageParser,
         private readonly NoteMessageParser $noteMessageParser,
@@ -22,12 +30,22 @@ class ClarificationResolver
     {
         return match ($state['pending_intent'] ?? null) {
             'update_budget_category', 'delete_budget_category' => in_array($classification, ['default', 'budget_query'], true),
+            'create_budget_details' => in_array($classification, ['default', 'budget_create', 'budget_needs_details'], true),
+            'create_savings_goal_details' => in_array($classification, ['default', 'savings_create', 'savings_needs_details'], true),
+            'create_subscription_details' => in_array($classification, ['default', 'subscription_create', 'subscription_needs_details'], true),
+            'update_savings_goal_details' => in_array($classification, ['default', 'savings_edit', 'savings_edit_needs_change'], true),
+            'update_subscription_details' => in_array($classification, ['default', 'subscription_edit', 'subscription_edit_needs_change'], true),
+            'cancel_subscription_target' => in_array($classification, ['default', 'subscription_cancel', 'subscription_cancel_needs_target'], true),
+            'update_recurring_transaction_details' => in_array($classification, ['default', 'recurring_transaction_edit', 'recurring_transaction_edit_needs_change'], true),
             'edit_transaction_details' => in_array($classification, ['default', 'transaction_edit'], true),
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
             'create_reminder_schedule' => in_array($classification, ['default', 'reminder_create', 'reminder_needs_schedule'], true),
+            'update_note_target', 'delete_note_target', 'update_note_details' => true,
+            'update_reminder_target', 'delete_reminder_target' => true,
+            'update_reminder_details' => in_array($classification, ['default', 'reminder_edit', 'reminder_edit_needs_change'], true),
             'create_note_content' => true,
-            'drive_save_waiting_media' => in_array($classification, ['default', 'drive_save', 'drive_needs_file'], true),
+            'drive_save_waiting_media' => in_array($classification, ['default', 'drive_save', 'drive_needs_file', 'cancellation'], true),
             'select_credit_card', 'select_card_payment_method', 'select_bank_account' => true,
             default => false,
         };
@@ -38,10 +56,23 @@ class ClarificationResolver
         return match ($state['pending_intent'] ?? null) {
             'update_budget_category' => $this->buildBudgetClarificationResult('update_budget', $message, $state),
             'delete_budget_category' => $this->buildBudgetClarificationResult('delete_budget', $message, $state),
+            'create_budget_details' => $this->buildCreateBudgetClarificationResult($message, $state),
+            'create_savings_goal_details' => $this->buildCreateSavingsGoalClarificationResult($message, $state),
+            'create_subscription_details' => $this->buildCreateSubscriptionClarificationResult($message, $state),
+            'update_savings_goal_details' => $this->buildUpdateSavingsGoalClarificationResult($message, $state),
+            'update_subscription_details' => $this->buildUpdateSubscriptionClarificationResult($message, $state),
+            'cancel_subscription_target' => $this->buildCancelSubscriptionClarificationResult($message, $state),
+            'update_recurring_transaction_details' => $this->buildUpdateRecurringClarificationResult($message, $state),
             'edit_transaction_details' => $this->buildTransactionEditClarificationResult($message, $state),
             'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
             'create_reminder_schedule' => $this->buildReminderScheduleClarificationResult($message, $state),
+            'update_note_target' => $this->buildNoteTargetClarificationResult($message, $state, false),
+            'delete_note_target' => $this->buildNoteTargetClarificationResult($message, $state, true),
+            'update_note_details' => $this->buildNoteEditClarificationResult($message, $state),
+            'update_reminder_target' => $this->buildReminderTargetClarificationResult($message, $state, false),
+            'delete_reminder_target' => $this->buildReminderTargetClarificationResult($message, $state, true),
+            'update_reminder_details' => $this->buildReminderEditClarificationResult($message, $state),
             'create_note_content' => $this->buildNoteContentClarificationResult($message, $state),
             'drive_save_waiting_media' => $this->buildDriveWaitMediaClarificationResult($message, $state),
             'select_credit_card' => $this->buildSelectCreditCardClarificationResult($message, $state),
@@ -51,8 +82,344 @@ class ClarificationResolver
         };
     }
 
+    private function buildCreateBudgetClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['budget_data'] ?? [];
+        $budgetData = $this->budgetMessageParser->parseCreateFollowUp($message, $pending);
+
+        if ($budgetData === null) {
+            return null;
+        }
+
+        $missingFields = [];
+        if (! isset($budgetData['amount'])) {
+            $missingFields[] = 'amount';
+        }
+
+        if (empty($budgetData['category_name'])) {
+            $missingFields[] = 'category_name';
+        }
+
+        if ($missingFields !== []) {
+            return [
+                'handled' => true,
+                'reply' => $this->buildBudgetDetailsReply($missingFields),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'create_budget_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'budget_data' => $budgetData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_budget',
+                'budget_data' => $budgetData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildCreateSavingsGoalClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['goal_data'] ?? [];
+        $goalData = $this->savingsGoalMessageParser->parseCreateFollowUp($message, $pending);
+
+        if ($goalData === null) {
+            return null;
+        }
+
+        $missingFields = [];
+        if (empty($goalData['name'])) {
+            $missingFields[] = 'name';
+        }
+
+        if (! isset($goalData['target_amount'])) {
+            $missingFields[] = 'target_amount';
+        }
+
+        if ($missingFields !== []) {
+            return [
+                'handled' => true,
+                'reply' => $this->buildSavingsGoalDetailsReply($missingFields),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'create_savings_goal_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'goal_data' => $goalData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_savings_goal',
+                'goal_data' => $goalData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildCreateSubscriptionClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['subscription_data'] ?? [];
+        $subscriptionData = $this->subscriptionMessageParser->parseCreateFollowUp($message, $pending);
+
+        if ($subscriptionData === null) {
+            return null;
+        }
+
+        $missingFields = [];
+        if (empty($subscriptionData['name'])) {
+            $missingFields[] = 'name';
+        }
+
+        if (! isset($subscriptionData['amount'])) {
+            $missingFields[] = 'amount';
+        }
+
+        if (empty($subscriptionData['billing_cycle'])) {
+            $missingFields[] = 'billing_cycle';
+        }
+
+        if (! isset($subscriptionData['due_day'])) {
+            $missingFields[] = 'due_day';
+        }
+
+        if ($missingFields !== []) {
+            return [
+                'handled' => true,
+                'reply' => $this->buildSubscriptionDetailsReply($missingFields),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'create_subscription_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'subscription_data' => $subscriptionData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'create_subscription',
+                'subscription_data' => $subscriptionData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildUpdateSavingsGoalClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['goal_data'] ?? [];
+        $goalData = $this->savingsGoalMessageParser->parseEditFollowUp($message, $pending);
+
+        if ($goalData === null || empty($goalData['name'])) {
+            return null;
+        }
+
+        $hasChange = isset($goalData['target_amount']) || isset($goalData['target_date']);
+
+        if (! $hasChange) {
+            return [
+                'handled' => true,
+                'reply' => "Ainda faltou dizer o que mudar nessa meta.\n\nExemplos:\n- para 7000\n- ate dezembro de 2026",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'update_savings_goal_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'goal_data' => $goalData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'update_savings_goal',
+                'goal_data' => $goalData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildUpdateSubscriptionClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['subscription_data'] ?? [];
+        $subscriptionData = $this->subscriptionMessageParser->parseEditFollowUp($message, $pending);
+
+        if ($subscriptionData === null || empty($subscriptionData['name'])) {
+            return null;
+        }
+
+        $hasChange = isset($subscriptionData['amount'])
+            || isset($subscriptionData['billing_cycle'])
+            || isset($subscriptionData['due_day'])
+            || isset($subscriptionData['bank_account_name'])
+            || isset($subscriptionData['credit_card_name']);
+
+        if (! $hasChange) {
+            return [
+                'handled' => true,
+                'reply' => "Ainda faltou dizer o que mudar nessa assinatura.\n\nExemplos:\n- 39,90 dia 10\n- anual\n- no cartao Nubank",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'update_subscription_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'subscription_data' => $subscriptionData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'update_subscription',
+                'subscription_data' => $subscriptionData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildCancelSubscriptionClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['subscription_data'] ?? [];
+        $subscriptionData = $this->subscriptionMessageParser->parseCancelFollowUp($message, $pending);
+
+        if ($subscriptionData === null || empty($subscriptionData['name'])) {
+            return null;
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'cancel_subscription',
+                'subscription_data' => $subscriptionData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildUpdateRecurringClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['recurring_data'] ?? [];
+        $recurringData = $this->recurringTransactionMessageParser->parseEditFollowUp($message, $pending);
+
+        if ($recurringData === null || empty($recurringData['description'])) {
+            return null;
+        }
+
+        $hasChange = isset($recurringData['amount'])
+            || isset($recurringData['frequency'])
+            || isset($recurringData['day_of_month'])
+            || isset($recurringData['category_name'])
+            || isset($recurringData['bank_account_name'])
+            || isset($recurringData['credit_card_name']);
+
+        if (! $hasChange) {
+            return [
+                'handled' => true,
+                'reply' => "Ainda faltou dizer o que mudar nessa recorrencia.\n\nExemplos:\n- para 99\n- dia 8\n- semanal",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'update_recurring_transaction_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'recurring_data' => $recurringData,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'update_recurring_transaction',
+                'recurring_data' => $recurringData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
     private function buildDriveWaitMediaClarificationResult(string $message, array $state): ?array
     {
+        $normalized = $this->normalizeText($message);
+        if ($this->containsAnyText($normalized, ['cancelar', 'cancela', 'deixa pra la', 'deixa pra la', 'esquece'])) {
+            return [
+                'handled' => true,
+                'reply' => 'Beleza, cancelei esse salvamento no Drive.',
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'message',
+                    'entities' => [
+                        'topic' => 'drive',
+                    ],
+                ],
+            ];
+        }
+
         $incomingMediaId = (int) ($state['last_entities']['incoming_media_id'] ?? 0);
         if ($incomingMediaId <= 0) {
             return [
@@ -74,6 +441,164 @@ class ClarificationResolver
                 'drive_data' => [
                     'incoming_media_id' => $incomingMediaId,
                 ],
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildNoteTargetClarificationResult(string $message, array $state, bool $delete): ?array
+    {
+        $targetTitle = $this->noteMessageParser->extractActionTarget($message);
+        if ($targetTitle === null) {
+            return null;
+        }
+
+        $pending = is_array($state['pending_payload']['note_data'] ?? null) ? $state['pending_payload']['note_data'] : [];
+        $noteData = array_merge($pending, ['current_title' => $targetTitle]);
+
+        if ($delete) {
+            return [
+                'handled' => false,
+                'result' => [
+                    'reply' => '',
+                    'action' => 'delete_note',
+                    'note_data' => $noteData,
+                    '_resolved_message' => $message,
+                    '_conversation_metadata' => [
+                        'clear_pending' => true,
+                        'reply_kind' => 'action',
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => true,
+            'reply' => "Perfeito. Agora me diga o novo conteudo dessa nota.\n\nExemplos:\n- ligar para o contador amanha\n- atualizar escopo do projeto",
+            'action' => null,
+            'metadata' => [
+                'clear_pending' => false,
+                'reply_kind' => 'message',
+                'pending_intent' => 'update_note_details',
+                'pending_mode' => 'awaiting_clarification',
+                'pending_payload' => [
+                    'note_data' => $noteData,
+                ],
+            ],
+        ];
+    }
+
+    private function buildNoteEditClarificationResult(string $message, array $state): ?array
+    {
+        $pending = is_array($state['pending_payload']['note_data'] ?? null) ? $state['pending_payload']['note_data'] : [];
+        $noteData = $this->noteMessageParser->parseEditFollowUp($message, $pending);
+
+        if ($noteData === null || empty($noteData['body'])) {
+            return [
+                'handled' => true,
+                'reply' => "Ainda faltou o novo conteudo da nota.\n\nExemplos:\n- ligar para o contador amanha\n- atualizar escopo do projeto",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'update_note_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'note_data' => $pending,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'edit_note',
+                'note_data' => $noteData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildReminderTargetClarificationResult(string $message, array $state, bool $delete): ?array
+    {
+        $targetTitle = $this->reminderMessageParser->extractActionTarget($message);
+        if ($targetTitle === null) {
+            return null;
+        }
+
+        $pending = is_array($state['pending_payload']['reminder_data'] ?? null) ? $state['pending_payload']['reminder_data'] : [];
+        $reminderData = array_merge($pending, ['current_title' => $targetTitle]);
+
+        if ($delete) {
+            return [
+                'handled' => false,
+                'result' => [
+                    'reply' => '',
+                    'action' => 'delete_reminder',
+                    'reminder_data' => $reminderData,
+                    '_resolved_message' => $message,
+                    '_conversation_metadata' => [
+                        'clear_pending' => true,
+                        'reply_kind' => 'action',
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => true,
+            'reply' => "Perfeito. Agora me diga o que quer mudar nesse lembrete.\n\nExemplos:\n- amanha as 10:00\n- todo dia 5",
+            'action' => null,
+            'metadata' => [
+                'clear_pending' => false,
+                'reply_kind' => 'message',
+                'pending_intent' => 'update_reminder_details',
+                'pending_mode' => 'awaiting_clarification',
+                'pending_payload' => [
+                    'reminder_data' => $reminderData,
+                ],
+            ],
+        ];
+    }
+
+    private function buildReminderEditClarificationResult(string $message, array $state): ?array
+    {
+        $pending = is_array($state['pending_payload']['reminder_data'] ?? null) ? $state['pending_payload']['reminder_data'] : [];
+        $reminderData = $this->reminderMessageParser->parseEditFollowUp($message, $pending);
+
+        if ($reminderData === null) {
+            return [
+                'handled' => true,
+                'reply' => "Ainda faltou dizer o que mudar nesse lembrete.\n\nExemplos:\n- amanha as 10:00\n- todo dia 5",
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'update_reminder_details',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [
+                        'reminder_data' => $pending,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'edit_reminder',
+                'reminder_data' => $reminderData,
                 '_resolved_message' => $message,
                 '_conversation_metadata' => [
                     'clear_pending' => true,
@@ -643,5 +1168,49 @@ class ClarificationResolver
 
         return $amount > 0 ? $amount : null;
     }
-}
 
+    private function buildBudgetDetailsReply(array $missingFields): string
+    {
+        $needsAmount = in_array('amount', $missingFields, true);
+        $needsCategory = in_array('category_name', $missingFields, true);
+
+        return match (true) {
+            $needsAmount && $needsCategory => "Ainda faltou o valor e a categoria do orcamento.\n\nExemplos:\n- 500 para compras\n- 800 para mercado em junho",
+            $needsAmount => "Perfeito. Agora me diga o valor do orcamento.\n\nExemplos:\n- 500\n- 800 em junho",
+            $needsCategory => "Perfeito. Agora me diga a categoria desse orcamento.\n\nExemplos:\n- para compras\n- mercado",
+            default => "Me manda mais um detalhe para eu terminar esse orcamento.",
+        };
+    }
+
+    private function buildSavingsGoalDetailsReply(array $missingFields): string
+    {
+        $needsName = in_array('name', $missingFields, true);
+        $needsAmount = in_array('target_amount', $missingFields, true);
+
+        return match (true) {
+            $needsName && $needsAmount => "Ainda faltou o nome e o valor dessa meta.\n\nExemplos:\n- viagem 5000\n- reserva de emergencia 10000",
+            $needsName => "Perfeito. Agora me diga o nome dessa meta.\n\nExemplos:\n- viagem europa\n- reserva de emergencia",
+            $needsAmount => "Perfeito. Agora me diga o valor objetivo dessa meta.\n\nExemplos:\n- 5000\n- 30000 ate dezembro",
+            default => "Me manda mais um detalhe para eu terminar essa meta.",
+        };
+    }
+
+    private function buildSubscriptionDetailsReply(array $missingFields): string
+    {
+        $needsName = in_array('name', $missingFields, true);
+        $needsAmount = in_array('amount', $missingFields, true);
+        $needsCycle = in_array('billing_cycle', $missingFields, true);
+        $needsDueDay = in_array('due_day', $missingFields, true);
+
+        return match (true) {
+            $needsName && $needsAmount && $needsCycle && $needsDueDay => "Ainda faltou o nome, valor, ciclo e dia de vencimento da assinatura.\n\nExemplo:\n- Netflix mensal dia 10 39,90",
+            $needsAmount && $needsCycle && $needsDueDay => "Perfeito. Agora me diga o valor, se ela e mensal ou anual, e o dia do vencimento.\n\nExemplo:\n- 39,90 mensal dia 10",
+            $needsAmount && $needsDueDay => "Perfeito. Agora me diga o valor e o dia do vencimento.\n\nExemplo:\n- 39,90 dia 10",
+            $needsAmount => "Perfeito. Agora me diga o valor dessa assinatura.\n\nExemplos:\n- 39,90\n- 19 reais",
+            $needsCycle => "Perfeito. Agora me diga se essa assinatura e mensal ou anual.",
+            $needsDueDay => "Perfeito. Agora me diga o dia do vencimento.\n\nExemplos:\n- dia 10\n- vence dia 5",
+            $needsName => "Perfeito. Agora me diga o nome da assinatura.\n\nExemplos:\n- Netflix\n- Spotify",
+            default => "Me manda mais um detalhe para eu terminar essa assinatura.",
+        };
+    }
+}

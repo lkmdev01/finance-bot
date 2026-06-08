@@ -4,7 +4,7 @@ namespace App\Services\WhatsApp;
 
 class SavingsGoalMessageParser
 {
-    public function parse(string $message): ?array
+    public function parsePartialCreate(string $message): ?array
     {
         $normalized = $this->normalize($message);
 
@@ -25,6 +25,46 @@ class SavingsGoalMessageParser
             'target_amount' => $amount,
             'target_date' => $targetDate,
             'description' => null,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    public function parse(string $message): ?array
+    {
+        $partial = $this->parsePartialCreate($message);
+
+        if ($partial === null || empty($partial['name']) || ! isset($partial['target_amount'])) {
+            return null;
+        }
+
+        return $partial;
+    }
+
+    public function parseCreateFollowUp(string $message, array $pendingGoal = []): ?array
+    {
+        $normalized = $this->normalize($message);
+        $amount = $this->extractAmount($normalized) ?? ($pendingGoal['target_amount'] ?? null);
+        $name = $this->extractGoalName($message, $normalized) ?? ($pendingGoal['name'] ?? null);
+        $targetDate = $this->extractTargetDate($normalized) ?? ($pendingGoal['target_date'] ?? null);
+
+        return array_filter([
+            'name' => $name,
+            'target_amount' => $amount,
+            'target_date' => $targetDate,
+            'description' => $pendingGoal['description'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    public function parseEditFollowUp(string $message, array $pendingGoal = []): ?array
+    {
+        $normalized = $this->normalize($message);
+        $amount = $this->extractAmount($normalized) ?? ($pendingGoal['target_amount'] ?? null);
+        $name = $this->extractGoalName($message, $normalized) ?? ($pendingGoal['name'] ?? null);
+        $targetDate = $this->extractTargetDate($normalized) ?? ($pendingGoal['target_date'] ?? null);
+
+        return array_filter([
+            'name' => $name,
+            'target_amount' => $amount,
+            'target_date' => $targetDate,
         ], fn ($value) => $value !== null && $value !== '');
     }
 

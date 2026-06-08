@@ -120,6 +120,42 @@ class RecurringTransactionMessageParser
         return ['description' => $description];
     }
 
+    public function parseEditFollowUp(string $message, array $pendingRecurring = []): ?array
+    {
+        $normalized = $this->normalize($message);
+        $sanitized = $this->sanitizePatternInput($message);
+
+        $description = $this->extractRecurringName($sanitized, $pendingRecurring['description'] ?? null);
+        $amount = $this->extractAmount($sanitized) ?? ($pendingRecurring['amount'] ?? null);
+        $frequency = $this->extractFrequency($normalized) ?? ($pendingRecurring['frequency'] ?? null);
+        $dayOfMonth = $this->extractDayOfMonth($sanitized, $normalized) ?? ($pendingRecurring['day_of_month'] ?? null);
+        [$bankAccountName, $creditCardName] = $this->extractFinancialSourceNames($sanitized);
+        $categoryName = $this->extractCategoryName($sanitized) ?? ($pendingRecurring['category_name'] ?? null);
+
+        return array_filter([
+            'description' => $description,
+            'amount' => $amount,
+            'frequency' => $frequency,
+            'day_of_month' => $dayOfMonth,
+            'category_name' => $categoryName,
+            'bank_account_name' => $bankAccountName ?? ($pendingRecurring['bank_account_name'] ?? null),
+            'credit_card_name' => $creditCardName ?? ($pendingRecurring['credit_card_name'] ?? null),
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    public function parseCancelFollowUp(string $message, array $pendingRecurring = []): ?array
+    {
+        $sanitized = $this->sanitizePatternInput($message);
+        $description = $this->extractRecurringName($sanitized, $pendingRecurring['description'] ?? null)
+            ?? $this->cleanupTrailingContext($sanitized, null);
+
+        if ($description === null || $description === '') {
+            return null;
+        }
+
+        return ['description' => mb_convert_case($description, MB_CASE_TITLE, 'UTF-8')];
+    }
+
     public function looksLikeEditIntent(string $message): bool
     {
         return $this->hasRecurringCue($message) && $this->containsEditVerb($message);

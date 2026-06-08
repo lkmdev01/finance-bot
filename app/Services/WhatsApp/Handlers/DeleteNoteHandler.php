@@ -20,10 +20,15 @@ class DeleteNoteHandler extends BaseHandler
     {
         $normalized = $this->normalizeMessage($result['_resolved_message'] ?? $job->message ?? '');
         $notes = $user->notes()->orderByDesc('id')->limit(50)->get();
+        $resolvedNote = $this->resolveFromResult($user, $result['note_data'] ?? []);
 
         if ($notes->isEmpty()) {
             $this->sendErrorMessage($job, 'Voce nao tem notas para apagar.');
             return true;
+        }
+
+        if ($resolvedNote) {
+            return $this->deleteOne($resolvedNote, $result, $job, $user);
         }
 
         // "apaga essa" after listing notes.
@@ -76,6 +81,27 @@ class DeleteNoteHandler extends BaseHandler
 
         $this->sendResponse($job, "Nota '{$note->title}' apagada com sucesso.", $user);
         return true;
+    }
+
+    private function resolveFromResult(User $user, mixed $noteData): ?Note
+    {
+        if (! is_array($noteData)) {
+            return null;
+        }
+
+        $noteId = (int) ($noteData['note_id'] ?? 0);
+        if ($noteId > 0) {
+            return $user->notes()->find($noteId);
+        }
+
+        $title = trim((string) ($noteData['current_title'] ?? ''));
+        if ($title === '') {
+            return null;
+        }
+
+        $matches = $this->findMatchingNotes($user->notes()->orderByDesc('id')->limit(50)->get(), $title);
+
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     private function extractNoteTitleFromMessage(string $message): ?string

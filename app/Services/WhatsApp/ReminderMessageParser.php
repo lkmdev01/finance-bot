@@ -132,6 +132,35 @@ class ReminderMessageParser
         return $parsed;
     }
 
+    public function parseEditFollowUp(string $message, array $pendingReminder = []): ?array
+    {
+        if (! isset($pendingReminder['title']) && isset($pendingReminder['current_title'])) {
+            $pendingReminder['title'] = $pendingReminder['current_title'];
+        }
+
+        return $this->parseScheduleFollowUp($message, $pendingReminder);
+    }
+
+    public function extractActionTarget(string $message): ?string
+    {
+        $subject = preg_replace('/\b(?:editar|edita|alterar|altera|modificar|modifica|mudar|muda|apagar|apaga|apague|deletar|deleta|remover|remove|excluir|exclui|cancelar|cancela)\b/iu', ' ', $message) ?? $message;
+        $subject = preg_replace('/\b(?:lembrete|lembretes|lembre)\b/iu', ' ', $subject) ?? $subject;
+
+        if (preg_match('/\b(?:para|pra)\b/iu', $subject, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            $offset = (int) ($matches[0][1] ?? 0);
+            $subject = mb_substr($subject, 0, $offset);
+        }
+
+        $subject = preg_replace('/\b(?:o|a|os|as|um|uma|minha|minhas|meu|meus|essa|esse|esta|este)\b/iu', ' ', $subject) ?? $subject;
+        $subject = trim(preg_replace('/\s+/u', ' ', $subject) ?? $subject, " \t\n\r\0\x0B-:.,;");
+
+        if ($subject === '') {
+            return null;
+        }
+
+        return $this->extractTitle($subject);
+    }
+
     private function extractSchedule(string $normalized, string $time): ?array
     {
         // Suporte a "hoje"

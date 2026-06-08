@@ -1,0 +1,295 @@
+<?php
+
+use App\Models\Budget;
+use App\Models\Category;
+use App\Models\FinancialProjection;
+use App\Models\Note;
+use App\Models\Reminder;
+use App\Models\SavingsGoal;
+use App\Models\Subscription;
+use App\Models\User;
+use App\Services\WhatsApp\BudgetConversationService;
+use App\Services\WhatsApp\NotesConversationService;
+use App\Services\WhatsApp\ProjectionConversationService;
+use App\Services\WhatsApp\ReminderConversationService;
+use App\Services\WhatsApp\SavingsConversationService;
+use App\Services\WhatsApp\SubscriptionConversationService;
+
+it('supports contextual follow ups for listed notes', function () {
+    $user = User::factory()->create();
+
+    $first = Note::create([
+        'user_id' => $user->id,
+        'title' => 'Projeto Alpha',
+        'body' => 'Detalhes da reuniao com o cliente.',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $second = Note::create([
+        'user_id' => $user->id,
+        'title' => 'Projeto Beta',
+        'body' => 'Checklist de entrega.',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $state = [
+        'last_action' => 'query_notes',
+        'last_entities' => [
+            'topic' => 'notes',
+            'note_id' => $first->id,
+            'note_title' => $first->title,
+            'query_term' => 'projeto',
+            'recent_note_ids' => [$first->id, $second->id],
+            'note_result_count' => 2,
+        ],
+    ];
+
+    $service = app(NotesConversationService::class);
+
+    $more = $service->buildReply($user, 'tem mais notas?', $state);
+    $show = $service->buildReply($user, 'me mostra essa nota', $state);
+
+    expect($more['reply'])->toContain('2 notas')
+        ->and($show['reply'])->toContain('Projeto Alpha')
+        ->and($show['reply'])->toContain('Detalhes da reuniao');
+});
+
+it('supports contextual follow ups for listed reminders', function () {
+    $user = User::factory()->create();
+
+    $first = Reminder::create([
+        'user_id' => $user->id,
+        'title' => 'Pagar Academia',
+        'message' => 'Lembrete mensal: Pagar Academia',
+        'frequency' => 'monthly',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->addDays(3),
+        'day_of_month' => 10,
+        'trigger_time' => '09:00:00',
+        'is_active' => true,
+    ]);
+
+    $second = Reminder::create([
+        'user_id' => $user->id,
+        'title' => 'Tomar Agua',
+        'message' => 'Lembrete diario: Tomar Agua',
+        'frequency' => 'daily',
+        'timezone' => config('app.timezone'),
+        'next_trigger_at' => now()->addDay(),
+        'trigger_time' => '08:00:00',
+        'is_active' => true,
+    ]);
+
+    $state = [
+        'last_action' => 'query_reminders',
+        'last_entities' => [
+            'topic' => 'reminders',
+            'reminder_id' => $first->id,
+            'reminder_title' => $first->title,
+            'recent_reminder_ids' => [$first->id, $second->id],
+            'reminder_result_count' => 2,
+        ],
+    ];
+
+    $service = app(ReminderConversationService::class);
+
+    $more = $service->buildReply($user, 'tem mais lembretes?', $state);
+    $show = $service->buildReply($user, 'me mostra esse lembrete', $state);
+
+    expect($more['reply'])->toContain('2 lembretes')
+        ->and($show['reply'])->toContain('Pagar Academia')
+        ->and($show['reply'])->toContain('Proximo disparo');
+});
+
+it('supports contextual follow ups for listed subscriptions', function () {
+    $user = User::factory()->create();
+
+    $first = Subscription::create([
+        'user_id' => $user->id,
+        'name' => 'Netflix',
+        'amount' => 39.90,
+        'billing_cycle' => 'monthly',
+        'due_day' => 10,
+        'start_date' => now()->subMonths(2)->toDateString(),
+        'next_due_date' => now()->addDays(4)->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $second = Subscription::create([
+        'user_id' => $user->id,
+        'name' => 'Spotify',
+        'amount' => 21.90,
+        'billing_cycle' => 'monthly',
+        'due_day' => 18,
+        'start_date' => now()->subMonths(2)->toDateString(),
+        'next_due_date' => now()->addDays(8)->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $state = [
+        'last_action' => 'query_subscriptions',
+        'last_entities' => [
+            'topic' => 'subscriptions',
+            'subscription_name' => $first->name,
+            'subscription_count' => 2,
+            'recent_subscription_ids' => [$first->id, $second->id],
+            'subscription_status_filter' => 'active',
+        ],
+    ];
+
+    $service = app(SubscriptionConversationService::class);
+
+    $more = $service->buildReply($user, 'tem mais assinaturas?', $state);
+    $show = $service->buildReply($user, 'me mostra essa assinatura', $state);
+
+    expect($more['reply'])->toContain('2 assinaturas')
+        ->and($show['reply'])->toContain('Netflix')
+        ->and($show['reply'])->toContain('R$ 39,90');
+});
+
+it('supports contextual follow ups for listed savings goals', function () {
+    $user = User::factory()->create();
+
+    $first = SavingsGoal::create([
+        'user_id' => $user->id,
+        'name' => 'Viagem',
+        'target_amount' => 5000,
+        'target_date' => now()->addMonths(8)->toDateString(),
+        'is_completed' => false,
+    ]);
+
+    $second = SavingsGoal::create([
+        'user_id' => $user->id,
+        'name' => 'Reserva',
+        'target_amount' => 10000,
+        'target_date' => now()->addMonths(12)->toDateString(),
+        'is_completed' => false,
+    ]);
+
+    $state = [
+        'last_action' => 'query_savings',
+        'last_entities' => [
+            'topic' => 'savings',
+            'goal_name' => $first->name,
+            'goal_count' => 2,
+            'recent_goal_ids' => [$first->id, $second->id],
+        ],
+    ];
+
+    $service = app(SavingsConversationService::class);
+
+    $more = $service->buildReply($user, 'tem mais metas?', $state);
+    $show = $service->buildReply($user, 'me mostra essa meta', $state);
+
+    expect($more['reply'])->toContain('2 metas')
+        ->and($show['reply'])->toContain('Viagem')
+        ->and($show['reply'])->toContain('R$ 5.000,00');
+});
+
+it('supports contextual follow ups for listed budgets', function () {
+    $user = User::factory()->create();
+
+    $alimentacao = Category::create([
+        'user_id' => $user->id,
+        'name' => 'Alimentacao',
+        'type' => 'expense',
+        'color' => '#22C55E',
+        'icon' => 'utensils',
+    ]);
+
+    $transporte = Category::create([
+        'user_id' => $user->id,
+        'name' => 'Transporte',
+        'type' => 'expense',
+        'color' => '#3B82F6',
+        'icon' => 'car',
+    ]);
+
+    $first = Budget::create([
+        'user_id' => $user->id,
+        'category_id' => $alimentacao->id,
+        'amount' => 800,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+
+    $second = Budget::create([
+        'user_id' => $user->id,
+        'category_id' => $transporte->id,
+        'amount' => 450,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+
+    $state = [
+        'last_action' => 'query_budgets',
+        'last_entities' => [
+            'topic' => 'budget',
+            'budget_id' => $first->id,
+            'budget_count' => 2,
+            'recent_budget_ids' => [$first->id, $second->id],
+            'period_scope' => 'current_month',
+            'period_label' => now()->locale('pt_BR')->translatedFormat('F/Y'),
+            'year' => now()->year,
+            'month' => now()->month,
+            'category_name' => 'Alimentacao',
+        ],
+    ];
+
+    $service = app(BudgetConversationService::class);
+
+    $more = $service->buildReply($user, 'tem mais orcamentos?', $state);
+    $show = $service->buildReply($user, 'me mostra esse orcamento', $state);
+
+    expect($more['reply'])->toContain('2 orcamentos')
+        ->and($show['reply'])->toContain('Alimentacao')
+        ->and($show['reply'])->toContain('R$ 800,00');
+});
+
+it('supports contextual follow ups for listed projections', function () {
+    $user = User::factory()->create();
+
+    $firstMonth = now()->addMonth()->startOfMonth();
+    $secondMonth = now()->addMonths(2)->startOfMonth();
+
+    FinancialProjection::create([
+        'user_id' => $user->id,
+        'projection_date' => $firstMonth->toDateString(),
+        'projected_balance' => 1500,
+        'projected_income' => 3200,
+        'projected_expenses' => 1700,
+        'assumptions' => [],
+    ]);
+
+    FinancialProjection::create([
+        'user_id' => $user->id,
+        'projection_date' => $secondMonth->toDateString(),
+        'projected_balance' => 900,
+        'projected_income' => 3000,
+        'projected_expenses' => 2100,
+        'assumptions' => [],
+    ]);
+
+    $state = [
+        'last_action' => 'query_projections',
+        'last_entities' => [
+            'topic' => 'projections',
+            'projection_month' => $firstMonth->format('Y-m'),
+            'projection_count' => 2,
+            'recent_projection_months' => [$firstMonth->format('Y-m'), $secondMonth->format('Y-m')],
+        ],
+    ];
+
+    $service = app(ProjectionConversationService::class);
+
+    $more = $service->buildReply($user, 'tem mais projecoes?', $state);
+    $show = $service->buildReply($user, 'me mostra essa projecao', $state);
+
+    expect($more['reply'])->toContain('2 projecoes')
+        ->and($show['reply'])->toContain('saldo de R$ 1.500,00')
+        ->and($show['entities']['projection_month'])->toBe($firstMonth->format('Y-m'));
+});

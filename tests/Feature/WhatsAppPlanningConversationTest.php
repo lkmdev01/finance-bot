@@ -95,6 +95,49 @@ it('cria meta via linguagem natural de poupanca', function () {
     expect(SavingsGoal::query()->where('user_id', $this->user->id)->where('name', 'Viagem')->exists())->toBeTrue();
 });
 
+it('completa criacao de meta em duas mensagens quando falta o valor', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $first = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'criar meta viagem',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $first->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_savings_goal_details');
+
+    $second = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: '5000 ate dezembro de 2026',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $second->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    expect(SavingsGoal::query()->where('user_id', $this->user->id)->where('name', 'Viagem')->exists())->toBeTrue();
+});
+
 it('edita meta via follow up com contexto recente', function () {
     SavingsGoal::create([
         'user_id' => $this->user->id,
@@ -265,6 +308,53 @@ it('cria assinatura via whatsapp com frase natural', function () {
     expect((int) $subscription->due_day)->toBe(10);
 });
 
+it('completa criacao de assinatura em duas mensagens quando faltam dados', function () {
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $first = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'criar assinatura Netflix mensal',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $first->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_subscription_details');
+
+    $second = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: '39,90 dia 10',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $second->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    $subscription = Subscription::query()->where('user_id', $this->user->id)->where('name', 'Netflix')->first();
+
+    expect($subscription)->not->toBeNull();
+    expect((float) $subscription->amount)->toBe(39.90);
+    expect((int) $subscription->due_day)->toBe(10);
+});
+
 it('edita assinatura via whatsapp com frase natural', function () {
     Subscription::create([
         'user_id' => $this->user->id,
@@ -357,6 +447,61 @@ it('cancela assinatura via follow up com contexto recente', function () {
     );
 
     $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    expect(Subscription::query()->where('user_id', $this->user->id)->where('name', 'Netflix')->first()->is_active)->toBeFalse();
+});
+
+it('completa cancelamento de assinatura em duas mensagens quando o alvo nao vem na primeira', function () {
+    Subscription::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->categoria->id,
+        'name' => 'Netflix',
+        'amount' => 19.00,
+        'billing_cycle' => 'monthly',
+        'due_day' => 10,
+        'start_date' => now()->toDateString(),
+        'auto_record' => false,
+        'is_active' => true,
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->twice()->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $first = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'cancelar assinatura',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $first->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('cancel_subscription_target');
+
+    $second = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Netflix',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $second->handle(
         app(AIService::class),
         app(BaileysService::class),
         app(\App\Services\PhoneNumberService::class),

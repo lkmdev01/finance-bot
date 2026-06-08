@@ -158,6 +158,13 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.reports.index');
     })->name('reports.index');
 
+    Route::get('assistant/observability', \App\Http\Controllers\AssistantObservabilityController::class)
+        ->name('assistant.observability');
+    Route::post('assistant/observability/sync-fixtures', [\App\Http\Controllers\AssistantObservabilityController::class, 'syncFixtures'])
+        ->name('assistant.observability.sync-fixtures');
+    Route::get('assistant/observability/export-fixtures', [\App\Http\Controllers\AssistantObservabilityController::class, 'exportFixtures'])
+        ->name('assistant.observability.export-fixtures');
+
     // Projeções Financeiras
     Route::get('financial-projections', function () {
         return view('pages.financial-projections.index');
