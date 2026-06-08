@@ -12,6 +12,7 @@ class AssistantObservabilityController extends Controller
         $days = max(1, min(30, (int) $request->integer('days', 14)));
         $approvedDays = max(1, min(30, (int) $request->integer('approved_days', 7)));
         $focus = (string) $request->query('focus', 'all');
+        $source = (string) $request->query('source', 'all');
         $previewDomain = $request->query('preview_domain');
         $previewItem = $request->query('preview_item');
 
@@ -20,6 +21,8 @@ class AssistantObservabilityController extends Controller
             'days' => $days,
             'approvedDays' => $approvedDays,
             'focus' => $focus,
+            'source' => $source,
+            'sourceOptions' => $observabilityService->approvalSources(),
             'previewDomain' => is_string($previewDomain) && $previewDomain !== '' ? $previewDomain : null,
             'previewItemKey' => is_string($previewItem) && $previewItem !== '' ? $previewItem : null,
             'fixturePreview' => is_string($previewDomain) && $previewDomain !== ''
@@ -28,7 +31,9 @@ class AssistantObservabilityController extends Controller
             'fixtureItemPreview' => is_string($previewItem) && $previewItem !== ''
                 ? $observabilityService->previewFixtureItem($days, 1000, $focus, $previewItem)
                 : null,
-            'weeklyReviewUsage' => $observabilityService->weeklyReviewUsage($approvedDays),
+            'weeklyReviewUsage' => $observabilityService->weeklyReviewUsage($approvedDays, $source),
+            'weeklyReviewTrend' => $observabilityService->weeklyReviewTrend(6, $source),
+            'weeklyOperationalSnapshot' => $observabilityService->weeklyOperationalSnapshot($source),
         ]);
     }
 
@@ -104,6 +109,7 @@ class AssistantObservabilityController extends Controller
         $days = max(1, min(30, (int) $request->integer('days', 14)));
         $approvedDays = max(1, min(30, (int) $request->integer('approved_days', 7)));
         $focus = (string) $request->query('focus', 'all');
+        $source = (string) $request->query('source', 'all');
         $domain = $request->query('domain');
         $itemKey = $request->query('item_key');
         $approved = $request->boolean('approved');
@@ -132,7 +138,11 @@ class AssistantObservabilityController extends Controller
                 : 'assistant_observability_approved_fixtures.php';
 
             return response(
-                $observabilityService->approvedFixtureExport($approvedDays, is_string($domain) && $domain !== '' ? $domain : null),
+                $observabilityService->approvedFixtureExport(
+                    $approvedDays,
+                    is_string($domain) && $domain !== '' ? $domain : null,
+                    $source
+                ),
                 200,
                 [
                     'Content-Type' => 'text/plain; charset=UTF-8',

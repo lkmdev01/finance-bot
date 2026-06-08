@@ -192,6 +192,7 @@ class AssistantObservabilityService
         $this->appendActivity(array_merge([
             'type' => 'fixture_sync',
             'mode' => $mode,
+            'source' => $payload['source'] ?? $mode,
         ], $payload));
     }
 
@@ -205,6 +206,7 @@ class AssistantObservabilityService
             $this->appendActivity([
                 'type' => 'fixture_item_approved',
                 'source' => $source,
+                'occurred_at' => $item['occurred_at'] ?? null,
                 'item_key' => $item['key'] ?? null,
                 'domain' => $item['domain'] ?? 'unknown',
                 'intent' => $item['intent'] ?? 'unknown',
@@ -214,15 +216,22 @@ class AssistantObservabilityService
         }
     }
 
-    public function weeklyReviewUsage(int $days = 7): array
+    public function weeklyReviewUsage(int $days = 7, ?string $source = null): array
     {
         $activities = $this->recentActivities($days);
         $reviewRuns = $activities->where('type', 'weekly_review_run')->values();
-        $syncs = $activities->where('type', 'fixture_sync')->values();
-        $approvals = $activities->where('type', 'fixture_item_approved')->values();
+        $syncs = $this->filterActivitiesBySource(
+            $activities->where('type', 'fixture_sync')->values(),
+            $source
+        );
+        $approvals = $this->filterActivitiesBySource(
+            $activities->where('type', 'fixture_item_approved')->values(),
+            $source
+        );
 
         return [
             'days' => $days,
+            'source' => $source,
             'review_runs' => $reviewRuns->count(),
             'synced_review_runs' => $reviewRuns->where('sync', true)->count(),
             'sync_runs' => $syncs->count(),
@@ -243,19 +252,143 @@ class AssistantObservabilityService
         ];
     }
 
-    public function approvedFixtureExport(int $days = 7, ?string $domain = null): string
+    public function approvedFixtureExport(int $days = 7, ?string $domain = null, ?string $source = null): string
     {
-        $examples = $this->recentActivities($days)
+        $examples = $this->filterActivitiesBySource(
+            $this->recentActivities($days)
             ->where('type', 'fixture_item_approved')
             ->filter(function (array $activity) use ($domain) {
                 return $domain === null || ($activity['domain'] ?? 'unknown') === $domain;
-            })
+            }),
+            $source
+        )
             ->pluck('suggested_example')
             ->filter(fn ($example) => is_array($example))
             ->values()
             ->all();
 
         return $this->renderFixtureContent($this->mergeSuggestedExamples([], $examples));
+    }
+
+    public function weeklyReviewTrend(int $weeks = 6, ?string $source = null): array
+    {
+        $weeks = max(2, min(12, $weeks));
+        $start = now()->startOfWeek()->subWeeks($weeks - 1);
+        $activities = $this->recentActivities(7 * $weeks + 7);
+        $approvals = $this->filterActivitiesBySource(
+            $activities->where('type', 'fixture_item_approved')->values(),
+            $source
+        );
+        $syncs = $this->filterActivitiesBySource(
+            $activities->where('type', 'fixture_sync')->values(),
+            $source
+        );
+        $reviewRuns = $activities->where('type', 'weekly_review_run')->values();
+
+        $rows = [];
+
+        for ($index = 0; $index < $weeks; $index++) {
+            $weekStart = $start->copy()->addWeeks($index);
+            $weekEnd = $weekStart->copy()->endOfWeek();
+            $label = $weekStart->format('d/m');
+
+            $weekApprovals = $approvals->filter(fn (array $item) => $this->activityWithinWeek($item, $weekStart, $weekEnd));
+            $weekSyncs = $syncs->filter(fn (array $item) => $this->activityWithinWeek($item, $weekStart, $weekEnd));
+            $weekRuns = $reviewRuns->filter(fn (array $item) => $this->activityWithinWeek($item, $weekStart, $weekEnd));
+
+            $rows[] = [
+                'week_start' => $weekStart->toDateString(),
+                'week_end' => $weekEnd->toDateString(),
+                'label' => $label,
+                'review_runs' => $weekRuns->count(),
+                'sync_runs' => $weekSyncs->count(),
+                'item_approvals' => $weekApprovals->count(),
+            ];
+        }
+
+        return [
+            'weeks' => $weeks,
+            'source' => $source,
+            'series' => $rows,
+            'totals' => [
+                'review_runs' => array_sum(array_column($rows, 'review_runs')),
+                'sync_runs' => array_sum(array_column($rows, 'sync_runs')),
+                'item_approvals' => array_sum(array_column($rows, 'item_approvals')),
+            ],
+        ];
+    }
+
+    public function approvalSources(): array
+    {
+        return [
+            'all' => 'Todas as origens',
+            'dashboard_item' => 'Dashboard: item',
+            'dashboard_domain' => 'Dashboard: dominio',
+            'dashboard_all' => 'Dashboard: tudo',
+            'weekly_review' => 'Weekly review',
+        ];
+    }
+
+    public function weeklyGoals(): array
+    {
+        return [
+            'review_runs' => max(0, (int) config('assistant.weekly_goals.review_runs', 1)),
+            'item_approvals' => max(0, (int) config('assistant.weekly_goals.item_approvals', 10)),
+            'sync_runs' => max(0, (int) config('assistant.weekly_goals.sync_runs', 1)),
+        ];
+    }
+
+    public function weeklyOperationalSnapshot(?string $source = null): array
+    {
+        $trend = $this->weeklyReviewTrend(2, $source);
+        $currentWeek = $trend['series'][1] ?? $trend['series'][0] ?? [
+            'review_runs' => 0,
+            'sync_runs' => 0,
+            'item_approvals' => 0,
+        ];
+        $previousWeek = $trend['series'][0] ?? [
+            'review_runs' => 0,
+            'sync_runs' => 0,
+            'item_approvals' => 0,
+        ];
+        $goals = $this->weeklyGoals();
+        $lastReviewAt = $this->weeklyReviewUsage(14, $source)['last_review_run_at'] ?? null;
+
+        return [
+            'source' => $source,
+            'goals' => [
+                'review_runs' => [
+                    'target' => $goals['review_runs'],
+                    'current' => $currentWeek['review_runs'] ?? 0,
+                    'remaining' => max(0, $goals['review_runs'] - ($currentWeek['review_runs'] ?? 0)),
+                    'met' => ($currentWeek['review_runs'] ?? 0) >= $goals['review_runs'],
+                ],
+                'item_approvals' => [
+                    'target' => $goals['item_approvals'],
+                    'current' => $currentWeek['item_approvals'] ?? 0,
+                    'remaining' => max(0, $goals['item_approvals'] - ($currentWeek['item_approvals'] ?? 0)),
+                    'met' => ($currentWeek['item_approvals'] ?? 0) >= $goals['item_approvals'],
+                ],
+                'sync_runs' => [
+                    'target' => $goals['sync_runs'],
+                    'current' => $currentWeek['sync_runs'] ?? 0,
+                    'remaining' => max(0, $goals['sync_runs'] - ($currentWeek['sync_runs'] ?? 0)),
+                    'met' => ($currentWeek['sync_runs'] ?? 0) >= $goals['sync_runs'],
+                ],
+            ],
+            'comparison' => [
+                'review_runs' => $this->buildTrendDelta($currentWeek['review_runs'] ?? 0, $previousWeek['review_runs'] ?? 0),
+                'sync_runs' => $this->buildTrendDelta($currentWeek['sync_runs'] ?? 0, $previousWeek['sync_runs'] ?? 0),
+                'item_approvals' => $this->buildTrendDelta($currentWeek['item_approvals'] ?? 0, $previousWeek['item_approvals'] ?? 0),
+            ],
+            'sla' => $this->buildWeeklySlaStatus($currentWeek, $lastReviewAt, $goals),
+            'alerts' => $this->buildWeeklyOperationalAlerts(
+                currentWeek: $currentWeek,
+                lastReviewAt: $lastReviewAt,
+                source: $source,
+                goals: $goals
+            ),
+        ];
     }
 
     private function buildTotals(Collection $logs): array
@@ -571,6 +704,147 @@ class AssistantObservabilityService
                 return now()->subDays($days)->lte(\Illuminate\Support\Carbon::parse($occurredAt));
             })
             ->values();
+    }
+
+    private function filterActivitiesBySource(Collection $activities, ?string $source): Collection
+    {
+        if ($source === null || $source === '' || $source === 'all') {
+            return $activities->values();
+        }
+
+        return $activities
+            ->filter(fn (array $activity) => ($activity['source'] ?? null) === $source)
+            ->values();
+    }
+
+    private function activityWithinWeek(array $activity, \Illuminate\Support\Carbon $weekStart, \Illuminate\Support\Carbon $weekEnd): bool
+    {
+        $occurredAt = $activity['occurred_at'] ?? null;
+        if (! is_string($occurredAt) || $occurredAt === '') {
+            return false;
+        }
+
+        $timestamp = \Illuminate\Support\Carbon::parse($occurredAt);
+
+        return $timestamp->betweenIncluded($weekStart, $weekEnd);
+    }
+
+    private function buildTrendDelta(int $current, int $previous): array
+    {
+        return [
+            'current' => $current,
+            'previous' => $previous,
+            'delta' => $current - $previous,
+            'direction' => $current <=> $previous,
+        ];
+    }
+
+    private function buildWeeklyOperationalAlerts(array $currentWeek, ?string $lastReviewAt, ?string $source, array $goals): array
+    {
+        $alerts = [];
+        $cta = $this->observabilityCta($source);
+
+        if (($currentWeek['review_runs'] ?? 0) < $goals['review_runs']) {
+            $alerts[] = [
+                'tone' => 'warning',
+                'title' => 'Revisao semanal pendente',
+                'text' => 'A revisao operacional desta semana ainda nao bateu a meta minima.',
+                'cta' => $cta,
+            ];
+        }
+
+        if (($currentWeek['sync_runs'] ?? 0) < $goals['sync_runs']) {
+            $alerts[] = [
+                'tone' => 'warning',
+                'title' => 'Sync semanal pendente',
+                'text' => 'Ainda nao houve sync suficiente de fixtures nesta semana.',
+                'cta' => $cta,
+            ];
+        }
+
+        if (($currentWeek['item_approvals'] ?? 0) < $goals['item_approvals']) {
+            $alerts[] = [
+                'tone' => 'info',
+                'title' => 'Meta de aprovacoes em aberto',
+                'text' => 'Ainda faltam aprovacoes para fechar a meta semanal do assistente.',
+                'cta' => $cta,
+            ];
+        }
+
+        if ($lastReviewAt !== null && \Illuminate\Support\Carbon::parse($lastReviewAt)->lt(now()->subDays(7))) {
+            $alerts[] = [
+                'tone' => 'warning',
+                'title' => 'Revisao atrasada',
+                'text' => 'A ultima revisao registrada passou de 7 dias e precisa ser retomada.',
+                'cta' => $cta,
+            ];
+        }
+
+        if ($alerts === []) {
+            $alerts[] = [
+                'tone' => 'ok',
+                'title' => 'Ritual semanal em dia',
+                'text' => 'Revisao, sync e aprovacoes estao dentro da meta nesta semana.',
+                'cta' => $cta,
+            ];
+        }
+
+        return $alerts;
+    }
+
+    private function buildWeeklySlaStatus(array $currentWeek, ?string $lastReviewAt, array $goals): array
+    {
+        $meetsReview = ($currentWeek['review_runs'] ?? 0) >= $goals['review_runs'];
+        $meetsSync = ($currentWeek['sync_runs'] ?? 0) >= $goals['sync_runs'];
+        $meetsApprovals = ($currentWeek['item_approvals'] ?? 0) >= $goals['item_approvals'];
+        $reviewLate = $lastReviewAt !== null && \Illuminate\Support\Carbon::parse($lastReviewAt)->lt(now()->subDays(7));
+
+        $score = 0;
+        $score += $meetsReview ? 1 : 0;
+        $score += $meetsSync ? 1 : 0;
+        $score += $meetsApprovals ? 1 : 0;
+        $score += $reviewLate ? 0 : 1;
+
+        $status = match (true) {
+            $score >= 4 => 'green',
+            $score >= 2 => 'yellow',
+            default => 'red',
+        };
+
+        $label = match ($status) {
+            'green' => 'SLA saudavel',
+            'yellow' => 'SLA em atencao',
+            default => 'SLA critico',
+        };
+
+        return [
+            'status' => $status,
+            'label' => $label,
+            'score' => $score,
+            'checks' => [
+                'review_runs' => $meetsReview,
+                'sync_runs' => $meetsSync,
+                'item_approvals' => $meetsApprovals,
+                'recent_review' => ! $reviewLate,
+            ],
+        ];
+    }
+
+    private function observabilityCta(?string $source): array
+    {
+        $params = [
+            'days' => 14,
+            'approved_days' => 7,
+        ];
+
+        if ($source !== null && $source !== '' && $source !== 'all') {
+            $params['source'] = $source;
+        }
+
+        return [
+            'label' => 'Abrir ritual',
+            'route' => route('assistant.observability', $params),
+        ];
     }
 
     private function loadFixtureExamples(string $path): array

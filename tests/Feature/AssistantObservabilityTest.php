@@ -345,6 +345,122 @@ it('renders weekly review usage metrics on the observability page', function () 
     $response->assertSee('budget');
 });
 
+it('builds weekly operational snapshot with goals alerts and comparison', function () {
+    $service = app(AssistantObservabilityService::class);
+    config()->set('assistant.weekly_goals.review_runs', 1);
+    config()->set('assistant.weekly_goals.item_approvals', 10);
+    config()->set('assistant.weekly_goals.sync_runs', 1);
+
+    $service->recordReviewRun([
+        'occurred_at' => now()->subWeek()->startOfWeek()->addDay()->toIso8601String(),
+        'days' => 7,
+        'sample' => 100,
+        'focus' => 'all',
+        'sync' => true,
+        'backlog_count' => 6,
+    ]);
+    $service->recordApprovalActivity([
+        [
+            'key' => 'previous-1',
+            'occurred_at' => now()->subWeek()->startOfWeek()->addDay()->toIso8601String(),
+            'domain' => 'notes',
+            'intent' => 'create_note',
+            'message' => 'nota passada',
+            'suggested_example' => ['message' => 'nota passada', 'expected_intent' => 'create_note'],
+        ],
+        [
+            'key' => 'previous-2',
+            'occurred_at' => now()->subWeek()->startOfWeek()->addDays(2)->toIso8601String(),
+            'domain' => 'drive',
+            'intent' => 'query_drive_files',
+            'message' => 'drive passado',
+            'suggested_example' => ['message' => 'drive passado', 'expected_intent' => 'query_drive_files'],
+        ],
+    ], 'weekly_review');
+
+    $service->recordReviewRun([
+        'occurred_at' => now()->startOfWeek()->addDay()->toIso8601String(),
+        'days' => 7,
+        'sample' => 100,
+        'focus' => 'all',
+        'sync' => false,
+        'backlog_count' => 2,
+    ]);
+    $service->recordApprovalActivity([
+        [
+            'key' => 'current-1',
+            'occurred_at' => now()->startOfWeek()->addDay()->toIso8601String(),
+            'domain' => 'budget',
+            'intent' => 'query_budgets',
+            'message' => 'orcamento atual',
+            'suggested_example' => ['message' => 'orcamento atual', 'expected_intent' => 'query_budgets'],
+        ],
+    ], 'weekly_review');
+
+    $snapshot = $service->weeklyOperationalSnapshot('weekly_review');
+
+    expect($snapshot['goals']['review_runs']['current'])->toBe(1)
+        ->and($snapshot['goals']['review_runs']['met'])->toBeTrue()
+        ->and($snapshot['goals']['item_approvals']['met'])->toBeFalse()
+        ->and($snapshot['comparison']['item_approvals']['delta'])->toBe(-1)
+        ->and(collect($snapshot['alerts'])->pluck('title')->all())->toContain('Sync semanal pendente', 'Meta de aprovacoes em aberto')
+        ->and($snapshot['sla']['status'])->toBe('yellow')
+        ->and($snapshot['alerts'][0]['cta']['label'] ?? null)->toBe('Abrir ritual');
+});
+
+it('uses assistant weekly goals from configuration', function () {
+    config()->set('assistant.weekly_goals.review_runs', 2);
+    config()->set('assistant.weekly_goals.item_approvals', 6);
+    config()->set('assistant.weekly_goals.sync_runs', 3);
+
+    $goals = app(AssistantObservabilityService::class)->weeklyGoals();
+
+    expect($goals['review_runs'])->toBe(2)
+        ->and($goals['item_approvals'])->toBe(6)
+        ->and($goals['sync_runs'])->toBe(3);
+});
+
+it('filters approved weekly exports by approval source', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $service = app(AssistantObservabilityService::class);
+    $service->recordApprovalActivity([
+        [
+            'key' => 'item-dashboard',
+            'domain' => 'notes',
+            'intent' => 'create_note',
+            'message' => 'nota pelo dashboard',
+            'suggested_example' => [
+                'message' => 'nota pelo dashboard',
+                'expected_intent' => 'create_note',
+            ],
+        ],
+    ], 'dashboard_item');
+    $service->recordApprovalActivity([
+        [
+            'key' => 'item-weekly',
+            'domain' => 'planning',
+            'intent' => 'query_subscriptions',
+            'message' => 'assinatura pelo review',
+            'suggested_example' => [
+                'message' => 'assinatura pelo review',
+                'expected_intent' => 'query_subscriptions',
+            ],
+        ],
+    ], 'weekly_review');
+
+    $response = $this->get(route('assistant.observability.export-fixtures', [
+        'approved' => 1,
+        'approved_days' => 7,
+        'source' => 'weekly_review',
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('assinatura pelo review');
+    $response->assertDontSee('nota pelo dashboard');
+});
+
 it('prints a weekly operational review and can sync fixtures', function () {
     $user = User::factory()->create();
 

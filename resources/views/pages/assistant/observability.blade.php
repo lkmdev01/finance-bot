@@ -18,6 +18,11 @@
                             <option value="{{ $option }}" @selected($days === $option)>{{ $option }} dias</option>
                         @endforeach
                     </select>
+                    <select id="source" name="source" class="rounded-xl border border-white/10 bg-space-950 px-3 py-2 text-sm text-white">
+                        @foreach ($sourceOptions as $sourceKey => $sourceLabel)
+                            <option value="{{ $sourceKey }}" @selected($source === $sourceKey)>{{ $sourceLabel }}</option>
+                        @endforeach
+                    </select>
                     <input type="hidden" name="focus" value="{{ $focus }}" />
                     <button type="submit" class="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-space-950 transition hover:bg-cyan-300">
                         Atualizar
@@ -46,7 +51,7 @@
                         </button>
                     </form>
 
-                    <a href="{{ route('assistant.observability.export-fixtures', ['approved' => 1, 'approved_days' => $approvedDays]) }}" class="rounded-xl border border-emerald-300/40 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/20">
+                    <a href="{{ route('assistant.observability.export-fixtures', ['approved' => 1, 'approved_days' => $approvedDays, 'source' => $source]) }}" class="rounded-xl border border-emerald-300/40 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/20">
                         Exportar aprovados dos ultimos {{ $approvedDays }} dias
                     </a>
                 </div>
@@ -80,6 +85,9 @@
                 </div>
                 <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
                     Janela de {{ $weeklyReviewUsage['days'] }} dias
+                    @if (($weeklyReviewUsage['source'] ?? 'all') !== 'all')
+                        · {{ $sourceOptions[$weeklyReviewUsage['source']] ?? $weeklyReviewUsage['source'] }}
+                    @endif
                 </div>
             </div>
 
@@ -123,6 +131,91 @@
                         @endforelse
                     </div>
                 </article>
+            </div>
+
+            <div class="mt-4 grid gap-4 xl:grid-cols-3">
+                @foreach (['review_runs' => 'Revisoes', 'sync_runs' => 'Syncs', 'item_approvals' => 'Aprovacoes'] as $metricKey => $metricLabel)
+                    @php
+                        $goal = $weeklyOperationalSnapshot['goals'][$metricKey] ?? ['current' => 0, 'target' => 0, 'remaining' => 0, 'met' => false];
+                        $comparison = $weeklyOperationalSnapshot['comparison'][$metricKey] ?? ['delta' => 0, 'previous' => 0, 'direction' => 0];
+                        $directionLabel = $comparison['direction'] > 0 ? 'acima' : ($comparison['direction'] < 0 ? 'abaixo' : 'igual');
+                    @endphp
+                    <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm font-semibold text-white">{{ $metricLabel }}</p>
+                            <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $goal['met'] ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200' }}">
+                                {{ $goal['met'] ? 'Meta ok' : 'Faltam '.$goal['remaining'] }}
+                            </span>
+                        </div>
+                        <p class="mt-3 text-2xl font-semibold text-white">{{ $goal['current'] }}/{{ $goal['target'] }}</p>
+                        <p class="mt-1 text-xs text-slate-400">
+                            {{ $comparison['delta'] >= 0 ? '+' : '' }}{{ $comparison['delta'] }} {{ $directionLabel }} da semana passada ({{ $comparison['previous'] }})
+                        </p>
+                    </article>
+                @endforeach
+            </div>
+
+            @php
+                $sla = $weeklyOperationalSnapshot['sla'] ?? ['status' => 'yellow', 'label' => 'SLA em atencao'];
+                $slaClass = match ($sla['status']) {
+                    'green' => 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100',
+                    'red' => 'border-rose-300/30 bg-rose-300/10 text-rose-100',
+                    default => 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+                };
+            @endphp
+
+            <div class="mt-4 rounded-2xl border {{ $slaClass }} px-4 py-4">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.22em]">SLA da operacao do assistente</p>
+                        <p class="mt-2 text-lg font-semibold">{{ $sla['label'] }}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 text-xs">
+                        <span class="rounded-full border border-current/20 px-2.5 py-1">score {{ $sla['score'] }}/4</span>
+                        <span class="rounded-full border border-current/20 px-2.5 py-1">{{ $sla['status'] }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 space-y-2">
+                @foreach (($weeklyOperationalSnapshot['alerts'] ?? []) as $alert)
+                    @php
+                        $alertClass = match ($alert['tone'] ?? 'info') {
+                            'warning' => 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+                            'ok' => 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100',
+                            default => 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100',
+                        };
+                    @endphp
+                    <article class="rounded-2xl border {{ $alertClass }} px-4 py-3">
+                        <p class="text-sm font-semibold">{{ $alert['title'] ?? 'Alerta' }}</p>
+                        <p class="mt-1 text-xs">{{ $alert['text'] ?? '' }}</p>
+                        @if(!empty($alert['cta']['route']) && !empty($alert['cta']['label']))
+                            <a href="{{ $alert['cta']['route'] }}" class="mt-2 inline-flex text-xs font-semibold underline underline-offset-4">
+                                {{ $alert['cta']['label'] }}
+                            </a>
+                        @endif
+                    </article>
+                @endforeach
+            </div>
+
+            <div class="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div class="flex items-center justify-between">
+                    <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Tendencia semanal</p>
+                    <p class="text-xs text-slate-500">Ultimas {{ $weeklyReviewTrend['weeks'] }} semanas</p>
+                </div>
+                <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+                    @foreach ($weeklyReviewTrend['series'] as $week)
+                        <div class="rounded-2xl border border-white/10 bg-black/20 p-3">
+                            <p class="text-xs font-semibold text-slate-400">{{ $week['label'] }}</p>
+                            <p class="mt-3 text-2xl font-semibold text-white">{{ $week['item_approvals'] }}</p>
+                            <p class="text-xs text-slate-400">aprovacoes</p>
+                            <div class="mt-3 space-y-1 text-xs text-slate-400">
+                                <p>{{ $week['review_runs'] }} revisoes</p>
+                                <p>{{ $week['sync_runs'] }} syncs</p>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
             </div>
         </section>
 
@@ -190,13 +283,13 @@
                         <a href="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus]) }}" class="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
                             Exportar fixtures
                         </a>
-                        <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'unknown']) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'unknown' ? 'border-amber-300/50 bg-amber-300/15 text-amber-100' : 'border-white/10 bg-white/5 text-slate-300' }}">
+                        <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'unknown', 'source' => $source]) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'unknown' ? 'border-amber-300/50 bg-amber-300/15 text-amber-100' : 'border-white/10 bg-white/5 text-slate-300' }}">
                             Focar unknown
                         </a>
-                        <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'missing']) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'missing' ? 'border-cyan-300/50 bg-cyan-300/15 text-cyan-100' : 'border-white/10 bg-white/5 text-slate-300' }}">
+                        <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'missing', 'source' => $source]) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'missing' ? 'border-cyan-300/50 bg-cyan-300/15 text-cyan-100' : 'border-white/10 bg-white/5 text-slate-300' }}">
                             Focar missing_fields
                         </a>
-                        <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'all']) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'all' ? 'border-white/20 bg-white/10 text-white' : 'border-white/10 bg-white/5 text-slate-300' }}">
+                        <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => 'all', 'source' => $source]) }}" class="rounded-full border px-3 py-1.5 text-xs font-semibold {{ $focus === 'all' ? 'border-white/20 bg-white/10 text-white' : 'border-white/10 bg-white/5 text-slate-300' }}">
                             Ver tudo
                         </a>
                     </div>
@@ -225,10 +318,10 @@
                                     <a href="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus, 'domain' => $domain]) }}" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">
                                         Baixar fixture
                                     </a>
-                                    <a href="{{ route('assistant.observability.export-fixtures', ['approved' => 1, 'approved_days' => $approvedDays, 'domain' => $domain]) }}" class="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                                    <a href="{{ route('assistant.observability.export-fixtures', ['approved' => 1, 'approved_days' => $approvedDays, 'domain' => $domain, 'source' => $source]) }}" class="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
                                         Aprovados da semana
                                     </a>
-                                    <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => $focus, 'preview_domain' => $domain]) }}" class="rounded-full border border-fuchsia-300/40 bg-fuchsia-300/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
+                                    <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => $focus, 'preview_domain' => $domain, 'source' => $source]) }}" class="rounded-full border border-fuchsia-300/40 bg-fuchsia-300/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
                                         Ver preview/diff
                                     </a>
                                     <form method="POST" action="{{ route('assistant.observability.sync-fixtures') }}">
@@ -267,7 +360,7 @@
                                         <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ json_encode($item['suggested_example'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
 
                                         <div class="mt-3 flex flex-wrap gap-2">
-                                            <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => $focus, 'preview_domain' => $domain, 'preview_item' => $item['key']]) }}" class="rounded-full border border-fuchsia-300/40 bg-fuchsia-300/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
+                                            <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => $focus, 'preview_domain' => $domain, 'preview_item' => $item['key'], 'source' => $source]) }}" class="rounded-full border border-fuchsia-300/40 bg-fuchsia-300/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
                                                 Ver item
                                             </a>
                                             <form method="POST" action="{{ route('assistant.observability.sync-fixtures') }}">
