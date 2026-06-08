@@ -345,6 +345,64 @@ it('renders weekly review usage metrics on the observability page', function () 
     $response->assertSee('budget');
 });
 
+it('builds weekly operational snapshot with goals alerts and comparison', function () {
+    $service = app(AssistantObservabilityService::class);
+
+    $service->recordReviewRun([
+        'occurred_at' => now()->subWeek()->startOfWeek()->addDay()->toIso8601String(),
+        'days' => 7,
+        'sample' => 100,
+        'focus' => 'all',
+        'sync' => true,
+        'backlog_count' => 6,
+    ]);
+    $service->recordApprovalActivity([
+        [
+            'key' => 'previous-1',
+            'occurred_at' => now()->subWeek()->startOfWeek()->addDay()->toIso8601String(),
+            'domain' => 'notes',
+            'intent' => 'create_note',
+            'message' => 'nota passada',
+            'suggested_example' => ['message' => 'nota passada', 'expected_intent' => 'create_note'],
+        ],
+        [
+            'key' => 'previous-2',
+            'occurred_at' => now()->subWeek()->startOfWeek()->addDays(2)->toIso8601String(),
+            'domain' => 'drive',
+            'intent' => 'query_drive_files',
+            'message' => 'drive passado',
+            'suggested_example' => ['message' => 'drive passado', 'expected_intent' => 'query_drive_files'],
+        ],
+    ], 'weekly_review');
+
+    $service->recordReviewRun([
+        'occurred_at' => now()->startOfWeek()->addDay()->toIso8601String(),
+        'days' => 7,
+        'sample' => 100,
+        'focus' => 'all',
+        'sync' => false,
+        'backlog_count' => 2,
+    ]);
+    $service->recordApprovalActivity([
+        [
+            'key' => 'current-1',
+            'occurred_at' => now()->startOfWeek()->addDay()->toIso8601String(),
+            'domain' => 'budget',
+            'intent' => 'query_budgets',
+            'message' => 'orcamento atual',
+            'suggested_example' => ['message' => 'orcamento atual', 'expected_intent' => 'query_budgets'],
+        ],
+    ], 'weekly_review');
+
+    $snapshot = $service->weeklyOperationalSnapshot('weekly_review');
+
+    expect($snapshot['goals']['review_runs']['current'])->toBe(1)
+        ->and($snapshot['goals']['review_runs']['met'])->toBeTrue()
+        ->and($snapshot['goals']['item_approvals']['met'])->toBeFalse()
+        ->and($snapshot['comparison']['item_approvals']['delta'])->toBe(-1)
+        ->and(collect($snapshot['alerts'])->pluck('title')->all())->toContain('Sync semanal pendente', 'Meta de aprovacoes em aberto');
+});
+
 it('filters approved weekly exports by approval source', function () {
     $user = User::factory()->create();
     $this->actingAs($user);

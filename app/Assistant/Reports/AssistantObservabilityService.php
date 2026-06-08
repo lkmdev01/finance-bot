@@ -206,6 +206,7 @@ class AssistantObservabilityService
             $this->appendActivity([
                 'type' => 'fixture_item_approved',
                 'source' => $source,
+                'occurred_at' => $item['occurred_at'] ?? null,
                 'item_key' => $item['key'] ?? null,
                 'domain' => $item['domain'] ?? 'unknown',
                 'intent' => $item['intent'] ?? 'unknown',
@@ -325,6 +326,66 @@ class AssistantObservabilityService
             'dashboard_domain' => 'Dashboard: dominio',
             'dashboard_all' => 'Dashboard: tudo',
             'weekly_review' => 'Weekly review',
+        ];
+    }
+
+    public function weeklyGoals(): array
+    {
+        return [
+            'review_runs' => 1,
+            'item_approvals' => 10,
+            'sync_runs' => 1,
+        ];
+    }
+
+    public function weeklyOperationalSnapshot(?string $source = null): array
+    {
+        $trend = $this->weeklyReviewTrend(2, $source);
+        $currentWeek = $trend['series'][1] ?? $trend['series'][0] ?? [
+            'review_runs' => 0,
+            'sync_runs' => 0,
+            'item_approvals' => 0,
+        ];
+        $previousWeek = $trend['series'][0] ?? [
+            'review_runs' => 0,
+            'sync_runs' => 0,
+            'item_approvals' => 0,
+        ];
+        $goals = $this->weeklyGoals();
+        $lastReviewAt = $this->weeklyReviewUsage(14, $source)['last_review_run_at'] ?? null;
+
+        return [
+            'source' => $source,
+            'goals' => [
+                'review_runs' => [
+                    'target' => $goals['review_runs'],
+                    'current' => $currentWeek['review_runs'] ?? 0,
+                    'remaining' => max(0, $goals['review_runs'] - ($currentWeek['review_runs'] ?? 0)),
+                    'met' => ($currentWeek['review_runs'] ?? 0) >= $goals['review_runs'],
+                ],
+                'item_approvals' => [
+                    'target' => $goals['item_approvals'],
+                    'current' => $currentWeek['item_approvals'] ?? 0,
+                    'remaining' => max(0, $goals['item_approvals'] - ($currentWeek['item_approvals'] ?? 0)),
+                    'met' => ($currentWeek['item_approvals'] ?? 0) >= $goals['item_approvals'],
+                ],
+                'sync_runs' => [
+                    'target' => $goals['sync_runs'],
+                    'current' => $currentWeek['sync_runs'] ?? 0,
+                    'remaining' => max(0, $goals['sync_runs'] - ($currentWeek['sync_runs'] ?? 0)),
+                    'met' => ($currentWeek['sync_runs'] ?? 0) >= $goals['sync_runs'],
+                ],
+            ],
+            'comparison' => [
+                'review_runs' => $this->buildTrendDelta($currentWeek['review_runs'] ?? 0, $previousWeek['review_runs'] ?? 0),
+                'sync_runs' => $this->buildTrendDelta($currentWeek['sync_runs'] ?? 0, $previousWeek['sync_runs'] ?? 0),
+                'item_approvals' => $this->buildTrendDelta($currentWeek['item_approvals'] ?? 0, $previousWeek['item_approvals'] ?? 0),
+            ],
+            'alerts' => $this->buildWeeklyOperationalAlerts(
+                currentWeek: $currentWeek,
+                lastReviewAt: $lastReviewAt,
+                goals: $goals
+            ),
         ];
     }
 
@@ -664,6 +725,63 @@ class AssistantObservabilityService
         $timestamp = \Illuminate\Support\Carbon::parse($occurredAt);
 
         return $timestamp->betweenIncluded($weekStart, $weekEnd);
+    }
+
+    private function buildTrendDelta(int $current, int $previous): array
+    {
+        return [
+            'current' => $current,
+            'previous' => $previous,
+            'delta' => $current - $previous,
+            'direction' => $current <=> $previous,
+        ];
+    }
+
+    private function buildWeeklyOperationalAlerts(array $currentWeek, ?string $lastReviewAt, array $goals): array
+    {
+        $alerts = [];
+
+        if (($currentWeek['review_runs'] ?? 0) < $goals['review_runs']) {
+            $alerts[] = [
+                'tone' => 'warning',
+                'title' => 'Revisao semanal pendente',
+                'text' => 'A revisao operacional desta semana ainda nao bateu a meta minima.',
+            ];
+        }
+
+        if (($currentWeek['sync_runs'] ?? 0) < $goals['sync_runs']) {
+            $alerts[] = [
+                'tone' => 'warning',
+                'title' => 'Sync semanal pendente',
+                'text' => 'Ainda nao houve sync suficiente de fixtures nesta semana.',
+            ];
+        }
+
+        if (($currentWeek['item_approvals'] ?? 0) < $goals['item_approvals']) {
+            $alerts[] = [
+                'tone' => 'info',
+                'title' => 'Meta de aprovacoes em aberto',
+                'text' => 'Ainda faltam aprovacoes para fechar a meta semanal do assistente.',
+            ];
+        }
+
+        if ($lastReviewAt !== null && \Illuminate\Support\Carbon::parse($lastReviewAt)->lt(now()->subDays(7))) {
+            $alerts[] = [
+                'tone' => 'warning',
+                'title' => 'Revisao atrasada',
+                'text' => 'A ultima revisao registrada passou de 7 dias e precisa ser retomada.',
+            ];
+        }
+
+        if ($alerts === []) {
+            $alerts[] = [
+                'tone' => 'ok',
+                'title' => 'Ritual semanal em dia',
+                'text' => 'Revisao, sync e aprovacoes estao dentro da meta nesta semana.',
+            ];
+        }
+
+        return $alerts;
     }
 
     private function loadFixtureExamples(string $path): array

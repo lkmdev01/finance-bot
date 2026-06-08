@@ -42,6 +42,8 @@ test('authenticated users can visit the dashboard', function () {
     $response->assertSee('Observabilidade IA ligada no fluxo');
     $response->assertSee('Tendencia semanal do assistente');
     $response->assertSee('Aprovacoes');
+    $response->assertSee('Meta ok');
+    $response->assertSee('Comparativo com a semana passada');
 });
 
 test('dashboard layout does not use unsupported flux sidebar toggle expression', function () {

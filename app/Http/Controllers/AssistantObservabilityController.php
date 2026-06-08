@@ -33,6 +33,7 @@ class AssistantObservabilityController extends Controller
                 : null,
             'weeklyReviewUsage' => $observabilityService->weeklyReviewUsage($approvedDays, $source),
             'weeklyReviewTrend' => $observabilityService->weeklyReviewTrend(6, $source),
+            'weeklyOperationalSnapshot' => $observabilityService->weeklyOperationalSnapshot($source),
         ]);
     }
 

@@ -133,6 +133,44 @@
                 </article>
             </div>
 
+            <div class="mt-4 grid gap-4 xl:grid-cols-3">
+                @foreach (['review_runs' => 'Revisoes', 'sync_runs' => 'Syncs', 'item_approvals' => 'Aprovacoes'] as $metricKey => $metricLabel)
+                    @php
+                        $goal = $weeklyOperationalSnapshot['goals'][$metricKey] ?? ['current' => 0, 'target' => 0, 'remaining' => 0, 'met' => false];
+                        $comparison = $weeklyOperationalSnapshot['comparison'][$metricKey] ?? ['delta' => 0, 'previous' => 0, 'direction' => 0];
+                        $directionLabel = $comparison['direction'] > 0 ? 'acima' : ($comparison['direction'] < 0 ? 'abaixo' : 'igual');
+                    @endphp
+                    <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm font-semibold text-white">{{ $metricLabel }}</p>
+                            <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $goal['met'] ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200' }}">
+                                {{ $goal['met'] ? 'Meta ok' : 'Faltam '.$goal['remaining'] }}
+                            </span>
+                        </div>
+                        <p class="mt-3 text-2xl font-semibold text-white">{{ $goal['current'] }}/{{ $goal['target'] }}</p>
+                        <p class="mt-1 text-xs text-slate-400">
+                            {{ $comparison['delta'] >= 0 ? '+' : '' }}{{ $comparison['delta'] }} {{ $directionLabel }} da semana passada ({{ $comparison['previous'] }})
+                        </p>
+                    </article>
+                @endforeach
+            </div>
+
+            <div class="mt-4 space-y-2">
+                @foreach (($weeklyOperationalSnapshot['alerts'] ?? []) as $alert)
+                    @php
+                        $alertClass = match ($alert['tone'] ?? 'info') {
+                            'warning' => 'border-amber-300/30 bg-amber-300/10 text-amber-100',
+                            'ok' => 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100',
+                            default => 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100',
+                        };
+                    @endphp
+                    <article class="rounded-2xl border {{ $alertClass }} px-4 py-3">
+                        <p class="text-sm font-semibold">{{ $alert['title'] ?? 'Alerta' }}</p>
+                        <p class="mt-1 text-xs">{{ $alert['text'] ?? '' }}</p>
+                    </article>
+                @endforeach
+            </div>
+
             <div class="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div class="flex items-center justify-between">
                     <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Tendencia semanal</p>
