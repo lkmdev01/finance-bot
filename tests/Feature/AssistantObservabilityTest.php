@@ -5,6 +5,10 @@ use App\Models\User;
 use App\Models\WhatsAppConversationLog;
 use Illuminate\Support\Facades\File;
 
+beforeEach(function () {
+    File::delete(storage_path('app/assistant/weekly_review_activity.jsonl'));
+});
+
 it('aggregates assistant observability by intent', function () {
     $user = User::factory()->create();
 
@@ -109,6 +113,40 @@ it('renders preview diff for a selected domain on observability page', function 
     $response->assertSee('assistant_observability_planning_examples.php');
 });
 
+it('renders preview diff for a selected backlog item on observability page', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    WhatsAppConversationLog::query()->create([
+        'user_id' => $user->id,
+        'message' => 'ajusta meu orçamento',
+        'classification' => 'budget_update_needs_target',
+        'action' => null,
+        'used_ai' => false,
+        'status' => 'handled_preflight',
+        'reply' => 'Qual orcamento voce quer ajustar?',
+        'metadata' => [
+            'assistant_intent' => 'create_budget',
+            'assistant_domain' => 'budget',
+            'assistant_confidence' => 0.44,
+            'assistant_missing_fields' => ['amount'],
+        ],
+    ]);
+
+    $itemKey = collect(app(AssistantObservabilityService::class)->summary(14, 100)['regression_backlog'])
+        ->firstWhere('domain', 'budget')['key'];
+
+    $response = $this->get(route('assistant.observability', [
+        'preview_domain' => 'budget',
+        'preview_item' => $itemKey,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('Preview seletivo por item');
+    $response->assertSee('Gerado com esse item');
+    $response->assertSee('ajusta meu orçamento');
+});
+
 it('exports regression backlog as fixture candidates', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
@@ -208,6 +246,105 @@ it('syncs fixtures from the observability page for a specific domain', function 
     File::deleteDirectory(base_path('tests/Fixtures/generated/notes'));
 });
 
+it('syncs a single backlog item from the observability page', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    WhatsAppConversationLog::query()->create([
+        'user_id' => $user->id,
+        'message' => 'qual orçamento eu ajusto?',
+        'classification' => 'default',
+        'action' => null,
+        'used_ai' => true,
+        'status' => 'error',
+        'reply' => 'erro',
+        'metadata' => [
+            'assistant_intent' => 'unknown',
+            'assistant_domain' => 'budget',
+            'assistant_confidence' => 0.2,
+            'assistant_missing_fields' => [],
+        ],
+    ]);
+
+    File::deleteDirectory(base_path('tests/Fixtures/generated/budget'));
+
+    $itemKey = collect(app(AssistantObservabilityService::class)->summary(14, 100)['regression_backlog'])
+        ->firstWhere('domain', 'budget')['key'];
+
+    $response = $this->post(route('assistant.observability.sync-fixtures'), [
+        'days' => 14,
+        'focus' => 'all',
+        'item_key' => $itemKey,
+    ]);
+
+    $response->assertRedirect(route('assistant.observability', ['days' => 14, 'focus' => 'all']));
+    $response->assertSessionHas('message');
+    expect(File::exists(base_path('tests/Fixtures/generated/budget/assistant_observability_budget_examples.php')))->toBeTrue();
+    expect(File::get(base_path('tests/Fixtures/generated/budget/assistant_observability_budget_examples.php')))->toContain('qual orçamento eu ajusto?');
+
+    File::deleteDirectory(base_path('tests/Fixtures/generated/budget'));
+});
+
+it('exports approved fixtures from the selected weekly review window', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    app(AssistantObservabilityService::class)->recordApprovalActivity([
+        [
+            'key' => 'item-a',
+            'domain' => 'notes',
+            'intent' => 'create_note',
+            'message' => 'anota isso',
+            'suggested_example' => [
+                'message' => 'anota isso',
+                'expected_intent' => 'create_note',
+            ],
+        ],
+    ], 'test');
+
+    $response = $this->get(route('assistant.observability.export-fixtures', [
+        'approved' => 1,
+        'approved_days' => 7,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('anota isso');
+    $response->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
+});
+
+it('renders weekly review usage metrics on the observability page', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $service = app(AssistantObservabilityService::class);
+    $service->recordReviewRun([
+        'days' => 7,
+        'sample' => 100,
+        'focus' => 'all',
+        'sync' => true,
+        'backlog_count' => 3,
+    ]);
+    $service->recordApprovalActivity([
+        [
+            'key' => 'item-b',
+            'domain' => 'budget',
+            'intent' => 'query_budgets',
+            'message' => 'tem mais orcamentos?',
+            'suggested_example' => [
+                'message' => 'tem mais orcamentos?',
+                'expected_intent' => 'query_budgets',
+            ],
+        ],
+    ], 'test');
+
+    $response = $this->get(route('assistant.observability', ['approved_days' => 7]));
+
+    $response->assertOk();
+    $response->assertSee('Uso da revisao semanal');
+    $response->assertSee('Aprovacoes de itens');
+    $response->assertSee('budget');
+});
+
 it('prints a weekly operational review and can sync fixtures', function () {
     $user = User::factory()->create();
 
@@ -241,6 +378,8 @@ it('prints a weekly operational review and can sync fixtures', function () {
         ->assertSuccessful();
 
     expect(File::exists($outputDirectory.DIRECTORY_SEPARATOR.'notes'.DIRECTORY_SEPARATOR.'assistant_observability_notes_examples.php'))->toBeTrue();
+    expect(app(AssistantObservabilityService::class)->weeklyReviewUsage(7)['review_runs'])->toBe(1)
+        ->and(app(AssistantObservabilityService::class)->weeklyReviewUsage(7)['item_approvals'])->toBeGreaterThan(0);
 
     File::deleteDirectory($outputDirectory);
 });

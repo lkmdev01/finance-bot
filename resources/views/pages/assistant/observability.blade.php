@@ -32,15 +32,24 @@
                 </p>
                 <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-cyan-100">php artisan assistant:sync-observability-fixtures --days={{ $days }} --focus={{ $focus }}</pre>
                 <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-emerald-100">php artisan assistant:weekly-review --days=7 --sync</pre>
+                <p class="mt-3 text-xs text-slate-400">
+                    Rotina fixa recomendada: toda segunda-feira, 09:30. O scheduler do app agora pode rodar esse review automaticamente e manter a fila de fixtures sempre atualizada.
+                </p>
 
-                <form method="POST" action="{{ route('assistant.observability.sync-fixtures') }}" class="mt-4">
-                    @csrf
-                    <input type="hidden" name="days" value="{{ $days }}" />
-                    <input type="hidden" name="focus" value="{{ $focus }}" />
-                    <button type="submit" class="rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/20">
-                        Sincronizar fixtures geradas
-                    </button>
-                </form>
+                <div class="mt-4 flex flex-wrap gap-3">
+                    <form method="POST" action="{{ route('assistant.observability.sync-fixtures') }}">
+                        @csrf
+                        <input type="hidden" name="days" value="{{ $days }}" />
+                        <input type="hidden" name="focus" value="{{ $focus }}" />
+                        <button type="submit" class="rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/20">
+                            Sincronizar fixtures geradas
+                        </button>
+                    </form>
+
+                    <a href="{{ route('assistant.observability.export-fixtures', ['approved' => 1, 'approved_days' => $approvedDays]) }}" class="rounded-xl border border-emerald-300/40 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/20">
+                        Exportar aprovados dos ultimos {{ $approvedDays }} dias
+                    </a>
+                </div>
             </div>
         </section>
 
@@ -61,6 +70,60 @@
                 <p class="text-sm text-slate-300">Chamadas com IA</p>
                 <p class="mt-3 text-3xl font-semibold text-white">{{ number_format($summary['totals']['used_ai']) }}</p>
             </article>
+        </section>
+
+        <section class="rounded-3xl border border-white/10 bg-black/20 p-6">
+            <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-white">Uso da revisao semanal</h2>
+                    <p class="mt-1 text-sm text-slate-400">Mostra se o ritual de revisao e aprovacao esta sendo usado de verdade pelo time.</p>
+                </div>
+                <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
+                    Janela de {{ $weeklyReviewUsage['days'] }} dias
+                </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p class="text-sm text-slate-300">Revisoes executadas</p>
+                    <p class="mt-2 text-2xl font-semibold text-white">{{ $weeklyReviewUsage['review_runs'] }}</p>
+                </article>
+                <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p class="text-sm text-slate-300">Revisoes com sync</p>
+                    <p class="mt-2 text-2xl font-semibold text-white">{{ $weeklyReviewUsage['synced_review_runs'] }}</p>
+                </article>
+                <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p class="text-sm text-slate-300">Aprovacoes de itens</p>
+                    <p class="mt-2 text-2xl font-semibold text-white">{{ $weeklyReviewUsage['item_approvals'] }}</p>
+                </article>
+                <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p class="text-sm text-slate-300">Dominios aprovados</p>
+                    <p class="mt-2 text-2xl font-semibold text-white">{{ count($weeklyReviewUsage['approved_domains']) }}</p>
+                </article>
+            </div>
+
+            <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Ultima revisao</p>
+                    <p class="mt-2 text-sm text-white">{{ $weeklyReviewUsage['last_review_run_at'] ?? 'Ainda nao registrada' }}</p>
+                    <p class="mt-3 text-xs uppercase tracking-[0.22em] text-slate-400">Ultima aprovacao</p>
+                    <p class="mt-2 text-sm text-white">{{ $weeklyReviewUsage['last_approval_at'] ?? 'Ainda nao registrada' }}</p>
+                </article>
+
+                <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Aprovacoes por dominio</p>
+                    <div class="mt-3 space-y-2">
+                        @forelse ($weeklyReviewUsage['approvals_by_domain'] as $domainUsage)
+                            <div class="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm">
+                                <span class="text-white">{{ $domainUsage['domain'] }}</span>
+                                <span class="text-slate-300">{{ $domainUsage['count'] }} itens</span>
+                            </div>
+                        @empty
+                            <p class="text-sm text-slate-400">Ainda nao temos aprovacoes registradas nessa janela.</p>
+                        @endforelse
+                    </div>
+                </article>
+            </div>
         </section>
 
         <section class="rounded-3xl border border-white/10 bg-black/20 p-6">
@@ -162,6 +225,9 @@
                                     <a href="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus, 'domain' => $domain]) }}" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">
                                         Baixar fixture
                                     </a>
+                                    <a href="{{ route('assistant.observability.export-fixtures', ['approved' => 1, 'approved_days' => $approvedDays, 'domain' => $domain]) }}" class="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                                        Aprovados da semana
+                                    </a>
                                     <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => $focus, 'preview_domain' => $domain]) }}" class="rounded-full border border-fuchsia-300/40 bg-fuchsia-300/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
                                         Ver preview/diff
                                     </a>
@@ -187,17 +253,76 @@
 
                             <div class="mt-4 space-y-3">
                                 @foreach ($items as $item)
-                                    <article class="rounded-2xl border border-white/10 bg-black/20 p-4">
+                                    <article class="rounded-2xl border {{ ($previewItemKey ?? null) === ($item['key'] ?? null) ? 'border-fuchsia-300/40 bg-fuchsia-300/5' : 'border-white/10 bg-black/20' }} p-4">
                                         <div class="flex flex-wrap items-center gap-2">
                                             <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $item['priority'] === 'high' ? 'bg-rose-400/15 text-rose-200' : 'bg-cyan-400/15 text-cyan-200' }}">
                                                 {{ $item['priority'] }}
                                             </span>
                                             <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-300">{{ $item['intent'] }}</span>
                                             <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-400">{{ $item['count'] }}x</span>
+                                            <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-500">item {{ \Illuminate\Support\Str::limit($item['key'] ?? '', 10, '') }}</span>
                                         </div>
                                         <p class="mt-3 text-sm text-white">{{ $item['message'] }}</p>
                                         <p class="mt-2 text-xs text-slate-400">{{ $item['reason'] }}</p>
                                         <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ json_encode($item['suggested_example'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+
+                                        <div class="mt-3 flex flex-wrap gap-2">
+                                            <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => $focus, 'preview_domain' => $domain, 'preview_item' => $item['key']]) }}" class="rounded-full border border-fuchsia-300/40 bg-fuchsia-300/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
+                                                Ver item
+                                            </a>
+                                            <form method="POST" action="{{ route('assistant.observability.sync-fixtures') }}">
+                                                @csrf
+                                                <input type="hidden" name="days" value="{{ $days }}" />
+                                                <input type="hidden" name="focus" value="{{ $focus }}" />
+                                                <input type="hidden" name="item_key" value="{{ $item['key'] }}" />
+                                                <button type="submit" class="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                                                    Aprovar item
+                                                </button>
+                                            </form>
+                                            <button
+                                                type="button"
+                                                data-copy-fixture
+                                                data-url="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus, 'item_key' => $item['key']]) }}"
+                                                class="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold text-cyan-100"
+                                            >
+                                                Copiar item
+                                            </button>
+                                        </div>
+
+                                        @if (($previewItemKey ?? null) === ($item['key'] ?? null) && $fixtureItemPreview)
+                                            <div class="mt-4 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/5 p-4">
+                                                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                                    <div>
+                                                        <p class="text-xs uppercase tracking-[0.22em] text-fuchsia-200/80">Preview seletivo por item</p>
+                                                        <p class="mt-1 text-sm text-slate-300">{{ $fixtureItemPreview['path'] }}</p>
+                                                    </div>
+                                                    <div class="flex flex-wrap gap-2 text-xs">
+                                                        <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-slate-200">
+                                                            {{ $fixtureItemPreview['exists'] ? 'arquivo existente' : 'arquivo novo' }}
+                                                        </span>
+                                                        <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-slate-200">
+                                                            {{ $fixtureItemPreview['has_changes'] ? 'com alteracoes' : 'sem alteracoes' }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                                                    <div>
+                                                        <p class="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">Atual</p>
+                                                        <pre class="overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ $fixtureItemPreview['current_content'] ?? 'Arquivo ainda nao existe.' }}</pre>
+                                                    </div>
+                                                    <div>
+                                                        <p class="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">Gerado com esse item</p>
+                                                        <pre class="overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-cyan-100">{{ $fixtureItemPreview['generated_content'] }}</pre>
+                                                    </div>
+                                                </div>
+
+                                                <div class="mt-4">
+                                                    <p class="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">Diff</p>
+                                                    <pre class="overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-emerald-100">{{ $fixtureItemPreview['diff'] }}</pre>
+                                                </div>
+                                            </div>
+                                        @endif
                                     </article>
                                 @endforeach
                             </div>

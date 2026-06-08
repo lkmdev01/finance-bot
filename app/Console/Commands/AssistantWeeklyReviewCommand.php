@@ -60,6 +60,7 @@ class AssistantWeeklyReviewCommand extends Command
             $this->newLine();
             $this->info('Sincronizando fixtures...');
 
+            $approvedItems = $observabilityService->backlogItems($days, $sample, $focus);
             $written = $observabilityService->syncFixtureFiles(
                 days: $days,
                 sampleSize: $sample,
@@ -73,11 +74,27 @@ class AssistantWeeklyReviewCommand extends Command
                 foreach ($written as $domain => $path) {
                     $this->line("- {$domain}: {$path}");
                 }
+
+                $observabilityService->recordApprovalActivity($approvedItems, 'weekly_review');
+                $observabilityService->recordSyncActivity('weekly_review', [
+                    'days' => $days,
+                    'focus' => $focus,
+                    'domains' => array_keys($written),
+                    'item_count' => count($approvedItems),
+                ]);
             }
         }
 
+        $observabilityService->recordReviewRun([
+            'days' => $days,
+            'sample' => $sample,
+            'focus' => $focus,
+            'sync' => (bool) $this->option('sync'),
+            'backlog_count' => count($summary['regression_backlog'] ?? []),
+        ]);
+
         $this->newLine();
-        $this->comment('Fluxo sugerido: revisar unknowns, validar missing_fields e depois sincronizar fixtures aprovadas.');
+        $this->comment('Fluxo sugerido: revisar unknowns, validar missing_fields, aprovar itens seletivos e depois sincronizar fixtures aprovadas.');
 
         return self::SUCCESS;
     }

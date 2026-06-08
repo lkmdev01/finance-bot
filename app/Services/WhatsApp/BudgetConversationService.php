@@ -12,6 +12,12 @@ class BudgetConversationService
 {
     public function buildReply(User $user, string $message, array $state = []): array
     {
+        $normalized = $this->normalize($message);
+
+        if (($followUpReply = $this->buildFollowUpReply($user, $normalized, $state)) !== null) {
+            return $followUpReply;
+        }
+
         $context = $this->buildContext($user, $message, $state);
         $budgets = $this->loadBudgets($user, $context);
 
@@ -49,6 +55,8 @@ class BudgetConversationService
                     'budget_id' => $budgets->count() === 1 ? $budgets->first()->id : null,
                     'category_name' => $budgets->count() === 1 ? $budgets->first()->category?->name : null,
                     'category_names' => $budgets->pluck('category.name')->filter()->values()->all(),
+                    'budget_count' => $budgets->count(),
+                    'recent_budget_ids' => $budgets->pluck('id')->values()->all(),
                 ]),
             ];
         }
@@ -57,6 +65,8 @@ class BudgetConversationService
             'reply' => $this->buildSummaryReply($user, $budgets, $context),
             'entities' => $this->buildEntities($context, [
                 'category_count' => $budgets->count(),
+                'budget_count' => $budgets->count(),
+                'recent_budget_ids' => $budgets->pluck('id')->values()->all(),
             ]),
         ];
     }
@@ -417,6 +427,70 @@ class BudgetConversationService
         ], $extra), fn ($value) => $value !== null && $value !== [] && $value !== '');
     }
 
+    private function buildFollowUpReply(User $user, string $normalizedMessage, array $state): ?array
+    {
+        $entities = $this->resolveRelevantEntities($state);
+        if (($entities['topic'] ?? null) !== 'budget') {
+            return null;
+        }
+
+        $budget = $this->resolveRecentBudget($user, $entities);
+        $count = (int) ($entities['budget_count'] ?? $entities['category_count'] ?? 0);
+
+        if ($this->containsAny($normalizedMessage, ['me mostra esse orcamento', 'mostra esse orcamento', 'me mostra ele', 'abre esse orcamento'])) {
+            if (! $budget) {
+                return null;
+            }
+
+            $context = $this->contextFromEntities($entities, $budget->category?->name);
+
+            return [
+                'reply' => $this->buildCategoryReply(collect([$budget]), $context),
+                'entities' => $this->buildEntities($context, [
+                    'budget_id' => $budget->id,
+                    'budget_count' => max(1, $count),
+                    'recent_budget_ids' => $entities['recent_budget_ids'] ?? [],
+                ]),
+            ];
+        }
+
+        if ($this->containsAny($normalizedMessage, ['so esse', 'so esse orcamento', 'tem mais orcamentos', 'tem mais orcamento'])) {
+            $periodLabel = (string) ($entities['period_label'] ?? 'esse periodo');
+
+            if ($this->containsAny($normalizedMessage, ['tem mais orcamentos', 'tem mais orcamento'])) {
+                $reply = $count <= 1
+                    ? "Por enquanto, nao. So encontrei 1 orcamento em {$periodLabel}."
+                    : "Sim. Encontrei {$count} orcamentos em {$periodLabel}.";
+            } else {
+                $reply = $count <= 1
+                    ? "Sim. Nesse recorte eu encontrei apenas 1 orcamento em {$periodLabel}."
+                    : "Nao. Nesse recorte eu encontrei {$count} orcamentos em {$periodLabel}.";
+            }
+
+            if (! empty($entities['category_name'])) {
+                $reply .= ' O foco atual esta em '.$entities['category_name'].'.';
+            }
+
+            return [
+                'reply' => $reply,
+                'entities' => array_filter([
+                    'topic' => 'budget',
+                    'budget_id' => $budget?->id,
+                    'budget_count' => max(1, $count),
+                    'recent_budget_ids' => $entities['recent_budget_ids'] ?? [],
+                    'period_scope' => $entities['period_scope'] ?? null,
+                    'period_label' => $entities['period_label'] ?? null,
+                    'year' => $entities['year'] ?? null,
+                    'month' => $entities['month'] ?? null,
+                    'category_name' => $entities['category_name'] ?? null,
+                    'category_names' => $entities['category_names'] ?? null,
+                ], fn ($value) => $value !== null && $value !== [] && $value !== ''),
+            ];
+        }
+
+        return null;
+    }
+
     private function formatBudgetLine(Budget $budget): string
     {
         $period = $budget->period === 'yearly' ? 'anual' : 'mensal';
@@ -493,5 +567,61 @@ class BudgetConversationService
         }
 
         return $lastEntities;
+    }
+
+    private function resolveRecentBudget(User $user, array $entities): ?Budget
+    {
+        $recentIds = collect($entities['recent_budget_ids'] ?? [])
+            ->filter(fn ($value) => is_numeric($value))
+            ->map(fn ($value) => (int) $value)
+            ->values();
+
+        if ($recentIds->isNotEmpty()) {
+            /** @var ?Budget $budget */
+            $budget = Budget::query()
+                ->with('category')
+                ->where('user_id', $user->id)
+                ->whereIn('id', $recentIds->all())
+                ->get()
+                ->sortBy(fn (Budget $item) => array_search($item->id, $recentIds->all(), true))
+                ->first();
+
+            if ($budget) {
+                return $budget;
+            }
+        }
+
+        if (! empty($entities['budget_id'])) {
+            return Budget::query()
+                ->with('category')
+                ->where('user_id', $user->id)
+                ->find((int) $entities['budget_id']);
+        }
+
+        return null;
+    }
+
+    private function contextFromEntities(array $entities, ?string $categoryName = null): array
+    {
+        $year = (int) ($entities['year'] ?? now()->year);
+        $month = $entities['month'] !== null ? (int) $entities['month'] : null;
+        $scope = (string) ($entities['period_scope'] ?? 'current_month');
+        $referenceMonth = $month ?? now()->month;
+        $reference = CarbonImmutable::create($year, $referenceMonth, 1);
+        $label = (string) ($entities['period_label'] ?? $reference->locale('pt_BR')->translatedFormat('F/Y'));
+
+        return [
+            'original_message' => '',
+            'normalized_message' => '',
+            'period' => [
+                'scope' => $scope,
+                'year' => $year,
+                'month' => $month,
+                'label' => $label,
+            ],
+            'category_names' => $categoryName !== null ? [$categoryName] : array_values((array) ($entities['category_names'] ?? [])),
+            'comparison_mode' => null,
+            'available_categories' => collect(),
+        ];
     }
 }

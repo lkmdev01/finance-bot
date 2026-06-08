@@ -37,7 +37,7 @@ class AssistantObservabilityService
             ->values()
             ->all();
 
-        return "<?php\n\nreturn ".var_export($items, true).";\n";
+        return $this->renderFixtureContent($items);
     }
 
     public function syncFixtureFiles(
@@ -105,6 +105,157 @@ class AssistantObservabilityService
         }
 
         return $preview;
+    }
+
+    public function previewFixtureItem(
+        int $days = 14,
+        int $sampleSize = 1000,
+        string $focus = 'all',
+        string $itemKey,
+        ?string $outputDirectory = null
+    ): ?array {
+        $item = $this->findRegressionBacklogItem($days, $sampleSize, $focus, $itemKey);
+        if ($item === null) {
+            return null;
+        }
+
+        $outputDirectory ??= base_path('tests/Fixtures/generated');
+        $domain = $item['domain'] ?? 'unknown';
+        $path = $this->fixturePathForDomain($domain, $outputDirectory);
+        $current = File::exists($path) ? File::get($path) : null;
+        $existingExamples = $this->loadFixtureExamples($path);
+        $mergedExamples = $this->mergeSuggestedExamples($existingExamples, [$item['suggested_example']]);
+        $generated = $this->renderFixtureContent($mergedExamples);
+
+        return [
+            'domain' => $domain,
+            'item_key' => $item['key'],
+            'path' => $path,
+            'exists' => $current !== null,
+            'has_backlog' => true,
+            'has_changes' => $current !== $generated,
+            'current_content' => $current,
+            'generated_content' => $generated,
+            'diff' => $this->buildFixtureDiff($current, $generated),
+            'item' => $item,
+        ];
+    }
+
+    public function syncFixtureItem(
+        int $days = 14,
+        int $sampleSize = 1000,
+        string $focus = 'all',
+        string $itemKey,
+        ?string $outputDirectory = null
+    ): ?array {
+        $preview = $this->previewFixtureItem($days, $sampleSize, $focus, $itemKey, $outputDirectory);
+        if ($preview === null) {
+            return null;
+        }
+
+        $directory = dirname($preview['path']);
+        File::ensureDirectoryExists($directory);
+        file_put_contents($preview['path'], $preview['generated_content']);
+
+        return [
+            'domain' => $preview['domain'],
+            'path' => $preview['path'],
+            'item' => $preview['item'],
+        ];
+    }
+
+    public function itemFixtureExport(int $days = 14, int $sampleSize = 1000, string $focus = 'all', string $itemKey = ''): ?string
+    {
+        $item = $this->findRegressionBacklogItem($days, $sampleSize, $focus, $itemKey);
+
+        return $item === null
+            ? null
+            : $this->renderFixtureContent([$item['suggested_example']]);
+    }
+
+    public function backlogItems(int $days = 14, int $sampleSize = 1000, string $focus = 'all', ?string $domain = null): array
+    {
+        return $this->filteredRegressionBacklog($days, $sampleSize, $focus, $domain)
+            ->values()
+            ->all();
+    }
+
+    public function recordReviewRun(array $payload = []): void
+    {
+        $this->appendActivity(array_merge([
+            'type' => 'weekly_review_run',
+        ], $payload));
+    }
+
+    public function recordSyncActivity(string $mode, array $payload = []): void
+    {
+        $this->appendActivity(array_merge([
+            'type' => 'fixture_sync',
+            'mode' => $mode,
+        ], $payload));
+    }
+
+    public function recordApprovalActivity(array $items, string $source = 'dashboard'): void
+    {
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $this->appendActivity([
+                'type' => 'fixture_item_approved',
+                'source' => $source,
+                'item_key' => $item['key'] ?? null,
+                'domain' => $item['domain'] ?? 'unknown',
+                'intent' => $item['intent'] ?? 'unknown',
+                'message' => $item['message'] ?? '',
+                'suggested_example' => $item['suggested_example'] ?? null,
+            ]);
+        }
+    }
+
+    public function weeklyReviewUsage(int $days = 7): array
+    {
+        $activities = $this->recentActivities($days);
+        $reviewRuns = $activities->where('type', 'weekly_review_run')->values();
+        $syncs = $activities->where('type', 'fixture_sync')->values();
+        $approvals = $activities->where('type', 'fixture_item_approved')->values();
+
+        return [
+            'days' => $days,
+            'review_runs' => $reviewRuns->count(),
+            'synced_review_runs' => $reviewRuns->where('sync', true)->count(),
+            'sync_runs' => $syncs->count(),
+            'item_approvals' => $approvals->count(),
+            'approved_domains' => $approvals->pluck('domain')->filter()->unique()->values()->all(),
+            'approvals_by_domain' => $approvals
+                ->groupBy('domain')
+                ->map(fn (Collection $group, string $domain) => [
+                    'domain' => $domain,
+                    'count' => $group->count(),
+                    'last_approved_at' => $group->sortByDesc('occurred_at')->first()['occurred_at'] ?? null,
+                ])
+                ->sortByDesc('count')
+                ->values()
+                ->all(),
+            'last_review_run_at' => $reviewRuns->sortByDesc('occurred_at')->first()['occurred_at'] ?? null,
+            'last_approval_at' => $approvals->sortByDesc('occurred_at')->first()['occurred_at'] ?? null,
+        ];
+    }
+
+    public function approvedFixtureExport(int $days = 7, ?string $domain = null): string
+    {
+        $examples = $this->recentActivities($days)
+            ->where('type', 'fixture_item_approved')
+            ->filter(function (array $activity) use ($domain) {
+                return $domain === null || ($activity['domain'] ?? 'unknown') === $domain;
+            })
+            ->pluck('suggested_example')
+            ->filter(fn ($example) => is_array($example))
+            ->values()
+            ->all();
+
+        return $this->renderFixtureContent($this->mergeSuggestedExamples([], $examples));
     }
 
     private function buildTotals(Collection $logs): array
@@ -213,6 +364,11 @@ class AssistantObservabilityService
             ->groupBy('message')
             ->map(function (Collection $group, string $message) {
                 return [
+                    'key' => $this->buildBacklogItemKey([
+                        'intent' => 'unknown',
+                        'domain' => $this->inferDomainFromLog($group->first()),
+                        'message' => $message,
+                    ]),
                     'priority' => 'high',
                     'reason' => 'Mensagem recorrente ainda cai como unknown',
                     'message' => $message,
@@ -254,6 +410,12 @@ class AssistantObservabilityService
                 $first = $group->first();
 
                 return [
+                    'key' => $this->buildBacklogItemKey([
+                        'intent' => $first['intent'],
+                        'domain' => $first['domain'] ?? $this->inferDomainFromIntent($first['intent'] ?? null),
+                        'field' => $first['field'],
+                        'message' => $first['message'],
+                    ]),
                     'priority' => 'medium',
                     'reason' => 'Campo pendente aparece com frequencia e merece fixture de follow-up',
                     'message' => $first['message'],
@@ -313,6 +475,12 @@ class AssistantObservabilityService
             ->all();
     }
 
+    private function findRegressionBacklogItem(int $days, int $sampleSize, string $focus, string $itemKey): ?array
+    {
+        return $this->filteredRegressionBacklog($days, $sampleSize, $focus, null)
+            ->first(fn (array $item) => ($item['key'] ?? null) === $itemKey);
+    }
+
     private function inferDomainFromLog(?WhatsAppConversationLog $log): string
     {
         if (! $log) {
@@ -350,6 +518,93 @@ class AssistantObservabilityService
     private function fixtureDirectoryName(string $domain): string
     {
         return preg_replace('/[^a-z0-9_]+/i', '-', strtolower($domain)) ?: 'unknown';
+    }
+
+    private function fixturePathForDomain(string $domain, string $outputDirectory): string
+    {
+        $domainDirectory = rtrim($outputDirectory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$this->fixtureDirectoryName($domain);
+
+        return $domainDirectory.DIRECTORY_SEPARATOR.$this->fixtureFileName($domain);
+    }
+
+    private function renderFixtureContent(array $items): string
+    {
+        return "<?php\n\nreturn ".var_export(array_values($items), true).";\n";
+    }
+
+    private function activityLogPath(): string
+    {
+        return storage_path('app/assistant/weekly_review_activity.jsonl');
+    }
+
+    private function appendActivity(array $event): void
+    {
+        $path = $this->activityLogPath();
+        File::ensureDirectoryExists(dirname($path));
+
+        $event['occurred_at'] = $event['occurred_at'] ?? now()->toIso8601String();
+
+        File::append($path, json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).PHP_EOL);
+    }
+
+    private function recentActivities(int $days): Collection
+    {
+        $path = $this->activityLogPath();
+        if (! File::exists($path)) {
+            return collect();
+        }
+
+        return collect(preg_split('/\r\n|\r|\n/', File::get($path)) ?: [])
+            ->filter(fn (string $line) => trim($line) !== '')
+            ->map(function (string $line) {
+                $decoded = json_decode($line, true);
+
+                return is_array($decoded) ? $decoded : null;
+            })
+            ->filter(fn ($entry) => is_array($entry))
+            ->filter(function (array $entry) use ($days) {
+                $occurredAt = $entry['occurred_at'] ?? null;
+                if (! is_string($occurredAt) || $occurredAt === '') {
+                    return false;
+                }
+
+                return now()->subDays($days)->lte(\Illuminate\Support\Carbon::parse($occurredAt));
+            })
+            ->values();
+    }
+
+    private function loadFixtureExamples(string $path): array
+    {
+        if (! File::exists($path)) {
+            return [];
+        }
+
+        $examples = include $path;
+
+        return is_array($examples) ? array_values($examples) : [];
+    }
+
+    private function mergeSuggestedExamples(array $existingExamples, array $newExamples): array
+    {
+        $merged = [];
+        $seen = [];
+
+        foreach (array_merge($existingExamples, $newExamples) as $example) {
+            $key = md5(var_export($example, true));
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $merged[] = $example;
+        }
+
+        return $merged;
+    }
+
+    private function buildBacklogItemKey(array $payload): string
+    {
+        return sha1(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: serialize($payload));
     }
 
     private function buildFixtureDiff(?string $current, string $generated): string

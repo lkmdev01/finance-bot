@@ -1,11 +1,16 @@
 <?php
 
+use App\Models\Budget;
+use App\Models\Category;
+use App\Models\FinancialProjection;
 use App\Models\Note;
 use App\Models\Reminder;
 use App\Models\SavingsGoal;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\WhatsApp\BudgetConversationService;
 use App\Services\WhatsApp\NotesConversationService;
+use App\Services\WhatsApp\ProjectionConversationService;
 use App\Services\WhatsApp\ReminderConversationService;
 use App\Services\WhatsApp\SavingsConversationService;
 use App\Services\WhatsApp\SubscriptionConversationService;
@@ -181,4 +186,110 @@ it('supports contextual follow ups for listed savings goals', function () {
     expect($more['reply'])->toContain('2 metas')
         ->and($show['reply'])->toContain('Viagem')
         ->and($show['reply'])->toContain('R$ 5.000,00');
+});
+
+it('supports contextual follow ups for listed budgets', function () {
+    $user = User::factory()->create();
+
+    $alimentacao = Category::create([
+        'user_id' => $user->id,
+        'name' => 'Alimentacao',
+        'type' => 'expense',
+        'color' => '#22C55E',
+        'icon' => 'utensils',
+    ]);
+
+    $transporte = Category::create([
+        'user_id' => $user->id,
+        'name' => 'Transporte',
+        'type' => 'expense',
+        'color' => '#3B82F6',
+        'icon' => 'car',
+    ]);
+
+    $first = Budget::create([
+        'user_id' => $user->id,
+        'category_id' => $alimentacao->id,
+        'amount' => 800,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+
+    $second = Budget::create([
+        'user_id' => $user->id,
+        'category_id' => $transporte->id,
+        'amount' => 450,
+        'period' => 'monthly',
+        'year' => now()->year,
+        'month' => now()->month,
+    ]);
+
+    $state = [
+        'last_action' => 'query_budgets',
+        'last_entities' => [
+            'topic' => 'budget',
+            'budget_id' => $first->id,
+            'budget_count' => 2,
+            'recent_budget_ids' => [$first->id, $second->id],
+            'period_scope' => 'current_month',
+            'period_label' => now()->locale('pt_BR')->translatedFormat('F/Y'),
+            'year' => now()->year,
+            'month' => now()->month,
+            'category_name' => 'Alimentacao',
+        ],
+    ];
+
+    $service = app(BudgetConversationService::class);
+
+    $more = $service->buildReply($user, 'tem mais orcamentos?', $state);
+    $show = $service->buildReply($user, 'me mostra esse orcamento', $state);
+
+    expect($more['reply'])->toContain('2 orcamentos')
+        ->and($show['reply'])->toContain('Alimentacao')
+        ->and($show['reply'])->toContain('R$ 800,00');
+});
+
+it('supports contextual follow ups for listed projections', function () {
+    $user = User::factory()->create();
+
+    $firstMonth = now()->addMonth()->startOfMonth();
+    $secondMonth = now()->addMonths(2)->startOfMonth();
+
+    FinancialProjection::create([
+        'user_id' => $user->id,
+        'projection_date' => $firstMonth->toDateString(),
+        'projected_balance' => 1500,
+        'projected_income' => 3200,
+        'projected_expenses' => 1700,
+        'assumptions' => [],
+    ]);
+
+    FinancialProjection::create([
+        'user_id' => $user->id,
+        'projection_date' => $secondMonth->toDateString(),
+        'projected_balance' => 900,
+        'projected_income' => 3000,
+        'projected_expenses' => 2100,
+        'assumptions' => [],
+    ]);
+
+    $state = [
+        'last_action' => 'query_projections',
+        'last_entities' => [
+            'topic' => 'projections',
+            'projection_month' => $firstMonth->format('Y-m'),
+            'projection_count' => 2,
+            'recent_projection_months' => [$firstMonth->format('Y-m'), $secondMonth->format('Y-m')],
+        ],
+    ];
+
+    $service = app(ProjectionConversationService::class);
+
+    $more = $service->buildReply($user, 'tem mais projecoes?', $state);
+    $show = $service->buildReply($user, 'me mostra essa projecao', $state);
+
+    expect($more['reply'])->toContain('2 projecoes')
+        ->and($show['reply'])->toContain('saldo de R$ 1.500,00')
+        ->and($show['entities']['projection_month'])->toBe($firstMonth->format('Y-m'));
 });
