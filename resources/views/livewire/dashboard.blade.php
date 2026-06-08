@@ -38,6 +38,8 @@ new class extends Component
             'title' => 'Planejamento de '.$this->user()->name,
             'exceededBudgets' => $this->getExceededBudgets(),
             'mascotSummary' => app(\App\Services\MascotScoreService::class)->sync($this->user()),
+            'assistantWeeklyUsage' => $this->getAssistantWeeklyUsage(),
+            'assistantWeeklyTrend' => $this->getAssistantWeeklyTrend(),
         ];
     }
 
@@ -442,6 +444,16 @@ new class extends Component
         }
 
         return array_slice($insights, 0, 3);
+    }
+
+    public function getAssistantWeeklyUsage(): array
+    {
+        return app(\App\Assistant\Reports\AssistantObservabilityService::class)->weeklyReviewUsage(28);
+    }
+
+    public function getAssistantWeeklyTrend(): array
+    {
+        return app(\App\Assistant\Reports\AssistantObservabilityService::class)->weeklyReviewTrend(4);
     }
 
     public function getExpensesByCategory(): array
@@ -1535,6 +1547,51 @@ new class extends Component
                     @endforeach
                 </div>
             </div>
+
+            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <h2 class="text-lg font-bold">Tendencia semanal do assistente</h2>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Revisao operacional e aprovacoes das ultimas semanas</p>
+                    </div>
+                    <flux:button href="{{ route('assistant.observability') }}" wire:navigate variant="ghost" size="sm">
+                        Observabilidade
+                    </flux:button>
+                </div>
+
+                <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                    <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
+                        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Revisoes</p>
+                        <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ $assistantWeeklyUsage['review_runs'] ?? 0 }}</p>
+                    </div>
+                    <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
+                        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Syncs</p>
+                        <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ $assistantWeeklyUsage['sync_runs'] ?? 0 }}</p>
+                    </div>
+                    <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
+                        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Aprovacoes</p>
+                        <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ $assistantWeeklyUsage['item_approvals'] ?? 0 }}</p>
+                    </div>
+                    <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
+                        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Dominios</p>
+                        <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ count($assistantWeeklyUsage['approved_domains'] ?? []) }}</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-3">
+                    @foreach (($assistantWeeklyTrend['series'] ?? []) as $week)
+                        <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-gradient-to-br from-zinc-50 to-white dark:from-white/[0.04] dark:to-white/[0.02] p-4">
+                            <p class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{{ $week['label'] }}</p>
+                            <p class="mt-3 text-3xl font-black text-zinc-900 dark:text-white">{{ $week['item_approvals'] }}</p>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400">aprovacoes</p>
+                            <div class="mt-3 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+                                <span>{{ $week['review_runs'] }} revisoes</span>
+                                <span>{{ $week['sync_runs'] }} syncs</span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
         </div>
 
         <!-- Gráfico e lista de categorias -->
@@ -1911,6 +1968,4 @@ new class extends Component
     </div>
     @endif
 </div>
-
-
 

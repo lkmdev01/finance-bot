@@ -345,6 +345,47 @@ it('renders weekly review usage metrics on the observability page', function () 
     $response->assertSee('budget');
 });
 
+it('filters approved weekly exports by approval source', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $service = app(AssistantObservabilityService::class);
+    $service->recordApprovalActivity([
+        [
+            'key' => 'item-dashboard',
+            'domain' => 'notes',
+            'intent' => 'create_note',
+            'message' => 'nota pelo dashboard',
+            'suggested_example' => [
+                'message' => 'nota pelo dashboard',
+                'expected_intent' => 'create_note',
+            ],
+        ],
+    ], 'dashboard_item');
+    $service->recordApprovalActivity([
+        [
+            'key' => 'item-weekly',
+            'domain' => 'planning',
+            'intent' => 'query_subscriptions',
+            'message' => 'assinatura pelo review',
+            'suggested_example' => [
+                'message' => 'assinatura pelo review',
+                'expected_intent' => 'query_subscriptions',
+            ],
+        ],
+    ], 'weekly_review');
+
+    $response = $this->get(route('assistant.observability.export-fixtures', [
+        'approved' => 1,
+        'approved_days' => 7,
+        'source' => 'weekly_review',
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('assinatura pelo review');
+    $response->assertDontSee('nota pelo dashboard');
+});
+
 it('prints a weekly operational review and can sync fixtures', function () {
     $user = User::factory()->create();
 

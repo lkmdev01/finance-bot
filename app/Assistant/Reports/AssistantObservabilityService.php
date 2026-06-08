@@ -192,6 +192,7 @@ class AssistantObservabilityService
         $this->appendActivity(array_merge([
             'type' => 'fixture_sync',
             'mode' => $mode,
+            'source' => $payload['source'] ?? $mode,
         ], $payload));
     }
 
@@ -214,15 +215,22 @@ class AssistantObservabilityService
         }
     }
 
-    public function weeklyReviewUsage(int $days = 7): array
+    public function weeklyReviewUsage(int $days = 7, ?string $source = null): array
     {
         $activities = $this->recentActivities($days);
         $reviewRuns = $activities->where('type', 'weekly_review_run')->values();
-        $syncs = $activities->where('type', 'fixture_sync')->values();
-        $approvals = $activities->where('type', 'fixture_item_approved')->values();
+        $syncs = $this->filterActivitiesBySource(
+            $activities->where('type', 'fixture_sync')->values(),
+            $source
+        );
+        $approvals = $this->filterActivitiesBySource(
+            $activities->where('type', 'fixture_item_approved')->values(),
+            $source
+        );
 
         return [
             'days' => $days,
+            'source' => $source,
             'review_runs' => $reviewRuns->count(),
             'synced_review_runs' => $reviewRuns->where('sync', true)->count(),
             'sync_runs' => $syncs->count(),
@@ -243,19 +251,81 @@ class AssistantObservabilityService
         ];
     }
 
-    public function approvedFixtureExport(int $days = 7, ?string $domain = null): string
+    public function approvedFixtureExport(int $days = 7, ?string $domain = null, ?string $source = null): string
     {
-        $examples = $this->recentActivities($days)
+        $examples = $this->filterActivitiesBySource(
+            $this->recentActivities($days)
             ->where('type', 'fixture_item_approved')
             ->filter(function (array $activity) use ($domain) {
                 return $domain === null || ($activity['domain'] ?? 'unknown') === $domain;
-            })
+            }),
+            $source
+        )
             ->pluck('suggested_example')
             ->filter(fn ($example) => is_array($example))
             ->values()
             ->all();
 
         return $this->renderFixtureContent($this->mergeSuggestedExamples([], $examples));
+    }
+
+    public function weeklyReviewTrend(int $weeks = 6, ?string $source = null): array
+    {
+        $weeks = max(2, min(12, $weeks));
+        $start = now()->startOfWeek()->subWeeks($weeks - 1);
+        $activities = $this->recentActivities(7 * $weeks + 7);
+        $approvals = $this->filterActivitiesBySource(
+            $activities->where('type', 'fixture_item_approved')->values(),
+            $source
+        );
+        $syncs = $this->filterActivitiesBySource(
+            $activities->where('type', 'fixture_sync')->values(),
+            $source
+        );
+        $reviewRuns = $activities->where('type', 'weekly_review_run')->values();
+
+        $rows = [];
+
+        for ($index = 0; $index < $weeks; $index++) {
+            $weekStart = $start->copy()->addWeeks($index);
+            $weekEnd = $weekStart->copy()->endOfWeek();
+            $label = $weekStart->format('d/m');
+
+            $weekApprovals = $approvals->filter(fn (array $item) => $this->activityWithinWeek($item, $weekStart, $weekEnd));
+            $weekSyncs = $syncs->filter(fn (array $item) => $this->activityWithinWeek($item, $weekStart, $weekEnd));
+            $weekRuns = $reviewRuns->filter(fn (array $item) => $this->activityWithinWeek($item, $weekStart, $weekEnd));
+
+            $rows[] = [
+                'week_start' => $weekStart->toDateString(),
+                'week_end' => $weekEnd->toDateString(),
+                'label' => $label,
+                'review_runs' => $weekRuns->count(),
+                'sync_runs' => $weekSyncs->count(),
+                'item_approvals' => $weekApprovals->count(),
+            ];
+        }
+
+        return [
+            'weeks' => $weeks,
+            'source' => $source,
+            'series' => $rows,
+            'totals' => [
+                'review_runs' => array_sum(array_column($rows, 'review_runs')),
+                'sync_runs' => array_sum(array_column($rows, 'sync_runs')),
+                'item_approvals' => array_sum(array_column($rows, 'item_approvals')),
+            ],
+        ];
+    }
+
+    public function approvalSources(): array
+    {
+        return [
+            'all' => 'Todas as origens',
+            'dashboard_item' => 'Dashboard: item',
+            'dashboard_domain' => 'Dashboard: dominio',
+            'dashboard_all' => 'Dashboard: tudo',
+            'weekly_review' => 'Weekly review',
+        ];
     }
 
     private function buildTotals(Collection $logs): array
@@ -571,6 +641,29 @@ class AssistantObservabilityService
                 return now()->subDays($days)->lte(\Illuminate\Support\Carbon::parse($occurredAt));
             })
             ->values();
+    }
+
+    private function filterActivitiesBySource(Collection $activities, ?string $source): Collection
+    {
+        if ($source === null || $source === '' || $source === 'all') {
+            return $activities->values();
+        }
+
+        return $activities
+            ->filter(fn (array $activity) => ($activity['source'] ?? null) === $source)
+            ->values();
+    }
+
+    private function activityWithinWeek(array $activity, \Illuminate\Support\Carbon $weekStart, \Illuminate\Support\Carbon $weekEnd): bool
+    {
+        $occurredAt = $activity['occurred_at'] ?? null;
+        if (! is_string($occurredAt) || $occurredAt === '') {
+            return false;
+        }
+
+        $timestamp = \Illuminate\Support\Carbon::parse($occurredAt);
+
+        return $timestamp->betweenIncluded($weekStart, $weekEnd);
     }
 
     private function loadFixtureExamples(string $path): array
