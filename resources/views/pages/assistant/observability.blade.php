@@ -31,6 +31,7 @@
                     Quando quisermos materializar o backlog em arquivos de teste por categoria, o comando ja esta pronto:
                 </p>
                 <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-cyan-100">php artisan assistant:sync-observability-fixtures --days={{ $days }} --focus={{ $focus }}</pre>
+                <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-emerald-100">php artisan assistant:weekly-review --days=7 --sync</pre>
 
                 <form method="POST" action="{{ route('assistant.observability.sync-fixtures') }}" class="mt-4">
                     @csrf
@@ -161,6 +162,9 @@
                                     <a href="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus, 'domain' => $domain]) }}" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">
                                         Baixar fixture
                                     </a>
+                                    <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => $focus, 'preview_domain' => $domain]) }}" class="rounded-full border border-fuchsia-300/40 bg-fuchsia-300/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
+                                        Ver preview/diff
+                                    </a>
                                     <form method="POST" action="{{ route('assistant.observability.sync-fixtures') }}">
                                         @csrf
                                         <input type="hidden" name="days" value="{{ $days }}" />
@@ -197,6 +201,44 @@
                                     </article>
                                 @endforeach
                             </div>
+
+                            @if (($previewDomain ?? null) === $domain && $fixturePreview)
+                                <div class="mt-4 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/5 p-4">
+                                    <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <p class="text-xs uppercase tracking-[0.22em] text-fuchsia-200/80">Preview do fixture</p>
+                                            <p class="mt-1 text-sm text-slate-300">{{ $fixturePreview['path'] }}</p>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 text-xs">
+                                            <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-slate-200">
+                                                {{ $fixturePreview['exists'] ? 'arquivo existente' : 'arquivo novo' }}
+                                            </span>
+                                            <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-slate-200">
+                                                {{ $fixturePreview['has_changes'] ? 'com alteracoes' : 'sem alteracoes' }}
+                                            </span>
+                                            <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-slate-200">
+                                                {{ $fixturePreview['has_backlog'] ? 'com backlog' : 'sem backlog elegivel' }}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                                        <div>
+                                            <p class="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">Atual</p>
+                                            <pre class="overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ $fixturePreview['current_content'] ?? 'Arquivo ainda nao existe.' }}</pre>
+                                        </div>
+                                        <div>
+                                            <p class="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">Gerado</p>
+                                            <pre class="overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-cyan-100">{{ $fixturePreview['generated_content'] }}</pre>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4">
+                                        <p class="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">Diff</p>
+                                        <pre class="overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-emerald-100">{{ $fixturePreview['diff'] }}</pre>
+                                    </div>
+                                </div>
+                            @endif
                         </section>
                     @empty
                         <p class="text-sm text-slate-400">Nenhum candidato de regressao encontrado nesta janela.</p>

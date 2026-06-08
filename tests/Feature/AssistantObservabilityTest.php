@@ -81,6 +81,34 @@ it('renders the assistant observability page for authenticated users', function 
     $response->assertSee('Fila priorizada de regressao');
 });
 
+it('renders preview diff for a selected domain on observability page', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    WhatsAppConversationLog::query()->create([
+        'user_id' => $user->id,
+        'message' => 'tem mais assinaturas?',
+        'classification' => 'default',
+        'action' => null,
+        'used_ai' => true,
+        'status' => 'error',
+        'reply' => 'erro',
+        'metadata' => [
+            'assistant_intent' => 'unknown',
+            'assistant_domain' => 'planning',
+            'assistant_confidence' => 0.31,
+            'assistant_missing_fields' => [],
+        ],
+    ]);
+
+    $response = $this->get(route('assistant.observability', ['preview_domain' => 'planning']));
+
+    $response->assertOk();
+    $response->assertSee('Preview do fixture');
+    $response->assertSee('Diff');
+    $response->assertSee('assistant_observability_planning_examples.php');
+});
+
 it('exports regression backlog as fixture candidates', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
@@ -178,4 +206,41 @@ it('syncs fixtures from the observability page for a specific domain', function 
     expect(File::exists(base_path('tests/Fixtures/generated/notes/assistant_observability_notes_examples.php')))->toBeTrue();
 
     File::deleteDirectory(base_path('tests/Fixtures/generated/notes'));
+});
+
+it('prints a weekly operational review and can sync fixtures', function () {
+    $user = User::factory()->create();
+
+    WhatsAppConversationLog::query()->create([
+        'user_id' => $user->id,
+        'message' => 'tem mais notas?',
+        'classification' => 'default',
+        'action' => null,
+        'used_ai' => false,
+        'status' => 'handled',
+        'reply' => 'Sim',
+        'metadata' => [
+            'assistant_intent' => 'unknown',
+            'assistant_domain' => 'notes',
+            'assistant_confidence' => 0.3,
+            'assistant_missing_fields' => [],
+        ],
+    ]);
+
+    $outputDirectory = base_path('tests/Fixtures/generated-weekly-review-test');
+    File::deleteDirectory($outputDirectory);
+
+    $this->artisan('assistant:weekly-review', [
+        '--days' => 7,
+        '--sync' => true,
+        '--output' => $outputDirectory,
+    ])
+        ->expectsOutputToContain('Revisao semanal do assistente')
+        ->expectsOutputToContain('Backlog priorizado')
+        ->expectsOutputToContain('Sincronizando fixtures')
+        ->assertSuccessful();
+
+    expect(File::exists($outputDirectory.DIRECTORY_SEPARATOR.'notes'.DIRECTORY_SEPARATOR.'assistant_observability_notes_examples.php'))->toBeTrue();
+
+    File::deleteDirectory($outputDirectory);
 });

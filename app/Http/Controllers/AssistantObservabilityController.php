@@ -11,11 +11,16 @@ class AssistantObservabilityController extends Controller
     {
         $days = max(1, min(30, (int) $request->integer('days', 14)));
         $focus = (string) $request->query('focus', 'all');
+        $previewDomain = $request->query('preview_domain');
 
         return view('pages.assistant.observability', [
             'summary' => $observabilityService->summary($days),
             'days' => $days,
             'focus' => $focus,
+            'previewDomain' => is_string($previewDomain) && $previewDomain !== '' ? $previewDomain : null,
+            'fixturePreview' => is_string($previewDomain) && $previewDomain !== ''
+                ? ($observabilityService->previewFixtureChanges($days, 1000, $focus, $previewDomain)[$previewDomain] ?? null)
+                : null,
         ]);
     }
 

@@ -71,6 +71,42 @@ class AssistantObservabilityService
         return $written;
     }
 
+    public function previewFixtureChanges(
+        int $days = 14,
+        int $sampleSize = 1000,
+        string $focus = 'all',
+        ?string $domain = null,
+        ?string $outputDirectory = null
+    ): array {
+        $outputDirectory ??= base_path('tests/Fixtures/generated');
+
+        $domains = $domain !== null && $domain !== ''
+            ? [$domain]
+            : array_keys($this->summary($days, $sampleSize)['regression_backlog_by_domain'] ?? []);
+
+        $preview = [];
+
+        foreach ($domains as $domain) {
+            $domainDirectory = rtrim($outputDirectory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$this->fixtureDirectoryName($domain);
+            $path = $domainDirectory.DIRECTORY_SEPARATOR.$this->fixtureFileName($domain);
+            $generated = $this->fixtureExport($days, $sampleSize, $focus, $domain);
+            $current = File::exists($path) ? File::get($path) : null;
+
+            $preview[$domain] = [
+                'domain' => $domain,
+                'path' => $path,
+                'exists' => $current !== null,
+                'has_backlog' => trim($generated) !== "<?php\n\nreturn array (\n);\n",
+                'has_changes' => $current !== $generated,
+                'current_content' => $current,
+                'generated_content' => $generated,
+                'diff' => $this->buildFixtureDiff($current, $generated),
+            ];
+        }
+
+        return $preview;
+    }
+
     private function buildTotals(Collection $logs): array
     {
         $total = $logs->count();
@@ -314,5 +350,40 @@ class AssistantObservabilityService
     private function fixtureDirectoryName(string $domain): string
     {
         return preg_replace('/[^a-z0-9_]+/i', '-', strtolower($domain)) ?: 'unknown';
+    }
+
+    private function buildFixtureDiff(?string $current, string $generated): string
+    {
+        if ($current === $generated) {
+            return "Sem alteracoes.\n";
+        }
+
+        $currentLines = $current !== null ? preg_split('/\r\n|\r|\n/', $current) ?: [] : [];
+        $generatedLines = preg_split('/\r\n|\r|\n/', $generated) ?: [];
+        $max = max(count($currentLines), count($generatedLines));
+        $lines = ['--- atual', '+++ gerado'];
+
+        for ($index = 0; $index < $max; $index++) {
+            $before = $currentLines[$index] ?? null;
+            $after = $generatedLines[$index] ?? null;
+
+            if ($before === $after) {
+                if ($before !== null) {
+                    $lines[] = ' '.$before;
+                }
+
+                continue;
+            }
+
+            if ($before !== null) {
+                $lines[] = '-'.$before;
+            }
+
+            if ($after !== null) {
+                $lines[] = '+'.$after;
+            }
+        }
+
+        return implode("\n", $lines)."\n";
     }
 }
