@@ -180,6 +180,56 @@ class AssistantObservabilityService
             ->all();
     }
 
+    public function replayEntries(
+        int $days = 14,
+        int $sampleSize = 1000,
+        string $focus = 'all',
+        ?string $domain = null,
+        ?string $itemKey = null,
+        int $limit = 5
+    ): array {
+        $logs = $this->recentLogs($days, $sampleSize);
+
+        if ($itemKey !== null && $itemKey !== '') {
+            $item = $this->findRegressionBacklogItem($days, $sampleSize, $focus, $itemKey);
+
+            if ($item === null) {
+                return [];
+            }
+
+            return $this->buildReplayEntriesForItem($item, $logs)->take(max(1, $limit))->values()->all();
+        }
+
+        return $this->filteredRegressionBacklog($days, $sampleSize, $focus, $domain)
+            ->take(max(1, $limit))
+            ->flatMap(fn (array $item) => $this->buildReplayEntriesForItem($item, $logs)->take(1))
+            ->values()
+            ->all();
+    }
+
+    public function replayTranscript(
+        int $days = 14,
+        int $sampleSize = 1000,
+        string $focus = 'all',
+        ?string $domain = null,
+        ?string $itemKey = null,
+        int $limit = 5
+    ): array {
+        return [
+            'generated_at' => now()->toIso8601String(),
+            'source' => 'assistant_observability',
+            'filters' => [
+                'days' => $days,
+                'sample_size' => $sampleSize,
+                'focus' => $focus,
+                'domain' => $domain,
+                'item_key' => $itemKey,
+                'limit' => $limit,
+            ],
+            'entries' => $this->replayEntries($days, $sampleSize, $focus, $domain, $itemKey, $limit),
+        ];
+    }
+
     public function recordReviewRun(array $payload = []): void
     {
         $this->appendActivity(array_merge([
@@ -614,6 +664,15 @@ class AssistantObservabilityService
             ->all();
     }
 
+    private function recentLogs(int $days, int $sampleSize): Collection
+    {
+        return WhatsAppConversationLog::query()
+            ->latest('id')
+            ->where('created_at', '>=', now()->subDays($days))
+            ->limit($sampleSize)
+            ->get();
+    }
+
     private function assistantIntent(WhatsAppConversationLog $log): string
     {
         return (string) (data_get($log->metadata, 'assistant_intent')
@@ -637,6 +696,55 @@ class AssistantObservabilityService
                 return $domain === null || ($item['domain'] ?? 'unknown') === $domain;
             })
             ->values();
+    }
+
+    private function buildReplayEntriesForItem(array $item, Collection $logs): Collection
+    {
+        $matchingLogs = $logs->filter(function (WhatsAppConversationLog $log) use ($item) {
+            $intent = $item['intent'] ?? 'unknown';
+            $message = (string) ($item['message'] ?? '');
+
+            if ($log->message !== $message) {
+                return false;
+            }
+
+            if ($intent === 'unknown') {
+                return $this->assistantIntent($log) === 'unknown';
+            }
+
+            if ($this->assistantIntent($log) !== $intent) {
+                return false;
+            }
+
+            $expectedField = $item['suggested_example']['expected_missing_field'] ?? null;
+            if (! is_string($expectedField) || $expectedField === '') {
+                return true;
+            }
+
+            return in_array($expectedField, (array) data_get($log->metadata, 'assistant_missing_fields', []), true);
+        });
+
+        return $matchingLogs->map(function (WhatsAppConversationLog $log) use ($item) {
+            $expectedReplyContains = [];
+
+            if (($item['intent'] ?? null) === 'unknown') {
+                $expectedReplyContains[] = (string) ($log->reply ?? '');
+            }
+
+            return array_filter([
+                'label' => sprintf('%s:%s', $item['domain'] ?? 'unknown', $item['intent'] ?? 'unknown'),
+                'message' => $log->message,
+                'expected_intent' => $item['suggested_example']['expected_intent'] ?? ($item['intent'] ?? 'unknown'),
+                'expected_missing_fields' => array_values(array_filter([
+                    $item['suggested_example']['expected_missing_field'] ?? null,
+                ])),
+                'expected_reply_contains' => array_values(array_filter($expectedReplyContains)),
+                'source_log_id' => $log->id,
+                'source_user_id' => $log->user_id,
+                'domain' => $item['domain'] ?? $this->inferDomainFromLog($log),
+                'occurred_at' => $log->created_at?->toIso8601String(),
+            ], fn ($value) => $value !== null && $value !== []);
+        })->values();
     }
 
     private function groupRegressionBacklogByDomain(array $items): array
