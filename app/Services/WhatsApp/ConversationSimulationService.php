@@ -55,6 +55,7 @@ class ConversationSimulationService
 
         foreach (array_values($entries) as $index => $entry) {
             $preparedEntry = $this->prepareEntry($user, $phoneNumber, $entry, $options);
+            $this->applyContactOverrides($contact, $preparedEntry);
             $beforeSentCount = count($transport->allMessages());
 
             $job = new ProcessWhatsAppMessage(
@@ -132,6 +133,33 @@ class ConversationSimulationService
         }
 
         return $entry;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function applyContactOverrides(WhatsAppContact $contact, array $entry): void
+    {
+        $attributes = [];
+
+        if (is_array($entry['state'] ?? null)) {
+            $currentState = is_array($contact->conversation_state) ? $contact->conversation_state : [];
+            $attributes['conversation_state'] = ($entry['replace_state'] ?? false) === true
+                ? $entry['state']
+                : array_replace_recursive($currentState, $entry['state']);
+        }
+
+        if (is_array($entry['context'] ?? null)) {
+            $currentContext = is_array($contact->context) ? $contact->context : [];
+            $attributes['context'] = ($entry['replace_context'] ?? false) === true
+                ? $entry['context']
+                : array_replace_recursive($currentContext, $entry['context']);
+        }
+
+        if ($attributes !== []) {
+            $contact->forceFill($attributes)->save();
+            $contact->refresh();
+        }
     }
 
     /**
@@ -242,6 +270,32 @@ class ConversationSimulationService
                     'field' => 'expected_pending_intent',
                     'expected' => $expectedPendingIntent,
                     'actual' => $actualPendingIntent,
+                ];
+            }
+        }
+
+        $expectedStateTopic = $entry['expected_state_topic'] ?? null;
+        if (is_string($expectedStateTopic) && $expectedStateTopic !== '') {
+            $actualStateTopic = data_get($contact->conversation_state, 'last_entities.topic');
+
+            if ($actualStateTopic !== $expectedStateTopic) {
+                $violations[] = [
+                    'field' => 'expected_state_topic',
+                    'expected' => $expectedStateTopic,
+                    'actual' => $actualStateTopic,
+                ];
+            }
+        }
+
+        $expectedLastAction = $entry['expected_last_action'] ?? null;
+        if (is_string($expectedLastAction) && $expectedLastAction !== '') {
+            $actualLastAction = data_get($contact->conversation_state, 'last_action');
+
+            if ($actualLastAction !== $expectedLastAction) {
+                $violations[] = [
+                    'field' => 'expected_last_action',
+                    'expected' => $expectedLastAction,
+                    'actual' => $actualLastAction,
                 ];
             }
         }
