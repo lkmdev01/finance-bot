@@ -4,10 +4,11 @@
             <flux:navlist.item :href="route('profile.edit')" wire:navigate>Perfil</flux:navlist.item>
             <flux:navlist.item :href="route('user-password.edit')" wire:navigate>Senha</flux:navlist.item>
             @if (Laravel\Fortify\Features::canManageTwoFactorAuthentication())
-                <flux:navlist.item :href="route('two-factor.show')" wire:navigate>Autenticação em dois fatores</flux:navlist.item>
+                <flux:navlist.item :href="route('two-factor.show')" wire:navigate>Autenticacao em dois fatores</flux:navlist.item>
             @endif
-            <flux:navlist.item :href="route('appearance.edit')" wire:navigate>Aparência</flux:navlist.item>
+            <flux:navlist.item :href="route('appearance.edit')" wire:navigate>Aparencia</flux:navlist.item>
             <flux:navlist.item :href="route('whatsapp.settings')" wire:navigate>WhatsApp</flux:navlist.item>
+            <flux:navlist.item :href="route('assistant.operations.settings')" wire:navigate>Operacao do assistente</flux:navlist.item>
         </flux:navlist>
     </div>
 

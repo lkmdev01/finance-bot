@@ -304,6 +304,10 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Volt::route('settings/password', 'settings.password')->name('user-password.edit');
     Volt::route('settings/appearance', 'settings.appearance')->name('appearance.edit');
     Volt::route('settings/whatsapp', 'settings.whatsapp')->name('whatsapp.settings');
+    Volt::route('settings/assistant-operations', 'settings.assistant-operations')->name('assistant.operations.settings');
+
+    Route::post('assistant/observability/run-review', [\App\Http\Controllers\AssistantObservabilityController::class, 'runReview'])
+        ->name('assistant.observability.run-review');
 
     Volt::route('settings/two-factor', 'settings.two-factor')
         ->middleware(

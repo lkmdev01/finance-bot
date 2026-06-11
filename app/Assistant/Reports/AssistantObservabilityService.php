@@ -180,6 +180,56 @@ class AssistantObservabilityService
             ->all();
     }
 
+    public function replayEntries(
+        int $days = 14,
+        int $sampleSize = 1000,
+        string $focus = 'all',
+        ?string $domain = null,
+        ?string $itemKey = null,
+        int $limit = 5
+    ): array {
+        $logs = $this->recentLogs($days, $sampleSize);
+
+        if ($itemKey !== null && $itemKey !== '') {
+            $item = $this->findRegressionBacklogItem($days, $sampleSize, $focus, $itemKey);
+
+            if ($item === null) {
+                return [];
+            }
+
+            return $this->buildReplayEntriesForItem($item, $logs)->take(max(1, $limit))->values()->all();
+        }
+
+        return $this->filteredRegressionBacklog($days, $sampleSize, $focus, $domain)
+            ->take(max(1, $limit))
+            ->flatMap(fn (array $item) => $this->buildReplayEntriesForItem($item, $logs)->take(1))
+            ->values()
+            ->all();
+    }
+
+    public function replayTranscript(
+        int $days = 14,
+        int $sampleSize = 1000,
+        string $focus = 'all',
+        ?string $domain = null,
+        ?string $itemKey = null,
+        int $limit = 5
+    ): array {
+        return [
+            'generated_at' => now()->toIso8601String(),
+            'source' => 'assistant_observability',
+            'filters' => [
+                'days' => $days,
+                'sample_size' => $sampleSize,
+                'focus' => $focus,
+                'domain' => $domain,
+                'item_key' => $itemKey,
+                'limit' => $limit,
+            ],
+            'entries' => $this->replayEntries($days, $sampleSize, $focus, $domain, $itemKey, $limit),
+        ];
+    }
+
     public function recordReviewRun(array $payload = []): void
     {
         $this->appendActivity(array_merge([
@@ -331,10 +381,12 @@ class AssistantObservabilityService
 
     public function weeklyGoals(): array
     {
+        $settings = app(\App\Services\AssistantOperationsSettingsService::class)->current();
+
         return [
-            'review_runs' => max(0, (int) config('assistant.weekly_goals.review_runs', 1)),
-            'item_approvals' => max(0, (int) config('assistant.weekly_goals.item_approvals', 10)),
-            'sync_runs' => max(0, (int) config('assistant.weekly_goals.sync_runs', 1)),
+            'review_runs' => max(0, (int) ($settings['weekly_goal_review_runs'] ?? config('assistant.weekly_goals.review_runs', 1))),
+            'item_approvals' => max(0, (int) ($settings['weekly_goal_item_approvals'] ?? config('assistant.weekly_goals.item_approvals', 10))),
+            'sync_runs' => max(0, (int) ($settings['weekly_goal_sync_runs'] ?? config('assistant.weekly_goals.sync_runs', 1))),
         ];
     }
 
@@ -389,6 +441,44 @@ class AssistantObservabilityService
                 goals: $goals
             ),
         ];
+    }
+
+    public function weeklyReviewNow(int $days = 7, int $sample = 1000, string $focus = 'all', bool $sync = true): array
+    {
+        $exitCode = \Illuminate\Support\Facades\Artisan::call('assistant:weekly-review', [
+            '--days' => $days,
+            '--sample' => $sample,
+            '--focus' => $focus,
+            '--sync' => $sync,
+        ]);
+
+        return [
+            'exit_code' => $exitCode,
+            'output' => trim(\Illuminate\Support\Facades\Artisan::output()),
+        ];
+    }
+
+    public function renderWeeklySlaAdminMessage(?string $source = null): string
+    {
+        $snapshot = $this->weeklyOperationalSnapshot($source);
+        $usage = $this->weeklyReviewUsage(7, $source);
+        $sla = $snapshot['sla'] ?? ['label' => 'SLA em atencao'];
+        $goals = $snapshot['goals'] ?? [];
+        $observabilityUrl = rtrim((string) config('app.url'), '/').'/assistant/observability';
+
+        return trim(sprintf(
+            "Resumo semanal do assistente\nSLA: %s\n\nRevisoes: %d/%d\nSyncs: %d/%d\nAprovacoes: %d/%d\nDominios: %d\n\nUltima revisao: %s\n\nAbrir observabilidade:\n%s",
+            $sla['label'] ?? 'SLA em atencao',
+            (int) ($goals['review_runs']['current'] ?? 0),
+            (int) ($goals['review_runs']['target'] ?? 0),
+            (int) ($goals['sync_runs']['current'] ?? 0),
+            (int) ($goals['sync_runs']['target'] ?? 0),
+            (int) ($goals['item_approvals']['current'] ?? 0),
+            (int) ($goals['item_approvals']['target'] ?? 0),
+            count($usage['approved_domains'] ?? []),
+            $usage['last_review_run_at'] ?? 'nao registrada',
+            $observabilityUrl
+        ));
     }
 
     private function buildTotals(Collection $logs): array
@@ -574,6 +664,15 @@ class AssistantObservabilityService
             ->all();
     }
 
+    private function recentLogs(int $days, int $sampleSize): Collection
+    {
+        return WhatsAppConversationLog::query()
+            ->latest('id')
+            ->where('created_at', '>=', now()->subDays($days))
+            ->limit($sampleSize)
+            ->get();
+    }
+
     private function assistantIntent(WhatsAppConversationLog $log): string
     {
         return (string) (data_get($log->metadata, 'assistant_intent')
@@ -597,6 +696,55 @@ class AssistantObservabilityService
                 return $domain === null || ($item['domain'] ?? 'unknown') === $domain;
             })
             ->values();
+    }
+
+    private function buildReplayEntriesForItem(array $item, Collection $logs): Collection
+    {
+        $matchingLogs = $logs->filter(function (WhatsAppConversationLog $log) use ($item) {
+            $intent = $item['intent'] ?? 'unknown';
+            $message = (string) ($item['message'] ?? '');
+
+            if ($log->message !== $message) {
+                return false;
+            }
+
+            if ($intent === 'unknown') {
+                return $this->assistantIntent($log) === 'unknown';
+            }
+
+            if ($this->assistantIntent($log) !== $intent) {
+                return false;
+            }
+
+            $expectedField = $item['suggested_example']['expected_missing_field'] ?? null;
+            if (! is_string($expectedField) || $expectedField === '') {
+                return true;
+            }
+
+            return in_array($expectedField, (array) data_get($log->metadata, 'assistant_missing_fields', []), true);
+        });
+
+        return $matchingLogs->map(function (WhatsAppConversationLog $log) use ($item) {
+            $expectedReplyContains = [];
+
+            if (($item['intent'] ?? null) === 'unknown') {
+                $expectedReplyContains[] = (string) ($log->reply ?? '');
+            }
+
+            return array_filter([
+                'label' => sprintf('%s:%s', $item['domain'] ?? 'unknown', $item['intent'] ?? 'unknown'),
+                'message' => $log->message,
+                'expected_intent' => $item['suggested_example']['expected_intent'] ?? ($item['intent'] ?? 'unknown'),
+                'expected_missing_fields' => array_values(array_filter([
+                    $item['suggested_example']['expected_missing_field'] ?? null,
+                ])),
+                'expected_reply_contains' => array_values(array_filter($expectedReplyContains)),
+                'source_log_id' => $log->id,
+                'source_user_id' => $log->user_id,
+                'domain' => $item['domain'] ?? $this->inferDomainFromLog($log),
+                'occurred_at' => $log->created_at?->toIso8601String(),
+            ], fn ($value) => $value !== null && $value !== []);
+        })->values();
     }
 
     private function groupRegressionBacklogByDomain(array $items): array

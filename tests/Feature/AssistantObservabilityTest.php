@@ -461,6 +461,37 @@ it('filters approved weekly exports by approval source', function () {
     $response->assertDontSee('nota pelo dashboard');
 });
 
+it('runs the weekly review immediately from observability', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    WhatsAppConversationLog::query()->create([
+        'user_id' => $user->id,
+        'message' => 'tem mais notas?',
+        'classification' => 'default',
+        'action' => null,
+        'used_ai' => false,
+        'status' => 'handled',
+        'reply' => 'Sim',
+        'metadata' => [
+            'assistant_intent' => 'unknown',
+            'assistant_domain' => 'notes',
+            'assistant_confidence' => 0.3,
+            'assistant_missing_fields' => [],
+        ],
+    ]);
+
+    $response = $this->post(route('assistant.observability.run-review'), [
+        'days' => 7,
+        'focus' => 'all',
+        'sync' => 1,
+    ]);
+
+    $response->assertRedirect(route('assistant.observability', ['days' => 7, 'focus' => 'all']));
+    $response->assertSessionHas('message');
+    expect(app(AssistantObservabilityService::class)->weeklyReviewUsage(7)['review_runs'])->toBeGreaterThan(0);
+});
+
 it('prints a weekly operational review and can sync fixtures', function () {
     $user = User::factory()->create();
 

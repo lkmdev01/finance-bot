@@ -54,6 +54,16 @@
                     <a href="{{ route('assistant.observability.export-fixtures', ['approved' => 1, 'approved_days' => $approvedDays, 'source' => $source]) }}" class="rounded-xl border border-emerald-300/40 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/20">
                         Exportar aprovados dos ultimos {{ $approvedDays }} dias
                     </a>
+
+                    <form method="POST" action="{{ route('assistant.observability.run-review') }}">
+                        @csrf
+                        <input type="hidden" name="days" value="7" />
+                        <input type="hidden" name="focus" value="all" />
+                        <input type="hidden" name="sync" value="1" />
+                        <button type="submit" class="rounded-xl border border-fuchsia-300/40 bg-fuchsia-300/10 px-4 py-2 text-sm font-semibold text-fuchsia-100 transition hover:bg-fuchsia-300/20">
+                            Rodar review agora
+                        </button>
+                    </form>
                 </div>
             </div>
         </section>

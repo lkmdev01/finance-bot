@@ -6,6 +6,7 @@
 /storage/*.key
 /storage/pail
 /vendor
+/tests/Fixtures/generated
 .env
 .env.backup
 .env.production
