@@ -22,6 +22,11 @@ new class extends Component
         return $user;
     }
 
+    protected function canViewAssistantOperations(): bool
+    {
+        return $this->user()->isAdmin();
+    }
+
     public function getExceededBudgets(): \Illuminate\Database\Eloquent\Collection
     {
         return $this->user()->budgets()
@@ -34,13 +39,16 @@ new class extends Component
 
     public function with(): array
     {
+        $canViewAssistantOperations = $this->canViewAssistantOperations();
+
         return [
             'title' => 'Planejamento de '.$this->user()->name,
             'exceededBudgets' => $this->getExceededBudgets(),
             'mascotSummary' => app(\App\Services\MascotScoreService::class)->sync($this->user()),
-            'assistantWeeklyUsage' => $this->getAssistantWeeklyUsage(),
-            'assistantWeeklyTrend' => $this->getAssistantWeeklyTrend(),
-            'assistantWeeklySnapshot' => $this->getAssistantWeeklySnapshot(),
+            'canViewAssistantOperations' => $canViewAssistantOperations,
+            'assistantWeeklyUsage' => $canViewAssistantOperations ? $this->getAssistantWeeklyUsage() : [],
+            'assistantWeeklyTrend' => $canViewAssistantOperations ? $this->getAssistantWeeklyTrend() : ['series' => []],
+            'assistantWeeklySnapshot' => $canViewAssistantOperations ? $this->getAssistantWeeklySnapshot() : ['goals' => [], 'comparison' => [], 'alerts' => [], 'sla' => null],
         ];
     }
 
@@ -1554,122 +1562,124 @@ new class extends Component
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                <div class="flex items-center justify-between mb-5">
-                    <div>
-                        <h2 class="text-lg font-bold">Tendencia semanal do assistente</h2>
-                        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Revisao operacional e aprovacoes das ultimas semanas</p>
-                    </div>
-                    <flux:button href="{{ route('assistant.observability') }}" wire:navigate variant="ghost" size="sm">
-                        Observabilidade
-                    </flux:button>
-                </div>
-
-                <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                    <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
-                        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Revisoes</p>
-                        <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ $assistantWeeklyUsage['review_runs'] ?? 0 }}</p>
-                        <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Meta: {{ $assistantWeeklySnapshot['goals']['review_runs']['target'] ?? 0 }}</p>
-                    </div>
-                    <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
-                        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Syncs</p>
-                        <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ $assistantWeeklyUsage['sync_runs'] ?? 0 }}</p>
-                        <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Meta: {{ $assistantWeeklySnapshot['goals']['sync_runs']['target'] ?? 0 }}</p>
-                    </div>
-                    <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
-                        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Aprovacoes</p>
-                        <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ $assistantWeeklyUsage['item_approvals'] ?? 0 }}</p>
-                        <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Meta: {{ $assistantWeeklySnapshot['goals']['item_approvals']['target'] ?? 0 }}</p>
-                    </div>
-                    <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
-                        <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Dominios</p>
-                        <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ count($assistantWeeklyUsage['approved_domains'] ?? []) }}</p>
-                        <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Semana atual</p>
-                    </div>
-                </div>
-
-                @php
-                    $sla = $assistantWeeklySnapshot['sla'] ?? ['status' => 'yellow', 'label' => 'SLA em atencao'];
-                    $slaClass = match ($sla['status']) {
-                        'green' => 'border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-200',
-                        'red' => 'border-rose-500/20 bg-rose-50/70 dark:bg-rose-500/10 text-rose-900 dark:text-rose-200',
-                        default => 'border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200',
-                    };
-                @endphp
-
-                <div class="mt-4 rounded-2xl border {{ $slaClass }} px-4 py-4">
-                    <div class="flex items-center justify-between gap-4">
+            @if($canViewAssistantOperations)
+                <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                    <div class="flex items-center justify-between mb-5">
                         <div>
-                            <p class="text-xs uppercase tracking-[0.18em]">SLA da operacao do assistente</p>
-                            <p class="mt-2 text-lg font-black">{{ $sla['label'] }}</p>
+                            <h2 class="text-lg font-bold">Tendencia semanal do assistente</h2>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Revisao operacional e aprovacoes das ultimas semanas</p>
                         </div>
-                        <a href="{{ route('assistant.observability') }}" wire:navigate class="text-xs font-bold underline underline-offset-4">
-                            Abrir observabilidade
-                        </a>
+                        <flux:button href="{{ route('assistant.observability') }}" wire:navigate variant="ghost" size="sm">
+                            Observabilidade
+                        </flux:button>
+                    </div>
+
+                    <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                        <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
+                            <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Revisoes</p>
+                            <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ $assistantWeeklyUsage['review_runs'] ?? 0 }}</p>
+                            <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Meta: {{ $assistantWeeklySnapshot['goals']['review_runs']['target'] ?? 0 }}</p>
+                        </div>
+                        <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
+                            <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Syncs</p>
+                            <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ $assistantWeeklyUsage['sync_runs'] ?? 0 }}</p>
+                            <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Meta: {{ $assistantWeeklySnapshot['goals']['sync_runs']['target'] ?? 0 }}</p>
+                        </div>
+                        <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
+                            <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Aprovacoes</p>
+                            <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ $assistantWeeklyUsage['item_approvals'] ?? 0 }}</p>
+                            <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Meta: {{ $assistantWeeklySnapshot['goals']['item_approvals']['target'] ?? 0 }}</p>
+                        </div>
+                        <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] p-4">
+                            <p class="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">Dominios</p>
+                            <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{{ count($assistantWeeklyUsage['approved_domains'] ?? []) }}</p>
+                            <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">Semana atual</p>
+                        </div>
+                    </div>
+
+                    @php
+                        $sla = $assistantWeeklySnapshot['sla'] ?? ['status' => 'yellow', 'label' => 'SLA em atencao'];
+                        $slaClass = match ($sla['status']) {
+                            'green' => 'border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-200',
+                            'red' => 'border-rose-500/20 bg-rose-50/70 dark:bg-rose-500/10 text-rose-900 dark:text-rose-200',
+                            default => 'border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200',
+                        };
+                    @endphp
+
+                    <div class="mt-4 rounded-2xl border {{ $slaClass }} px-4 py-4">
+                        <div class="flex items-center justify-between gap-4">
+                            <div>
+                                <p class="text-xs uppercase tracking-[0.18em]">SLA da operacao do assistente</p>
+                                <p class="mt-2 text-lg font-black">{{ $sla['label'] }}</p>
+                            </div>
+                            <a href="{{ route('assistant.observability') }}" wire:navigate class="text-xs font-bold underline underline-offset-4">
+                                Abrir observabilidade
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 xl:grid-cols-3">
+                        @foreach (['review_runs' => 'Revisoes', 'sync_runs' => 'Syncs', 'item_approvals' => 'Aprovacoes'] as $metricKey => $metricLabel)
+                            @php
+                                $goal = $assistantWeeklySnapshot['goals'][$metricKey] ?? ['current' => 0, 'target' => 0, 'remaining' => 0, 'met' => false];
+                                $comparison = $assistantWeeklySnapshot['comparison'][$metricKey] ?? ['delta' => 0, 'previous' => 0, 'direction' => 0];
+                                $directionLabel = $comparison['direction'] > 0 ? 'acima' : ($comparison['direction'] < 0 ? 'abaixo' : 'igual');
+                            @endphp
+                            <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-gradient-to-br from-zinc-50 to-white dark:from-white/[0.04] dark:to-white/[0.02] p-4">
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm font-bold text-zinc-900 dark:text-white">{{ $metricLabel }}</p>
+                                    <span class="rounded-full px-2 py-0.5 text-[11px] font-bold {{ $goal['met'] ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' }}">
+                                        {{ $goal['met'] ? 'Meta ok' : 'Faltam '.$goal['remaining'] }}
+                                    </span>
+                                </div>
+                                <p class="mt-3 text-xs text-zinc-500 dark:text-zinc-400">Comparativo com a semana passada</p>
+                                <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">
+                                    {{ $comparison['delta'] >= 0 ? '+' : '' }}{{ $comparison['delta'] }}
+                                </p>
+                                <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                                    {{ $directionLabel }} da semana passada ({{ $comparison['previous'] }})
+                                </p>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="mt-4 space-y-2">
+                        @foreach (($assistantWeeklySnapshot['alerts'] ?? []) as $alert)
+                            @php
+                                $alertTone = $alert['tone'] ?? 'info';
+                                $alertClass = match ($alertTone) {
+                                    'warning' => 'border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200',
+                                    'ok' => 'border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-200',
+                                    default => 'border-sky-500/20 bg-sky-50/70 dark:bg-sky-500/10 text-sky-900 dark:text-sky-200',
+                                };
+                            @endphp
+                            <div class="rounded-2xl border {{ $alertClass }} px-4 py-3">
+                                <p class="text-sm font-semibold">{{ $alert['title'] ?? 'Alerta' }}</p>
+                                <p class="mt-1 text-xs">{{ $alert['text'] ?? '' }}</p>
+                                @if(!empty($alert['cta']['route']) && !empty($alert['cta']['label']))
+                                    <a href="{{ $alert['cta']['route'] }}" wire:navigate class="mt-2 inline-flex text-xs font-bold underline underline-offset-4">
+                                        {{ $alert['cta']['label'] }}
+                                    </a>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-3">
+                        @foreach (($assistantWeeklyTrend['series'] ?? []) as $week)
+                            <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-gradient-to-br from-zinc-50 to-white dark:from-white/[0.04] dark:to-white/[0.02] p-4">
+                                <p class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{{ $week['label'] }}</p>
+                                <p class="mt-3 text-3xl font-black text-zinc-900 dark:text-white">{{ $week['item_approvals'] }}</p>
+                                <p class="text-xs text-zinc-500 dark:text-zinc-400">aprovacoes</p>
+                                <div class="mt-3 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+                                    <span>{{ $week['review_runs'] }} revisoes</span>
+                                    <span>{{ $week['sync_runs'] }} syncs</span>
+                                </div>
+                            </div>
+                        @endforeach
                     </div>
                 </div>
-
-                <div class="mt-4 grid gap-3 xl:grid-cols-3">
-                    @foreach (['review_runs' => 'Revisoes', 'sync_runs' => 'Syncs', 'item_approvals' => 'Aprovacoes'] as $metricKey => $metricLabel)
-                        @php
-                            $goal = $assistantWeeklySnapshot['goals'][$metricKey] ?? ['current' => 0, 'target' => 0, 'remaining' => 0, 'met' => false];
-                            $comparison = $assistantWeeklySnapshot['comparison'][$metricKey] ?? ['delta' => 0, 'previous' => 0, 'direction' => 0];
-                            $directionLabel = $comparison['direction'] > 0 ? 'acima' : ($comparison['direction'] < 0 ? 'abaixo' : 'igual');
-                        @endphp
-                        <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-gradient-to-br from-zinc-50 to-white dark:from-white/[0.04] dark:to-white/[0.02] p-4">
-                            <div class="flex items-center justify-between">
-                                <p class="text-sm font-bold text-zinc-900 dark:text-white">{{ $metricLabel }}</p>
-                                <span class="rounded-full px-2 py-0.5 text-[11px] font-bold {{ $goal['met'] ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' }}">
-                                    {{ $goal['met'] ? 'Meta ok' : 'Faltam '.$goal['remaining'] }}
-                                </span>
-                            </div>
-                            <p class="mt-3 text-xs text-zinc-500 dark:text-zinc-400">Comparativo com a semana passada</p>
-                            <p class="mt-2 text-2xl font-black text-zinc-900 dark:text-white">
-                                {{ $comparison['delta'] >= 0 ? '+' : '' }}{{ $comparison['delta'] }}
-                            </p>
-                            <p class="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                                {{ $directionLabel }} da semana passada ({{ $comparison['previous'] }})
-                            </p>
-                        </div>
-                    @endforeach
-                </div>
-
-                <div class="mt-4 space-y-2">
-                    @foreach (($assistantWeeklySnapshot['alerts'] ?? []) as $alert)
-                        @php
-                            $alertTone = $alert['tone'] ?? 'info';
-                            $alertClass = match ($alertTone) {
-                                'warning' => 'border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200',
-                                'ok' => 'border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-200',
-                                default => 'border-sky-500/20 bg-sky-50/70 dark:bg-sky-500/10 text-sky-900 dark:text-sky-200',
-                            };
-                        @endphp
-                        <div class="rounded-2xl border {{ $alertClass }} px-4 py-3">
-                            <p class="text-sm font-semibold">{{ $alert['title'] ?? 'Alerta' }}</p>
-                            <p class="mt-1 text-xs">{{ $alert['text'] ?? '' }}</p>
-                            @if(!empty($alert['cta']['route']) && !empty($alert['cta']['label']))
-                                <a href="{{ $alert['cta']['route'] }}" wire:navigate class="mt-2 inline-flex text-xs font-bold underline underline-offset-4">
-                                    {{ $alert['cta']['label'] }}
-                                </a>
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
-
-                <div class="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-3">
-                    @foreach (($assistantWeeklyTrend['series'] ?? []) as $week)
-                        <div class="rounded-2xl border border-zinc-200 dark:border-white/10 bg-gradient-to-br from-zinc-50 to-white dark:from-white/[0.04] dark:to-white/[0.02] p-4">
-                            <p class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">{{ $week['label'] }}</p>
-                            <p class="mt-3 text-3xl font-black text-zinc-900 dark:text-white">{{ $week['item_approvals'] }}</p>
-                            <p class="text-xs text-zinc-500 dark:text-zinc-400">aprovacoes</p>
-                            <div class="mt-3 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
-                                <span>{{ $week['review_runs'] }} revisoes</span>
-                                <span>{{ $week['sync_runs'] }} syncs</span>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
+            @endif
         </div>
 
         <!-- Gráfico e lista de categorias -->
