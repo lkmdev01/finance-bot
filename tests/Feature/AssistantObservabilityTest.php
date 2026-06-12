@@ -9,6 +9,11 @@ beforeEach(function () {
     File::delete(storage_path('app/assistant/weekly_review_activity.jsonl'));
 });
 
+function allowAssistantObservabilityFor(User $user): void
+{
+    $user->forceFill(['is_admin' => true])->save();
+}
+
 it('aggregates assistant observability by intent', function () {
     $user = User::factory()->create();
 
@@ -76,6 +81,7 @@ it('aggregates assistant observability by intent', function () {
 it('renders the assistant observability page for authenticated users', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     $response = $this->get(route('assistant.observability'));
 
@@ -85,9 +91,30 @@ it('renders the assistant observability page for authenticated users', function 
     $response->assertSee('Fila priorizada de regressao');
 });
 
+it('forbids assistant observability for non admin users', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    config()->set('app.admin_emails', ['admin@inovaforce.com.br']);
+
+    $response = $this->get(route('assistant.observability'));
+
+    $response->assertForbidden();
+});
+
+it('still allows assistant observability through configured admin email fallback', function () {
+    $user = User::factory()->create(['email' => 'admin@inovaforce.com.br', 'is_admin' => false]);
+    $this->actingAs($user);
+    config()->set('app.admin_emails', ['admin@inovaforce.com.br']);
+
+    $response = $this->get(route('assistant.observability'));
+
+    $response->assertOk();
+});
+
 it('renders preview diff for a selected domain on observability page', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     WhatsAppConversationLog::query()->create([
         'user_id' => $user->id,
@@ -116,6 +143,7 @@ it('renders preview diff for a selected domain on observability page', function 
 it('renders preview diff for a selected backlog item on observability page', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     WhatsAppConversationLog::query()->create([
         'user_id' => $user->id,
@@ -150,6 +178,7 @@ it('renders preview diff for a selected backlog item on observability page', fun
 it('exports regression backlog as fixture candidates', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     WhatsAppConversationLog::query()->create([
         'user_id' => $user->id,
@@ -214,6 +243,7 @@ it('syncs regression backlog into generated fixture files by domain', function (
 it('syncs fixtures from the observability page for a specific domain', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     WhatsAppConversationLog::query()->create([
         'user_id' => $user->id,
@@ -249,6 +279,7 @@ it('syncs fixtures from the observability page for a specific domain', function 
 it('syncs a single backlog item from the observability page', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     WhatsAppConversationLog::query()->create([
         'user_id' => $user->id,
@@ -288,6 +319,7 @@ it('syncs a single backlog item from the observability page', function () {
 it('exports approved fixtures from the selected weekly review window', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     app(AssistantObservabilityService::class)->recordApprovalActivity([
         [
@@ -315,6 +347,7 @@ it('exports approved fixtures from the selected weekly review window', function 
 it('renders weekly review usage metrics on the observability page', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     $service = app(AssistantObservabilityService::class);
     $service->recordReviewRun([
@@ -423,6 +456,7 @@ it('uses assistant weekly goals from configuration', function () {
 it('filters approved weekly exports by approval source', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     $service = app(AssistantObservabilityService::class);
     $service->recordApprovalActivity([
@@ -464,6 +498,7 @@ it('filters approved weekly exports by approval source', function () {
 it('runs the weekly review immediately from observability', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
+    allowAssistantObservabilityFor($user);
 
     WhatsAppConversationLog::query()->create([
         'user_id' => $user->id,

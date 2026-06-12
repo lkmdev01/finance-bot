@@ -53,6 +53,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'is_admin',
         'phone_number',
         'whatsapp_verified_at',
         'tax_id',
@@ -90,6 +91,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean',
             'billing_access_ends_at' => 'datetime',
             'trial_started_at' => 'datetime',
             'trial_ends_at' => 'datetime',
@@ -108,6 +110,19 @@ class User extends Authenticatable
             ->take(2)
             ->map(fn ($word) => Str::substr($word, 0, 1))
             ->implode('');
+    }
+
+    public function isAdmin(): bool
+    {
+        if ($this->is_admin) {
+            return true;
+        }
+
+        return in_array(
+            strtolower((string) $this->email),
+            config('app.admin_emails', []),
+            true,
+        );
     }
 
     public function categories(): HasMany
