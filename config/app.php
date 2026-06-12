@@ -54,6 +54,11 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'admin_emails' => array_values(array_filter(array_map(
+        static fn (string $email) => strtolower(trim($email)),
+        explode(',', (string) env('APP_ADMIN_EMAILS', ''))
+    ))),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

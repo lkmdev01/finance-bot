@@ -38,6 +38,8 @@ use App\Services\WhatsApp\Handlers\UpdateBudgetHandler;
 use App\Services\WhatsApp\Handlers\UpdateRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\UpdateSavingsGoalHandler;
 use App\Services\WhatsApp\Handlers\UpdateSubscriptionHandler;
+use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -121,6 +123,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Gate::define('viewAssistantObservability', function (User $user): bool {
+            return $user->isAdmin();
+        });
+
         if (config('app.env') === 'production') {
             URL::forceScheme('https');
         }

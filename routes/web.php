@@ -158,12 +158,16 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         return view('pages.reports.index');
     })->name('reports.index');
 
-    Route::get('assistant/observability', \App\Http\Controllers\AssistantObservabilityController::class)
-        ->name('assistant.observability');
-    Route::post('assistant/observability/sync-fixtures', [\App\Http\Controllers\AssistantObservabilityController::class, 'syncFixtures'])
-        ->name('assistant.observability.sync-fixtures');
-    Route::get('assistant/observability/export-fixtures', [\App\Http\Controllers\AssistantObservabilityController::class, 'exportFixtures'])
-        ->name('assistant.observability.export-fixtures');
+    Route::middleware('can:viewAssistantObservability')->group(function () {
+        Route::get('assistant/observability', \App\Http\Controllers\AssistantObservabilityController::class)
+            ->name('assistant.observability');
+        Route::post('assistant/observability/sync-fixtures', [\App\Http\Controllers\AssistantObservabilityController::class, 'syncFixtures'])
+            ->name('assistant.observability.sync-fixtures');
+        Route::get('assistant/observability/export-fixtures', [\App\Http\Controllers\AssistantObservabilityController::class, 'exportFixtures'])
+            ->name('assistant.observability.export-fixtures');
+        Route::post('assistant/observability/run-review', [\App\Http\Controllers\AssistantObservabilityController::class, 'runReview'])
+            ->name('assistant.observability.run-review');
+    });
 
     // Projeções Financeiras
     Route::get('financial-projections', function () {
@@ -304,10 +308,9 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Volt::route('settings/password', 'settings.password')->name('user-password.edit');
     Volt::route('settings/appearance', 'settings.appearance')->name('appearance.edit');
     Volt::route('settings/whatsapp', 'settings.whatsapp')->name('whatsapp.settings');
-    Volt::route('settings/assistant-operations', 'settings.assistant-operations')->name('assistant.operations.settings');
-
-    Route::post('assistant/observability/run-review', [\App\Http\Controllers\AssistantObservabilityController::class, 'runReview'])
-        ->name('assistant.observability.run-review');
+    Volt::route('settings/assistant-operations', 'settings.assistant-operations')
+        ->middleware('can:viewAssistantObservability')
+        ->name('assistant.operations.settings');
 
     Volt::route('settings/two-factor', 'settings.two-factor')
         ->middleware(
