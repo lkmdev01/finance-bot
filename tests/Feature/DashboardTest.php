@@ -14,7 +14,7 @@ test('guests are redirected to the login page', function () {
 });
 
 test('authenticated users can visit the dashboard', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
     $this->actingAs($user);
 
     app(AssistantObservabilityService::class)->recordReviewRun([
@@ -46,6 +46,19 @@ test('authenticated users can visit the dashboard', function () {
     $response->assertSee('Comparativo com a semana passada');
     $response->assertSee('SLA da operacao do assistente');
     $response->assertSee('Abrir observabilidade');
+});
+
+test('non admin users do not see assistant observability cards on dashboard', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $response = $this->get(route('dashboard'));
+
+    $response->assertStatus(200);
+    $response->assertDontSee('Observabilidade IA ligada no fluxo');
+    $response->assertDontSee('Tendencia semanal do assistente');
+    $response->assertDontSee('SLA da operacao do assistente');
+    $response->assertDontSee('Abrir observabilidade');
 });
 
 test('dashboard layout does not use unsupported flux sidebar toggle expression', function () {
