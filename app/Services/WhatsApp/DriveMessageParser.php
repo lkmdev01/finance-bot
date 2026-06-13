@@ -183,6 +183,14 @@ class DriveMessageParser
         $normalized = $this->normalizeText($message);
         $mediaKind = $this->extractMediaKind($normalized);
         $timeScope = $this->extractTimeScope($normalized);
+        $isContextualFollowUp = ($state['last_entities']['topic'] ?? null) === 'drive'
+            && $this->isContextualFollowUp($normalized);
+
+        if ($isContextualFollowUp) {
+            $mediaKind ??= $state['last_entities']['drive_media_kind'] ?? null;
+            $timeScope ??= $state['last_entities']['drive_time_scope'] ?? null;
+        }
+
         $term = $this->extractQueryTerm($message);
         $term = $this->sanitizeQueryTerm($term, $mediaKind, $timeScope);
 
