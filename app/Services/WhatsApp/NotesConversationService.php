@@ -12,7 +12,7 @@ class NotesConversationService
         $normalizer = app(IncomingMessageNormalizer::class);
         $normalized = $normalizer->normalize($message);
 
-        if (($followUpReply = $this->buildFollowUpReply($user, $normalized, $state)) !== null) {
+        if (($followUpReply = $this->buildFollowUpReply($user, $message, $normalized, $state)) !== null) {
             return $followUpReply;
         }
 
@@ -83,13 +83,13 @@ class NotesConversationService
         ];
     }
 
-    private function buildFollowUpReply(User $user, string $normalized, array $state): ?array
+    private function buildFollowUpReply(User $user, string $message, string $normalized, array $state): ?array
     {
         if (($state['last_entities']['topic'] ?? null) !== 'notes') {
             return null;
         }
 
-        $recentNote = $this->resolveRecentNote($user, $state);
+        $recentNote = $this->resolveRequestedNote($user, $message, $state) ?? $this->resolveRecentNote($user, $state);
         $count = (int) ($state['last_entities']['note_result_count'] ?? 0);
         $queryTerm = $state['last_entities']['query_term'] ?? null;
 
@@ -168,6 +168,43 @@ class NotesConversationService
         }
 
         return $user->notes()->find((int) $recentIds[0]);
+    }
+
+    private function resolveRequestedNote(User $user, string $message, array $state): ?Note
+    {
+        $target = $this->extractExplicitNoteTarget($message);
+        if ($target === null) {
+            return null;
+        }
+
+        $normalizer = app(IncomingMessageNormalizer::class);
+        $normalizedTarget = $normalizer->normalize($target);
+        $recentIds = array_values(array_filter($state['last_entities']['recent_note_ids'] ?? [], fn ($id) => (int) $id > 0));
+
+        $query = $user->notes();
+        if ($recentIds !== []) {
+            $query->whereIn('id', $recentIds);
+        }
+
+        $notes = $query->latest('id')->get();
+
+        return $notes->first(function (Note $note) use ($normalizer, $normalizedTarget) {
+            $title = $normalizer->normalize((string) $note->title);
+            $body = $normalizer->normalize((string) $note->body);
+
+            return $title === $normalizedTarget
+                || str_contains($title, $normalizedTarget)
+                || str_contains($normalizedTarget, $title)
+                || str_contains($body, $normalizedTarget);
+        });
+    }
+
+    private function extractExplicitNoteTarget(string $message): ?string
+    {
+        $target = preg_replace('/^\s*(?:me\s+)?(?:mostra|mostrar|abre|abrir)\s+(?:essa|esse|a|o)?\s*nota\s*/iu', '', $message) ?? $message;
+        $target = trim($target, " \t\n\r\0\x0B-:.,;!?");
+
+        return $target !== '' ? $target : null;
     }
 
     private function containsAny(string $normalized, array $needles): bool

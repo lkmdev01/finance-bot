@@ -228,6 +228,62 @@ it('consulta metas com resposta contextual', function () {
     );
 });
 
+it('abre meta pelo nome explicito sem iniciar criacao de meta', function () {
+    $goal = SavingsGoal::create([
+        'user_id' => $this->user->id,
+        'name' => 'Viagem',
+        'target_amount' => 5000,
+        'target_date' => now()->addMonths(6)->toDateString(),
+        'description' => null,
+        'is_completed' => false,
+    ]);
+
+    SavingsGoal::create([
+        'user_id' => $this->user->id,
+        'name' => 'Viagem Asia',
+        'target_amount' => 1500,
+        'target_date' => now()->addMonths(8)->toDateString(),
+        'description' => null,
+        'is_completed' => false,
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_savings',
+            'last_entities' => [
+                'topic' => 'savings',
+                'recent_goal_ids' => [$goal->id],
+                'goal_count' => 2,
+            ],
+        ],
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(fn (string $message) => str_contains($message, 'Viagem esta com R$') && ! str_contains($message, 'Agora me diga o valor objetivo')))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'me mostra essa meta Viagem',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net',
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
 it('consulta assinaturas com proximos vencimentos', function () {
     Subscription::create([
         'user_id' => $this->user->id,

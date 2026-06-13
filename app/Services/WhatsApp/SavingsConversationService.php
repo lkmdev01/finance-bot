@@ -12,7 +12,7 @@ class SavingsConversationService
     {
         $normalized = $this->normalize($message);
 
-        if (($followUpReply = $this->buildFollowUpReply($user, $normalized, $state)) !== null) {
+        if (($followUpReply = $this->buildFollowUpReply($user, $message, $normalized, $state)) !== null) {
             return $followUpReply;
         }
 
@@ -203,14 +203,14 @@ class SavingsConversationService
         ], $extra), fn ($value) => $value !== null && $value !== [] && $value !== '');
     }
 
-    private function buildFollowUpReply(User $user, string $normalizedMessage, array $state): ?array
+    private function buildFollowUpReply(User $user, string $message, string $normalizedMessage, array $state): ?array
     {
         $entities = $this->resolveRelevantEntities($state);
         if (($entities['topic'] ?? null) !== 'savings') {
             return null;
         }
 
-        $goal = $this->resolveRecentGoal($user, $entities);
+        $goal = $this->resolveRequestedGoal($user, $message, $entities) ?? $this->resolveRecentGoal($user, $entities);
         $count = (int) ($entities['goal_count'] ?? 0);
 
         if ($this->containsAny($normalizedMessage, ['me mostra essa meta', 'me mostra ela', 'mostra essa meta', 'abre essa meta'])) {
@@ -343,5 +343,39 @@ class SavingsConversationService
         }
 
         return $user->savingsGoals()->find((int) $recentIds[0]);
+    }
+
+    private function resolveRequestedGoal(User $user, string $message, array $entities): ?SavingsGoal
+    {
+        $target = $this->extractExplicitGoalTarget($message);
+        if ($target === null) {
+            return null;
+        }
+
+        $normalizedTarget = $this->normalize($target);
+        $recentIds = array_values(array_filter($entities['recent_goal_ids'] ?? [], fn ($id) => (int) $id > 0));
+
+        $query = $user->savingsGoals();
+        if ($recentIds !== []) {
+            $query->whereIn('id', $recentIds);
+        }
+
+        $goals = $query->get();
+
+        return $goals->first(function (SavingsGoal $goal) use ($normalizedTarget) {
+            $name = $this->normalize((string) $goal->name);
+
+            return $name === $normalizedTarget
+                || str_contains($name, $normalizedTarget)
+                || str_contains($normalizedTarget, $name);
+        });
+    }
+
+    private function extractExplicitGoalTarget(string $message): ?string
+    {
+        $target = preg_replace('/^\s*(?:me\s+)?(?:mostra|mostrar|abre|abrir)\s+(?:essa|esse|a|o)?\s*meta\s*/iu', '', $message) ?? $message;
+        $target = trim($target, " \t\n\r\0\x0B-:.,;!?");
+
+        return $target !== '' ? $target : null;
     }
 }

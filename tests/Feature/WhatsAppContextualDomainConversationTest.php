@@ -186,6 +186,55 @@ it('completa edicao contextual de lembrete em duas mensagens', function () {
         ->and($updated?->frequency)->toBe('once');
 });
 
+it('abre nota pelo titulo explicito em vez da primeira nota recente', function () {
+    Http::preventStrayRequests();
+
+    Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'No Drive',
+        'body' => 'no drive',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $target = Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'Tive Uma Ideia De Função De Gravar Arquivos No Drive Atraves Da Inovafinance',
+        'body' => 'tive uma ideia de função de gravar arquivos no drive atraves da inovafinance',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_notes',
+            'last_entities' => [
+                'topic' => 'notes',
+                'note_id' => 1,
+                'note_title' => 'No Drive',
+                'recent_note_ids' => [$target->id, 1],
+                'note_result_count' => 2,
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(fn (string $message) => str_contains($message, 'Tive Uma Ideia') && ! str_contains($message, "Aqui esta a nota No Drive.\n\nno drive")))
+            ->andReturn(fakeContextualDomainBaileysSuccessResponse());
+    });
+
+    runContextualDomainJob(new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'me mostra essa nota Tive Uma Ideia De Função De Gravar Arquivos No Drive Atraves Da Inovafinance',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    ));
+});
+
 it('completa exclusao de lembrete em duas mensagens quando falta o alvo', function () {
     Http::preventStrayRequests();
 

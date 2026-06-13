@@ -93,6 +93,10 @@ class SavingsGoalMessageParser
 
     public function looksLikeCreateIntent(string $message): bool
     {
+        if (preg_match('/\b(?:quais|qual|listar|liste|lista|mostra|mostrar|abre|abrir|consulta|consultar)\b/u', $message) === 1) {
+            return false;
+        }
+
         $hasGoalCue = str_contains($message, 'meta')
             || str_contains($message, 'objetivo')
             || str_contains($message, 'poupanca')
