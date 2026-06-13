@@ -219,6 +219,19 @@ class ConversationSimulationService
             }
         }
 
+        $expectedClassification = $entry['expected_classification'] ?? null;
+        if (is_string($expectedClassification) && $expectedClassification !== '') {
+            $actualClassification = $lastLog?->classification;
+
+            if ($actualClassification !== $expectedClassification) {
+                $violations[] = [
+                    'field' => 'expected_classification',
+                    'expected' => $expectedClassification,
+                    'actual' => $actualClassification,
+                ];
+            }
+        }
+
         $expectedAction = $entry['expected_action'] ?? null;
         if (is_string($expectedAction) && $expectedAction !== '') {
             $actualAction = $lastLog?->action;
@@ -255,6 +268,20 @@ class ConversationSimulationService
             if (! str_contains(mb_strtolower($reply), mb_strtolower($needle))) {
                 $violations[] = [
                     'field' => 'expected_reply_contains',
+                    'expected' => $needle,
+                    'actual' => $reply,
+                ];
+            }
+        }
+
+        foreach (Arr::wrap($entry['expected_reply_not_contains'] ?? []) as $needle) {
+            if (! is_string($needle) || $needle === '') {
+                continue;
+            }
+
+            if (str_contains(mb_strtolower($reply), mb_strtolower($needle))) {
+                $violations[] = [
+                    'field' => 'expected_reply_not_contains',
                     'expected' => $needle,
                     'actual' => $reply,
                 ];

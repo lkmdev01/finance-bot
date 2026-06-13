@@ -67,4 +67,29 @@ class NotesParsingTest extends TestCase
         $this->assertNotNull($result);
         $this->assertEquals('note_query', $result['kind']);
     }
+
+    public function test_contextual_note_query_does_not_capture_gratitude(): void
+    {
+        $classifier = app(NoteIntentClassifier::class);
+
+        $result = $classifier->classify('obrigado', 'obrigado', [
+            'last_action' => 'query_notes',
+            'last_entities' => ['topic' => 'notes'],
+        ]);
+
+        $this->assertNull($result);
+    }
+
+    public function test_contextual_note_query_accepts_named_follow_up(): void
+    {
+        $classifier = app(NoteIntentClassifier::class);
+
+        $result = $classifier->classify('contrato fornecedor', 'contrato fornecedor', [
+            'last_action' => 'query_notes',
+            'last_entities' => ['topic' => 'notes'],
+        ]);
+
+        $this->assertNotNull($result);
+        $this->assertEquals('note_query', $result['kind']);
+    }
 }

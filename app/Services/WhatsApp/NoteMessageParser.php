@@ -17,6 +17,11 @@ class NoteMessageParser
 
         $message = trim($normalizedMessage);
 
+        if (preg_match('/^(?:salvar|salva|guardar|guarda)\s+isso\b/u', $message) === 1
+            && str_contains($message, 'drive')) {
+            return false;
+        }
+
         // "anota: ..." / "anota ..." / "anote ..." / "anotar ..."
         if (preg_match('/^(?:anota(?:\\s+isso)?|anote|anotar)\\b/u', $message) === 1) {
             return true;
@@ -132,10 +137,11 @@ class NoteMessageParser
             return null;
         }
 
-        $subject = preg_replace('/\\b(?:minhas|minha|meus|meu|quais|qual|liste|listar|lista|mostra|mostrar|procura|procurar|buscar|busca|encontra|encontrar|consulta|consultar)\\b/iu', ' ', $clean) ?? $clean;
+        $subject = preg_replace('/\\b(?:minhas|minha|meus|meu|me|quais|qual|sao|são|liste|listar|lista|mostra|mostrar|procura|procurar|buscar|busca|encontra|encontrar|consulta|consultar)\\b/iu', ' ', $clean) ?? $clean;
         $subject = preg_replace('/\\b(?:nota|notas)\\b/iu', ' ', $subject) ?? $subject;
         $subject = preg_replace('/\\b(?:sobre|do|da|de)\\b/iu', ' ', $subject) ?? $subject;
-        $subject = trim(preg_replace('/\\s+/u', ' ', $subject) ?? $subject);
+        $subject = preg_replace('/\\b(?:essa|esse|estas|estes|ativa|ativas|ativo|ativos|recente|recentes|salva|salvas|criada|criadas)\\b/iu', ' ', $subject) ?? $subject;
+        $subject = trim(preg_replace('/\\s+/u', ' ', $subject) ?? $subject, " \t\n\r\0\x0B-:.,;!?");
 
         return $subject !== '' ? $subject : null;
     }
@@ -162,6 +168,52 @@ class NoteMessageParser
             'o que eu anotei',
             'lembra da nota',
         ]);
+    }
+
+    public function looksLikeContextualQueryFollowUp(string $normalizedMessage): bool
+    {
+        if ($this->looksLikeQueryIntent($normalizedMessage)) {
+            return true;
+        }
+
+        if (preg_match('/\b(quais|qual|me mostra|mostrar|listar|liste|lista|quero ver|buscar|busca|procura|procurar|encontra|encontrar|sobre|tema|ativas?|recentes?)\b/u', $normalizedMessage) === 1) {
+            return true;
+        }
+
+        if (! preg_match('/^(?:e\s+)?(?:(?:o|a|os|as)\s+)?([\p{L}\p{N} _-]+)$/u', $normalizedMessage, $matches)) {
+            return false;
+        }
+
+        $term = trim($matches[1] ?? '');
+        if ($term === '' || $this->isGenericContextPhrase($term)) {
+            return false;
+        }
+
+        $tokens = array_values(array_filter(preg_split('/\s+/u', $term) ?: []));
+        if ($tokens === [] || count($tokens) > 5) {
+            return false;
+        }
+
+        $filtered = array_values(array_filter($tokens, fn (string $token) => ! in_array($token, [
+            'o', 'a', 'os', 'as', 'um', 'uma',
+            'meu', 'minha', 'meus', 'minhas',
+            'esse', 'essa', 'esses', 'essas',
+            'este', 'esta', 'estes', 'estas',
+            'isso', 'isto', 'ele', 'ela', 'eles', 'elas',
+            'so', 'só', 'aqui', 'ali', 'la', 'lá',
+        ], true)));
+
+        if ($filtered === []) {
+            return false;
+        }
+
+        foreach ($filtered as $token) {
+            if (mb_strlen($token) >= 4) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function extractBody(string $message): ?string
@@ -199,5 +251,30 @@ class NoteMessageParser
         $title = mb_convert_case($firstLine, MB_CASE_TITLE, 'UTF-8');
 
         return $title !== '' ? $title : 'Nota';
+    }
+
+    private function isGenericContextPhrase(string $normalizedMessage): bool
+    {
+        return in_array($normalizedMessage, [
+            'oi',
+            'ola',
+            'bom dia',
+            'boa tarde',
+            'boa noite',
+            'como voce esta',
+            'como vc esta',
+            'como vai',
+            'tudo bem',
+            'obrigado',
+            'obrigada',
+            'valeu',
+            'show',
+            'top',
+            'ajuda',
+            'como funciona',
+            'como voce pode me ajudar',
+            'como vc pode me ajudar',
+            'como pode me ajudar',
+        ], true);
     }
 }

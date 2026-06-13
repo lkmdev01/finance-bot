@@ -367,6 +367,8 @@ class SimulationSuiteService
                     'tags' => ['comprovante', 'veiculo'],
                     'extracted_text' => 'servico mecanico realizado em marco',
                     'metadata' => [],
+                    'created_at' => now()->subDays(12),
+                    'updated_at' => now()->subDays(12),
                 ]);
 
                 DriveFile::create([
@@ -384,6 +386,65 @@ class SimulationSuiteService
                     'tags' => ['contrato'],
                     'extracted_text' => 'contrato de locacao residencial',
                     'metadata' => [],
+                    'created_at' => now()->subDays(7),
+                    'updated_at' => now()->subDays(7),
+                ]);
+
+                DriveFile::create([
+                    'user_id' => $context['user']->id,
+                    'source' => 'whatsapp',
+                    'original_name' => 'foto_neve.png',
+                    'mime_type' => 'image/png',
+                    'size_bytes' => 91500,
+                    'sha256' => hash('sha256', 'foto-neve'),
+                    'drive_file_id' => 'drive-file-3',
+                    'drive_parent_id' => 'drive-parent-3',
+                    'drive_path' => 'Fotos / Viagens',
+                    'title' => 'foto_neve',
+                    'description' => 'Foto na neve durante a viagem',
+                    'tags' => ['foto', 'neve', 'viagem'],
+                    'extracted_text' => 'paisagem com neve e montanha',
+                    'metadata' => [],
+                    'created_at' => now()->startOfDay()->addHours(9),
+                    'updated_at' => now()->startOfDay()->addHours(9),
+                ]);
+
+                DriveFile::create([
+                    'user_id' => $context['user']->id,
+                    'source' => 'whatsapp',
+                    'original_name' => 'recibo_oficina.png',
+                    'mime_type' => 'image/png',
+                    'size_bytes' => 88300,
+                    'sha256' => hash('sha256', 'recibo-oficina'),
+                    'drive_file_id' => 'drive-file-4',
+                    'drive_parent_id' => 'drive-parent-4',
+                    'drive_path' => 'Comprovantes / Veiculos',
+                    'title' => 'recibo_oficina',
+                    'description' => 'Recibo da oficina do carro',
+                    'tags' => ['foto', 'oficina', 'veiculo'],
+                    'extracted_text' => 'recibo oficina troca de oleo',
+                    'metadata' => [],
+                    'created_at' => now()->subDays(1)->startOfDay()->addHours(15),
+                    'updated_at' => now()->subDays(1)->startOfDay()->addHours(15),
+                ]);
+
+                DriveFile::create([
+                    'user_id' => $context['user']->id,
+                    'source' => 'whatsapp',
+                    'original_name' => 'audio_projeto.mp3',
+                    'mime_type' => 'audio/mpeg',
+                    'size_bytes' => 2048000,
+                    'sha256' => hash('sha256', 'audio-projeto'),
+                    'drive_file_id' => 'drive-file-5',
+                    'drive_parent_id' => 'drive-parent-5',
+                    'drive_path' => 'Audios / Projetos',
+                    'title' => 'audio_projeto',
+                    'description' => 'Audio com ideias sobre o projeto',
+                    'tags' => ['audio', 'projeto', 'ideias'],
+                    'extracted_text' => 'brainstorm do projeto de expansao',
+                    'metadata' => [],
+                    'created_at' => now()->startOfDay()->addHours(11),
+                    'updated_at' => now()->startOfDay()->addHours(11),
                 ]);
                 break;
 
