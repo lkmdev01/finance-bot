@@ -284,6 +284,70 @@ it('abre meta pelo nome explicito sem iniciar criacao de meta', function () {
     );
 });
 
+it('pede escolha quando existem metas duplicadas e abre pelo numero', function () {
+    SavingsGoal::create([
+        'user_id' => $this->user->id,
+        'name' => 'Viagem',
+        'target_amount' => 5000,
+        'target_date' => now()->addMonths(6)->toDateString(),
+        'description' => null,
+        'is_completed' => false,
+    ]);
+
+    SavingsGoal::create([
+        'user_id' => $this->user->id,
+        'name' => 'Viagem',
+        'target_amount' => 300,
+        'target_date' => now()->addMonths(2)->toDateString(),
+        'description' => null,
+        'is_completed' => false,
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(fn (string $message) => str_contains($message, 'Encontrei mais de uma meta') && str_contains($message, 'abrir meta 2')))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(fn (string $message) => str_contains($message, 'Viagem esta com R$') && str_contains($message, 'R$ 5.000,00')))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $first = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'me mostra essa meta Viagem',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net',
+    );
+
+    $first->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+
+    $second = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'abrir meta 2',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net',
+    );
+
+    $second->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
 it('consulta assinaturas com proximos vencimentos', function () {
     Subscription::create([
         'user_id' => $this->user->id,
