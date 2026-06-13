@@ -12,7 +12,7 @@ class SavingsConversationService
     {
         $normalized = $this->normalize($message);
 
-        if (($followUpReply = $this->buildFollowUpReply($user, $normalized, $state)) !== null) {
+        if (($followUpReply = $this->buildFollowUpReply($user, $message, $normalized, $state)) !== null) {
             return $followUpReply;
         }
 
@@ -32,6 +32,8 @@ class SavingsConversationService
                 'entities' => $this->buildEntities($context, [
                     'goal_name' => $goals->count() === 1 ? $goals->first()->name : null,
                     'goal_names' => $goals->pluck('name')->values()->all(),
+                    'goal_count' => $goals->count(),
+                    'recent_goal_ids' => $goals->pluck('id')->values()->all(),
                 ]),
             ];
         }
@@ -159,15 +161,17 @@ class SavingsConversationService
     private function buildGoalReply(Collection $goals, array $context): string
     {
         if ($goals->count() > 1) {
-            $lines = $goals->map(fn (SavingsGoal $goal) => sprintf(
-                '- %s: R$ %s de R$ %s (%s)',
+            $lines = $goals->values()->map(fn (SavingsGoal $goal, int $index) => sprintf(
+                '%d. %s: R$ %s de R$ %s (%s) | alvo %s',
+                $index + 1,
                 $goal->name,
                 $this->formatMoney($goal->current_amount),
                 $this->formatMoney($goal->target_amount),
-                $this->formatPercentage((float) $goal->progress_percentage)
+                $this->formatPercentage((float) $goal->progress_percentage),
+                $goal->target_date?->format('d/m/Y') ?? 'sem data'
             ))->implode("\n");
 
-            return "Encontrei estas metas:\n{$lines}\n\nSe quiser, eu posso detalhar uma delas ou comparar qual esta mais perto do objetivo.";
+            return "Encontrei mais de uma meta para esse pedido:\n{$lines}\n\nQual delas voce quer abrir? Responda, por exemplo: \"abrir meta 2\".";
         }
 
         /** @var SavingsGoal $goal */
@@ -203,17 +207,19 @@ class SavingsConversationService
         ], $extra), fn ($value) => $value !== null && $value !== [] && $value !== '');
     }
 
-    private function buildFollowUpReply(User $user, string $normalizedMessage, array $state): ?array
+    private function buildFollowUpReply(User $user, string $message, string $normalizedMessage, array $state): ?array
     {
         $entities = $this->resolveRelevantEntities($state);
         if (($entities['topic'] ?? null) !== 'savings') {
             return null;
         }
 
-        $goal = $this->resolveRecentGoal($user, $entities);
+        $goal = $this->resolveGoalBySelection($user, $normalizedMessage, $entities)
+            ?? $this->resolveRequestedGoal($user, $message, $entities)
+            ?? $this->resolveRecentGoal($user, $entities);
         $count = (int) ($entities['goal_count'] ?? 0);
 
-        if ($this->containsAny($normalizedMessage, ['me mostra essa meta', 'me mostra ela', 'mostra essa meta', 'abre essa meta'])) {
+        if ($this->containsAny($normalizedMessage, ['me mostra essa meta', 'me mostra ela', 'mostra essa meta', 'abre essa meta', 'abrir meta', 'abre meta'])) {
             if (! $goal) {
                 return null;
             }
@@ -343,5 +349,55 @@ class SavingsConversationService
         }
 
         return $user->savingsGoals()->find((int) $recentIds[0]);
+    }
+
+    private function resolveRequestedGoal(User $user, string $message, array $entities): ?SavingsGoal
+    {
+        $target = $this->extractExplicitGoalTarget($message);
+        if ($target === null) {
+            return null;
+        }
+
+        $normalizedTarget = $this->normalize($target);
+        $recentIds = array_values(array_filter($entities['recent_goal_ids'] ?? [], fn ($id) => (int) $id > 0));
+
+        $query = $user->savingsGoals();
+        if ($recentIds !== []) {
+            $query->whereIn('id', $recentIds);
+        }
+
+        $goals = $query->get();
+
+        return $goals->first(function (SavingsGoal $goal) use ($normalizedTarget) {
+            $name = $this->normalize((string) $goal->name);
+
+            return $name === $normalizedTarget
+                || str_contains($name, $normalizedTarget)
+                || str_contains($normalizedTarget, $name);
+        });
+    }
+
+    private function resolveGoalBySelection(User $user, string $normalizedMessage, array $entities): ?SavingsGoal
+    {
+        if (! preg_match('/\b(?:abrir|abre|mostrar|mostra)?\s*(?:a|o|meta)?\s*(\d{1,2})\b/u', $normalizedMessage, $matches)) {
+            return null;
+        }
+
+        $index = ((int) $matches[1]) - 1;
+        $recentIds = array_values(array_filter($entities['recent_goal_ids'] ?? [], fn ($id) => (int) $id > 0));
+
+        if ($index < 0 || ! isset($recentIds[$index])) {
+            return null;
+        }
+
+        return $user->savingsGoals()->find((int) $recentIds[$index]);
+    }
+
+    private function extractExplicitGoalTarget(string $message): ?string
+    {
+        $target = preg_replace('/^\s*(?:me\s+)?(?:mostra|mostrar|abre|abrir)\s+(?:essa|esse|a|o)?\s*meta\s*/iu', '', $message) ?? $message;
+        $target = trim($target, " \t\n\r\0\x0B-:.,;!?");
+
+        return $target !== '' ? $target : null;
     }
 }

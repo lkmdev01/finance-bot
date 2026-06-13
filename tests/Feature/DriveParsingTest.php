@@ -83,6 +83,26 @@ class DriveParsingTest extends TestCase
         $this->assertEquals('only_match', $onlyMatch['follow_up']);
     }
 
+    public function test_drive_contextual_follow_up_preserves_previous_filters(): void
+    {
+        $parser = app(DriveMessageParser::class);
+        $state = [
+            'last_entities' => [
+                'topic' => 'drive',
+                'drive_media_kind' => 'image',
+                'drive_time_scope' => 'today',
+            ],
+        ];
+
+        $morePhotos = $parser->parseQuery('tem mais fotos?', $state);
+        $onlyMatch = $parser->parseQuery('so essa?', $state);
+
+        $this->assertEquals('image', $morePhotos['media_kind']);
+        $this->assertEquals('today', $morePhotos['time_scope']);
+        $this->assertEquals('image', $onlyMatch['media_kind']);
+        $this->assertEquals('today', $onlyMatch['time_scope']);
+    }
+
     public function test_drive_context_accepts_only_match_as_a_valid_follow_up(): void
     {
         $parser = app(DriveMessageParser::class);

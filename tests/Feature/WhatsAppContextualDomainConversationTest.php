@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
 use App\Services\BaileysService;
+use App\Services\WhatsApp\NotesConversationService;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -184,6 +185,107 @@ it('completa edicao contextual de lembrete em duas mensagens', function () {
     $updated = $reminder->fresh();
     expect($updated?->trigger_time)->toBe('10:00:00')
         ->and($updated?->frequency)->toBe('once');
+});
+
+it('abre nota pelo titulo explicito em vez da primeira nota recente', function () {
+    Http::preventStrayRequests();
+
+    Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'No Drive',
+        'body' => 'no drive',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $target = Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'Tive Uma Ideia De Função De Gravar Arquivos No Drive Atraves Da Inovafinance',
+        'body' => 'tive uma ideia de função de gravar arquivos no drive atraves da inovafinance',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_notes',
+            'last_entities' => [
+                'topic' => 'notes',
+                'note_id' => 1,
+                'note_title' => 'No Drive',
+                'recent_note_ids' => [$target->id, 1],
+                'note_result_count' => 2,
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(fn (string $message) => str_contains($message, 'Tive Uma Ideia') && ! str_contains($message, "Aqui esta a nota No Drive.\n\nno drive")))
+            ->andReturn(fakeContextualDomainBaileysSuccessResponse());
+    });
+
+    runContextualDomainJob(new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'me mostra essa nota Tive Uma Ideia De Função De Gravar Arquivos No Drive Atraves Da Inovafinance',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    ));
+});
+
+it('abre nota diretamente quando a busca encontra um unico resultado', function () {
+    Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'Projeto Alpha',
+        'body' => 'Insight importante sobre o projeto Alpha',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $reply = app(NotesConversationService::class)->buildReply(
+        $this->user,
+        'me mostra nota Projeto Alpha',
+        []
+    );
+
+    expect($reply['reply'])->toContain('Aqui esta a nota Projeto Alpha')
+        ->and($reply['reply'])->toContain('Insight importante sobre o projeto Alpha')
+        ->and($reply['entities']['note_result_count'])->toBe(1);
+});
+
+it('lista notas numeradas e abre nota pelo numero', function () {
+    $first = Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'Projeto Alpha',
+        'body' => 'Texto Alpha',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $second = Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'Projeto Beta',
+        'body' => 'Texto Beta',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $service = app(NotesConversationService::class);
+    $list = $service->buildReply($this->user, 'minhas notas', []);
+
+    expect($list['reply'])->toContain('1.')
+        ->and($list['reply'])->toContain('2.')
+        ->and($list['entities']['recent_note_ids'])->toBe([$second->id, $first->id]);
+
+    $opened = $service->buildReply($this->user, 'abrir nota 2', [
+        'last_entities' => $list['entities'],
+    ]);
+
+    expect($opened['reply'])->toContain('Aqui esta a nota Projeto Alpha')
+        ->and($opened['reply'])->toContain('Texto Alpha');
 });
 
 it('completa exclusao de lembrete em duas mensagens quando falta o alvo', function () {
