@@ -61,3 +61,35 @@ it('renomeia metas duplicadas apenas com apply', function () {
 
     expect($duplicate->fresh()->name)->toContain('Viagem - R$ 5.000,00');
 });
+
+it('corrige nomes ja renomeados sem empilhar sufixos', function () {
+    $user = User::factory()->create([
+        'email' => 'cliente@example.com',
+    ]);
+
+    $base = SavingsGoal::create([
+        'user_id' => $user->id,
+        'name' => 'Viagem - R$ 5.000,00 - R$ 5.000,00',
+        'target_amount' => 5000,
+        'target_date' => null,
+        'is_completed' => false,
+    ]);
+
+    $duplicate = SavingsGoal::create([
+        'user_id' => $user->id,
+        'name' => 'Viagem - R$ 5.000,00',
+        'target_amount' => 5000,
+        'target_date' => null,
+        'is_completed' => false,
+    ]);
+
+    $this->artisan('savings:dedupe-goals', [
+        '--user' => 'cliente@example.com',
+        '--apply' => true,
+    ])
+        ->expectsOutputToContain('Renomeadas 1 meta')
+        ->assertSuccessful();
+
+    expect($base->fresh()->name)->toBe('Viagem')
+        ->and($duplicate->fresh()->name)->toBe('Viagem - R$ 5.000,00');
+});

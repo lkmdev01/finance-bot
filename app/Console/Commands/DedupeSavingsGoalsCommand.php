@@ -43,10 +43,12 @@ class DedupeSavingsGoalsCommand extends Command
                 ['target_amount', 'asc'],
                 ['id', 'asc'],
             ])->values();
+            $usedNames = [];
 
-            $goals->each(function (SavingsGoal $goal, int $index) use (&$rows, &$updates) {
-                $newName = $index === 0 ? $goal->name : $this->suggestName($goal);
-                $willRename = $index > 0 && $newName !== $goal->name;
+            $goals->each(function (SavingsGoal $goal, int $index) use (&$rows, &$updates, &$usedNames) {
+                $newName = $this->suggestName($goal, $index, $usedNames);
+                $usedNames[] = $newName;
+                $willRename = $newName !== $goal->name;
 
                 $rows[] = [
                     'id' => $goal->id,
@@ -120,26 +122,53 @@ class DedupeSavingsGoalsCommand extends Command
 
         return $query
             ->get()
-            ->groupBy(fn (SavingsGoal $goal) => $this->normalizeName((string) $goal->name))
+            ->groupBy(fn (SavingsGoal $goal) => $this->normalizeName($this->baseName((string) $goal->name)))
             ->filter(fn (Collection $goals, string $name) => $name !== '' && $goals->count() > 1)
             ->values();
     }
 
-    private function suggestName(SavingsGoal $goal): string
+    /**
+     * @param array<int, string> $usedNames
+     */
+    private function suggestName(SavingsGoal $goal, int $index, array $usedNames): string
     {
-        $parts = [$goal->name];
+        $baseName = $this->baseName((string) $goal->name);
+        $parts = [$baseName];
 
-        if ((float) $goal->target_amount > 0) {
+        if ($index > 0 && (float) $goal->target_amount > 0) {
             $parts[] = 'R$ '.$this->formatMoney($goal->target_amount);
         }
 
-        if ($goal->target_date) {
+        if ($index > 0 && $goal->target_date) {
             $parts[] = $goal->target_date->format('m/Y');
         }
 
         $candidate = implode(' - ', array_values(array_filter($parts)));
 
-        return $candidate !== $goal->name ? $candidate : "{$goal->name} #{$goal->id}";
+        if ($candidate === '') {
+            $candidate = "Meta #{$goal->id}";
+        }
+
+        if (in_array($candidate, $usedNames, true)) {
+            $candidate .= " #{$goal->id}";
+        }
+
+        return $candidate;
+    }
+
+    private function baseName(string $name): string
+    {
+        $base = trim($name);
+
+        do {
+            $previous = $base;
+            $base = preg_replace('/\s*-\s*R\$\s*\d{1,3}(?:\.\d{3})*,\d{2}\b/u', '', $base) ?? $base;
+            $base = preg_replace('/\s*-\s*\d{2}\/\d{4}\b/u', '', $base) ?? $base;
+            $base = preg_replace('/\s*#\d+\b/u', '', $base) ?? $base;
+            $base = trim(preg_replace('/\s+/u', ' ', $base) ?? $base, " \t\n\r\0\x0B-");
+        } while ($base !== $previous);
+
+        return $base !== '' ? $base : trim($name);
     }
 
     private function normalizeName(string $name): string

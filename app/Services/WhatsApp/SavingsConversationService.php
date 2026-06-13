@@ -73,15 +73,25 @@ class SavingsConversationService
 
     private function resolveGoals(string $message, Collection $availableGoals, array $lastEntities): array
     {
-        $matches = [];
+        $exactMatches = [];
+        $partialMatches = [];
 
         foreach ($availableGoals as $goal) {
-            if ($goal['normalized'] !== '' && str_contains($message, $goal['normalized'])) {
-                $matches[] = $goal['name'];
+            if ($goal['normalized'] === '') {
+                continue;
+            }
+
+            if ($goal['normalized'] === $message || preg_match('/\b'.preg_quote($goal['normalized'], '/').'\b/u', $message) === 1) {
+                $exactMatches[] = $goal['name'];
+                continue;
+            }
+
+            if (str_contains($message, $goal['normalized'])) {
+                $partialMatches[] = $goal['name'];
             }
         }
 
-        $matches = array_values(array_unique($matches));
+        $matches = array_values(array_unique($exactMatches !== [] ? $exactMatches : $partialMatches));
 
         if ($matches !== []) {
             return $matches;
@@ -368,11 +378,20 @@ class SavingsConversationService
 
         $goals = $query->get();
 
+        $exact = $goals->first(function (SavingsGoal $goal) use ($normalizedTarget) {
+            $name = $this->normalize((string) $goal->name);
+
+            return $name === $normalizedTarget;
+        });
+
+        if ($exact) {
+            return $exact;
+        }
+
         return $goals->first(function (SavingsGoal $goal) use ($normalizedTarget) {
             $name = $this->normalize((string) $goal->name);
 
-            return $name === $normalizedTarget
-                || str_contains($name, $normalizedTarget)
+            return str_contains($name, $normalizedTarget)
                 || str_contains($normalizedTarget, $name);
         });
     }

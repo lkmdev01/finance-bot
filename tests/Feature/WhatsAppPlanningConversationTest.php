@@ -284,6 +284,62 @@ it('abre meta pelo nome explicito sem iniciar criacao de meta', function () {
     );
 });
 
+it('prioriza meta com nome exato antes de variacoes renomeadas', function () {
+    SavingsGoal::create([
+        'user_id' => $this->user->id,
+        'name' => 'Viagem - R$ 5.000,00',
+        'target_amount' => 5000,
+        'target_date' => null,
+        'description' => null,
+        'is_completed' => false,
+    ]);
+
+    $exact = SavingsGoal::create([
+        'user_id' => $this->user->id,
+        'name' => 'Viagem',
+        'target_amount' => 300,
+        'target_date' => null,
+        'description' => null,
+        'is_completed' => false,
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_savings',
+            'last_entities' => [
+                'topic' => 'savings',
+                'recent_goal_ids' => [$exact->id],
+                'goal_count' => 2,
+            ],
+        ],
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(fn (string $message) => str_contains($message, 'Viagem esta com R$') && str_contains($message, 'R$ 300,00') && ! str_contains($message, 'Viagem - R$ 5.000,00 esta')))
+            ->andReturn(fakePlanningBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'me mostra essa meta Viagem',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net',
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
 it('pede escolha quando existem metas duplicadas e abre pelo numero', function () {
     SavingsGoal::create([
         'user_id' => $this->user->id,

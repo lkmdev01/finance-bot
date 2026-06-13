@@ -35,6 +35,21 @@ class NotesConversationService
                 $builder
                     ->where('title', 'like', '%'.$q.'%')
                     ->orWhere('body', 'like', '%'.$q.'%');
+
+                $tokenGroups = $this->searchTokenGroups($q);
+                if ($tokenGroups !== []) {
+                    $builder->orWhere(function ($tokenMatch) use ($tokenGroups) {
+                        foreach ($tokenGroups as $variants) {
+                            $tokenMatch->where(function ($nested) use ($variants) {
+                                foreach ($variants as $variant) {
+                                    $nested
+                                        ->orWhere('title', 'like', '%'.$variant.'%')
+                                        ->orWhere('body', 'like', '%'.$variant.'%');
+                                }
+                            });
+                        }
+                    });
+                }
             });
         }
 
@@ -250,6 +265,41 @@ class NotesConversationService
         }
 
         return false;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function searchTokenGroups(string $term): array
+    {
+        $normalizer = app(IncomingMessageNormalizer::class);
+        $originalTokens = preg_split('/\s+/u', trim($term)) ?: [];
+        $groups = [];
+
+        foreach ($originalTokens as $originalToken) {
+            $originalToken = trim($originalToken, " \t\n\r\0\x0B-:.,;!?");
+            $normalizedToken = $normalizer->normalize($originalToken);
+
+            if (mb_strlen($normalizedToken) < 4
+                || in_array($normalizedToken, [
+                    'nota',
+                    'notas',
+                    'essa',
+                    'esse',
+                    'minha',
+                    'meu',
+                    'sobre',
+                ], true)) {
+                continue;
+            }
+
+            $groups[] = array_values(array_unique(array_filter([
+                $originalToken,
+                $normalizedToken,
+            ], fn (string $token) => $token !== '')));
+        }
+
+        return $groups;
     }
 
     private function looksLikeOpenRequest(string $normalized): bool
