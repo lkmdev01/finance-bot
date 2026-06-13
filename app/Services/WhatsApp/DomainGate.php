@@ -8,9 +8,25 @@ class DomainGate
 {
     use NormalizesWhatsAppText;
 
+    public function __construct(
+        private readonly DriveMessageParser $driveMessageParser,
+    ) {}
+
     public function detect(string $message, array $state = []): string
     {
         $normalized = $this->normalizeText($message);
+
+        if ($this->looksLikeNotesDomain($normalized, $state)) {
+            return 'notes';
+        }
+
+        if ($this->looksLikePlanningDomain($normalized, $state)) {
+            return 'planning';
+        }
+
+        if ($this->looksLikeTransactionDomain($normalized, $state)) {
+            return 'transaction';
+        }
 
         if ($this->looksLikeReminderDomain($normalized)) {
             return 'reminder';
@@ -18,18 +34,6 @@ class DomainGate
 
         if ($this->looksLikeDriveDomain($normalized, $state)) {
             return 'drive';
-        }
-
-        if ($this->looksLikeNotesDomain($normalized, $state)) {
-            return 'notes';
-        }
-
-        if ($this->looksLikeTransactionDomain($normalized, $state)) {
-            return 'transaction';
-        }
-
-        if ($this->looksLikePlanningDomain($normalized, $state)) {
-            return 'planning';
         }
 
         if ($this->looksLikeBudgetDomain($normalized, $state)) {
@@ -75,7 +79,10 @@ class DomainGate
 
     private function looksLikeDriveDomain(string $message, array $state): bool
     {
-        if (($state['last_entities']['topic'] ?? null) === 'drive') {
+        if (($state['last_entities']['topic'] ?? null) === 'drive'
+            && ($this->driveMessageParser->looksLikeQueryIntent($message, $state)
+                || $this->driveMessageParser->looksLikeSaveIntent($message, $state)
+                || $this->driveMessageParser->looksLikeSaveWithoutMediaIntent($message, $state))) {
             return true;
         }
 
@@ -88,7 +95,7 @@ class DomainGate
 
         // Querying files without media: "ache meu comprovante...", "meus documentos", etc.
         $hasSearchVerb = $this->containsAnyText($message, ['acha', 'ache', 'achar', 'procura', 'procurar', 'buscar', 'busca', 'encontra', 'encontrar', 'meus arquivos', 'meus documentos', 'meu drive']);
-        $hasDocWord = $this->containsAnyText($message, ['arquivo', 'documento', 'comprovante', 'contrato', 'foto', 'imagem', 'pdf', 'boleto', 'nota fiscal']);
+        $hasDocWord = $this->containsAnyText($message, ['arquivo', 'documento', 'comprovante', 'contrato', 'foto', 'imagem', 'audio', 'audios', 'pdf', 'boleto', 'nota fiscal']);
 
         return $hasSearchVerb && $hasDocWord;
     }
@@ -138,6 +145,20 @@ class DomainGate
             return true;
         }
 
+        if ($this->containsAnyText($message, ['recorrencia', 'recorrencias', 'recorrente', 'recorrentes', 'fixo', 'fixos', 'fixa', 'fixas'])) {
+            return true;
+        }
+
+        $hasRecurringScheduleCue = $this->containsAnyText($message, ['todo mes', 'cada mes', 'todo dia', 'cada dia', 'mensal', 'semanal']);
+        $hasInfinitiveOnly = preg_match('/\b(pagar|gastar|receber|ganhar)\b/u', $message) === 1;
+        $hasAccountingVerb = preg_match('/\b(pago|gastei|gasto|recebi|recebo|ganhei|ganho|debito|debitar)\b/u', $message) === 1;
+        $hasMoneyWord = $this->containsAnyText($message, ['r$', 'reais', 'real', 'valor']);
+        $hasMoneyNumber = preg_match('/(?:^|\s)(?:r\$\s*)?\d{2,}(?:[\.,]\d{1,2})?(?:\s|$)/iu', $message) === 1;
+
+        if ($hasRecurringScheduleCue && $hasInfinitiveOnly && ! $hasAccountingVerb && ! $hasMoneyWord && ! $hasMoneyNumber) {
+            return false;
+        }
+
         // Quando o usuario esta falando sobre transacoes recentes e usa referencias curtas,
         // priorizar o dominio de transacoes (mesmo que mencione "cartao", "meta", etc).
         if (in_array($state['last_action'] ?? null, ['query_transactions', 'query_category'], true)) {
@@ -152,7 +173,7 @@ class DomainGate
 
         return $this->containsAnyText($message, [
             'gastei', 'paguei', 'recebi', 'ganhei', 'entrou', 'comprei', 'parcelei',
-            'todo mes pagar', 'todo dia pagar', 'academia', 'debito', 'credito', 'pix',
+            'debito', 'credito', 'pix',
         ]);
     }
 
@@ -176,6 +197,7 @@ class DomainGate
 
         return $this->containsAnyText($message, [
             'meta', 'metas', 'objetivo', 'assinatura', 'assinaturas',
+            'mensalidade', 'mensalidades', 'assino',
             'projecao', 'projecoes', 'cartao', 'cartoes', 'credito',
         ]);
     }

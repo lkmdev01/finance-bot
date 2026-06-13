@@ -16,7 +16,7 @@ class WhatsAppFormatter
 
     /**
      * Tries to repair strings that were mis-decoded (UTF-8 bytes interpreted as Latin-1/Windows-1252).
-     * This shows up as sequences like "ServiÃ§o", "orÃ§amento", "cartÃ£o", etc.
+     * This shows up as sequences like "ServiÃƒÂ§o", "orÃƒÂ§amento", "cartÃƒÂ£o", etc.
      */
     public static function normalizeTextEncoding(?string $text): string
     {
@@ -124,7 +124,7 @@ class WhatsAppFormatter
 
     private static function containsPotentialMojibake(string $text): bool
     {
-        foreach (['Ãƒ', 'Ã‚', 'Ã¢', 'Ã°', 'Ã£', 'Ã§', 'Ã¡', 'Ã©', 'Ã³', 'Ãº', 'Â'] as $marker) {
+        foreach (['ÃƒÆ’', 'Ãƒâ€š', 'ÃƒÂ¢', 'ÃƒÂ°', 'ÃƒÂ£', 'ÃƒÂ§', 'ÃƒÂ¡', 'ÃƒÂ©', 'ÃƒÂª', 'ÃƒÂ³', 'ÃƒÂº', 'Ã£', 'Ã§', 'Ã¡', 'Ã©', 'Ãª', 'Ã³', 'Ãº', 'Ã‚'] as $marker) {
             if (str_contains($text, $marker)) {
                 return true;
             }
@@ -152,7 +152,7 @@ class WhatsAppFormatter
     {
         $score = 0;
 
-        foreach (['Ãƒ', 'Ã‚', 'Ã¢', 'Ã°', 'Ã£', 'Ã§', 'Ã¡', 'Ã©', 'Ã³', 'Ãº', 'Â'] as $marker) {
+        foreach (['ÃƒÆ’', 'Ãƒâ€š', 'ÃƒÂ¢', 'ÃƒÂ°', 'ÃƒÂ£', 'ÃƒÂ§', 'ÃƒÂ¡', 'ÃƒÂ©', 'ÃƒÂª', 'ÃƒÂ³', 'ÃƒÂº', 'Ã£', 'Ã§', 'Ã¡', 'Ã©', 'Ãª', 'Ã³', 'Ãº', 'Ã‚'] as $marker) {
             $score += substr_count($text, $marker);
         }
 

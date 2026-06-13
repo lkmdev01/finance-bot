@@ -109,12 +109,33 @@ class BillingPlanService
     protected function decorate(array $plan): array
     {
         $priceCents = (int) ($plan['price_cents'] ?? 0);
+        $flow = (string) ($plan['checkout_flow'] ?? 'checkout');
+        $frequency = strtoupper((string) ($plan['frequency'] ?? 'NONE'));
 
         $plan['formatted_price'] = $priceCents === 0
             ? 'Gratis'
             : 'R$ '.number_format($priceCents / 100, 2, ',', '.');
 
+        $plan['frequency_label'] = match ($frequency) {
+            'MONTHLY' => 'mensal',
+            'YEARLY' => 'anual',
+            default => 'livre',
+        };
+
+        $plan['billing_mode'] = $flow === 'subscription' ? 'recurring' : 'one_time';
+        $plan['billing_mode_label'] = $flow === 'subscription'
+            ? 'Renovacao automatica'
+            : 'Pagamento unico';
+
+        $plan['billing_mode_description'] = match (true) {
+            $priceCents === 0 => 'Sem cobranca.',
+            $flow === 'subscription' && $frequency === 'MONTHLY' => 'Renova automaticamente todo mes no cartao.',
+            $flow === 'subscription' && $frequency === 'YEARLY' => 'Renova automaticamente a cada ano no cartao.',
+            $frequency === 'MONTHLY' => 'Libera 30 dias de acesso sem renovacao automatica.',
+            $frequency === 'YEARLY' => 'Libera 12 meses de acesso sem renovacao automatica.',
+            default => 'Acesso liberado conforme o periodo do plano.',
+        };
+
         return $plan;
     }
 }
-

@@ -18,7 +18,41 @@ class PreflightMessageResolver
                 'handled' => true,
                 'reply' => $this->composer->composeGreeting($user),
                 'action' => null,
-                'metadata' => ['clear_pending' => true, 'reply_kind' => 'message'],
+                'metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'message',
+                    'entities' => ['topic' => 'general'],
+                ],
+            ],
+            'help' => [
+                'handled' => true,
+                'reply' => $this->composer->composeHelp($user),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'message',
+                    'entities' => ['topic' => 'general'],
+                ],
+            ],
+            'small_talk' => [
+                'handled' => true,
+                'reply' => $this->composer->composeSmallTalk($user),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'message',
+                    'entities' => ['topic' => 'general'],
+                ],
+            ],
+            'gratitude' => [
+                'handled' => true,
+                'reply' => $this->composer->composeGratitude($user),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'message',
+                    'entities' => ['topic' => 'general'],
+                ],
             ],
             'acknowledgement' => [
                 'handled' => true,

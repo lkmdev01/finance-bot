@@ -5,6 +5,12 @@
     @endphp
 
     <div class="space-y-8">
+        @if (!empty($checkoutReturned))
+            <div class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                Recebemos seu retorno do checkout. Se o pagamento ja foi concluido, a liberacao do plano acontece automaticamente em instantes.
+            </div>
+        @endif
+
         @if (session('status'))
             <div class="rounded-2xl border border-sky-400/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
                 {{ session('status') }}
@@ -54,7 +60,12 @@
                         @endif
                     </div>
 
-                    @if (in_array($user->billing_plan_status, ['active', 'renewed'], true) && filled($user->billing_plan_code) && $user->billing_plan_code !== config('billing.default_plan', 'starter'))
+                    <div class="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                        <p class="font-semibold text-white">Como esse plano funciona</p>
+                        <p class="mt-1">{{ $currentPlan['billing_mode_label'] ?? 'Pagamento unico' }} • {{ $currentPlan['billing_mode_description'] ?? '' }}</p>
+                    </div>
+
+                    @if ($cancelableSubscription)
                         <div class="mt-6">
                             <button type="button" class="inline-flex w-full items-center justify-center rounded-xl border border-rose-300/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15" data-billing-cancel-open>
                                 Cancelar assinatura
@@ -63,6 +74,10 @@
                                 Cancelamento e imediato e irreversivel. Seu acesso premium sera encerrado na hora.
                             </p>
                         </div>
+                    @elseif (in_array($user->billing_plan_status, ['active', 'renewed'], true) && filled($user->billing_plan_code) && $user->billing_plan_code !== config('billing.default_plan', 'starter'))
+                        <p class="mt-6 text-xs leading-6 text-slate-400">
+                            Seu plano atual nao esta vinculado a uma assinatura recorrente cancelavel por aqui.
+                        </p>
                     @endif
                 </div>
             </div>
@@ -86,6 +101,19 @@
                     </div>
 
                     <p class="mt-4 text-sm leading-7 text-slate-300">{{ $plan['description'] }}</p>
+
+                    <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">
+                            {{ strtoupper($plan['frequency_label'] ?? 'livre') }}
+                        </span>
+                        <span class="rounded-full border border-indigo-300/20 bg-indigo-400/10 px-3 py-1 text-indigo-100">
+                            {{ $plan['billing_mode_label'] ?? 'Pagamento unico' }}
+                        </span>
+                    </div>
+
+                    <p class="mt-3 text-xs leading-6 text-slate-400">
+                        {{ $plan['billing_mode_description'] ?? '' }}
+                    </p>
 
                     <ul class="mt-6 space-y-3 text-sm text-slate-200">
                         @foreach ($plan['features'] as $feature)
@@ -180,6 +208,7 @@
             <div class="mt-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
                 <p class="font-semibold text-white">Plano atual</p>
                 <p class="mt-1">{{ $currentPlan['name'] }}</p>
+                <p class="mt-1 text-xs leading-6 text-slate-400">{{ $currentPlan['billing_mode_description'] ?? '' }}</p>
             </div>
 
             <div class="mt-6 flex flex-col gap-3">
@@ -362,5 +391,4 @@
         })();
     </script>
 </x-layouts.checkout>
-
 

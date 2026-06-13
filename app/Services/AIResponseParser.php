@@ -154,6 +154,7 @@ class AIResponseParser
             'update_subscription' => 'update_subscription',
             'cancel_subscription' => 'cancel_subscription',
             'create_recurring_transaction' => 'create_recurring_transaction',
+            'query_recurring_transactions' => 'query_recurring_transactions',
             'update_recurring_transaction' => 'update_recurring_transaction',
             'cancel_recurring_transaction' => 'cancel_recurring_transaction',
             'create_note' => 'create_note',

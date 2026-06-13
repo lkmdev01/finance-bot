@@ -19,9 +19,26 @@ class BillingPlanController extends Controller
 
     public function index(Request $request)
     {
+        $user = $request->user();
+        $currentPlan = $this->billingPlanService->userPlan($user);
+
+        $cancelableSubscription = AbacatePaySubscription::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('gateway_subscription_id')
+            ->whereNull('cancelled_at')
+            ->where(function ($query) {
+                $query
+                    ->whereNull('status')
+                    ->orWhereNotIn('status', ['CANCELLED', 'cancelled', 'CANCELED', 'canceled']);
+            })
+            ->latest('id')
+            ->first();
+
         return view('pages.billing.plans', [
             'plans' => $this->billingPlanService->all(),
-            'currentPlan' => $this->billingPlanService->userPlan($request->user()),
+            'currentPlan' => $currentPlan,
+            'cancelableSubscription' => $cancelableSubscription,
+            'checkoutReturned' => $request->query('checkout') === 'success',
         ]);
     }
 

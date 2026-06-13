@@ -393,3 +393,88 @@ test('webhook encaminha imagem em base64 com legenda para fila e salva a midia r
     expect($media?->kind)->toBe('image');
     expect($media?->original_name)->toContain('perfil-discord-6');
 });
+
+test('webhook envia orientacao mais clara quando numero nao esta vinculado a uma conta', function () {
+    Queue::fake();
+
+    config([
+        'whatsapp.baileys.webhook_secret' => 'test-secret',
+        'app.url' => 'https://finance.inovaforce.com.br',
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Seu numero ainda nao esta vinculado')
+                    && str_contains($message, 'https://finance.inovaforce.com.br/register')
+                    && str_contains($message, 'https://finance.inovaforce.com.br/login')
+                    && str_contains($message, 'salvar notas, lembretes e arquivos no Drive');
+            }))
+            ->andReturn(new Response(new Psr7Response(200, [], json_encode(['success' => true]))));
+    });
+
+    $response = $this->postJson(route('webhook.whatsapp'), [
+        'event' => 'messages.upsert',
+        'data' => [
+            'key' => [
+                'remoteJid' => '5511999999999@s.whatsapp.net',
+                'fromMe' => false,
+            ],
+            'message' => [
+                'messageType' => 'conversation',
+                'conversation' => 'Oi',
+            ],
+        ],
+        'secret' => 'test-secret',
+    ]);
+
+    $response->assertSuccessful();
+    $response->assertJson(['status' => 'no_user']);
+    Queue::assertNothingPushed();
+});
+
+test('webhook envia orientacao de ativacao quando usuario ainda nao validou o whatsapp', function () {
+    Queue::fake();
+
+    config([
+        'whatsapp.baileys.webhook_secret' => 'test-secret',
+        'app.url' => 'https://finance.inovaforce.com.br',
+    ]);
+
+    User::factory()->create([
+        'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => null,
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Seu numero ainda nao foi ativado')
+                    && str_contains($message, 'https://finance.inovaforce.com.br/login')
+                    && str_contains($message, 'https://finance.inovaforce.com.br/auth/whatsapp-activation')
+                    && str_contains($message, 'codigo que aparece na tela');
+            }))
+            ->andReturn(new Response(new Psr7Response(200, [], json_encode(['success' => true]))));
+    });
+
+    $response = $this->postJson(route('webhook.whatsapp'), [
+        'event' => 'messages.upsert',
+        'data' => [
+            'key' => [
+                'remoteJid' => '5511999999999@s.whatsapp.net',
+                'fromMe' => false,
+            ],
+            'message' => [
+                'messageType' => 'conversation',
+                'conversation' => 'Oi',
+            ],
+        ],
+        'secret' => 'test-secret',
+    ]);
+
+    $response->assertSuccessful();
+    $response->assertJson(['status' => 'activation_pending']);
+    Queue::assertNothingPushed();
+});

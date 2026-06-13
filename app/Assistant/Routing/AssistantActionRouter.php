@@ -150,6 +150,11 @@ class AssistantActionRouter
                 'update_recurring_transaction_details',
                 ['recurring_data' => $intent->data],
             ],
+            FinancialIntent::CANCEL_RECURRING_TRANSACTION => [
+                $this->recurringCancelMissingFieldReply($intent->missingFields),
+                'cancel_recurring_transaction_target',
+                ['recurring_data' => $intent->data],
+            ],
             default => [null, null, null],
         };
 
@@ -180,11 +185,17 @@ class AssistantActionRouter
     {
         return match ($intent->intent) {
             FinancialIntent::CREATE_EXPENSE,
-            FinancialIntent::CREATE_INCOME => [
-                'action' => 'create_transaction',
-                'reply' => $intent->raw['reply'] ?? 'Anotado.',
-                'transaction_data' => $intent->data,
-            ],
+            FinancialIntent::CREATE_INCOME => $intent->legacyKind === 'create_installment_transaction'
+                ? [
+                    'action' => 'create_installment_transaction',
+                    'reply' => $intent->raw['reply'] ?? 'Anotado.',
+                    'installment_data' => $intent->data,
+                ]
+                : [
+                    'action' => 'create_transaction',
+                    'reply' => $intent->raw['reply'] ?? 'Anotado.',
+                    'transaction_data' => $intent->data,
+                ],
             FinancialIntent::QUERY_BALANCE => [
                 'action' => 'query_balance',
                 'reply' => $intent->raw['reply'] ?? '',
@@ -241,6 +252,10 @@ class AssistantActionRouter
             ],
             FinancialIntent::QUERY_SUBSCRIPTIONS => [
                 'action' => 'query_subscriptions',
+                'reply' => $intent->raw['reply'] ?? '',
+            ],
+            FinancialIntent::QUERY_RECURRING_TRANSACTIONS => [
+                'action' => 'query_recurring_transactions',
                 'reply' => $intent->raw['reply'] ?? '',
             ],
             FinancialIntent::UPDATE_SUBSCRIPTION => [
@@ -377,6 +392,10 @@ class AssistantActionRouter
 
     private function subscriptionEditMissingFieldReply(array $missingFields): string
     {
+        if (in_array('name', $missingFields, true)) {
+            return "Qual assinatura voce quer editar?\n\nExemplos:\n- Netflix\n- Spotify";
+        }
+
         if (in_array('change', $missingFields, true)) {
             return "Entendi qual assinatura voce quer ajustar. Agora me diga o que mudar.\n\nExemplos:\n- 39,90 dia 10\n- anual\n- no cartao Nubank";
         }
@@ -395,6 +414,10 @@ class AssistantActionRouter
 
     private function recurringEditMissingFieldReply(array $missingFields): string
     {
+        if (in_array('description', $missingFields, true)) {
+            return "Qual recorrencia voce quer editar?\n\nExemplos:\n- aluguel\n- academia";
+        }
+
         if (in_array('change', $missingFields, true)) {
             return "Entendi qual recorrencia voce quer ajustar. Agora me diga o que mudar.\n\nExemplos:\n- para 99\n- dia 8\n- semanal";
         }
@@ -409,6 +432,15 @@ class AssistantActionRouter
         }
 
         return 'Me diga o que falta nessa recorrencia para eu concluir.';
+    }
+
+    private function recurringCancelMissingFieldReply(array $missingFields): string
+    {
+        if (in_array('description', $missingFields, true)) {
+            return "Qual recorrencia voce quer cancelar?\n\nExemplos:\n- aluguel\n- academia";
+        }
+
+        return 'Me diga qual recorrencia voce quer cancelar.';
     }
 
     private function noteEditMissingFieldReply(array $missingFields): string

@@ -39,7 +39,7 @@ class ResponseComposer
         return $base
             ."\n\nChecklist rapida ({$progress}):\n"
             .implode("\n", $lines)
-            ."\n\nSe quiser, me diga um passo e eu te guio com um exemplo.";
+            .$this->composeNextStepHint($checklist);
     }
 
     public function composeNeutralAcknowledgement(?string $lastAction = null, array $lastEntities = []): string
@@ -52,6 +52,48 @@ class ResponseComposer
             'query_projections' => 'Perfeito. Se quiser, eu posso abrir um mes especifico, olhar daqui a 3 meses ou comparar com seu saldo atual.',
             default => 'Perfeito. Se quiser, eu posso registrar um gasto, consultar seu saldo, olhar seus orcamentos ou gerar um relatorio.',
         };
+    }
+
+    public function composeHelp(User $user): string
+    {
+        $firstName = trim((string) explode(' ', trim($user->name))[0]);
+        $namePart = $firstName !== '' ? " {$firstName}" : '';
+
+        $message = "Posso te ajudar de varios jeitos{$namePart}:\n\n"
+            ."- registrar gasto: Gastei 42 no Uber\n"
+            ."- registrar receita: Recebi 1200 de freelance\n"
+            ."- consultar saldo: Qual e meu saldo?\n"
+            ."- ver gastos: Quais foram meus gastos hoje?\n"
+            ."- metas e assinaturas: Como estao minhas metas?\n"
+            ."- notas e lembretes: Anota isso / Me lembra amanha\n"
+            ."- Drive: Quais arquivos eu tenho no drive?\n\n"
+            ."Se quiser, me manda uma dessas frases que eu ja continuo.";
+
+        $checklist = app(OnboardingChecklistService::class)->checklist($user);
+
+        if (($checklist['completed'] ?? 0) < ($checklist['total'] ?? 3)) {
+            $message .= $this->composeNextStepHint($checklist, 'Para destravar melhor o painel');
+        }
+
+        return $message;
+    }
+
+    public function composeSmallTalk(User $user): string
+    {
+        $firstName = trim((string) explode(' ', trim($user->name))[0]);
+        $namePart = $firstName !== '' ? " {$firstName}" : '';
+
+        return "Estou bem{$namePart} e pronto para te ajudar.\n\n"
+            ."Se quiser, posso registrar um gasto, consultar seu saldo, olhar seus arquivos do Drive ou te mostrar o que eu consigo fazer.";
+    }
+
+    public function composeGratitude(User $user): string
+    {
+        $firstName = trim((string) explode(' ', trim($user->name))[0]);
+        $namePart = $firstName !== '' ? " {$firstName}" : '';
+
+        return "Sempre que precisar{$namePart}, estou por aqui.\n\n"
+            ."Posso continuar com financas, metas, assinaturas, notas, lembretes ou Drive.";
     }
 
     public function composePendingConfirmationPrompt(): string
@@ -80,5 +122,26 @@ class ResponseComposer
         }
 
         return 'Perfeito. Se quiser, eu posso consultar outra categoria, comparar com o mes passado ou te dizer qual orcamento esta mais apertado.';
+    }
+
+    private function composeNextStepHint(array $checklist, string $intro = 'Proximo passo recomendado'): string
+    {
+        $nextStep = $checklist['next_step'] ?? null;
+        if (! is_array($nextStep)) {
+            return "\n\nSe quiser, me diga um passo e eu te guio com um exemplo.";
+        }
+
+        $title = trim((string) ($nextStep['title'] ?? ''));
+        $example = trim((string) ($nextStep['example'] ?? ''));
+
+        $message = "\n\n{$intro}: {$title}.";
+
+        if ($example !== '') {
+            $message .= "\nExemplo: {$example}";
+        }
+
+        $message .= "\nSe quiser, me diga esse passo e eu te guio.";
+
+        return $message;
     }
 }

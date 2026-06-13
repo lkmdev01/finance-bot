@@ -71,6 +71,15 @@ class RecurringTransactionMessageParser
             || str_contains($message, 'meu ');
     }
 
+    public function looksLikeQueryIntent(string $message): bool
+    {
+        if ($this->containsAny($message, ['recorrencia', 'recorrencias', 'recorrente', 'recorrentes', 'fixo', 'fixos', 'fixa', 'fixas'])) {
+            return $this->containsAny($message, ['quais', 'listar', 'lista', 'mostra', 'mostrar', 'tenho', 'ativas', 'ativos', 'meus', 'minhas']);
+        }
+
+        return false;
+    }
+
     public function parseEdit(string $message, ?string $fallbackDescription = null): ?array
     {
         $normalized = $this->normalize($message);
@@ -125,7 +134,8 @@ class RecurringTransactionMessageParser
         $normalized = $this->normalize($message);
         $sanitized = $this->sanitizePatternInput($message);
 
-        $description = $this->extractRecurringName($sanitized, $pendingRecurring['description'] ?? null);
+        $description = $this->extractRecurringName($sanitized, $pendingRecurring['description'] ?? null)
+            ?? $this->cleanupTrailingContext($sanitized, null);
         $amount = $this->extractAmount($sanitized) ?? ($pendingRecurring['amount'] ?? null);
         $frequency = $this->extractFrequency($normalized) ?? ($pendingRecurring['frequency'] ?? null);
         $dayOfMonth = $this->extractDayOfMonth($sanitized, $normalized) ?? ($pendingRecurring['day_of_month'] ?? null);
@@ -170,7 +180,7 @@ class RecurringTransactionMessageParser
     {
         $patterns = [
             '/(?:r\$\s*)?(\d+(?:[\.,]\d{1,2})?)\s*(?:reais?|rs)\b/iu',
-            '/(?:de|por|valor(?:\\s+(?:e|=))?|o valor(?:\\s+(?:e|=))?)\\s+(?:r\\$\\s*)?(\\d+(?:[\\.,]\\d{1,2})?)/iu',
+            '/(?:de|por|valor(?:\\s+(?:e|=))?|o valor(?:\\s+(?:e|=))?)\s+(?:r\\$\\s*)?(\\d+(?:[\\.,]\\d{1,2})?)/iu',
         ];
 
         foreach ($patterns as $pattern) {
@@ -187,14 +197,13 @@ class RecurringTransactionMessageParser
             return null;
         }
 
-        // If the message only contains the day-of-month number (ex: "todo dia 5 pago academia"),
-        // do not treat that as a monetary amount.
         if ($hasDayOfMonthCue && count($matches[1]) < 2) {
             return null;
         }
 
         $raw = str_replace('.', '', end($matches[1]));
         $amount = (float) str_replace(',', '.', $raw);
+
         return $amount > 0 ? $amount : null;
     }
 
@@ -254,7 +263,7 @@ class RecurringTransactionMessageParser
 
     private function extractCategoryName(string $message): ?string
     {
-        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cart(?:a|ã)o|pela conta|pelo cart(?:a|ã)o|via conta|via cart(?:a|ã)o)|[,.]|$)/iu', $message, $matches) === 1) {
+        if (preg_match('/(?:categoria|na categoria)\s+(.+?)(?:\s+(?:na conta|no cart(?:a|ao)|pela conta|pelo cart(?:a|ao)|via conta|via cart(?:a|ao))|[,.]|$)/iu', $message, $matches) === 1) {
             $category = trim((string) ($matches[1] ?? ''));
             $category = $this->cleanupTrailingContext($category, null);
             return $category !== '' ? mb_convert_case($category, MB_CASE_TITLE, 'UTF-8') : null;
@@ -272,7 +281,7 @@ class RecurringTransactionMessageParser
             $bankAccountName = $this->cleanupTrailingContext(trim((string) ($matches[1] ?? '')), null);
         }
 
-        if (preg_match('/(?:no cart(?:a|ã)o|pelo cart(?:a|ã)o|via cart(?:a|ã)o)\s+(.+?)(?:\s+(?:categoria|mensal|semanal|todo dia|todo mes|cada mes|dia\s+\d{1,2})|[,.]|$)/iu', $message, $matches) === 1) {
+        if (preg_match('/(?:no cart(?:a|ao)|pelo cart(?:a|ao)|via cart(?:a|ao))\s+(.+?)(?:\s+(?:categoria|mensal|semanal|todo dia|todo mes|cada mes|dia\s+\d{1,2})|[,.]|$)/iu', $message, $matches) === 1) {
             $creditCardName = $this->cleanupTrailingContext(trim((string) ($matches[1] ?? '')), null);
         }
 
@@ -308,14 +317,14 @@ class RecurringTransactionMessageParser
 
     private function containsCancelVerb(string $message): bool
     {
-        return $this->containsAny($message, ['cancelar', 'cancela', 'desativar', 'desativa', 'parar', 'para', 'pausar', 'pausa']);
+        return $this->containsAny($message, ['cancelar', 'cancela', 'desativar', 'desativa', 'parar', 'pausar', 'pausa']);
     }
 
     private function cleanupTrailingContext(string $value, ?string $frequency): string
     {
         $value = trim($value, " \t\n\r\0\x0B-:");
-        $value = preg_replace('/^(?:um|uma|meu|minha)\s+/iu', '', $value) ?? $value;
-        $value = preg_replace('/\s+(?:na conta|no cart(?:a|ã)o|pela conta|pelo cart(?:a|ã)o|via conta|via cart(?:a|ã)o)\s+.+$/iu', '', $value) ?? $value;
+        $value = preg_replace('/^(?:um|uma|meu|minha|de|da|do|a|o)\s+/iu', '', $value) ?? $value;
+        $value = preg_replace('/\s+(?:na conta|no cart(?:a|ao)|pela conta|pelo cart(?:a|ao)|via conta|via cart(?:a|ao))\s+.+$/iu', '', $value) ?? $value;
         $value = preg_replace('/\s+(?:categoria|na categoria)\s+.+$/iu', '', $value) ?? $value;
         $value = preg_replace('/\b(?:mensal|semanal|todo dia|todo mes|todo ms|cada mes|cada ms|toda semana)\b/iu', '', $value) ?? $value;
         $value = preg_replace('/\bdia\s+\d{1,2}\b/iu', '', $value) ?? $value;

@@ -50,7 +50,7 @@ class SubscriptionMessageParser
 
         if (! isset($merged['billing_cycle']) && str_contains($normalized, 'anual')) {
             $merged['billing_cycle'] = 'yearly';
-        } elseif (! isset($merged['billing_cycle']) && str_contains($normalized, 'mensal')) {
+        } elseif (! isset($merged['billing_cycle']) && (str_contains($normalized, 'mensal') || str_contains($normalized, 'todo mes') || str_contains($normalized, 'cada mes'))) {
             $merged['billing_cycle'] = 'monthly';
         }
 
@@ -125,10 +125,20 @@ class SubscriptionMessageParser
 
     public function looksLikeCreateIntent(string $message): bool
     {
-        if (! str_contains($message, 'assinatura')
-            && ! str_contains($message, 'mensalidade')
-            && ! preg_match('/\b(minha|meu)\s+[\p{L}\p{N}].*\b(mensal|anual)\b/u', $message)
-        ) {
+        $hasExplicitCue = str_contains($message, 'assinatura')
+            || str_contains($message, 'mensalidade')
+            || str_contains($message, 'assino');
+
+        $hasBroadMonthlyShape = preg_match('/\b(minha|meu)\s+[\p{L}\p{N}].*\b(mensal|anual)\b/u', $message) === 1;
+
+        if (! $hasExplicitCue && ! $hasBroadMonthlyShape) {
+            return false;
+        }
+
+        // "minha internet e mensal, dia 12, 119 reais na conta Itau categoria Casa"
+        // should be treated as a recurring financial record, not a subscription.
+        if (! $hasExplicitCue
+            && preg_match('/\b(?:na conta|no cart(?:a|ao)|pela conta|pelo cart(?:a|ao)|via conta|via cart(?:a|ao)|categoria|dia\s+\d{1,2}|todo mes|cada mes|pago|pagar|gasto|gastar|recebo|receber|ganho|ganhar)\b/u', $message) === 1) {
             return false;
         }
 
@@ -139,6 +149,7 @@ class SubscriptionMessageParser
         }
 
         return preg_match('/\bassinatura\s+[\p{L}\p{N}]/u', $message) === 1
+            || preg_match('/\bassino\s+[\p{L}\p{N}]/u', $message) === 1
             || preg_match('/\b(minha|meu)\s+[\p{L}\p{N}].*\b(mensal|anual)\b/u', $message) === 1;
     }
 
@@ -150,7 +161,6 @@ class SubscriptionMessageParser
             return false;
         }
 
-        // If the user is clearly creating a new subscription, do not treat as edit.
         foreach (['criar', 'crie', 'nova', 'novo', 'definir', 'defina', 'cadastrar', 'cadastre'] as $keyword) {
             if (str_contains($message, $keyword)) {
                 return false;
@@ -234,25 +244,30 @@ class SubscriptionMessageParser
 
     private function extractName(string $message): ?string
     {
-        if (preg_match('/(?:minha|meu)\s+(.+?)\s+(?:e|é)\s+(?:mensal|anual)(?:\s+|,|$)/iu', $message, $matches)) {
-            $name = trim((string) ($matches[1] ?? ''));
-            $name = trim($name, " \t\n\r\0\x0B-:");
-
-            return $name !== '' ? mb_convert_case($name, MB_CASE_TITLE, 'UTF-8') : null;
+        if (preg_match('/(?:minha|meu)\s+(.+?)\s+(?:e|eh)\s+(?:mensal|anual)(?:\s+|,|$)/iu', $message, $matches)) {
+            return $this->cleanupName((string) ($matches[1] ?? ''));
         }
 
-        if (! preg_match('/(?:assinatura|mensalidade)\s+(.+?)(?:\s+(?:mensal|anual|dia\s+\d+|com|valor|r\$|\d|para)|[,.]|$)/iu', $message, $matches)) {
-            return null;
+        if (preg_match('/(?:assino|assinar)\s+(.+?)(?:\s+(?:por|valor|r\$|\d|todo\s+mes|cada\s+mes|mensal|anual|dia\s+\d+)|[,.]|$)/iu', $message, $matches)) {
+            return $this->cleanupName((string) ($matches[1] ?? ''));
         }
 
-        $name = trim((string) ($matches[1] ?? ''));
-        $name = trim($name, " \t\n\r\0\x0B-:");
-
-        if ($name === '') {
-            return null;
+        if (preg_match('/(?:assinatura|mensalidade)\s+(.+?)(?:\s+(?:mensal|anual|dia\s+\d+|com|valor|r\$|\d|para)|[,.]|$)/iu', $message, $matches) === 1) {
+            return $this->cleanupName((string) ($matches[1] ?? ''));
         }
 
-        return mb_convert_case($name, MB_CASE_TITLE, 'UTF-8');
+        if (preg_match('/^(?:a|o|da|do|de)?\s*([\p{L}\p{N}][\p{L}\p{N} _-]{1,80})$/u', trim($message), $simpleMatch) === 1) {
+            $candidate = trim((string) ($simpleMatch[1] ?? ''));
+            $normalized = $this->normalize($candidate);
+
+            if ($candidate !== ''
+                && count(array_filter(explode(' ', $candidate))) <= 4
+                && ! $this->containsReservedKeyword($normalized)) {
+                return $this->cleanupName($candidate);
+            }
+        }
+
+        return null;
     }
 
     private function extractAmount(string $message): ?float
@@ -278,11 +293,11 @@ class SubscriptionMessageParser
 
     private function extractBillingCycle(string $message): ?string
     {
-        if (str_contains($message, 'anual')) {
+        if (str_contains($message, 'anual') || str_contains($message, 'todo ano') || str_contains($message, 'cada ano')) {
             return 'yearly';
         }
 
-        if (str_contains($message, 'mensal')) {
+        if (str_contains($message, 'mensal') || str_contains($message, 'todo mes') || str_contains($message, 'cada mes')) {
             return 'monthly';
         }
 
@@ -315,11 +330,13 @@ class SubscriptionMessageParser
 
     private function extractCreditCardName(string $message): ?string
     {
-        if (preg_match('/(?:no cart(?:a[oã]))|(?:pelo cart(?:a[oã]))|(?:via cart(?:a[oã]))/iu', $message) !== 1) {
+        $normalized = $this->normalize($message);
+
+        if (preg_match('/(?:no cartao)|(?:pelo cartao)|(?:via cartao)/iu', $normalized) !== 1) {
             return null;
         }
 
-        if (preg_match('/(?:no cart(?:a[oã])|pelo cart(?:a[oã])|via cart(?:a[oã]))\s+(.+?)(?:\s+(?:dia\s+\d+|mensal|anual|com|valor|r\$|\d)|[,.]|$)/iu', $message, $matches) !== 1) {
+        if (preg_match('/(?:no cartao|pelo cartao|via cartao)\s+(.+?)(?:\s+(?:dia\s+\d+|mensal|anual|com|valor|r\$|\d)|[,.]|$)/iu', $normalized, $matches) !== 1) {
             return null;
         }
 
@@ -336,6 +353,30 @@ class SubscriptionMessageParser
         $value = trim((string) $value, " \t\n\r\0\x0B-:");
 
         return $value !== '' ? mb_convert_case($value, MB_CASE_TITLE, 'UTF-8') : null;
+    }
+
+    private function cleanupName(string $value): ?string
+    {
+        $value = trim($value);
+        $value = preg_replace('/^(?:a|o|da|do|de)\s+/iu', '', $value) ?? $value;
+        $value = trim((string) $value, " \t\n\r\0\x0B-:");
+
+        return $value !== '' ? mb_convert_case($value, MB_CASE_TITLE, 'UTF-8') : null;
+    }
+
+    private function containsReservedKeyword(string $message): bool
+    {
+        foreach ([
+            'mensal', 'anual', 'dia', 'valor', 'real', 'reais', 'assinatura', 'mensalidade',
+            'cancelar', 'cancela', 'editar', 'edita', 'mudar', 'muda', 'ajustar', 'ajusta',
+            'assino', 'assinar',
+        ] as $keyword) {
+            if (str_contains($message, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalize(string $value): string

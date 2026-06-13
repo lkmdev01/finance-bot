@@ -19,6 +19,21 @@ class ConversationContextResolver
         return null;
     }
 
+    public function recentEntityIds(array $state, string $topic, string $field): array
+    {
+        if (($state['last_entities']['topic'] ?? null) === $topic && ! empty($state['last_entities'][$field]) && is_array($state['last_entities'][$field])) {
+            return array_values($state['last_entities'][$field]);
+        }
+
+        foreach (($state['recent_contexts'] ?? []) as $context) {
+            if (($context['entities']['topic'] ?? null) === $topic && ! empty($context['entities'][$field]) && is_array($context['entities'][$field])) {
+                return array_values($context['entities'][$field]);
+            }
+        }
+
+        return [];
+    }
+
     public function recentBudgetPeriod(array $state): array
     {
         $entities = ($state['last_entities']['topic'] ?? null) === 'budget'

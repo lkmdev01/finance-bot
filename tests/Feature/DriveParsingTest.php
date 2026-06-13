@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Services\WhatsApp\DriveIntentClassifier;
 use App\Services\WhatsApp\DriveMessageParser;
+use App\Services\WhatsApp\DomainGate;
+use App\Services\WhatsApp\ReminderMessageParser;
 use Tests\TestCase;
 
 class DriveParsingTest extends TestCase
@@ -81,6 +83,20 @@ class DriveParsingTest extends TestCase
         $this->assertEquals('only_match', $onlyMatch['follow_up']);
     }
 
+    public function test_drive_context_accepts_only_match_as_a_valid_follow_up(): void
+    {
+        $parser = app(DriveMessageParser::class);
+        $classifier = app(DriveIntentClassifier::class);
+        $state = ['last_entities' => ['topic' => 'drive']];
+
+        $this->assertTrue($parser->looksLikeQueryIntent('so essa?', $state));
+
+        $result = $classifier->classify('so essa?', 'so essa', $state);
+
+        $this->assertNotNull($result);
+        $this->assertEquals('drive_query', $result['kind']);
+    }
+
     public function test_does_not_misclassify_savings_language_as_drive(): void
     {
         $classifier = app(DriveIntentClassifier::class);
@@ -90,5 +106,41 @@ class DriveParsingTest extends TestCase
         $result = $classifier->classify($message, strtolower($message), $state);
 
         $this->assertNull($result);
+    }
+
+    public function test_drive_context_does_not_turn_generic_messages_into_drive_queries(): void
+    {
+        $parser = app(DriveMessageParser::class);
+        $classifier = app(DriveIntentClassifier::class);
+        $domainGate = app(DomainGate::class);
+        $state = ['last_entities' => ['topic' => 'drive']];
+
+        $this->assertFalse($parser->looksLikeQueryIntent('bom dia', $state));
+        $this->assertFalse($parser->looksLikeQueryIntent('como voce pode me ajudar', $state));
+        $this->assertEquals('general', $domainGate->detect('como voce pode me ajudar', $state));
+        $this->assertNull($classifier->classify('como voce esta?', 'como voce esta', $state));
+    }
+
+    public function test_drive_context_accepts_tem_mais_fotos_as_a_valid_follow_up(): void
+    {
+        $parser = app(DriveMessageParser::class);
+        $classifier = app(DriveIntentClassifier::class);
+        $state = ['last_entities' => ['topic' => 'drive']];
+
+        $this->assertTrue($parser->looksLikeQueryIntent('tem mais fotos?', $state));
+
+        $result = $classifier->classify('tem mais fotos?', 'tem mais fotos', $state);
+
+        $this->assertNotNull($result);
+        $this->assertEquals('drive_query', $result['kind']);
+    }
+
+    public function test_drive_queries_with_today_are_not_misclassified_as_reminders(): void
+    {
+        $reminderParser = app(ReminderMessageParser::class);
+
+        $this->assertFalse($reminderParser->looksLikeCreateIntent('quais arquivos eu salvei hoje'));
+        $this->assertFalse($reminderParser->looksLikeCreateIntent('procura a foto que eu mandei hoje'));
+        $this->assertFalse($reminderParser->looksLikeCreateIntent('encontra o audio sobre o projeto'));
     }
 }

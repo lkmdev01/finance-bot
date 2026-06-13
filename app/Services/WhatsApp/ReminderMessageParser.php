@@ -12,12 +12,32 @@ class ReminderMessageParser
 
     public function looksLikeCreateIntent(string $normalizedMessage): bool
     {
-        return $this->containsAnyText($normalizedMessage, [
+        $looksLikeDriveQuery = $this->containsAnyText($normalizedMessage, [
+            'arquivo', 'arquivos', 'documento', 'documentos', 'comprovante', 'comprovantes',
+            'contrato', 'contratos', 'foto', 'fotos', 'imagem', 'imagens', 'audio', 'audios',
+            'áudio', 'áudios', 'pdf', 'drive',
+        ]) && $this->containsAnyText($normalizedMessage, [
+            'quais', 'tenho', 'salvei', 'mandei', 'procura', 'procurar', 'buscar', 'busca',
+            'encontra', 'encontrar', 'ache', 'acha', 'lista', 'listar', 'mostra', 'mostrar',
+        ]);
+
+        if ($looksLikeDriveQuery) {
+            return false;
+        }
+
+        $hasExplicitReminderCue = $this->containsAnyText($normalizedMessage, [
             'me lembra',
             'me lembre',
             'lembra de',
             'lembrar de',
             'lembrete',
+        ]);
+
+        if ($hasExplicitReminderCue) {
+            return true;
+        }
+
+        $hasScheduleCue = $this->containsAnyText($normalizedMessage, [
             'amanha',
             'hoje',
             'todo mes',
@@ -34,6 +54,38 @@ class ReminderMessageParser
             'diario',
             'diariamente',
         ]) || preg_match('/\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/', $normalizedMessage) === 1;
+
+        if (! $hasScheduleCue) {
+            return false;
+        }
+
+        if ($this->containsAnyText($normalizedMessage, [
+            'assino',
+            'assinatura',
+            'assinaturas',
+            'mensalidade',
+            'mensalidades',
+            'recorrencia',
+            'recorrencias',
+            'recorrente',
+        ])) {
+            return false;
+        }
+
+        $hasMoneyCue = $this->containsAnyText($normalizedMessage, ['r$', 'reais', 'real', 'valor', 'recebo', 'ganho']);
+
+        if (! $hasMoneyCue) {
+            $messageWithoutDueDay = preg_replace('/\bdia\s+\d{1,2}\b/iu', ' ', $normalizedMessage) ?? $normalizedMessage;
+            $hasMoneyCue = preg_match('/(?:^|\s)(?:r\$\s*)?\d{2,}(?:[\.,]\d{1,2})?(?:\s|$)/iu', $messageWithoutDueDay) === 1;
+        }
+
+        $hasRecurringScheduleCue = $this->containsAnyText($normalizedMessage, ['todo mes', 'cada mes', 'mensal', 'anual', 'semanal']);
+
+        if ($hasRecurringScheduleCue && $hasMoneyCue) {
+            return false;
+        }
+
+        return true;
     }
 
     public function parse(string $originalMessage): ?array
@@ -145,11 +197,7 @@ class ReminderMessageParser
     {
         $subject = preg_replace('/\b(?:editar|edita|alterar|altera|modificar|modifica|mudar|muda|apagar|apaga|apague|deletar|deleta|remover|remove|excluir|exclui|cancelar|cancela)\b/iu', ' ', $message) ?? $message;
         $subject = preg_replace('/\b(?:lembrete|lembretes|lembre)\b/iu', ' ', $subject) ?? $subject;
-
-        if (preg_match('/\b(?:para|pra)\b/iu', $subject, $matches, PREG_OFFSET_CAPTURE) === 1) {
-            $offset = (int) ($matches[0][1] ?? 0);
-            $subject = mb_substr($subject, 0, $offset);
-        }
+        $subject = preg_split('/\b(?:para|pra)\b/iu', $subject, 2)[0] ?? $subject;
 
         $subject = preg_replace('/\b(?:o|a|os|as|um|uma|minha|minhas|meu|meus|essa|esse|esta|este)\b/iu', ' ', $subject) ?? $subject;
         $subject = trim(preg_replace('/\s+/u', ' ', $subject) ?? $subject, " \t\n\r\0\x0B-:.,;");

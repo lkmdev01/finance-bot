@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
 use App\Services\BaileysService;
+use App\Services\WhatsApp\PlanningIntentClassifier;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -675,4 +676,26 @@ it('consulta projecoes e consegue abrir um horizonte especifico', function () {
         app(\App\Services\PhoneNumberService::class),
         app(\App\Services\PerformanceMetricsService::class)
     );
+});
+
+it('nao trata gratidao como follow up de assinatura', function () {
+    $classifier = app(PlanningIntentClassifier::class);
+
+    $result = $classifier->classify('obrigado', 'obrigado', [
+        'last_action' => 'query_subscriptions',
+        'last_entities' => ['topic' => 'subscriptions', 'subscription_name' => 'Netflix'],
+    ]);
+
+    expect($result)->toBeNull();
+});
+
+it('nao trata saudacao como follow up de meta', function () {
+    $classifier = app(PlanningIntentClassifier::class);
+
+    $result = $classifier->classify('bom dia', 'bom dia', [
+        'last_action' => 'query_savings',
+        'last_entities' => ['topic' => 'savings', 'goal_name' => 'Viagem'],
+    ]);
+
+    expect($result)->toBeNull();
 });

@@ -4,6 +4,66 @@ use App\Models\AbacatePaySubscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
+test('pagina de planos mostra retorno do checkout e modo de cobranca', function () {
+    config(['billing.plans.pro_monthly.checkout_flow' => 'subscription']);
+
+    $user = User::factory()->create([
+        'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
+    ]);
+
+    $response = $this->actingAs($user)
+        ->get(route('billing.plans', ['checkout' => 'success']));
+
+    $response->assertOk()
+        ->assertSee('Recebemos seu retorno do checkout')
+        ->assertSee('Renovacao automatica')
+        ->assertSee('Renova automaticamente todo mes no cartao');
+});
+
+test('pagina de planos nao exibe cancelar assinatura quando nao ha assinatura recorrente ativa', function () {
+    config(['billing.plans.pro_yearly.checkout_flow' => 'checkout']);
+
+    $user = User::factory()->create([
+        'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
+        'billing_plan_code' => 'pro_yearly',
+        'billing_plan_status' => 'active',
+        'billing_access_ends_at' => now()->addYear(),
+    ]);
+
+    $response = $this->actingAs($user)->get(route('billing.plans'));
+
+    $response->assertOk()
+        ->assertSee('nao esta vinculado a uma assinatura recorrente cancelavel por aqui', false);
+});
+
+test('pagina de planos exibe cancelar assinatura quando ha assinatura recorrente ativa', function () {
+    $user = User::factory()->create([
+        'phone_number' => '5511999999999',
+        'whatsapp_verified_at' => now(),
+        'billing_plan_code' => 'pro_monthly',
+        'billing_plan_status' => 'active',
+        'billing_access_ends_at' => now()->addMonth(),
+    ]);
+
+    AbacatePaySubscription::query()->create([
+        'user_id' => $user->id,
+        'plan_code' => 'pro_monthly',
+        'external_id' => 'plan_pro_monthly_'.$user->id.'_abc',
+        'gateway_subscription_id' => 'subs_abc123xyz',
+        'gateway_customer_id' => 'cust_abc123',
+        'status' => 'ACTIVE',
+        'frequency' => 'MONTHLY',
+    ]);
+
+    $response = $this->actingAs($user)->get(route('billing.plans'));
+
+    $response->assertOk()
+        ->assertSee('Cancelar assinatura')
+        ->assertSee('Cancelamento e imediato e irreversivel', false);
+});
+
 test('usuario pode iniciar checkout do plano pro apos confirmar dados', function () {
     $planPrice = config('billing.plans.pro_monthly.price_cents');
     config(['billing.plans.pro_monthly.product_id' => 'prod_pro_monthly_123']);
@@ -98,6 +158,8 @@ test('usuario sem cpf e redirecionado para a tela de confirmacao antes do checko
 });
 
 test('usuario sem numero cadastrado continua vendo a tela intermediaria', function () {
+    config(['billing.plans.pro_monthly.checkout_flow' => 'subscription']);
+
     $user = User::factory()->create([
         'email' => 'lukas@example.com',
         'name' => 'Lukas Martins',
@@ -109,7 +171,9 @@ test('usuario sem numero cadastrado continua vendo a tela intermediaria', functi
         ->get(route('billing.checkout-data.show', 'pro_monthly'));
 
     $response->assertOk()
-        ->assertSee('Configurar WhatsApp');
+        ->assertSee('Configurar WhatsApp')
+        ->assertSee('Renovacao automatica')
+        ->assertSee('Renova automaticamente todo mes no cartao');
 });
 
 test('checkout invisivel retorna erro json quando falta cpf', function () {
@@ -186,4 +250,3 @@ test('checkout invisivel aceita tax_id inline e retorna redirect_url em json', f
     expect($subscription)->not->toBeNull()
         ->and($subscription->checkout_url)->toBe('https://pay.abacatepay.com/checkout_123');
 });
-

@@ -21,6 +21,7 @@ enum FinancialIntent: string
     case UPDATE_SUBSCRIPTION = 'update_subscription';
     case CANCEL_SUBSCRIPTION = 'cancel_subscription';
     case CREATE_RECURRING_TRANSACTION = 'create_recurring_transaction';
+    case QUERY_RECURRING_TRANSACTIONS = 'query_recurring_transactions';
     case UPDATE_RECURRING_TRANSACTION = 'update_recurring_transaction';
     case CANCEL_RECURRING_TRANSACTION = 'cancel_recurring_transaction';
     case CREATE_NOTE = 'create_note';

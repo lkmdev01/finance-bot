@@ -40,6 +40,12 @@ class DriveMessageParser
             return false;
         }
 
+        if ($this->containsAnyText($normalizedMessage, [
+            'nota', 'notas', 'anota', 'anotar', 'lembrete', 'lembretes', 'me lembra', 'me lembre',
+        ])) {
+            return false;
+        }
+
         // Without media, only treat as a Drive save intent when the user explicitly mentions
         // Drive/file semantics. Avoid misclassifying "quero guardar 5 mil" (savings goal).
         $hasSaveVerb = $this->hasExplicitSaveCue($normalizedMessage);
@@ -90,7 +96,8 @@ class DriveMessageParser
 
     public function looksLikeQueryIntent(string $normalizedMessage, array $state): bool
     {
-        if (($state['last_entities']['topic'] ?? null) === 'drive') {
+        if (($state['last_entities']['topic'] ?? null) === 'drive'
+            && ($this->isListingIntent($normalizedMessage) || $this->isContextualFollowUp($normalizedMessage))) {
             return true;
         }
 
@@ -135,6 +142,8 @@ class DriveMessageParser
             'contrato',
             'foto',
             'imagem',
+            'audio',
+            'audios',
             'pdf',
             'boleto',
             'nota fiscal',
@@ -265,6 +274,21 @@ class DriveMessageParser
             'mostra esse arquivo',
             'procura ele de novo',
             'procura esse arquivo de novo',
+            'so essa',
+            'só essa',
+            'apenas essa',
+            'tem mais arquivo',
+            'tem mais arquivos',
+            'tem mais documento',
+            'tem mais documentos',
+            'tem mais foto',
+            'tem mais fotos',
+            'tem mais imagem',
+            'tem mais imagens',
+            'tem mais audio',
+            'tem mais audios',
+            'tem mais áudio',
+            'tem mais áudios',
             'abrir o ',
             'abre o ',
         ]);
