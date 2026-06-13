@@ -9,6 +9,7 @@ use App\Services\WhatsApp\BudgetConversationService;
 use App\Services\WhatsApp\ConversationStateService;
 use App\Services\WhatsApp\CreditCardConversationService;
 use App\Services\WhatsApp\ProjectionConversationService;
+use App\Services\WhatsApp\RecurringConversationService;
 use App\Services\WhatsApp\ReminderConversationService;
 use App\Services\WhatsApp\NotesConversationService;
 use App\Services\WhatsApp\DriveConversationService;
@@ -30,6 +31,7 @@ class QueryHandler extends BaseHandler
         'query_evolution',
         'query_projections',
         'query_subscriptions',
+        'query_recurring_transactions',
         'query_credit_cards',
         'query_reminders',
         'query_notes',
@@ -84,6 +86,7 @@ class QueryHandler extends BaseHandler
             'query_budgets' => $this->buildBudgetReplyData($user, $contact, $rawMessage),
             'query_savings' => $this->buildSavingsReplyData($user, $contact, $rawMessage),
             'query_subscriptions' => $this->buildSubscriptionReplyData($user, $contact, $rawMessage),
+            'query_recurring_transactions' => $this->buildRecurringReplyData($user, $contact, $rawMessage),
             'query_credit_cards' => $this->buildCreditCardReplyData($user, $contact, $rawMessage),
             'query_reminders' => $this->buildReminderReplyData($user, $contact, $rawMessage),
             'query_notes' => $this->buildNotesReplyData($user, $contact, $rawMessage),
@@ -133,6 +136,14 @@ class QueryHandler extends BaseHandler
         return [$data['reply'], $data['entities'] ?? []];
     }
 
+    private function buildRecurringReplyData(User $user, WhatsAppContact $contact, string $rawMessage): array
+    {
+        $state = app(ConversationStateService::class)->getState($contact);
+        $data = app(RecurringConversationService::class)->buildReply($user, $rawMessage, $state);
+
+        return [$data['reply'], $data['entities'] ?? []];
+    }
+
     private function buildCreditCardReplyData(User $user, WhatsAppContact $contact, string $rawMessage): array
     {
         $state = app(ConversationStateService::class)->getState($contact);
@@ -174,6 +185,7 @@ class QueryHandler extends BaseHandler
             'query_transactions' => ['topic' => 'transactions'],
             'query_savings' => ['topic' => 'savings'],
             'query_subscriptions' => ['topic' => 'subscriptions'],
+            'query_recurring_transactions' => ['topic' => 'recurring_transactions'],
             'query_credit_cards' => ['topic' => 'credit_cards'],
             'query_reminders' => ['topic' => 'reminders'],
             'query_notes' => ['topic' => 'notes'],

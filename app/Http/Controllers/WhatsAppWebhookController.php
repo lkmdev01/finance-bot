@@ -142,7 +142,7 @@ class WhatsAppWebhookController extends Controller
                 $this->sendReply(
                     $key,
                     $phoneNumber,
-                    'Seu número ainda não foi ativado no InovaFinance. Envie o código que aparece na sua tela de ativação para concluir a conexão.'
+                    $this->buildActivationPendingMessage()
                 );
 
                 return response()->json([
@@ -203,6 +203,13 @@ class WhatsAppWebhookController extends Controller
 
             if ($messageType === 'audioMessage' && $audioBase64) {
                 $transcription = $this->audioTranscriptionService->transcribeBase64($audioBase64, $audioMimeType) ?? '';
+
+                if (trim($transcription) === '') {
+                    $this->sendReply($key, $phoneNumber, 'Nao consegui transcrever sua mensagem de voz. Pode me enviar em texto?');
+
+                    return response()->json(['status' => 'audio_transcription_failed']);
+                }
+
                 $text = $transcription;
 
                 $incomingMedia = $this->whatsAppIncomingMediaService->storeFromAudioBase64($user, $phoneNumber, $audioBase64, $audioMimeType, [
@@ -332,13 +339,7 @@ class WhatsAppWebhookController extends Controller
             'pushName' => $pushName,
         ]);
 
-        $appUrl = config('app.url');
-        $registerUrl = $appUrl.'/register';
-        $message = "Olá! Seu número ainda não está vinculado a uma conta do InovaFinance.\n\n".
-            "Para eu começar a cuidar das suas finanças:\n\n".
-            "1. Crie sua conta em: {$registerUrl}\n".
-            "2. Conclua a ativação do WhatsApp no próprio cadastro\n\n".
-            'Depois disso, basta me enviar seus gastos ou ganhos.';
+        $message = $this->buildNoUserMessage();
 
         $this->sendReply($key, $phoneNumber, $message);
 
@@ -452,5 +453,36 @@ class WhatsAppWebhookController extends Controller
         }
 
         return User::whereRaw('LOWER(name) LIKE ?', ['%'.strtolower($pushName).'%'])->first();
+    }
+
+    private function buildNoUserMessage(): string
+    {
+        $appUrl = rtrim((string) config('app.url'), '/');
+        $registerUrl = $appUrl.'/register';
+        $loginUrl = $appUrl.'/login';
+
+        return "Ola! Seu numero ainda nao esta vinculado a uma conta do InovaFinance.\n\n"
+            ."Para eu comecar a te ajudar pelo WhatsApp:\n"
+            ."1. Crie sua conta em {$registerUrl}\n"
+            ."2. Se ja tiver conta, entre em {$loginUrl}\n"
+            ."3. Ative seu WhatsApp dentro do painel\n\n"
+            ."Assim que terminar, eu posso:\n"
+            ."- registrar gastos e receitas\n"
+            ."- consultar saldo\n"
+            ."- salvar notas, lembretes e arquivos no Drive";
+    }
+
+    private function buildActivationPendingMessage(): string
+    {
+        $appUrl = rtrim((string) config('app.url'), '/');
+        $activationUrl = $appUrl.'/auth/whatsapp-activation';
+        $loginUrl = $appUrl.'/login';
+
+        return "Seu numero ainda nao foi ativado no InovaFinance.\n\n"
+            ."Para concluir:\n"
+            ."1. Entre em {$loginUrl}\n"
+            ."2. Abra {$activationUrl}\n"
+            ."3. Envie no WhatsApp o codigo que aparece na tela\n\n"
+            ."Depois disso, eu ja consigo responder e registrar suas informacoes normalmente.";
     }
 }

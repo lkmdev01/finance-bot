@@ -27,6 +27,18 @@ class MessageClassifier
             return ['kind' => 'greeting', 'normalized' => $stripped];
         }
 
+        if ($this->isHelp($stripped)) {
+            return ['kind' => 'help', 'normalized' => $stripped];
+        }
+
+        if ($this->isSmallTalk($stripped)) {
+            return ['kind' => 'small_talk', 'normalized' => $stripped];
+        }
+
+        if ($this->isGratitude($stripped)) {
+            return ['kind' => 'gratitude', 'normalized' => $stripped];
+        }
+
         if ($this->isUndo($stripped)) {
             return ['kind' => 'undo', 'normalized' => $stripped];
         }
@@ -67,11 +79,11 @@ class MessageClassifier
             'planning' => [$this->planningIntentClassifier],
             'budget' => [$this->budgetIntentClassifier],
             default => [
+                $this->planningIntentClassifier,
+                $this->transactionIntentClassifier,
+                $this->noteIntentClassifier,
                 $this->reminderIntentClassifier,
                 $this->driveIntentClassifier,
-                $this->noteIntentClassifier,
-                $this->transactionIntentClassifier,
-                $this->planningIntentClassifier,
                 $this->budgetIntentClassifier,
             ],
         };
@@ -85,6 +97,69 @@ class MessageClassifier
     private function isShortAcknowledgement(string $message): bool
     {
         return in_array($message, ['ok', 'okay', 'blz', 'beleza', 'certo', 'sim', 'claro', 'pode', 'pode sim', 'perfeito', 'entendi', 'isso'], true);
+    }
+
+    private function isHelp(string $message): bool
+    {
+        foreach ([
+            'ajuda',
+            'me ajuda',
+            'como voce pode me ajudar',
+            'como vc pode me ajudar',
+            'como pode me ajudar',
+            'o que voce faz',
+            'o que vc faz',
+            'o que voce pode fazer',
+            'o que vc pode fazer',
+            'quais comandos voce entende',
+            'como funciona',
+        ] as $phrase) {
+            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isSmallTalk(string $message): bool
+    {
+        foreach ([
+            'como voce esta',
+            'como vc esta',
+            'como vai',
+            'tudo bem',
+            'ta ai',
+            'esta ai',
+        ] as $phrase) {
+            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isGratitude(string $message): bool
+    {
+        foreach ([
+            'obrigado',
+            'obrigada',
+            'obrigado viu',
+            'obrigada viu',
+            'valeu',
+            'valeu mesmo',
+            'show',
+            'top',
+            'perfeito obrigado',
+            'perfeito obrigada',
+        ] as $phrase) {
+            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isCancellation(string $message): bool

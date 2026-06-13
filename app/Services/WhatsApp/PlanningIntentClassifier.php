@@ -111,7 +111,7 @@ class PlanningIntentClassifier
             : null;
 
         if ($this->subscriptionMessageParser->looksLikeEditIntent($normalizedMessage)) {
-            return $this->subscriptionMessageParser->parseEdit($originalMessage, $fallbackName) !== null || $fallbackName !== null;
+            return true;
         }
 
         if (($state['last_entities']['topic'] ?? null) !== 'subscriptions') {
@@ -132,10 +132,7 @@ class PlanningIntentClassifier
             : null;
 
         if ($this->subscriptionMessageParser->looksLikeCancelIntent($normalizedMessage)) {
-            return $this->subscriptionMessageParser->parseCancel($originalMessage, $fallbackName) !== null
-                || str_contains($normalizedMessage, 'assinatura')
-                || str_contains($normalizedMessage, 'mensalidade')
-                || $fallbackName !== null;
+            return true;
         }
 
         if (($state['last_entities']['topic'] ?? null) !== 'subscriptions') {
@@ -223,12 +220,65 @@ class PlanningIntentClassifier
 
     private function looksLikeNamedFollowUp(string $message): bool
     {
-        if (! preg_match('/^(?:e\s+)?(?:o|a|os|as)?\s*([\p{L}\p{N} _-]+)$/u', $message, $matches)) {
+        if (! preg_match('/^(?:e\s+)?(?:(?:o|a|os|as)\s+)?([\p{L}\p{N} _-]+)$/u', $message, $matches)) {
             return false;
         }
 
         $term = trim($matches[1] ?? '');
 
-        return $term !== '' && count(array_filter(explode(' ', $term))) <= 4;
+        if ($term === '' || $this->isGenericContextPhrase($term)) {
+            return false;
+        }
+
+        $tokens = array_values(array_filter(preg_split('/\s+/u', $term) ?: []));
+        if ($tokens === [] || count($tokens) > 4) {
+            return false;
+        }
+
+        $filtered = array_values(array_filter($tokens, fn (string $token) => ! in_array($token, [
+            'o', 'a', 'os', 'as', 'um', 'uma',
+            'meu', 'minha', 'meus', 'minhas',
+            'esse', 'essa', 'esses', 'essas',
+            'este', 'esta', 'estes', 'estas',
+            'isso', 'isto', 'ele', 'ela', 'eles', 'elas',
+            'so', 'só', 'aqui', 'ali', 'la', 'lá',
+        ], true)));
+
+        if ($filtered === []) {
+            return false;
+        }
+
+        foreach ($filtered as $token) {
+            if (mb_strlen($token) >= 4) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isGenericContextPhrase(string $message): bool
+    {
+        return in_array($message, [
+            'oi',
+            'ola',
+            'bom dia',
+            'boa tarde',
+            'boa noite',
+            'como voce esta',
+            'como vc esta',
+            'como vai',
+            'tudo bem',
+            'obrigado',
+            'obrigada',
+            'valeu',
+            'show',
+            'top',
+            'ajuda',
+            'como funciona',
+            'como voce pode me ajudar',
+            'como vc pode me ajudar',
+            'como pode me ajudar',
+        ], true);
     }
 }

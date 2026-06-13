@@ -27,6 +27,9 @@
                     <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Plano</p>
                     <p class="mt-2 text-xl font-black text-white">{{ $plan['name'] }}</p>
                     <p class="mt-1">{{ $plan['formatted_price'] }}</p>
+                    <p class="mt-2 text-xs leading-6 text-slate-400">
+                        {{ $plan['billing_mode_label'] ?? 'Pagamento unico' }} • {{ $plan['billing_mode_description'] ?? '' }}
+                    </p>
                 </div>
             </div>
         </section>
@@ -71,6 +74,9 @@
                     <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
                         <p class="font-medium text-white">Resumo</p>
                         <p class="mt-1">Ao continuar, vamos abrir o checkout da AbacatePay em uma nova pagina para concluir o pagamento e liberar o acesso do periodo escolhido.</p>
+                        <p class="mt-2 text-xs leading-6 text-slate-400">
+                            {{ $plan['billing_mode_description'] ?? '' }}
+                        </p>
                     </div>
 
                     <div class="flex flex-col gap-3">

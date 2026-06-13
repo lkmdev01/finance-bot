@@ -67,7 +67,8 @@ class NoteIntentClassifier
         }
 
         return ($state['last_action'] ?? null) === 'query_notes'
-            && ! $this->containsAnyText($normalizedMessage, ['orcamento', 'gasto', 'receita', 'saldo', 'meta', 'assinatura', 'lembrete']);
+            && ! $this->containsAnyText($normalizedMessage, ['orcamento', 'gasto', 'receita', 'saldo', 'meta', 'assinatura', 'lembrete'])
+            && $this->noteMessageParser->looksLikeContextualQueryFollowUp($normalizedMessage);
     }
 
     private function looksLikeNoteDelete(string $normalizedMessage, array $state): bool

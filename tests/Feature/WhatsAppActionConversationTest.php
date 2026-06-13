@@ -768,6 +768,62 @@ it('registra log estruturado da conversa', function () {
     expect(WhatsAppConversationLog::query()->latest()->first())->not->toBeNull();
 });
 
+it('nao deixa contexto de drive capturar saudacao e pedido de ajuda', function () {
+    Http::preventStrayRequests();
+
+    currentTestCase()->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_drive_files',
+            'last_entities' => [
+                'topic' => 'drive',
+                'recent_drive_file_ids' => [1],
+            ],
+        ],
+    ]);
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->twice()
+            ->with(\Mockery::type('string'), \Mockery::type('string'))
+            ->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    $greeting = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Bom dia',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($greeting);
+
+    $help = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Como voce pode me ajudar',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+    runWhatsAppJob($help);
+
+    $logs = WhatsAppConversationLog::query()
+        ->where('user_id', currentTestCase()->user->id)
+        ->latest('id')
+        ->take(2)
+        ->get()
+        ->values();
+
+    expect($logs[0]->classification)->toBe('help')
+        ->and($logs[0]->reply)->toContain('Posso te ajudar de varios jeitos')
+        ->and($logs[0]->reply)->toContain('Para destravar melhor o painel')
+        ->and($logs[0]->reply)->toContain('Registrar sua primeira transacao')
+        ->and($logs[1]->classification)->toBe('greeting');
+
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['last_entities']['topic'] ?? null)->toBe('general');
+});
+
 it('cria lembrete mensal quando a mensagem nao informa valor', function () {
     Http::preventStrayRequests();
 
@@ -1222,12 +1278,13 @@ it('edita um lembrete pelo nome e atualiza horarios e frequencia', function () {
     );
     runWhatsAppJob($job);
 
-    assertDatabaseHas('reminders', [
-        'id' => $reminder->id,
-        'title' => 'Tomar Água',
-        'next_trigger_at' => Carbon::parse('2026-05-25 15:00:00')->format('Y-m-d H:i:s'),
-        'trigger_time' => '15:00:00',
-    ]);
+    $reminder->refresh();
+
+    expect($reminder->title)->toBe('Tomar Água');
+    expect($reminder->trigger_time)->toBe('15:00:00');
+    expect($reminder->frequency)->toBe('once');
+    expect($reminder->next_trigger_at?->copy()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s'))
+        ->toBe(Carbon::parse('2026-05-25 15:00:00', config('app.timezone'))->format('Y-m-d H:i:s'));
 });
 
 it('solicita clarificacao de cartao e registra com cartao padrao', function () {
@@ -1428,3 +1485,4 @@ it('usa conta caixa quando nao informa fonte em debito', function () {
         'bank_account_id' => BankAccount::where('user_id', currentTestCase()->user->id)->where('type', 'cash')->first()->id,
     ]);
 });
+

@@ -78,11 +78,11 @@ class EditReminderHandler extends BaseHandler
 
             if (! empty($parsed['frequency'])) {
                 $updates['frequency'] = $parsed['frequency'];
-                $updates['day_of_week'] = $parsed['day_of_week'];
-                $updates['day_of_month'] = $parsed['day_of_month'];
-                $updates['month_of_year'] = $parsed['month_of_year'];
-                $updates['next_trigger_at'] = $parsed['next_trigger_at'];
-                $updates['trigger_time'] = $parsed['trigger_time'];
+                $updates['day_of_week'] = $parsed['day_of_week'] ?? null;
+                $updates['day_of_month'] = $parsed['day_of_month'] ?? null;
+                $updates['month_of_year'] = $parsed['month_of_year'] ?? null;
+                $updates['next_trigger_at'] = $parsed['next_trigger_at'] ?? null;
+                $updates['trigger_time'] = $parsed['trigger_time'] ?? null;
             }
 
             if (isset($parsed['trigger_time']) && $parsed['trigger_time'] !== $reminder->trigger_time) {

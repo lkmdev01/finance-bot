@@ -18,6 +18,10 @@ class TransactionIntentClassifier
 
     public function classify(string $originalMessage, string $normalizedMessage, array $state): ?array
     {
+        if ($this->looksLikeRecurringTransactionQuery($normalizedMessage, $state)) {
+            return ['kind' => 'recurring_transaction_query', 'normalized' => $normalizedMessage];
+        }
+
         if ($this->looksLikeRecurringTransactionEdit($originalMessage, $normalizedMessage, $state)) {
             return ['kind' => 'recurring_transaction_edit', 'normalized' => $normalizedMessage];
         }
@@ -159,9 +163,13 @@ class TransactionIntentClassifier
     {
         $partial = $this->recurringTransactionMessageParser->parsePartialCreate($originalMessage);
 
+        $looksLikeReminderStyle = preg_match('/\b(pagar|gastar|receber|ganhar)\b/u', $normalizedMessage) === 1
+            && preg_match('/\b(pago|gasto|recebo|ganho|debito|debitar)\b/u', $normalizedMessage) !== 1;
+
         return $this->recurringTransactionMessageParser->looksLikeCreateIntent($normalizedMessage)
             && $partial !== null
-            && ! array_key_exists('amount', $partial);
+            && ! array_key_exists('amount', $partial)
+            && ! $looksLikeReminderStyle;
     }
 
     private function looksLikeRecurringTransactionEdit(string $originalMessage, string $normalizedMessage, array $state): bool
@@ -171,6 +179,11 @@ class TransactionIntentClassifier
             : null;
 
         if ($this->recurringTransactionMessageParser->parseEdit($originalMessage, $fallback) !== null) {
+            return true;
+        }
+
+        if ($this->containsAnyText($normalizedMessage, ['editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza'])
+            && $this->containsAnyText($normalizedMessage, ['recorrencia', 'recorrencias', 'recorrente', 'recorrentes'])) {
             return true;
         }
 
@@ -187,7 +200,22 @@ class TransactionIntentClassifier
             return true;
         }
 
-        return $fallback !== null && $this->containsAnyText($normalizedMessage, ['cancelar', 'cancela', 'desativar', 'desativa', 'parar', 'para', 'pausar', 'pausa']);
+        if ($this->containsAnyText($normalizedMessage, ['cancelar', 'cancela', 'desativar', 'desativa', 'parar', 'pausar', 'pausa'])
+            && $this->containsAnyText($normalizedMessage, ['recorrencia', 'recorrencias', 'recorrente', 'recorrentes'])) {
+            return true;
+        }
+
+        return $fallback !== null && $this->containsAnyText($normalizedMessage, ['cancelar', 'cancela', 'desativar', 'desativa', 'parar', 'pausar', 'pausa']);
+    }
+
+    private function looksLikeRecurringTransactionQuery(string $normalizedMessage, array $state): bool
+    {
+        if ($this->recurringTransactionMessageParser->looksLikeQueryIntent($normalizedMessage)) {
+            return true;
+        }
+
+        return ($state['last_action'] ?? null) === 'query_recurring_transactions'
+            && $this->containsAnyText($normalizedMessage, ['ativas', 'ativos', 'tem mais', 'me mostra', 'mostra', 'listar', 'lista']);
     }
 
     private function looksLikeInstallmentTransactionCreate(string $originalMessage, string $normalizedMessage): bool

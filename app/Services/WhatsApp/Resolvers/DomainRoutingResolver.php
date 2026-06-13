@@ -81,6 +81,7 @@ class DomainRoutingResolver
             'note_query' => $this->queryResult('query_notes', $message),
             'reminder_query' => $this->queryResult('query_reminders', $message),
             'subscription_query' => $this->queryResult('query_subscriptions', $message),
+            'recurring_transaction_query' => $this->queryResult('query_recurring_transactions', $message),
             'credit_card_query' => $this->queryResult('query_credit_cards', $message),
             'projection_query' => $this->queryResult('query_projections', $message),
             'reminder_create' => $this->actionResult(

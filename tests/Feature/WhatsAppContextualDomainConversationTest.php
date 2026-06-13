@@ -266,3 +266,72 @@ it('permite cancelar uma pendencia de salvar no drive', function () {
     $this->contact->refresh();
     expect($this->contact->conversation_state['pending_intent'] ?? null)->toBeNull();
 });
+
+it('limpa contexto de notas quando recebe gratidao', function () {
+    Http::preventStrayRequests();
+
+    $note = Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'Projeto Alpha',
+        'body' => 'Texto antigo',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_notes',
+            'last_entities' => [
+                'topic' => 'notes',
+                'note_id' => $note->id,
+                'note_title' => $note->title,
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeContextualDomainBaileysSuccessResponse());
+    });
+
+    runContextualDomainJob(new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'obrigado',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    ));
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['last_entities']['topic'] ?? null)->toBe('general');
+});
+
+it('limpa contexto de planejamento quando recebe pedido de ajuda', function () {
+    Http::preventStrayRequests();
+
+    $this->contact->update([
+        'conversation_state' => [
+            'mode' => 'idle',
+            'last_action' => 'query_subscriptions',
+            'last_entities' => [
+                'topic' => 'subscriptions',
+                'subscription_name' => 'Netflix',
+            ],
+        ],
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')->once()->andReturn(fakeContextualDomainBaileysSuccessResponse());
+    });
+
+    runContextualDomainJob(new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'como voce pode me ajudar',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    ));
+
+    $this->contact->refresh();
+    expect($this->contact->conversation_state['last_entities']['topic'] ?? null)->toBe('general');
+});

@@ -22,8 +22,18 @@ return [
         'expected_domain' => 'planning',
     ],
     [
+        'message' => 'assino netflix por 39,90 todo mes',
+        'expected_intent' => 'create_subscription',
+        'expected_domain' => 'planning',
+    ],
+    [
         'message' => 'todo dia 5 pago academia 89',
         'expected_intent' => 'create_recurring_transaction',
+        'expected_domain' => 'transaction',
+    ],
+    [
+        'message' => 'quais recorrencias eu tenho?',
+        'expected_intent' => 'query_recurring_transactions',
         'expected_domain' => 'transaction',
     ],
     [

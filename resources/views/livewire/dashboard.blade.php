@@ -997,6 +997,7 @@ new class extends Component
 	    <div class="relative px-2 py-4 sm:p-6 space-y-6">
 	        @php
 	            $onboardingChecklist = app(\App\Services\Onboarding\OnboardingChecklistService::class)->checklist(auth()->user());
+                $nextOnboardingStep = $onboardingChecklist['next_step'] ?? null;
 	        @endphp
 	        @if(($onboardingChecklist['completed'] ?? 0) < ($onboardingChecklist['total'] ?? 3))
 	            <section class="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5 text-emerald-950 shadow-sm dark:border-emerald-400/15 dark:bg-emerald-400/5 dark:text-emerald-50">
@@ -1020,6 +1021,35 @@ new class extends Component
 	                        </a>
 	                    @endif
 	                </div>
+
+                    @if(is_array($nextOnboardingStep))
+                        <div class="mt-4 rounded-2xl border border-emerald-500/15 bg-white/70 p-4 dark:border-white/10 dark:bg-slate-950/40">
+                            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div>
+                                    <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-200">
+                                        Proximo passo recomendado
+                                    </p>
+                                    <p class="mt-2 text-base font-semibold text-emerald-950 dark:text-emerald-50">
+                                        {{ $nextOnboardingStep['title'] ?? '' }}
+                                    </p>
+                                    <p class="mt-1 text-sm leading-6 text-emerald-900/90 dark:text-emerald-100/80">
+                                        {{ $nextOnboardingStep['hint'] ?? '' }}
+                                    </p>
+                                    @if(! empty($nextOnboardingStep['example']))
+                                        <p class="mt-3 inline-flex rounded-xl border border-emerald-500/10 bg-emerald-500/10 px-3 py-2 font-mono text-xs text-emerald-900 dark:border-white/10 dark:bg-white/5 dark:text-emerald-100">
+                                            {{ $nextOnboardingStep['example'] }}
+                                        </p>
+                                    @endif
+                                </div>
+
+                                @if(! empty($nextOnboardingStep['url']))
+                                    <a href="{{ $nextOnboardingStep['url'] }}" class="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500">
+                                        Fazer agora
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
 
 	                <div class="mt-4 grid gap-3 sm:grid-cols-3">
 	                    @foreach(($onboardingChecklist['steps'] ?? []) as $step)

@@ -34,9 +34,10 @@ class ClarificationResolver
             'create_savings_goal_details' => in_array($classification, ['default', 'savings_create', 'savings_needs_details'], true),
             'create_subscription_details' => in_array($classification, ['default', 'subscription_create', 'subscription_needs_details'], true),
             'update_savings_goal_details' => in_array($classification, ['default', 'savings_edit', 'savings_edit_needs_change'], true),
-            'update_subscription_details' => in_array($classification, ['default', 'subscription_edit', 'subscription_edit_needs_change'], true),
+            'update_subscription_details' => in_array($classification, ['default', 'subscription_edit', 'subscription_edit_needs_change', 'subscription_edit_needs_target'], true),
             'cancel_subscription_target' => in_array($classification, ['default', 'subscription_cancel', 'subscription_cancel_needs_target'], true),
-            'update_recurring_transaction_details' => in_array($classification, ['default', 'recurring_transaction_edit', 'recurring_transaction_edit_needs_change'], true),
+            'update_recurring_transaction_details' => in_array($classification, ['default', 'recurring_transaction_edit', 'recurring_transaction_edit_needs_change', 'recurring_transaction_edit_needs_target'], true),
+            'cancel_recurring_transaction_target' => in_array($classification, ['default', 'recurring_transaction_delete', 'recurring_transaction_delete_needs_target'], true),
             'edit_transaction_details' => in_array($classification, ['default', 'transaction_edit'], true),
             'split_transaction_details' => in_array($classification, ['default', 'transaction_split'], true),
             'create_recurring_transaction_amount' => in_array($classification, ['default', 'transaction_create'], true),
@@ -63,6 +64,7 @@ class ClarificationResolver
             'update_subscription_details' => $this->buildUpdateSubscriptionClarificationResult($message, $state),
             'cancel_subscription_target' => $this->buildCancelSubscriptionClarificationResult($message, $state),
             'update_recurring_transaction_details' => $this->buildUpdateRecurringClarificationResult($message, $state),
+            'cancel_recurring_transaction_target' => $this->buildCancelRecurringClarificationResult($message, $state),
             'edit_transaction_details' => $this->buildTransactionEditClarificationResult($message, $state),
             'split_transaction_details' => $this->buildTransactionSplitClarificationResult($message, $state),
             'create_recurring_transaction_amount' => $this->buildRecurringAmountClarificationResult($message, $state),
@@ -392,6 +394,30 @@ class ClarificationResolver
             'result' => [
                 'reply' => '',
                 'action' => 'update_recurring_transaction',
+                'recurring_data' => $recurringData,
+                '_resolved_message' => $message,
+                '_conversation_metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'action',
+                ],
+            ],
+        ];
+    }
+
+    private function buildCancelRecurringClarificationResult(string $message, array $state): ?array
+    {
+        $pending = $state['pending_payload']['recurring_data'] ?? [];
+        $recurringData = $this->recurringTransactionMessageParser->parseCancelFollowUp($message, $pending);
+
+        if ($recurringData === null || empty($recurringData['description'])) {
+            return null;
+        }
+
+        return [
+            'handled' => false,
+            'result' => [
+                'reply' => '',
+                'action' => 'cancel_recurring_transaction',
                 'recurring_data' => $recurringData,
                 '_resolved_message' => $message,
                 '_conversation_metadata' => [

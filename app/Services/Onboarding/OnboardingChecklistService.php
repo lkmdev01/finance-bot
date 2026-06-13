@@ -10,7 +10,8 @@ class OnboardingChecklistService
      * @return array{
      *   total: int,
      *   completed: int,
-     *   steps: array<int, array{key: string, title: string, done: bool, hint: string, example: string|null, url: string|null}>
+     *   steps: array<int, array{key: string, title: string, done: bool, hint: string, example: string|null, url: string|null}>,
+     *   next_step: array{key: string, title: string, done: bool, hint: string, example: string|null, url: string|null}|null
      * }
      */
     public function checklist(User $user): array
@@ -48,12 +49,13 @@ class OnboardingChecklistService
         ];
 
         $completed = count(array_filter($steps, fn ($step) => (bool) ($step['done'] ?? false)));
+        $nextStep = collect($steps)->first(fn (array $step) => ! ($step['done'] ?? false));
 
         return [
             'total' => count($steps),
             'completed' => $completed,
             'steps' => $steps,
+            'next_step' => $nextStep,
         ];
     }
 }
-

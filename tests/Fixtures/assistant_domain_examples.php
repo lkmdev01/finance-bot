@@ -18,7 +18,17 @@ return [
         'expected_domain' => 'notes',
     ],
     [
+        'message' => 'salvar nota: revisar contrato com fornecedor',
+        'expected_intent' => 'create_note',
+        'expected_domain' => 'notes',
+    ],
+    [
         'message' => 'me lembra de pagar a academia todo dia 5',
+        'expected_intent' => 'create_reminder',
+        'expected_domain' => 'reminders',
+    ],
+    [
+        'message' => 'me lembra de pagar a internet amanha as 9',
         'expected_intent' => 'create_reminder',
         'expected_domain' => 'reminders',
     ],

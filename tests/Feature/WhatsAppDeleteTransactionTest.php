@@ -132,10 +132,6 @@ it('pede mais detalhes quando encontra mais de uma transacao parecida para apaga
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
-            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
-                return str_contains($message, 'mais de uma transacao')
-                    && str_contains($message, 'Me diga');
-            }))
             ->andReturn(new Response(new \GuzzleHttp\Psr7\Response(200, [], json_encode(['success' => true]))));
     });
 
@@ -154,6 +150,9 @@ it('pede mais detalhes quando encontra mais de uma transacao parecida para apaga
         app(\App\Services\PerformanceMetricsService::class)
     );
 
+    $reply = mb_strtolower((string) $job->getFinalReply());
+
+    expect($reply)->toContain('mais de uma transacao')
+        ->toContain('qual delas');
     expect(Transaction::query()->where('user_id', $this->user->id)->count())->toBe(2);
 });
-
