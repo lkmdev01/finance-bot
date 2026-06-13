@@ -256,6 +256,25 @@ it('abre nota diretamente quando a busca encontra um unico resultado', function 
         ->and($reply['entities']['note_result_count'])->toBe(1);
 });
 
+it('abre nota por frase longa mesmo quando a consulta remove conectivos', function () {
+    Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'Tive Uma Ideia De Função De Gravar Arquivos No Drive Atraves Da Inovafinance',
+        'body' => 'tive uma ideia de função de gravar arquivos no drive atraves da inovafinance',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $reply = app(NotesConversationService::class)->buildReply(
+        $this->user,
+        'me mostra nota Tive Uma Ideia De Função De Gravar Arquivos No Drive Atraves Da Inovafinance',
+        []
+    );
+
+    expect($reply['reply'])->toContain('Aqui esta a nota Tive Uma Ideia')
+        ->and($reply['reply'])->toContain('gravar arquivos no drive');
+});
+
 it('lista notas numeradas e abre nota pelo numero', function () {
     $first = Note::create([
         'user_id' => $this->user->id,
