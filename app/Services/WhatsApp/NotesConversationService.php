@@ -54,6 +54,22 @@ class NotesConversationService
             ];
         }
 
+        if ($term !== null && $notes->count() === 1 && $this->looksLikeOpenRequest($normalized)) {
+            $note = $notes->first();
+
+            return [
+                'reply' => "Aqui esta a nota {$note->title}.\n\n{$note->body}",
+                'entities' => [
+                    'topic' => 'notes',
+                    'note_id' => $note->id,
+                    'note_title' => $note->title,
+                    'query_term' => $term,
+                    'recent_note_ids' => [$note->id],
+                    'note_result_count' => 1,
+                ],
+            ];
+        }
+
         $header = $term !== null && trim($term) !== ''
             ? "Encontrei estas notas sobre \"{$term}\":"
             : 'Suas notas mais recentes:';
@@ -65,13 +81,13 @@ class NotesConversationService
             $preview = mb_strlen($preview) > 90 ? mb_substr($preview, 0, 90).'...' : $preview;
             $date = $note->created_at?->format('d/m') ?? '';
 
-            return sprintf('- %s%s: %s', $date ? "{$date} " : '', $title, $preview);
+            return sprintf('%d. %s%s: %s', $index + 1, $date ? "{$date} " : '', $title, $preview);
         })->implode("\n");
 
         $first = $notes->first();
 
         return [
-            'reply' => $header."\n".$lines."\n\nDica: para apagar uma nota, diga \"apagar nota <titulo>\".",
+            'reply' => $header."\n".$lines."\n\nDica: diga \"abrir nota 2\" ou \"apagar nota <titulo>\".",
             'entities' => [
                 'topic' => 'notes',
                 'note_id' => $first?->id,
@@ -89,11 +105,13 @@ class NotesConversationService
             return null;
         }
 
-        $recentNote = $this->resolveRequestedNote($user, $message, $state) ?? $this->resolveRecentNote($user, $state);
+        $recentNote = $this->resolveNoteBySelection($user, $normalized, $state)
+            ?? $this->resolveRequestedNote($user, $message, $state)
+            ?? $this->resolveRecentNote($user, $state);
         $count = (int) ($state['last_entities']['note_result_count'] ?? 0);
         $queryTerm = $state['last_entities']['query_term'] ?? null;
 
-        if ($this->containsAny($normalized, ['me mostra essa nota', 'me mostra ela', 'mostra essa nota', 'abre essa nota'])) {
+        if ($this->containsAny($normalized, ['me mostra essa nota', 'me mostra ela', 'mostra essa nota', 'abre essa nota', 'abrir nota', 'abre nota'])) {
             if (! $recentNote) {
                 return null;
             }
@@ -170,6 +188,22 @@ class NotesConversationService
         return $user->notes()->find((int) $recentIds[0]);
     }
 
+    private function resolveNoteBySelection(User $user, string $normalized, array $state): ?Note
+    {
+        if (preg_match('/\b(?:abrir|abre|mostrar|mostra)?\s*(?:a|o|nota)?\s*(\d{1,2})\b/u', $normalized, $matches) !== 1) {
+            return null;
+        }
+
+        $index = ((int) $matches[1]) - 1;
+        $recentIds = array_values(array_filter($state['last_entities']['recent_note_ids'] ?? [], fn ($id) => (int) $id > 0));
+
+        if ($index < 0 || ! isset($recentIds[$index])) {
+            return null;
+        }
+
+        return $user->notes()->find((int) $recentIds[$index]);
+    }
+
     private function resolveRequestedNote(User $user, string $message, array $state): ?Note
     {
         $target = $this->extractExplicitNoteTarget($message);
@@ -216,5 +250,18 @@ class NotesConversationService
         }
 
         return false;
+    }
+
+    private function looksLikeOpenRequest(string $normalized): bool
+    {
+        return $this->containsAny($normalized, [
+            'me mostra',
+            'mostra',
+            'mostrar',
+            'abre',
+            'abrir',
+            'consulta',
+            'consultar',
+        ]);
     }
 }
