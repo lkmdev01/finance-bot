@@ -71,8 +71,16 @@ return [
                 'expected_state_topic' => 'drive',
             ],
             [
+                'message' => 'ache minha foto na neve',
+                'expected_intent' => 'query_drive_files',
+                'expected_reply_contains' => ['foto_neve'],
+                'expected_reply_not_contains' => ['Nao encontrei nenhuma nota'],
+                'expected_state_topic' => 'drive',
+            ],
+            [
                 'message' => 'tem mais fotos?',
                 'expected_intent' => 'query_drive_files',
+                'expected_reply_contains' => ['foto_neve'],
                 'expected_reply_not_contains' => ['Nao encontrei nenhuma nota'],
                 'expected_state_topic' => 'drive',
             ],
@@ -418,6 +426,13 @@ return [
                 'message' => 'procura o comprovante do mecanico',
                 'expected_intent' => 'query_drive_files',
                 'expected_reply_contains' => ['comprovante_mecanico'],
+                'expected_state_topic' => 'drive',
+            ],
+            [
+                'message' => 'ache minha foto na neve',
+                'expected_intent' => 'query_drive_files',
+                'expected_reply_contains' => ['foto_neve'],
+                'expected_reply_not_contains' => ['audio_projeto', 'comprovante_mecanico'],
                 'expected_state_topic' => 'drive',
             ],
             [

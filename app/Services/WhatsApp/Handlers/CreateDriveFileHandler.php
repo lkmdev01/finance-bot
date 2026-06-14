@@ -11,6 +11,8 @@ use App\Services\BillingPlanService;
 use App\Services\DocumentTextExtractorService;
 use App\Services\GoogleDriveService;
 use App\Services\OCRService;
+use App\Services\WhatsApp\DriveAIMetadataService;
+use App\Services\WhatsApp\DriveFileSemanticMetadataService;
 use App\Services\WhatsApp\IncomingMessageNormalizer;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -31,6 +33,7 @@ class CreateDriveFileHandler extends BaseHandler
             $reply = $billingPlanService->writeAccessMessage($user)
                 ."\n\nAssine aqui:\n{$plansUrl}";
             $this->sendResponse($job, $reply, $user);
+
             return true;
         }
 
@@ -39,6 +42,7 @@ class CreateDriveFileHandler extends BaseHandler
 
         if ($incomingMediaId <= 0) {
             $this->sendErrorMessage($job, "Nao encontrei nenhum arquivo recente para salvar.\n\nMe envie um arquivo/foto/audio e diga: \"salva isso no drive\".");
+
             return true;
         }
 
@@ -47,13 +51,15 @@ class CreateDriveFileHandler extends BaseHandler
             ->find($incomingMediaId);
 
         if (! $media) {
-            $this->sendErrorMessage($job, "Nao consegui acessar o arquivo recebido. Pode me enviar novamente?");
+            $this->sendErrorMessage($job, 'Nao consegui acessar o arquivo recebido. Pode me enviar novamente?');
+
             return true;
         }
 
         if (! $user->googleDriveConnection || $user->googleDriveConnection->revoked_at) {
             $url = rtrim((string) config('app.url'), '/').'/integrations/google-drive';
             $this->sendResponse($job, "Para eu salvar arquivos, conecte seu Google Drive aqui:\n{$url}", $user);
+
             return true;
         }
 
@@ -107,7 +113,37 @@ class CreateDriveFileHandler extends BaseHandler
             }
 
             $title = $this->inferTitle($media, $tags);
-            $tags = $this->buildSearchTags($title, $fileName, $folderName, $media->kind, $tags);
+            $aiMetadata = app(DriveAIMetadataService::class)->analyze(
+                $media->kind,
+                $localPath,
+                $mimeType,
+                $fileName,
+                $folderName,
+                $extractedText,
+                $tags
+            );
+
+            $enrichedLabels = array_values(array_unique(array_merge(
+                $tags,
+                $aiMetadata['tags']
+            )));
+
+            $semanticMetadata = app(DriveFileSemanticMetadataService::class)->build(
+                $title,
+                $fileName,
+                $folderName,
+                $media->kind,
+                $enrichedLabels,
+                trim(implode("\n", array_filter([
+                    $aiMetadata['description'],
+                    $extractedText,
+                ], fn ($value) => is_string($value) && trim($value) !== ''))) ?: null
+            );
+
+            $tags = array_values(array_unique(array_merge(
+                $this->buildSearchTags($title, $fileName, $folderName, $media->kind, $enrichedLabels),
+                $semanticMetadata['tags']
+            )));
             $url = $driveFileId !== '' ? $drive->buildFileWebUrl($driveFileId) : null;
 
             $driveFile = DriveFile::create([
@@ -122,11 +158,13 @@ class CreateDriveFileHandler extends BaseHandler
                 'drive_parent_id' => $folderId,
                 'drive_path' => $folderName,
                 'title' => $title,
+                'description' => $aiMetadata['description'] ?: $semanticMetadata['description'],
                 'tags' => $tags !== [] ? $tags : null,
                 'extracted_text' => $extractedText ? Str::limit($extractedText, 12000, '') : null,
                 'metadata' => [
                     'uploaded' => $uploaded,
                     'web_url' => $url,
+                    'ai_metadata' => $aiMetadata,
                 ],
             ]);
 
@@ -141,7 +179,7 @@ class CreateDriveFileHandler extends BaseHandler
             if ($folderName) {
                 $reply .= " na pasta *{$folderName}*.";
             } else {
-                $reply .= " no seu Drive.";
+                $reply .= ' no seu Drive.';
             }
 
             if ($url) {
@@ -163,6 +201,7 @@ class CreateDriveFileHandler extends BaseHandler
             ]);
 
             $this->sendResponse($job, $reply, $user);
+
             return true;
         } catch (\Throwable $e) {
             Log::error('Erro ao salvar arquivo no Google Drive via WhatsApp', [
@@ -177,6 +216,7 @@ class CreateDriveFileHandler extends BaseHandler
             }
 
             $this->sendErrorMessage($job, $friendly);
+
             return true;
         }
     }
