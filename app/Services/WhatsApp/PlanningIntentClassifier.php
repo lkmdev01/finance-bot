@@ -148,6 +148,10 @@ class PlanningIntentClassifier
 
     private function looksLikeSavingsQuery(string $message, array $state): bool
     {
+        if ($this->belongsToAnotherDomain($message)) {
+            return false;
+        }
+
         if ($this->containsAnyText($message, ['meta', 'metas', 'objetivo', 'objetivos', 'poupanca'])) {
             return ! $this->containsAnyText($message, ['criar', 'crie', 'nova', 'novo', 'definir', 'defina', 'cadastrar', 'cadastre']);
         }
@@ -169,6 +173,10 @@ class PlanningIntentClassifier
 
     private function looksLikeSubscriptionQuery(string $message, array $state): bool
     {
+        if ($this->belongsToAnotherDomain($message)) {
+            return false;
+        }
+
         if ($this->containsAnyText($message, [
             'cancelar', 'cancela', 'desativar', 'desativa', 'pausar', 'pausa',
             'editar', 'edita', 'alterar', 'altera', 'ajustar', 'ajusta', 'mudar', 'muda', 'atualizar', 'atualiza',
@@ -216,6 +224,32 @@ class PlanningIntentClassifier
     private function looksLikeCreditCardQuery(string $originalMessage, string $normalizedMessage): bool
     {
         return $this->creditCardMessageParser->looksLikeQueryIntent($normalizedMessage);
+    }
+
+    private function belongsToAnotherDomain(string $message): bool
+    {
+        return $this->containsAnyText($message, [
+            'nota',
+            'notas',
+            'anota',
+            'anotar',
+            'anote',
+            'arquivo',
+            'arquivos',
+            'documento',
+            'documentos',
+            'drive',
+            'foto',
+            'fotos',
+            'imagem',
+            'imagens',
+            'audio',
+            'audios',
+            'lembrete',
+            'lembretes',
+            'me lembra',
+            'me lembre',
+        ]);
     }
 
     private function looksLikeNamedFollowUp(string $message): bool
