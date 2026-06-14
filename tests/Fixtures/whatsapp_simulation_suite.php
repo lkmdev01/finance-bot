@@ -2,6 +2,89 @@
 
 return [
     [
+        'key' => 'mvp_acceptance',
+        'seed' => 'mvp_acceptance',
+        'entries' => [
+            [
+                'message' => 'oi',
+                'expected_classification' => 'greeting',
+                'expected_reply_contains' => ['Ola'],
+                'expected_state_topic' => 'general',
+            ],
+            [
+                'message' => 'como voce pode me ajudar',
+                'expected_classification' => 'help',
+                'expected_reply_contains' => ['Posso te ajudar de varios jeitos', 'Drive'],
+                'expected_state_topic' => 'general',
+            ],
+            [
+                'message' => 'quais metas eu tenho?',
+                'expected_intent' => 'query_savings',
+                'expected_reply_contains' => ['Suas metas atuais', 'Viagem'],
+                'expected_state_topic' => 'savings',
+            ],
+            [
+                'message' => 'me mostra essa meta Viagem',
+                'expected_intent' => 'query_savings',
+                'expected_reply_contains' => ['Viagem esta com R$ 0,00 de R$ 300,00'],
+                'expected_reply_not_contains' => ['Viagem - R$ 5.000,00 esta'],
+                'expected_state_topic' => 'savings',
+            ],
+            [
+                'message' => 'abrir meta 2',
+                'expected_intent' => 'query_savings',
+                'expected_reply_contains' => ['Viagem esta com R$ 0,00 de R$ 300,00'],
+                'expected_state_topic' => 'savings',
+            ],
+            [
+                'message' => 'quais sao minhas notas ativas?',
+                'expected_intent' => 'query_notes',
+                'expected_reply_contains' => ['Suas notas mais recentes', 'abrir nota 1'],
+                'expected_reply_not_contains' => ['Suas metas atuais'],
+                'expected_state_topic' => 'notes',
+            ],
+            [
+                'message' => 'abrir nota 2',
+                'expected_intent' => 'query_notes',
+                'expected_reply_contains' => ['Nao encontrei a nota 2 nessa lista'],
+                'expected_reply_not_contains' => ['Suas metas atuais'],
+                'expected_state_topic' => 'notes',
+            ],
+            [
+                'message' => 'abrir nota 1',
+                'expected_intent' => 'query_notes',
+                'expected_reply_contains' => ['Aqui esta a nota Tive Uma Ideia'],
+                'expected_state_topic' => 'notes',
+            ],
+            [
+                'message' => 'quais arquivos eu tenho no drive?',
+                'expected_intent' => 'query_drive_files',
+                'expected_reply_contains' => ['Seus arquivos recentes', 'comprovante_mecanico', 'foto_neve'],
+                'expected_reply_not_contains' => ['Nao encontrei nenhuma nota'],
+                'expected_state_topic' => 'drive',
+            ],
+            [
+                'message' => 'procura a foto que eu mandei hoje',
+                'expected_intent' => 'query_drive_files',
+                'expected_reply_contains' => ['Arquivos salvos hoje', 'foto_neve'],
+                'expected_reply_not_contains' => ['Nao encontrei nenhuma nota'],
+                'expected_state_topic' => 'drive',
+            ],
+            [
+                'message' => 'tem mais fotos?',
+                'expected_intent' => 'query_drive_files',
+                'expected_reply_not_contains' => ['Nao encontrei nenhuma nota'],
+                'expected_state_topic' => 'drive',
+            ],
+            [
+                'message' => 'tudo bem?',
+                'expected_classification' => 'small_talk',
+                'expected_reply_contains' => ['Estou bem'],
+                'expected_state_topic' => 'general',
+            ],
+        ],
+    ],
+    [
         'key' => 'finance_core',
         'seed' => 'finance_core',
         'entries' => [
@@ -327,7 +410,7 @@ return [
             [
                 'message' => 'tem mais fotos?',
                 'expected_intent' => 'query_drive_files',
-                'expected_reply_contains' => ['Seus arquivos recentes:', 'foto_neve', 'recibo_oficina'],
+                'expected_reply_contains' => ['Arquivos salvos hoje:', 'foto_neve', 'recibo_oficina'],
                 'expected_reply_not_contains' => ['audio_projeto'],
                 'expected_state_topic' => 'drive',
             ],
