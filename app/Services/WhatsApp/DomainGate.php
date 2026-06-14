@@ -179,6 +179,17 @@ class DomainGate
 
     private function looksLikePlanningDomain(string $message, array $state): bool
     {
+        if ($this->containsAnyText($message, [
+            'nota', 'notas', 'anota', 'anotar', 'anote',
+            'arquivo', 'arquivos', 'documento', 'documentos', 'drive', 'foto', 'fotos',
+            'lembrete', 'lembretes', 'me lembra', 'me lembre',
+        ]) && ! $this->containsAnyText($message, [
+            'meta', 'metas', 'objetivo', 'objetivos', 'assinatura', 'assinaturas',
+            'mensalidade', 'mensalidades', 'projecao', 'projecoes', 'cartao', 'cartoes',
+        ])) {
+            return false;
+        }
+
         if (($state['last_entities']['topic'] ?? null) === 'subscriptions') {
             return true;
         }
