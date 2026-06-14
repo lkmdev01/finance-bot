@@ -11,6 +11,7 @@ use App\Services\BillingPlanService;
 use App\Services\DocumentTextExtractorService;
 use App\Services\GoogleDriveService;
 use App\Services\OCRService;
+use App\Services\WhatsApp\DriveAIMetadataService;
 use App\Services\WhatsApp\DriveFileSemanticMetadataService;
 use App\Services\WhatsApp\IncomingMessageNormalizer;
 use Illuminate\Support\Facades\Log;
@@ -112,17 +113,35 @@ class CreateDriveFileHandler extends BaseHandler
             }
 
             $title = $this->inferTitle($media, $tags);
+            $aiMetadata = app(DriveAIMetadataService::class)->analyze(
+                $media->kind,
+                $localPath,
+                $mimeType,
+                $fileName,
+                $folderName,
+                $extractedText,
+                $tags
+            );
+
+            $enrichedLabels = array_values(array_unique(array_merge(
+                $tags,
+                $aiMetadata['tags']
+            )));
+
             $semanticMetadata = app(DriveFileSemanticMetadataService::class)->build(
                 $title,
                 $fileName,
                 $folderName,
                 $media->kind,
-                $tags,
-                $extractedText
+                $enrichedLabels,
+                trim(implode("\n", array_filter([
+                    $aiMetadata['description'],
+                    $extractedText,
+                ], fn ($value) => is_string($value) && trim($value) !== ''))) ?: null
             );
 
             $tags = array_values(array_unique(array_merge(
-                $this->buildSearchTags($title, $fileName, $folderName, $media->kind, $tags),
+                $this->buildSearchTags($title, $fileName, $folderName, $media->kind, $enrichedLabels),
                 $semanticMetadata['tags']
             )));
             $url = $driveFileId !== '' ? $drive->buildFileWebUrl($driveFileId) : null;
@@ -139,12 +158,13 @@ class CreateDriveFileHandler extends BaseHandler
                 'drive_parent_id' => $folderId,
                 'drive_path' => $folderName,
                 'title' => $title,
-                'description' => $semanticMetadata['description'],
+                'description' => $aiMetadata['description'] ?: $semanticMetadata['description'],
                 'tags' => $tags !== [] ? $tags : null,
                 'extracted_text' => $extractedText ? Str::limit($extractedText, 12000, '') : null,
                 'metadata' => [
                     'uploaded' => $uploaded,
                     'web_url' => $url,
+                    'ai_metadata' => $aiMetadata,
                 ],
             ]);
 
