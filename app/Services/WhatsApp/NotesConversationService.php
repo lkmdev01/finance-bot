@@ -101,8 +101,10 @@ class NotesConversationService
 
         $first = $notes->first();
 
+        $openHint = $notes->count() > 1 ? 'abrir nota 2' : 'abrir nota 1';
+
         return [
-            'reply' => $header."\n".$lines."\n\nDica: diga \"abrir nota 2\" ou \"apagar nota <titulo>\".",
+            'reply' => $header."\n".$lines."\n\nDica: diga \"{$openHint}\" ou \"apagar nota <titulo>\".",
             'entities' => [
                 'topic' => 'notes',
                 'note_id' => $first?->id,
@@ -120,11 +122,40 @@ class NotesConversationService
             return null;
         }
 
-        $recentNote = $this->resolveNoteBySelection($user, $normalized, $state)
-            ?? $this->resolveRequestedNote($user, $message, $state)
-            ?? $this->resolveRecentNote($user, $state);
         $count = (int) ($state['last_entities']['note_result_count'] ?? 0);
         $queryTerm = $state['last_entities']['query_term'] ?? null;
+        $selection = $this->extractSelectionIndex($normalized);
+
+        if ($selection !== null && $this->containsAny($normalized, ['abrir nota', 'abre nota', 'mostrar nota', 'mostra nota'])) {
+            $selectedNote = $this->resolveNoteBySelection($user, $selection, $state);
+
+            if (! $selectedNote) {
+                return [
+                    'reply' => "Nao encontrei a nota {$selection} nessa lista. Tenho ".max(0, $count)." nota(s) no resultado atual. Diga \"minhas notas\" para listar de novo.",
+                    'entities' => [
+                        'topic' => 'notes',
+                        'query_term' => $queryTerm,
+                        'recent_note_ids' => $state['last_entities']['recent_note_ids'] ?? [],
+                        'note_result_count' => max(0, $count),
+                    ],
+                ];
+            }
+
+            return [
+                'reply' => "Aqui esta a nota {$selectedNote->title}.\n\n{$selectedNote->body}",
+                'entities' => [
+                    'topic' => 'notes',
+                    'note_id' => $selectedNote->id,
+                    'note_title' => $selectedNote->title,
+                    'query_term' => $queryTerm,
+                    'recent_note_ids' => $state['last_entities']['recent_note_ids'] ?? [],
+                    'note_result_count' => max(1, $count),
+                ],
+            ];
+        }
+
+        $recentNote = $this->resolveRequestedNote($user, $message, $state)
+            ?? $this->resolveRecentNote($user, $state);
 
         if ($this->containsAny($normalized, ['me mostra essa nota', 'me mostra ela', 'mostra essa nota', 'abre essa nota', 'abrir nota', 'abre nota'])) {
             if (! $recentNote) {
@@ -203,13 +234,9 @@ class NotesConversationService
         return $user->notes()->find((int) $recentIds[0]);
     }
 
-    private function resolveNoteBySelection(User $user, string $normalized, array $state): ?Note
+    private function resolveNoteBySelection(User $user, int $selection, array $state): ?Note
     {
-        if (preg_match('/\b(?:abrir|abre|mostrar|mostra)?\s*(?:a|o|nota)?\s*(\d{1,2})\b/u', $normalized, $matches) !== 1) {
-            return null;
-        }
-
-        $index = ((int) $matches[1]) - 1;
+        $index = $selection - 1;
         $recentIds = array_values(array_filter($state['last_entities']['recent_note_ids'] ?? [], fn ($id) => (int) $id > 0));
 
         if ($index < 0 || ! isset($recentIds[$index])) {
@@ -217,6 +244,17 @@ class NotesConversationService
         }
 
         return $user->notes()->find((int) $recentIds[$index]);
+    }
+
+    private function extractSelectionIndex(string $normalized): ?int
+    {
+        if (preg_match('/\b(?:abrir|abre|mostrar|mostra)?\s*(?:a|o|nota)?\s*(\d{1,2})\b/u', $normalized, $matches) !== 1) {
+            return null;
+        }
+
+        $selection = (int) $matches[1];
+
+        return $selection > 0 ? $selection : null;
     }
 
     private function resolveRequestedNote(User $user, string $message, array $state): ?Note

@@ -307,6 +307,36 @@ it('lista notas numeradas e abre nota pelo numero', function () {
         ->and($opened['reply'])->toContain('Texto Alpha');
 });
 
+it('nao abre primeira nota quando numero pedido esta fora da lista', function () {
+    Note::create([
+        'user_id' => $this->user->id,
+        'title' => 'Projeto Alpha',
+        'body' => 'Texto Alpha',
+        'source' => 'whatsapp',
+        'metadata' => [],
+    ]);
+
+    $service = app(NotesConversationService::class);
+    $list = $service->buildReply($this->user, 'minhas notas', []);
+
+    expect($list['reply'])->toContain('abrir nota 1')
+        ->and($list['reply'])->not->toContain('abrir nota 2');
+
+    $missing = $service->buildReply($this->user, 'abrir nota 2', [
+        'last_entities' => $list['entities'],
+    ]);
+
+    expect($missing['reply'])->toContain('Nao encontrei a nota 2 nessa lista')
+        ->and($missing['reply'])->not->toContain('Aqui esta a nota Projeto Alpha');
+
+    $opened = $service->buildReply($this->user, 'abrir nota 1', [
+        'last_entities' => $list['entities'],
+    ]);
+
+    expect($opened['reply'])->toContain('Aqui esta a nota Projeto Alpha')
+        ->and($opened['reply'])->toContain('Texto Alpha');
+});
+
 it('completa exclusao de lembrete em duas mensagens quando falta o alvo', function () {
     Http::preventStrayRequests();
 
