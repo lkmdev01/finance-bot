@@ -63,3 +63,87 @@ it('mantem filtro de hoje ao perguntar se tem mais fotos', function () {
         ->and($second['entities']['drive_media_kind'])->toBe('image')
         ->and($second['entities']['drive_time_scope'])->toBe('today');
 });
+
+it('ranqueia arquivos por significado usando tipo, tags, descricao e texto extraido', function () {
+    DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'comprovante_mecanico.pdf',
+        'mime_type' => 'application/pdf',
+        'size_bytes' => 285500,
+        'sha256' => hash('sha256', 'semantic-comprovante-mecanico'),
+        'drive_file_id' => 'semantic-drive-file-1',
+        'drive_path' => 'Comprovantes / Veiculos',
+        'title' => 'comprovante_mecanico',
+        'description' => 'Comprovante do mecanico de marco',
+        'tags' => ['comprovante', 'veiculo'],
+        'extracted_text' => 'servico mecanico realizado na oficina',
+        'metadata' => [],
+    ]);
+
+    DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'foto_neve.png',
+        'mime_type' => 'image/png',
+        'size_bytes' => 91500,
+        'sha256' => hash('sha256', 'semantic-foto-neve'),
+        'drive_file_id' => 'semantic-drive-file-2',
+        'drive_path' => 'Fotos / Viagens',
+        'title' => 'foto_neve',
+        'description' => 'Foto na neve durante a viagem',
+        'tags' => ['foto', 'neve', 'viagem'],
+        'extracted_text' => 'paisagem com neve e montanha',
+        'metadata' => [],
+    ]);
+
+    DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'audio_projeto.mp3',
+        'mime_type' => 'audio/mpeg',
+        'size_bytes' => 2048000,
+        'sha256' => hash('sha256', 'semantic-audio-projeto'),
+        'drive_file_id' => 'semantic-drive-file-3',
+        'drive_path' => 'Audios / Projetos',
+        'title' => 'audio_projeto',
+        'description' => 'Audio com ideias sobre o projeto',
+        'tags' => ['audio', 'projeto', 'ideias'],
+        'extracted_text' => 'brainstorm do projeto de expansao',
+        'metadata' => [],
+    ]);
+
+    DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'contrato_aluguel.pdf',
+        'mime_type' => 'application/pdf',
+        'size_bytes' => 128000,
+        'sha256' => hash('sha256', 'semantic-contrato-aluguel'),
+        'drive_file_id' => 'semantic-drive-file-4',
+        'drive_path' => 'Documentos / Contratos',
+        'title' => 'contrato_aluguel',
+        'description' => 'Contrato do apartamento',
+        'tags' => ['contrato'],
+        'extracted_text' => 'contrato de locacao residencial',
+        'metadata' => [],
+    ]);
+
+    $service = app(DriveConversationService::class);
+
+    $photo = $service->buildReply($this->user->fresh(), 'ache minha foto na neve', []);
+    expect($photo['reply'])->toContain('foto_neve')
+        ->and($photo['reply'])->not->toContain('audio_projeto');
+
+    $receipt = $service->buildReply($this->user->fresh(), 'procura o comprovante do mecanico', []);
+    expect($receipt['reply'])->toContain('comprovante_mecanico')
+        ->and($receipt['reply'])->not->toContain('foto_neve');
+
+    $audio = $service->buildReply($this->user->fresh(), 'encontra o audio sobre o projeto', []);
+    expect($audio['reply'])->toContain('audio_projeto')
+        ->and($audio['reply'])->not->toContain('contrato_aluguel');
+
+    $contract = $service->buildReply($this->user->fresh(), 'busca o contrato que eu salvei', []);
+    expect($contract['reply'])->toContain('contrato_aluguel')
+        ->and($contract['reply'])->not->toContain('audio_projeto');
+});

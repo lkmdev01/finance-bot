@@ -14,6 +14,7 @@ class DriveConversationService
     public function __construct(
         private readonly DriveMessageParser $parser,
         private readonly GoogleDriveServiceLinkHelper $linkHelper,
+        private readonly DriveSemanticSearchService $semanticSearch,
     ) {}
 
     public function buildReply(User $user, string $rawMessage, array $state): array
@@ -37,7 +38,9 @@ class DriveConversationService
         $this->applyFilters($query, $queryData);
 
         /** @var Collection<int, DriveFile> $files */
-        $files = $query->limit(6)->get();
+        $files = ! empty($queryData['term'])
+            ? $this->semanticSearch->rank($query->limit(100)->get(), $queryData)->take(6)->values()
+            : $query->limit(6)->get();
 
         if ($files->isEmpty()) {
             return [
@@ -138,9 +141,8 @@ class DriveConversationService
             $this->applyMediaKind($query, (string) $queryData['media_kind']);
         }
 
-        if (! empty($queryData['term'])) {
-            $this->applySearchTerm($query, (string) $queryData['term']);
-        }
+        // Search terms are ranked in memory by DriveSemanticSearchService so we can
+        // use title, tags, extracted text and simple synonyms without brittle SQL.
     }
 
     private function applyTimeScope(Builder|HasMany $query, string $scope): void
@@ -169,35 +171,6 @@ class DriveConversationService
             }),
             default => null,
         };
-    }
-
-    private function applySearchTerm(Builder|HasMany $query, string $term): void
-    {
-        $tokens = array_values(array_filter(preg_split('/\s+/u', trim($term)) ?: []));
-
-        if ($tokens === []) {
-            return;
-        }
-
-        $query->where(function (Builder $builder) use ($term, $tokens) {
-            $builder
-                ->where('title', 'like', '%'.$term.'%')
-                ->orWhere('original_name', 'like', '%'.$term.'%')
-                ->orWhere('drive_path', 'like', '%'.$term.'%')
-                ->orWhere('extracted_text', 'like', '%'.$term.'%')
-                ->orWhereJsonContains('tags', $term);
-
-            foreach ($tokens as $token) {
-                $builder->orWhere(function (Builder $nested) use ($token) {
-                    $nested
-                        ->where('title', 'like', '%'.$token.'%')
-                        ->orWhere('original_name', 'like', '%'.$token.'%')
-                        ->orWhere('drive_path', 'like', '%'.$token.'%')
-                        ->orWhere('extracted_text', 'like', '%'.$token.'%')
-                        ->orWhereJsonContains('tags', $token);
-                });
-            }
-        });
     }
 
     private function buildListReply(Collection $files, array $queryData): string
