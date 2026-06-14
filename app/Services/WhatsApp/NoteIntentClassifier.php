@@ -58,6 +58,25 @@ class NoteIntentClassifier
 
     private function looksLikeNoteQuery(string $normalizedMessage, array $state): bool
     {
+        if ($this->containsAnyText($normalizedMessage, [
+            'arquivo',
+            'arquivos',
+            'documento',
+            'documentos',
+            'drive',
+            'foto',
+            'fotos',
+            'imagem',
+            'imagens',
+            'audio',
+            'audios',
+            'comprovante',
+            'contrato',
+            'pdf',
+        ]) && ! $this->containsAnyText($normalizedMessage, ['nota', 'notas'])) {
+            return false;
+        }
+
         if ($this->noteMessageParser->looksLikeQueryIntent($normalizedMessage)) {
             // Avoid treating "nota fiscal" as note query.
             if (str_contains($normalizedMessage, 'nota fiscal')) {

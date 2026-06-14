@@ -321,6 +321,90 @@ class SimulationSuiteService
                 ]);
                 break;
 
+            case 'mvp_acceptance':
+                SavingsGoal::create([
+                    'user_id' => $context['user']->id,
+                    'name' => 'De Viagem',
+                    'target_amount' => 5000,
+                    'target_date' => null,
+                    'is_completed' => false,
+                ]);
+
+                SavingsGoal::create([
+                    'user_id' => $context['user']->id,
+                    'name' => 'Viagem',
+                    'target_amount' => 300,
+                    'target_date' => null,
+                    'is_completed' => false,
+                ]);
+
+                SavingsGoal::create([
+                    'user_id' => $context['user']->id,
+                    'name' => 'Viagem - R$ 5.000,00',
+                    'target_amount' => 5000,
+                    'target_date' => null,
+                    'is_completed' => false,
+                ]);
+
+                SavingsGoal::create([
+                    'user_id' => $context['user']->id,
+                    'name' => 'Viagem Asia',
+                    'target_amount' => 1500,
+                    'target_date' => null,
+                    'is_completed' => false,
+                ]);
+
+                Note::create([
+                    'user_id' => $context['user']->id,
+                    'title' => 'Tive Uma Ideia De Função De Gravar Arquivos No Drive Atraves Da Inovafinance',
+                    'body' => 'tive uma ideia de função de gravar arquivos no drive atraves da inovafinance',
+                    'source' => 'whatsapp',
+                    'metadata' => [],
+                ]);
+
+                GoogleDriveConnection::create([
+                    'user_id' => $context['user']->id,
+                    'refresh_token' => 'fake-refresh-token',
+                    'scopes' => ['https://www.googleapis.com/auth/drive.file'],
+                    'root_folder_id' => 'root-folder-id',
+                    'connected_at' => now(),
+                ]);
+
+                DriveFile::create([
+                    'user_id' => $context['user']->id,
+                    'source' => 'whatsapp',
+                    'original_name' => 'comprovante_mecanico.pdf',
+                    'mime_type' => 'application/pdf',
+                    'size_bytes' => 285500,
+                    'sha256' => hash('sha256', 'mvp-comprovante-mecanico'),
+                    'drive_file_id' => 'mvp-drive-file-1',
+                    'drive_parent_id' => 'mvp-drive-parent-1',
+                    'drive_path' => 'Comprovantes / Veiculos',
+                    'title' => 'comprovante_mecanico',
+                    'description' => 'Comprovante do mecanico',
+                    'tags' => ['comprovante', 'veiculo'],
+                    'extracted_text' => 'servico mecanico realizado',
+                    'metadata' => [],
+                ]);
+
+                DriveFile::create([
+                    'user_id' => $context['user']->id,
+                    'source' => 'whatsapp',
+                    'original_name' => 'foto_neve.png',
+                    'mime_type' => 'image/png',
+                    'size_bytes' => 91500,
+                    'sha256' => hash('sha256', 'mvp-foto-neve'),
+                    'drive_file_id' => 'mvp-drive-file-2',
+                    'drive_parent_id' => 'mvp-drive-parent-2',
+                    'drive_path' => 'Fotos / Viagens',
+                    'title' => 'foto_neve',
+                    'description' => 'Foto na neve durante a viagem',
+                    'tags' => ['foto', 'neve', 'viagem'],
+                    'extracted_text' => 'paisagem com neve e montanha',
+                    'metadata' => [],
+                ]);
+                break;
+
             case 'transaction_and_budget_context':
                 $context['uberTransaction'] = Transaction::create([
                     'user_id' => $context['user']->id,

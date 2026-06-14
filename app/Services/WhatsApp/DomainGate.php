@@ -79,6 +79,11 @@ class DomainGate
 
     private function looksLikeDriveDomain(string $message, array $state): bool
     {
+        if ($this->driveMessageParser->looksLikeQueryIntent($message, $state)
+            || $this->driveMessageParser->looksLikeSaveWithoutMediaIntent($message, $state)) {
+            return true;
+        }
+
         if (($state['last_entities']['topic'] ?? null) === 'drive'
             && ($this->driveMessageParser->looksLikeQueryIntent($message, $state)
                 || $this->driveMessageParser->looksLikeSaveIntent($message, $state)
