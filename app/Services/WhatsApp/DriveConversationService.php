@@ -40,10 +40,8 @@ class DriveConversationService
         $files = $query->limit(6)->get();
 
         if ($files->isEmpty()) {
-            $suffix = ! empty($queryData['term']) ? ' para "'.$queryData['term'].'"' : '';
-
             return [
-                'reply' => "Nao encontrei arquivos{$suffix}.\n\nDica: envie um arquivo no WhatsApp e diga \"salva isso no drive\".",
+                'reply' => $this->buildEmptyReply($queryData),
                 'entities' => [
                     'topic' => 'drive',
                     'drive_query_term' => $queryData['term'],
@@ -228,6 +226,38 @@ class DriveConversationService
         }
 
         $reply .= "\n\nSe quiser, diga: \"abrir o 2\", \"em qual pasta ficou?\" ou \"buscar arquivo sobre contrato\".";
+
+        return $reply;
+    }
+
+    private function buildEmptyReply(array $queryData): string
+    {
+        $subject = match ($queryData['media_kind'] ?? null) {
+            'image' => 'fotos',
+            'audio' => 'audios',
+            'document' => 'documentos',
+            default => 'arquivos',
+        };
+
+        $savedWord = ($queryData['media_kind'] ?? null) === 'image' ? 'salvas' : 'salvos';
+
+        $period = match ($queryData['time_scope'] ?? null) {
+            'today' => " {$savedWord} hoje",
+            'yesterday' => " {$savedWord} ontem",
+            'today_morning' => " {$savedWord} hoje de manha",
+            default => '',
+        };
+
+        $term = trim((string) ($queryData['term'] ?? ''));
+        $suffix = $term !== '' ? " sobre \"{$term}\"" : '';
+
+        $reply = "Nao encontrei {$subject}{$period}{$suffix}.";
+
+        if (($queryData['time_scope'] ?? null) !== null || ($queryData['media_kind'] ?? null) !== null) {
+            $reply .= "\n\nPosso procurar em outros dias ou listar todos os arquivos recentes se voce quiser.";
+        } else {
+            $reply .= "\n\nDica: envie um arquivo no WhatsApp e diga \"salva isso no drive\".";
+        }
 
         return $reply;
     }

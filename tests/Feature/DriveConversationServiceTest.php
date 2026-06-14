@@ -48,7 +48,8 @@ it('mantem filtro de hoje ao perguntar se tem mais fotos', function () {
 
     $first = $service->buildReply($this->user->fresh(), 'procura a foto que eu mandei hoje', []);
 
-    expect($first['reply'])->toContain('Nao encontrei arquivos')
+    expect($first['reply'])->toContain('Nao encontrei fotos salvas hoje')
+        ->and($first['reply'])->toContain('procurar em outros dias')
         ->and($first['entities']['drive_media_kind'])->toBe('image')
         ->and($first['entities']['drive_time_scope'])->toBe('today');
 
@@ -56,7 +57,8 @@ it('mantem filtro de hoje ao perguntar se tem mais fotos', function () {
         'last_entities' => $first['entities'],
     ]);
 
-    expect($second['reply'])->toContain('Nao encontrei arquivos')
+    expect($second['reply'])->toContain('Nao encontrei fotos salvas hoje')
+        ->and($second['reply'])->toContain('listar todos os arquivos recentes')
         ->and($second['reply'])->not->toContain('imagem antiga')
         ->and($second['entities']['drive_media_kind'])->toBe('image')
         ->and($second['entities']['drive_time_scope'])->toBe('today');

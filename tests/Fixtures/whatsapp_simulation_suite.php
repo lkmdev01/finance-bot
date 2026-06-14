@@ -73,6 +73,7 @@ return [
             [
                 'message' => 'tem mais fotos?',
                 'expected_intent' => 'query_drive_files',
+                'expected_reply_contains' => ['fotos', 'hoje'],
                 'expected_reply_not_contains' => ['Nao encontrei nenhuma nota'],
                 'expected_state_topic' => 'drive',
             ],
