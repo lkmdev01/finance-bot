@@ -60,7 +60,7 @@ class DriveAIMetadataService
         $mimeType = $mimeType ?: 'image/jpeg';
         $dataUrl = 'data:'.$mimeType.';base64,'.base64_encode($binary);
 
-        $response = $this->postChatCompletion((string) config('ai.openai.vision_model'), [
+        $response = $this->postChatCompletion((string) config('ai.drive_metadata.vision_model'), [
             [
                 'role' => 'system',
                 'content' => $this->systemPrompt(),
@@ -97,7 +97,7 @@ class DriveAIMetadataService
             return $this->empty();
         }
 
-        $response = $this->postChatCompletion((string) config('ai.openai.metadata_model'), [
+        $response = $this->postChatCompletion((string) config('ai.drive_metadata.metadata_model'), [
             [
                 'role' => 'system',
                 'content' => $this->systemPrompt(),
@@ -116,7 +116,7 @@ class DriveAIMetadataService
      */
     private function postChatCompletion(string $model, array $messages): array
     {
-        $response = Http::withToken((string) config('ai.api_key'))
+        $response = Http::withToken((string) config('ai.drive_metadata.api_key'))
             ->acceptJson()
             ->timeout(30)
             ->post('https://api.openai.com/v1/chat/completions', [
@@ -212,7 +212,8 @@ PROMPT;
 
     private function isAvailable(): bool
     {
-        return config('ai.provider') === 'openai' && filled(config('ai.api_key'));
+        return config('ai.drive_metadata.provider') === 'openai'
+            && filled(config('ai.drive_metadata.api_key'));
     }
 
     /**

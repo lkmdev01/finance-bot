@@ -12,7 +12,11 @@ return [
     ],
     'openai' => [
         'model' => env('OPENAI_MODEL', 'gpt-3.5-turbo'),
-        'vision_model' => env('OPENAI_VISION_MODEL', env('OPENAI_MODEL', 'gpt-4o-mini')),
-        'metadata_model' => env('OPENAI_METADATA_MODEL', env('OPENAI_MODEL', 'gpt-4o-mini')),
+    ],
+    'drive_metadata' => [
+        'provider' => env('DRIVE_AI_PROVIDER', 'none'),
+        'api_key' => env('DRIVE_AI_API_KEY'),
+        'vision_model' => env('DRIVE_AI_VISION_MODEL', 'gpt-4o-mini'),
+        'metadata_model' => env('DRIVE_AI_METADATA_MODEL', 'gpt-4o-mini'),
     ],
 ];

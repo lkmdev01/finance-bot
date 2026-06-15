@@ -4,10 +4,12 @@ use App\Services\WhatsApp\DriveAIMetadataService;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
-    config()->set('ai.provider', 'openai');
-    config()->set('ai.api_key', 'test-openai-key');
-    config()->set('ai.openai.vision_model', 'gpt-4o-mini');
-    config()->set('ai.openai.metadata_model', 'gpt-4o-mini');
+    config()->set('ai.provider', 'groq');
+    config()->set('ai.api_key', 'test-groq-key');
+    config()->set('ai.drive_metadata.provider', 'openai');
+    config()->set('ai.drive_metadata.api_key', 'test-openai-key');
+    config()->set('ai.drive_metadata.vision_model', 'gpt-4o-mini');
+    config()->set('ai.drive_metadata.metadata_model', 'gpt-4o-mini');
 });
 
 it('gera metadados humanos para imagens usando visao', function () {
@@ -90,7 +92,9 @@ it('gera metadados humanos para audios usando transcricao', function () {
 
 it('nao chama ia quando nao esta configurado', function () {
     config()->set('ai.provider', 'groq');
-    config()->set('ai.api_key', null);
+    config()->set('ai.api_key', 'test-groq-key');
+    config()->set('ai.drive_metadata.provider', 'none');
+    config()->set('ai.drive_metadata.api_key', null);
     Http::fake();
 
     $metadata = app(DriveAIMetadataService::class)->analyze(
