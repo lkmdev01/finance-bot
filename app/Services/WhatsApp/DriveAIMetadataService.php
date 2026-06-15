@@ -83,7 +83,7 @@ class DriveAIMetadataService
             ],
         ]);
 
-        return $this->parseResponse($response, 'openai_vision');
+        return $this->parseResponse($response, $this->sourceName('vision'));
     }
 
     /**
@@ -108,7 +108,7 @@ class DriveAIMetadataService
             ],
         ]);
 
-        return $this->parseResponse($response, 'openai_text');
+        return $this->parseResponse($response, $this->sourceName('text'));
     }
 
     /**
@@ -116,10 +116,17 @@ class DriveAIMetadataService
      */
     private function postChatCompletion(string $model, array $messages): array
     {
-        $response = Http::withToken((string) config('ai.drive_metadata.api_key'))
+        $provider = (string) config('ai.drive_metadata.provider');
+        $url = match ($provider) {
+            'groq' => 'https://api.groq.com/openai/v1/chat/completions',
+            'openai' => 'https://api.openai.com/v1/chat/completions',
+            default => throw new \RuntimeException("Drive AI provider '{$provider}' nao suportado."),
+        };
+
+        $response = Http::withToken($this->apiKey())
             ->acceptJson()
             ->timeout(30)
-            ->post('https://api.openai.com/v1/chat/completions', [
+            ->post($url, [
                 'model' => $model,
                 'messages' => $messages,
                 'temperature' => 0.2,
@@ -128,7 +135,7 @@ class DriveAIMetadataService
             ]);
 
         if (! $response->successful()) {
-            throw new \RuntimeException('OpenAI metadata error: '.$response->body());
+            throw new \RuntimeException("{$provider} metadata error: ".$response->body());
         }
 
         return $response->json();
@@ -212,8 +219,18 @@ PROMPT;
 
     private function isAvailable(): bool
     {
-        return config('ai.drive_metadata.provider') === 'openai'
-            && filled(config('ai.drive_metadata.api_key'));
+        return in_array(config('ai.drive_metadata.provider'), ['groq', 'openai'], true)
+            && filled($this->apiKey());
+    }
+
+    private function apiKey(): string
+    {
+        return (string) config('ai.drive_metadata.api_key');
+    }
+
+    private function sourceName(string $kind): string
+    {
+        return ((string) config('ai.drive_metadata.provider')).'_'.$kind;
     }
 
     /**
