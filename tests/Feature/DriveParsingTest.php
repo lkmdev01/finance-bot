@@ -83,6 +83,16 @@ class DriveParsingTest extends TestCase
         $this->assertEquals('only_match', $onlyMatch['follow_up']);
     }
 
+    public function test_drive_query_removes_generic_media_words_when_specific_term_exists(): void
+    {
+        $parser = app(DriveMessageParser::class);
+
+        $query = $parser->parseQuery('ache minha foto na neve', ['last_entities' => ['topic' => 'drive']]);
+
+        $this->assertEquals('image', $query['media_kind']);
+        $this->assertEquals('neve', $query['term']);
+    }
+
     public function test_drive_query_preserves_uppercase_acronyms_even_when_they_are_stopwords(): void
     {
         $parser = app(DriveMessageParser::class);

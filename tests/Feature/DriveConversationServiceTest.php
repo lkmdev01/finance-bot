@@ -191,3 +191,31 @@ it('prioriza siglas fiscais no nome do arquivo em buscas de hoje', function () {
         ->and($data['entities']['drive_file_id'])->toBe($das->id)
         ->and($data['entities']['drive_query_term'])->toBe('das');
 });
+
+it('nao retorna fotos genericas quando a busca pede um termo semantico especifico', function () {
+    DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'imagem.png',
+        'mime_type' => 'image/png',
+        'size_bytes' => 1000,
+        'sha256' => hash('sha256', 'generic-image'),
+        'drive_file_id' => 'generic-image',
+        'drive_path' => 'drive em fotos',
+        'title' => 'imagem',
+        'description' => 'Imagem enviada hoje',
+        'tags' => ['imagem', 'foto'],
+        'metadata' => [],
+    ]);
+
+    $data = app(DriveConversationService::class)->buildReply(
+        $this->user->fresh(),
+        'ache minha foto na neve',
+        ['last_entities' => ['topic' => 'drive']]
+    );
+
+    expect($data['reply'])->toContain('Nao encontrei fotos sobre "neve"')
+        ->and($data['reply'])->not->toContain('imagem')
+        ->and($data['entities']['drive_query_term'])->toBe('neve')
+        ->and($data['entities']['drive_media_kind'])->toBe('image');
+});

@@ -452,6 +452,15 @@ class DriveMessageParser
             return null;
         }
 
-        return $term;
+        if ($genericTerms !== []) {
+            $tokens = array_values(array_filter(preg_split('/\s+/u', $normalizedTerm) ?: []));
+            $specificTokens = array_values(array_filter($tokens, fn (string $token) => ! in_array($token, $genericTerms, true)));
+
+            if ($specificTokens !== [] && count($specificTokens) < count($tokens)) {
+                return implode(' ', $specificTokens);
+            }
+        }
+
+        return $normalizedTerm;
     }
 }

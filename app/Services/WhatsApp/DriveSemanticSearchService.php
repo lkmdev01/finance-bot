@@ -64,8 +64,10 @@ class DriveSemanticSearchService
             }
         }
 
-        foreach ($this->mediaTerms($mediaKind) as $mediaTerm) {
-            $expandedTokens[] = $mediaTerm;
+        if ($normalizedTerm === '') {
+            foreach ($this->mediaTerms($mediaKind) as $mediaTerm) {
+                $expandedTokens[] = $mediaTerm;
+            }
         }
 
         $expandedTokens = array_values(array_unique(array_filter($expandedTokens)));
@@ -84,27 +86,32 @@ class DriveSemanticSearchService
     private function score(DriveFile $file, array $profile): int
     {
         $haystacks = $this->haystacks($file);
-        $score = 0;
+        $mediaScore = 0;
+        $semanticScore = 0;
 
         $mediaKind = $profile['media_kind'] ?? null;
         if (is_string($mediaKind) && $mediaKind !== '' && $this->fileMatchesMediaKind($file, $mediaKind)) {
-            $score += 15;
+            $mediaScore += 15;
         }
 
         $term = (string) ($profile['term'] ?? '');
         if ($term !== '') {
-            $score += $this->scoreExactTerm($term, $haystacks);
+            $semanticScore += $this->scoreExactTerm($term, $haystacks);
         }
 
         foreach (($profile['tokens'] ?? []) as $token) {
-            $score += $this->scoreToken((string) $token, $haystacks, true);
+            $semanticScore += $this->scoreToken((string) $token, $haystacks, true);
         }
 
         foreach (($profile['expanded_tokens'] ?? []) as $token) {
-            $score += $this->scoreToken((string) $token, $haystacks, false);
+            $semanticScore += $this->scoreToken((string) $token, $haystacks, false);
         }
 
-        return $score;
+        if ($term !== '' && $semanticScore <= 0) {
+            return 0;
+        }
+
+        return $semanticScore + $mediaScore;
     }
 
     /**
