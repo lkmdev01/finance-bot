@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Services\WhatsApp\DomainGate;
 use App\Services\WhatsApp\DriveIntentClassifier;
 use App\Services\WhatsApp\DriveMessageParser;
-use App\Services\WhatsApp\DomainGate;
 use App\Services\WhatsApp\ReminderMessageParser;
 use Tests\TestCase;
 
@@ -81,6 +81,16 @@ class DriveParsingTest extends TestCase
         $this->assertEquals('image', $morePhotos['media_kind']);
         $this->assertNull($morePhotos['term']);
         $this->assertEquals('only_match', $onlyMatch['follow_up']);
+    }
+
+    public function test_drive_query_preserves_uppercase_acronyms_even_when_they_are_stopwords(): void
+    {
+        $parser = app(DriveMessageParser::class);
+
+        $query = $parser->parseQuery('Ache no drive a DAS que mandei hoje', ['last_entities' => ['topic' => 'drive']]);
+
+        $this->assertEquals('das', $query['term']);
+        $this->assertEquals('today', $query['time_scope']);
     }
 
     public function test_drive_contextual_follow_up_preserves_previous_filters(): void

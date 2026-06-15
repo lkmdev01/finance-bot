@@ -3,6 +3,7 @@
 namespace App\Services\WhatsApp;
 
 use App\Services\WhatsApp\Support\NormalizesWhatsAppText;
+
 class DriveMessageParser
 {
     use NormalizesWhatsAppText;
@@ -162,11 +163,16 @@ class DriveMessageParser
         }
 
         $words = preg_split('/\\s+/u', $normalized) ?: [];
+        $preservedAcronyms = $this->extractPreservedAcronyms($clean);
         $filtered = [];
 
         foreach ($words as $word) {
             $word = trim($word);
-            if ($word === '' || in_array($word, self::QUERY_STOPWORDS, true)) {
+            if ($word === '') {
+                continue;
+            }
+
+            if (in_array($word, self::QUERY_STOPWORDS, true) && ! in_array($word, $preservedAcronyms, true)) {
                 continue;
             }
 
@@ -176,6 +182,28 @@ class DriveMessageParser
         $subject = trim(implode(' ', $filtered));
 
         return $subject !== '' ? $subject : null;
+    }
+
+    /**
+     * Preserve uppercase acronyms that would otherwise look like Portuguese stopwords.
+     *
+     * Example: "DAS" normalizes to "das", but in "Ache a DAS que mandei hoje"
+     * it is a tax document acronym, not the article "das".
+     *
+     * @return array<int, string>
+     */
+    private function extractPreservedAcronyms(string $message): array
+    {
+        if (preg_match_all('/\b[A-Z0-9]{2,}(?:-[A-Z0-9]{2,})*\b/u', $message, $matches) !== 1) {
+            return [];
+        }
+
+        return collect($matches[0])
+            ->map(fn (string $acronym) => $this->normalizeText($acronym))
+            ->filter(fn (string $acronym) => $acronym !== '')
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function parseQuery(string $message, array $state): array

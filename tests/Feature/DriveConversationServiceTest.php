@@ -147,3 +147,47 @@ it('ranqueia arquivos por significado usando tipo, tags, descricao e texto extra
     expect($contract['reply'])->toContain('contrato_aluguel')
         ->and($contract['reply'])->not->toContain('audio_projeto');
 });
+
+it('prioriza siglas fiscais no nome do arquivo em buscas de hoje', function () {
+    DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'imagem.png',
+        'mime_type' => 'image/png',
+        'size_bytes' => 1000,
+        'sha256' => hash('sha256', 'das-search-image'),
+        'drive_file_id' => 'das-search-image',
+        'drive_path' => 'drive em fotos',
+        'title' => 'imagem',
+        'description' => 'Imagem enviada hoje',
+        'tags' => ['imagem', 'foto'],
+        'metadata' => [],
+    ]);
+
+    $das = DriveFile::create([
+        'user_id' => $this->user->id,
+        'source' => 'whatsapp',
+        'original_name' => 'DAS-PGMEI-64365816000100-AC2026-3.pdf',
+        'mime_type' => 'application/pdf',
+        'size_bytes' => 1000,
+        'sha256' => hash('sha256', 'das-search-document'),
+        'drive_file_id' => 'das-search-document',
+        'drive_path' => 'drive Mei comprovante',
+        'title' => 'DAS-PGMEI-64365816000100-AC2026-3',
+        'description' => 'Documento DAS PGMEI de MEI',
+        'tags' => ['das', 'pgmei', 'mei', 'comprovante'],
+        'extracted_text' => 'Documento de Arrecadacao do Simples Nacional DAS PGMEI',
+        'metadata' => [],
+    ]);
+
+    $data = app(DriveConversationService::class)->buildReply(
+        $this->user->fresh(),
+        'Ache no drive a DAS que mandei hoje',
+        ['last_entities' => ['topic' => 'drive']]
+    );
+
+    expect($data['reply'])->toContain('Arquivos salvos hoje:')
+        ->and($data['reply'])->toContain('1. DAS-PGMEI-64365816000100-AC2026-3')
+        ->and($data['entities']['drive_file_id'])->toBe($das->id)
+        ->and($data['entities']['drive_query_term'])->toBe('das');
+});
