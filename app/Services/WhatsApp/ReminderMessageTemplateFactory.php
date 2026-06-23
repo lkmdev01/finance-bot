@@ -2,11 +2,13 @@
 
 namespace App\Services\WhatsApp;
 
+use Illuminate\Support\Str;
+
 class ReminderMessageTemplateFactory
 {
     public static function detect(string $title, string $message): string
     {
-        $titleLower = mb_strtolower($title);
+        $titleLower = mb_strtolower(trim($title.' '.$message));
 
         if (self::isAnniversary($titleLower)) {
             return 'anniversary';
@@ -102,10 +104,10 @@ class ReminderMessageTemplateFactory
             $name = 'alguem especial';
         }
 
-        $message = "Feliz aniversario, {$name}! Que seu dia seja leve e cheio de coisas boas.";
+        $body = "{$greeting}\n\nLembrete de aniversario\nHoje e aniversario de *{$name}*.\n\nSugestao:\n\"Feliz aniversario, {$name}! Que seu novo ciclo venha com saude, paz e coisas boas.\"";
 
         // Keep reminders short (<= 255 chars) because this is what we persist and send later.
-        return "{$greeting}\n\nHoje e aniversario de *{$name}*.\nNao esquece de dar parabens.\n\nMensagem pronta:\n{$message}";
+        return Str::limit($body, 255, '');
     }
 
     private static function buildPaymentMessage(string $greeting, string $title, string $frequency): string

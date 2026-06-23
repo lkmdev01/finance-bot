@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Services\WhatsApp\DomainGate;
 use App\Services\WhatsApp\DriveIntentClassifier;
 use App\Services\WhatsApp\DriveMessageParser;
+use App\Services\WhatsApp\IncomingMessageNormalizer;
 use App\Services\WhatsApp\ReminderMessageParser;
 use Tests\TestCase;
 
@@ -91,6 +92,35 @@ class DriveParsingTest extends TestCase
 
         $this->assertEquals('image', $query['media_kind']);
         $this->assertEquals('neve', $query['term']);
+    }
+
+    public function test_drive_query_accepts_specific_more_photos_without_previous_context(): void
+    {
+        $parser = app(DriveMessageParser::class);
+        $classifier = app(DriveIntentClassifier::class);
+
+        $this->assertTrue($parser->looksLikeQueryIntent('tem mais fotos da neve', []));
+
+        $query = $parser->parseQuery('tem mais fotos da neve?', []);
+        $result = $classifier->classify('tem mais fotos da neve?', 'tem mais fotos da neve', []);
+
+        $this->assertEquals('image', $query['media_kind']);
+        $this->assertEquals('neve', $query['term']);
+        $this->assertNotNull($result);
+        $this->assertEquals('drive_query', $result['kind']);
+    }
+
+    public function test_normalizes_common_photo_typo_for_drive_queries(): void
+    {
+        $normalizer = app(IncomingMessageNormalizer::class);
+        $classifier = app(DriveIntentClassifier::class);
+
+        $normalized = $normalizer->normalize('encontra a doto de banner');
+        $result = $classifier->classify('encontra a doto de banner', $normalized, []);
+
+        $this->assertStringContainsString('foto', $normalized);
+        $this->assertNotNull($result);
+        $this->assertEquals('drive_query', $result['kind']);
     }
 
     public function test_drive_query_preserves_uppercase_acronyms_even_when_they_are_stopwords(): void

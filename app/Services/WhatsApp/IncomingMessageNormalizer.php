@@ -23,6 +23,7 @@ class IncomingMessageNormalizer
         $message = preg_replace('/^\s*chat[\s,:-]+/iu', '', $message) ?? $message;
         // Conservative typo fixes that improve intent detection.
         $message = preg_replace('/\bastei\s+(\d)/iu', 'gastei $1', $message) ?? $message;
+        $message = preg_replace('/\bdoto(s)?\b/iu', 'foto$1', $message) ?? $message;
         $message = preg_replace('/\s+/u', ' ', $message) ?? $message;
 
         return trim($message);
