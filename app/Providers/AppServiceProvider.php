@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use App\Services\AbacatePayService;
 use App\Services\AbacatePayWebhookProcessor;
 use App\Services\AIContextBuilder;
@@ -11,24 +12,24 @@ use App\Services\AIService;
 use App\Services\BaileysService;
 use App\Services\BillingPlanService;
 use App\Services\WhatsApp\ActionHandlerFactory;
-use App\Services\WhatsApp\Handlers\CancelSubscriptionHandler;
 use App\Services\WhatsApp\Handlers\CancelRecurringTransactionHandler;
+use App\Services\WhatsApp\Handlers\CancelSubscriptionHandler;
 use App\Services\WhatsApp\Handlers\CreateBudgetHandler;
 use App\Services\WhatsApp\Handlers\CreateCreditCardHandler;
-use App\Services\WhatsApp\Handlers\CreateInstallmentTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateDriveFileHandler;
+use App\Services\WhatsApp\Handlers\CreateInstallmentTransactionHandler;
 use App\Services\WhatsApp\Handlers\CreateNoteHandler;
-use App\Services\WhatsApp\Handlers\CreateReminderHandler;
-use App\Services\WhatsApp\Handlers\DeleteReminderHandler;
-use App\Services\WhatsApp\Handlers\DeleteNoteHandler;
-use App\Services\WhatsApp\Handlers\EditReminderHandler;
-use App\Services\WhatsApp\Handlers\EditNoteHandler;
 use App\Services\WhatsApp\Handlers\CreateRecurringTransactionHandler;
+use App\Services\WhatsApp\Handlers\CreateReminderHandler;
 use App\Services\WhatsApp\Handlers\CreateSavingsGoalHandler;
 use App\Services\WhatsApp\Handlers\CreateSubscriptionHandler;
 use App\Services\WhatsApp\Handlers\CreateTransactionHandler;
 use App\Services\WhatsApp\Handlers\DeleteBudgetHandler;
+use App\Services\WhatsApp\Handlers\DeleteNoteHandler;
+use App\Services\WhatsApp\Handlers\DeleteReminderHandler;
 use App\Services\WhatsApp\Handlers\DeleteTransactionHandler;
+use App\Services\WhatsApp\Handlers\EditNoteHandler;
+use App\Services\WhatsApp\Handlers\EditReminderHandler;
 use App\Services\WhatsApp\Handlers\EditTransactionHandler;
 use App\Services\WhatsApp\Handlers\QueryHandler;
 use App\Services\WhatsApp\Handlers\ReportHandler;
@@ -38,7 +39,6 @@ use App\Services\WhatsApp\Handlers\UpdateBudgetHandler;
 use App\Services\WhatsApp\Handlers\UpdateRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\UpdateSavingsGoalHandler;
 use App\Services\WhatsApp\Handlers\UpdateSubscriptionHandler;
-use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -62,7 +62,7 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->singleton(BillingPlanService::class, fn () => new BillingPlanService());
+        $this->app->singleton(BillingPlanService::class, fn () => new BillingPlanService);
 
         $this->app->singleton(BaileysService::class, function () {
             return new BaileysService(
@@ -72,7 +72,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(AIService::class, function ($app) {
-            // Para Ollama, a API key não é necessária.
+            // Para Ollama, a API key nao e necessaria.
             $apiKey = config('ai.provider') === 'ollama' ? '' : (string) config('ai.api_key');
 
             return new AIService(
@@ -124,6 +124,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::define('viewAssistantObservability', function (User $user): bool {
+            return $user->isAdmin();
+        });
+
+        Gate::define('manageWhatsAppBroadcasts', function (User $user): bool {
             return $user->isAdmin();
         });
 
