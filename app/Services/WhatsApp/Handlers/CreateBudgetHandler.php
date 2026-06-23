@@ -28,6 +28,7 @@ class CreateBudgetHandler extends BaseHandler
 
         if (! $billingPlanService->userCanCreateRecords($user)) {
             $this->sendResponse($job, $this->buildSubscriptionRequiredReply($user, $billingPlanService), $user);
+
             return true;
         }
 
@@ -36,6 +37,7 @@ class CreateBudgetHandler extends BaseHandler
 
         if ($validation->fails()) {
             $this->sendErrorMessage($job, $this->buildBudgetValidationGuidanceReply($validation->errors()->all()));
+
             return true;
         }
 
@@ -67,6 +69,7 @@ class CreateBudgetHandler extends BaseHandler
         ]);
 
         $this->sendResponse($job, $reply, $user);
+
         return true;
     }
 
@@ -177,16 +180,16 @@ class CreateBudgetHandler extends BaseHandler
         $category = $budget->category?->name ?? 'Sem categoria';
 
         if ($budget->period === 'yearly') {
-            return $wasUpdate
-                ? "Orcamento anual atualizado: R$ {$amount} para {$category} em {$budget->year}."
-                : "Orcamento anual criado: R$ {$amount} para {$category} em {$budget->year}.";
+            $status = $wasUpdate ? 'Orcamento anual atualizado' : 'Orcamento anual criado';
+
+            return "{$status}.\n\nCategoria: {$category}\nLimite: R$ {$amount}\nPeriodo: {$budget->year}\n\nPara acompanhar, diga \"como esta meu orcamento?\".";
         }
 
         $monthLabel = str_pad((string) $budget->month, 2, '0', STR_PAD_LEFT).'/'.$budget->year;
 
         return $wasUpdate
-            ? "Orcamento atualizado: R$ {$amount} para {$category} em {$monthLabel}."
-            : "Orcamento de R$ {$amount} criado para {$category} em {$monthLabel}.";
+            ? "Orcamento atualizado.\n\nCategoria: {$category}\nLimite: R$ {$amount}\nPeriodo: {$monthLabel}\n\nPara acompanhar, diga \"como esta meu orcamento?\"."
+            : "Orcamento de R$ {$amount} criado para {$category} em {$monthLabel}.\n\nCategoria: {$category}\nLimite: R$ {$amount}\n\nPara acompanhar, diga \"como esta meu orcamento?\".";
     }
 
     private function buildBudgetValidationGuidanceReply(array $errors = []): string
@@ -198,7 +201,7 @@ class CreateBudgetHandler extends BaseHandler
             ."* criar orcamento de 800 para mercado\n"
             ."* definir orcamento de 300 para transporte\n"
             ."* registrar orcamento de 500 para compras\n"
-            ."* criar orcamento anual de 5000 para saude"
+            .'* criar orcamento anual de 5000 para saude'
             .$details;
     }
 
@@ -211,4 +214,3 @@ class CreateBudgetHandler extends BaseHandler
             .$plansUrl;
     }
 }
-

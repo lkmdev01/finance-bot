@@ -13,12 +13,13 @@ use App\Services\CategoryRecognitionService;
 use App\Services\PerformanceMetricsService;
 use App\Services\WhatsApp\CompoundTransactionMessageParser;
 use App\Services\WhatsApp\FinancialSourceResolver;
+use App\Services\WhatsApp\WhatsAppResponseBuilder;
 use App\Services\WhatsAppFormatter;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class CreateTransactionHandler extends BaseHandler
 {
@@ -34,6 +35,7 @@ class CreateTransactionHandler extends BaseHandler
 
             if (! $isConfirmation) {
                 $this->sendResponse($job, (string) ($result['reply'] ?? ''), $user);
+
                 return true;
             }
 
@@ -53,6 +55,7 @@ class CreateTransactionHandler extends BaseHandler
             }
 
             $this->sendResponse($job, $this->buildCompoundTransactionReply(), $user);
+
             return true;
         }
 
@@ -63,6 +66,7 @@ class CreateTransactionHandler extends BaseHandler
                 ."\n\nAssine um plano para voltar a registrar novas informacoes:\n"
                 .$plansUrl;
             $this->sendResponse($job, $reply, $user);
+
             return true;
         }
 
@@ -90,6 +94,7 @@ class CreateTransactionHandler extends BaseHandler
                 ]);
 
                 $this->sendErrorMessage($job, $this->buildValidationGuidanceReply($errors->all(), $job->message));
+
                 return true;
             }
         }
@@ -133,10 +138,14 @@ class CreateTransactionHandler extends BaseHandler
                     ])
                     ->values()
                     ->toArray();
-                $reply = sprintf(
-                    'Entendi que voce quer registrar no *debito*, mas eu nao encontrei uma conta "%s" para usar no saldo. Quer usar "%s" (responda: caixa) ou me diga o nome da conta certa? Se quiser, diga: contas.',
-                    (string) $result['transaction_data']['bank_account_name'],
-                    $cashName
+                $reply = app(WhatsAppResponseBuilder::class)->guidance(
+                    sprintf('Entendi que voce quer registrar no debito, mas nao encontrei a conta "%s".', (string) $result['transaction_data']['bank_account_name']),
+                    [
+                        "usar {$cashName}",
+                        'usar saldo',
+                        'contas',
+                        'usar conta <nome da conta>',
+                    ]
                 );
 
                 $result['_conversation_metadata'] = [
@@ -154,6 +163,7 @@ class CreateTransactionHandler extends BaseHandler
                 ];
 
                 $this->sendResponse($job, $reply, $user);
+
                 return true;
             }
         }
@@ -181,9 +191,12 @@ class CreateTransactionHandler extends BaseHandler
                         unset($result['transaction_data']['credit_card_id'], $result['transaction_data']['credit_card_name'], $result['transaction_data']['use_default_card']);
                     }
                 } else {
-                    $reply = sprintf(
-                        'Entendi. Voce quer registrar isso no credito (limite do cartao) ou no debito (saldo da conta) para %s? Responda: credito ou debito.',
-                        $cardName
+                    $reply = app(WhatsAppResponseBuilder::class)->guidance(
+                        "Para {$cardName}, voce quer registrar onde?",
+                        [
+                            'credito',
+                            'debito',
+                        ]
                     );
 
                     $result['_conversation_metadata'] = [
@@ -198,6 +211,7 @@ class CreateTransactionHandler extends BaseHandler
                     ];
 
                     $this->sendResponse($job, $reply, $user);
+
                     return true;
                 }
             }
@@ -218,9 +232,13 @@ class CreateTransactionHandler extends BaseHandler
             && empty($result['transaction_data']['use_default_card'])) {
 
             if (! $user->creditCards()->where('is_active', true)->exists()) {
-                $reply = 'Voce informou pagamento no cartao/credito, mas voce ainda nao tem cartoes ativos cadastrados. '
-                    .'Se quiser cadastrar, mande algo como: "registrar cartao de credito Nubank limite de 5000". '
-                    .'Se preferir registrar no saldo da conta, responda: "usar saldo".';
+                $reply = app(WhatsAppResponseBuilder::class)->guidance(
+                    'Voce informou pagamento no cartao, mas ainda nao tem cartoes ativos cadastrados.',
+                    [
+                        'registrar cartao de credito Nubank limite de 5000',
+                        'usar saldo',
+                    ]
+                );
 
                 $result['_conversation_metadata'] = [
                     'pending_intent' => 'select_credit_card',
@@ -233,11 +251,11 @@ class CreateTransactionHandler extends BaseHandler
                 ];
 
                 $this->sendResponse($job, $reply, $user);
+
                 return true;
             }
 
-            $reply = 'Você informou pagamento no cartão, mas não identifiquei qual cartão. '
-                .'Por favor, responda com o nome do cartão (ex.: "cartão Nubank") ou diga "usar cartão padrão" para prosseguir.';
+            $reply = app(WhatsAppResponseBuilder::class)->guidance('Voce informou pagamento no cartao, mas eu nao identifiquei qual cartao usar.', ['cartao Nubank',                     'usar cartao padrao',                     'usar saldo']);
 
             $result['_conversation_metadata'] = [
                 'pending_intent' => 'select_credit_card',
@@ -250,6 +268,7 @@ class CreateTransactionHandler extends BaseHandler
             ];
 
             $this->sendResponse($job, $reply, $user);
+
             return true;
         }
 
@@ -289,6 +308,7 @@ class CreateTransactionHandler extends BaseHandler
         ]);
 
         $this->sendResponse($job, $reply, $user);
+
         return true;
     }
 
@@ -327,6 +347,7 @@ class CreateTransactionHandler extends BaseHandler
 
             if ($validation->fails()) {
                 $this->sendErrorMessage($job, $this->buildCompoundTransactionReply());
+
                 return true;
             }
 
@@ -335,6 +356,7 @@ class CreateTransactionHandler extends BaseHandler
 
         if ($createdTransactions === []) {
             $this->sendErrorMessage($job, $this->buildCompoundTransactionReply());
+
             return true;
         }
 
@@ -353,6 +375,7 @@ class CreateTransactionHandler extends BaseHandler
         ]);
 
         $this->sendResponse($job, $this->buildCompoundSuccessReply($createdTransactions), $user);
+
         return true;
     }
 
@@ -530,6 +553,7 @@ class CreateTransactionHandler extends BaseHandler
     private function shouldUseGenericTransactionReply(array $data, string $rawMessage): bool
     {
         $description = trim((string) ($data['description'] ?? ''));
+
         return ($description === '' || $this->isPlaceholderDescription($description))
             && $this->isAmountOnlyMessage($rawMessage);
     }
@@ -541,6 +565,7 @@ class CreateTransactionHandler extends BaseHandler
         $normalized = preg_replace('/\b(r\$|rs|reais?|real|pix|cart[aã]o|credito|crédito|débito|no|na|de|do|da|em|por|para|com|um|uma|uns|umas|foi|era|só|apenas)\b/u', ' ', $normalized);
         $normalized = preg_replace('/\b(gastei|gasto|paguei|pago|recebi|recebido|ganhei|ganho|entrou|entrada|saída)\b/u', ' ', $normalized);
         $normalized = preg_replace('/\s+/u', ' ', trim((string) $normalized));
+
         return $normalized === '';
     }
 
@@ -573,39 +598,45 @@ class CreateTransactionHandler extends BaseHandler
 
         if ($transaction->type === 'income') {
             if ($description !== '' && $description !== 'Receita' && $category !== '') {
-                return "Receita de R$ {$amount} registrada em {$category} ({$description}).";
+                return "Receita de R$ {$amount} registrada.\n\nCategoria: {$category}\nDescricao: {$description}\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\".";
             }
             if ($description !== '' && $description !== 'Receita') {
-                return "Receita de R$ {$amount} registrada como {$description}.";
+                return "Receita de R$ {$amount} registrada.\n\nDescricao: {$description}\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\".";
             }
             if ($category !== '') {
-                return "Receita de R$ {$amount} registrada em {$category}.";
+                return "Receita de R$ {$amount} registrada.\n\nCategoria: {$category}\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\".";
             }
-            return "Receita de R$ {$amount} registrada.";
+
+            return "Receita de R$ {$amount} registrada.\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\".";
         }
 
         if ($description !== '' && $description !== 'Gasto' && $category !== '') {
-            $suffix = $sourceLabel ? " ({$sourceLabel})" : '';
-            return "Registrei R$ {$amount} em {$category} ({$description}){$suffix}.";
+            $source = $sourceLabel ? "\nOrigem: {$sourceLabel}" : '';
+
+            return "Registrei R$ {$amount} em {$category}.\n\nDescricao: {$description}{$source}\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\".";
         }
         if ($description !== '' && $description !== 'Gasto') {
-            $suffix = $sourceLabel ? " ({$sourceLabel})" : '';
-            return "Registrei R$ {$amount} em {$description}{$suffix}.";
+            $source = $sourceLabel ? "\nOrigem: {$sourceLabel}" : '';
+
+            return "Registrei R$ {$amount} em {$description}.{$source}\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\".";
         }
         if ($category !== '') {
-            $suffix = $sourceLabel ? " ({$sourceLabel})" : '';
-            return "Registrei R$ {$amount} em {$category}{$suffix}.";
+            $source = $sourceLabel ? "\nOrigem: {$sourceLabel}" : '';
+
+            return "Registrei R$ {$amount} em {$category}.{$source}\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\".";
         }
-        $suffix = $sourceLabel ? " ({$sourceLabel})" : '';
-        return "Gasto de R$ {$amount} registrado{$suffix}.";
+        $source = $sourceLabel ? "\nOrigem: {$sourceLabel}" : '';
+
+        return "Gasto de R$ {$amount} registrado.{$source}\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\".";
     }
 
     private function buildGenericTransactionReply(array $data): string
     {
         $amount = number_format((float) ($data['amount'] ?? 0), 2, ',', '.');
+
         return ($data['type'] ?? 'expense') === 'income'
-            ? "Receita de R$ {$amount} registrada."
-            : "Gasto de R$ {$amount} registrado.";
+            ? "Receita de R$ {$amount} registrada.\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\"."
+            : "Gasto de R$ {$amount} registrado.\n\nSe precisar corrigir, diga \"editar essa transacao\" ou \"desfazer\".";
     }
 
     private function buildCompoundTransactionReply(): string
@@ -614,17 +645,18 @@ class CreateTransactionHandler extends BaseHandler
             ."Tente assim:\n"
             ."• Gastei 32 no Uber e 48 no mercado\n"
             ."• Recebi 420 de freelance e 180 de cashback\n\n"
-            ."Se preferir, pode me mandar uma mensagem por vez que eu registro tudo.";
+            .'Se preferir, pode me mandar uma mensagem por vez que eu registro tudo.';
     }
 
     private function buildCompoundSuccessReply(array $transactions): string
     {
-        $lines = collect($transactions)->map(function (Transaction $transaction) {
+        $lines = collect($transactions)->map(function (Transaction $transaction, int $index) {
             $label = $transaction->description ?: ($transaction->category?->name ?? 'Transacao');
-            return sprintf('- %s: R$ %s', $label, number_format((float) $transaction->amount, 2, ',', '.'));
+
+            return sprintf('%d. %s: R$ %s', $index + 1, $label, number_format((float) $transaction->amount, 2, ',', '.'));
         })->implode("\n");
 
-        return "Registrei estes lancamentos:\n{$lines}";
+        return "Registrei estes lancamentos:\n{$lines}\n\nSe precisar corrigir algum, diga \"editar ultima transacao\" ou \"desfazer\".";
     }
 
     private function buildValidationGuidanceReply(array $errors, string $rawMessage): string
@@ -640,7 +672,7 @@ class CreateTransactionHandler extends BaseHandler
                 ."Tente assim:\n"
                 ."• apagar ultima transacao\n"
                 ."• apagar Uber de 18 reais\n"
-                ."• apagar mercado de ontem";
+                .'• apagar mercado de ontem';
         }
 
         if (str_contains($message, 'relatorio') || str_contains($message, 'relatório')) {
@@ -648,7 +680,7 @@ class CreateTransactionHandler extends BaseHandler
                 ."Tente assim:\n"
                 ."• me gera um relatorio do mes\n"
                 ."• me manda o relatorio em PDF\n"
-                ."• relatorio anual em Excel";
+                .'• relatorio anual em Excel';
         }
 
         $details = collect($errors)->filter()->implode(' ');
@@ -656,7 +688,7 @@ class CreateTransactionHandler extends BaseHandler
             ."Tente mandar em um destes formatos:\n"
             ."• Gastei 50 no supermercado\n"
             ."• Recebi 1000 de salario\n"
-            ."• Qual e o meu saldo?";
+            .'• Qual e o meu saldo?';
 
         return $details !== '' ? $base."\n\nDetalhe: {$details}" : $base;
     }
@@ -681,12 +713,14 @@ class CreateTransactionHandler extends BaseHandler
         // If user explicitly says debit/saldo, treat as debit.
         if (str_contains($ascii, 'debito') || str_contains($ascii, 'saldo')) {
             $data['payment_method'] = 'debit';
+
             return $data;
         }
 
         // If user explicitly says credit, treat as credit.
         if (str_contains($ascii, 'credito')) {
             $data['payment_method'] = 'credit';
+
             return $data;
         }
 

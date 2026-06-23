@@ -127,7 +127,7 @@ class CreateSubscriptionHandler extends BaseHandler
         $cycle = $subscription->billing_cycle === 'yearly' ? 'anual' : 'mensal';
 
         return sprintf(
-            'Assinatura %s criada com valor de R$ %s no ciclo %s e vencimento no dia %d.',
+            "Assinatura %s criada com valor de R$ %s.\n\nCiclo: %s\nVencimento: dia %d\n\nPara consultar depois, diga \"minhas assinaturas\".",
             $subscription->name,
             $amount,
             $cycle,
@@ -143,7 +143,7 @@ class CreateSubscriptionHandler extends BaseHandler
             ."Tente assim:\n"
             ."* criar assinatura Netflix mensal dia 10 19 reais\n"
             ."* definir assinatura Spotify mensal dia 5 21,90\n"
-            ."* criar assinatura Academia anual dia 15 800"
+            .'* criar assinatura Academia anual dia 15 800'
             .$details;
     }
 }

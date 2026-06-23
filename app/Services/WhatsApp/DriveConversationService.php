@@ -193,12 +193,12 @@ class DriveConversationService
         $first = $files->first();
         $firstUrl = $first?->drive_file_id ? $this->linkHelper->webUrl((string) $first->drive_file_id) : null;
 
-        $reply = "{$header}\n{$lines}";
+        $reply = "{$header}\n\n{$lines}";
         if ($firstUrl) {
             $reply .= "\n\nAbrir o primeiro:\n{$firstUrl}";
         }
 
-        $reply .= "\n\nSe quiser, diga: \"abrir o 2\", \"em qual pasta ficou?\" ou \"buscar arquivo sobre contrato\".";
+        $reply .= "\n\nVoce pode continuar com:\n- abrir o 2\n- em qual pasta ficou?\n- buscar arquivo sobre contrato";
 
         return $reply;
     }
@@ -227,9 +227,9 @@ class DriveConversationService
         $reply = "Nao encontrei {$subject}{$period}{$suffix}.";
 
         if (($queryData['time_scope'] ?? null) !== null || ($queryData['media_kind'] ?? null) !== null) {
-            $reply .= "\n\nPosso procurar em outros dias ou listar todos os arquivos recentes se voce quiser.";
+            $reply .= "\n\nPosso tentar outro filtro. Exemplos:\n- meus arquivos\n- procura fotos recentes\n- buscar arquivo sobre contrato";
         } else {
-            $reply .= "\n\nDica: envie um arquivo no WhatsApp e diga \"salva isso no drive\".";
+            $reply .= "\n\nPara salvar algo novo:\n1. envie o arquivo/foto/audio\n2. diga \"salva isso no drive\"";
         }
 
         return $reply;

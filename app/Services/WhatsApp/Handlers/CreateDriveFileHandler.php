@@ -175,18 +175,18 @@ class CreateDriveFileHandler extends BaseHandler
                 // Ignore; cleanup is opportunistic.
             }
 
-            $reply = "✅ Pronto! Salvei *{$fileName}*";
+            $reply = "Pronto, salvei seu arquivo.\n\nArquivo: *{$fileName}*";
             if ($folderName) {
-                $reply .= " na pasta *{$folderName}*.";
+                $reply .= "\nPasta: *{$folderName}*";
             } else {
-                $reply .= ' no seu Drive.';
+                $reply .= "\nPasta: Drive";
             }
 
             if ($url) {
                 $reply .= "\n\nAbrir no Drive:\n{$url}";
             }
 
-            $reply .= "\n\nSe quiser buscar depois, pode dizer:\n- ache meu comprovante do mecanico\n- meus arquivos";
+            $reply .= "\n\nPara buscar depois, diga:\n- ache meu comprovante do mecanico\n- meus arquivos\n- em qual pasta ficou?";
 
             $result['_conversation_metadata'] = array_merge($result['_conversation_metadata'] ?? [], [
                 'reply_kind' => 'action',

@@ -24,8 +24,9 @@ abstract class BaseHandler implements ActionHandlerInterface
     {
         $baileysService = app(BaileysService::class);
         $phoneNumberService = app(PhoneNumberService::class);
+        $formattedMessage = WhatsAppFormatter::format($message);
 
-        $job->rememberFinalReply($message);
-        $job->sendErrorMessage($baileysService, $phoneNumberService, $message);
+        $job->rememberFinalReply($formattedMessage);
+        $job->sendErrorMessage($baileysService, $phoneNumberService, $formattedMessage);
     }
 }

@@ -122,6 +122,10 @@ class DriveMessageParser
             return true;
         }
 
+        if ($this->isSpecificMediaFollowUpSearch($normalizedMessage)) {
+            return true;
+        }
+
         // Search verbs.
         $hasSearchVerb = $this->containsAnyText($normalizedMessage, [
             'acha',
@@ -158,7 +162,9 @@ class DriveMessageParser
         $clean = trim($message);
         $normalized = $this->normalizeText($clean);
 
-        if ($normalized === '' || $this->isListingIntent($normalized) || $this->isContextualFollowUp($normalized)) {
+        if ($normalized === ''
+            || $this->isListingIntent($normalized)
+            || ($this->isContextualFollowUp($normalized) && ! $this->isSpecificMediaFollowUpSearch($normalized))) {
             return null;
         }
 
@@ -328,6 +334,11 @@ class DriveMessageParser
             'abrir o ',
             'abre o ',
         ]);
+    }
+
+    private function isSpecificMediaFollowUpSearch(string $normalizedMessage): bool
+    {
+        return preg_match('/\btem\s+mais\s+(?:foto|fotos|imagem|imagens|audio|audios|documento|documentos)\s+(?:de|da|do|sobre)?\s*\S+/u', $normalizedMessage) === 1;
     }
 
     private function detectFollowUp(string $normalizedMessage): ?string

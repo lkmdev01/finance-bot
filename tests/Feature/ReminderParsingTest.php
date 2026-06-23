@@ -91,6 +91,13 @@ class ReminderParsingTest extends TestCase
         $this->assertEquals('anniversary', $type);
     }
 
+    public function test_detects_anniversary_template_from_message_body(): void
+    {
+        $type = ReminderMessageTemplateFactory::detect('Maria', 'Hoje e aniversario de Maria');
+
+        $this->assertEquals('anniversary', $type);
+    }
+
     public function test_detects_payment_template(): void
     {
         $type = ReminderMessageTemplateFactory::detect('Pagar conta de agua', '');
@@ -114,7 +121,9 @@ class ReminderParsingTest extends TestCase
         );
 
         $this->assertStringContainsString('Maria', $message);
-        $this->assertStringContainsString('parabens', strtolower($message));
+        $this->assertStringContainsString('Lembrete de aniversario', $message);
+        $this->assertStringContainsString('Sugestao', $message);
+        $this->assertLessThanOrEqual(255, mb_strlen($message));
     }
 
     public function test_builds_friendly_payment_message(): void
@@ -171,4 +180,3 @@ class ReminderParsingTest extends TestCase
         $this->assertNotNull($result['next_trigger_at']);
     }
 }
-
