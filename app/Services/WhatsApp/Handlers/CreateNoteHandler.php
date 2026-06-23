@@ -24,6 +24,7 @@ class CreateNoteHandler extends BaseHandler
             $reply = $billingPlanService->writeAccessMessage($user)
                 ."\n\nAssine aqui:\n{$plansUrl}";
             $this->sendResponse($job, $reply, $user);
+
             return true;
         }
 
@@ -40,8 +41,9 @@ class CreateNoteHandler extends BaseHandler
                 $job,
                 "Nao consegui salvar essa nota.\n\nTente assim:\n"
                 ."- anota: ideia para o projeto X\n"
-                ."- nota: lembrar de falar com Joao sobre o contrato"
+                .'- nota: lembrar de falar com Joao sobre o contrato'
             );
+
             return true;
         }
 
@@ -69,7 +71,7 @@ class CreateNoteHandler extends BaseHandler
 
         $panelUrl = rtrim((string) config('app.url'), '/').'/notes';
 
-        $reply = "Nota salva: *{$note->title}*.\n\nSe quiser, voce pode buscar depois com:\n- minhas notas\n- procura nota sobre <tema>\n\nPainel: {$panelUrl}";
+        $reply = "Nota salva.\n\nTitulo: *{$note->title}*\n\nPara consultar depois, diga:\n- minhas notas\n- abrir nota 1\n- procura nota sobre <tema>\n\nPainel: {$panelUrl}";
         $this->sendResponse($job, $reply, $user);
 
         return true;

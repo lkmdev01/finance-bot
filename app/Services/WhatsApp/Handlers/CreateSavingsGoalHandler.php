@@ -83,25 +83,29 @@ class CreateSavingsGoalHandler extends BaseHandler
 
         if ($goal->target_date) {
             return sprintf(
-                '✅ Meta %s criada com valor de R$ %s e prazo até %s.',
+                "Meta %s criada com valor de R$ %s.\n\nPrazo: %s\nProgresso inicial: R$ 0,00\n\nPara acompanhar depois, diga \"quais metas eu tenho?\".",
                 $goal->name,
                 $amount,
                 $goal->target_date->format('d/m/Y')
             );
         }
 
-        return sprintf('✅ Meta %s criada com valor de R$ %s.', $goal->name, $amount);
+        return sprintf(
+            "Meta %s criada com valor de R$ %s.\n\nProgresso inicial: R$ 0,00\n\nPara acompanhar depois, diga \"quais metas eu tenho?\".",
+            $goal->name,
+            $amount
+        );
     }
 
     private function buildGuidanceReply(array $errors = []): string
     {
         $details = empty($errors) ? '' : "\n\nDetalhes: ".implode(' | ', $errors);
 
-        return "⚠️ Nao consegui criar essa meta com a mensagem atual.\n\n"
+        return "Nao consegui criar essa meta com a mensagem atual.\n\n"
             ."Tente assim:\n"
-            ."• criar meta viagem com valor de 5000\n"
-            ."• definir meta reserva de emergencia 10000\n"
-            ."• criar nova meta carro com valor de 30000"
+            ."- criar meta viagem com valor de 5000\n"
+            ."- definir meta reserva de emergencia 10000\n"
+            .'- criar nova meta carro com valor de 30000'
             .$details;
     }
 }

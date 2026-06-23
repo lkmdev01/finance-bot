@@ -58,13 +58,13 @@ class NotesConversationService
         if ($notes->isEmpty()) {
             if ($term !== null && trim($term) !== '') {
                 return [
-                    'reply' => "Nao encontrei nenhuma nota sobre \"{$term}\".\n\nSe quiser, voce pode criar assim:\n- anota: {$term} ...",
+                    'reply' => "Nao encontrei nenhuma nota sobre \"{$term}\".\n\nSe quiser criar uma nota nova, diga:\n- anota: {$term} ...",
                     'entities' => ['topic' => 'notes'],
                 ];
             }
 
             return [
-                'reply' => 'Voce ainda nao tem notas salvas. Se quiser, eu posso salvar uma por voce (ex.: "anota: ideia para o projeto X").',
+                'reply' => "Voce ainda nao tem notas salvas.\n\nPara criar a primeira, diga:\n- anota: ideia para o projeto X",
                 'entities' => ['topic' => 'notes'],
             ];
         }
@@ -104,7 +104,7 @@ class NotesConversationService
         $openHint = $notes->count() > 1 ? 'abrir nota 2' : 'abrir nota 1';
 
         return [
-            'reply' => $header."\n".$lines."\n\nDica: diga \"{$openHint}\" ou \"apagar nota <titulo>\".",
+            'reply' => $header."\n\n".$lines."\n\nVoce pode continuar com:\n- {$openHint}\n- apagar nota <titulo>",
             'entities' => [
                 'topic' => 'notes',
                 'note_id' => $first?->id,
@@ -131,7 +131,7 @@ class NotesConversationService
 
             if (! $selectedNote) {
                 return [
-                    'reply' => "Nao encontrei a nota {$selection} nessa lista. Tenho ".max(0, $count)." nota(s) no resultado atual. Diga \"minhas notas\" para listar de novo.",
+                    'reply' => "Nao encontrei a nota {$selection} nessa lista.\n\nTenho ".max(0, $count)." nota(s) no resultado atual.\nPara listar de novo, diga \"minhas notas\".",
                     'entities' => [
                         'topic' => 'notes',
                         'query_term' => $queryTerm,

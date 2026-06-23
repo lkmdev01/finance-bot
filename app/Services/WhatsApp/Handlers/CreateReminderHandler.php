@@ -52,8 +52,9 @@ class CreateReminderHandler extends BaseHandler
                 "Nao consegui criar esse lembrete.\n\nTente assim:\n"
                 ."* me lembra no dia 5 do mes que vem de pagar Joao\n"
                 ."* me lembra de dar parabens para Maria anualmente dia 10 do mes 6\n"
-                ."* me lembra todo dia as 08:30 de tomar agua"
+                .'* me lembra todo dia as 08:30 de tomar agua'
             );
+
             return true;
         }
 
@@ -78,6 +79,7 @@ class CreateReminderHandler extends BaseHandler
         ]);
 
         $this->sendResponse($job, $this->buildSuccessMessage($reminder), $user);
+
         return true;
     }
 
@@ -101,26 +103,27 @@ class CreateReminderHandler extends BaseHandler
     {
         $time = $reminder->trigger_time ? substr($reminder->trigger_time, 0, 5) : '09:00';
         $templateType = ReminderMessageTemplateFactory::detect($reminder->title, $reminder->message);
+        $friendly = ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, $reminder->frequency, $templateType);
 
         return match ($reminder->frequency) {
             'daily' => sprintf(
-                "Lembrete diario criado.\n\n%s",
-                ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'daily', $templateType)
+                "Lembrete diario criado.\n\n%s\n\nPara consultar depois, diga \"meus lembretes\".",
+                $friendly
             ),
             'weekly' => sprintf(
-                "Lembrete semanal criado.\n\n%s",
-                ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'weekly', $templateType)
+                "Lembrete semanal criado.\n\n%s\n\nPara consultar depois, diga \"meus lembretes\".",
+                $friendly
             ),
             'monthly' => sprintf(
-                "Lembrete mensal criado.\n\n%s",
-                ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'monthly', $templateType)
+                "Lembrete mensal criado.\n\n%s\n\nPara consultar depois, diga \"meus lembretes\".",
+                $friendly
             ),
             'yearly' => sprintf(
-                "Lembrete anual criado.\n\n%s",
-                ReminderMessageTemplateFactory::buildFriendlyMessage($reminder->title, 'yearly', $templateType)
+                "Lembrete anual criado.\n\n%s\n\nPara consultar depois, diga \"meus lembretes\".",
+                $friendly
             ),
             default => sprintf(
-                'Lembrete criado para %s em %s as %s.',
+                "Lembrete criado.\n\nTitulo: *%s*\nQuando: %s as %s\n\nPara consultar depois, diga \"meus lembretes\".",
                 $reminder->title,
                 $reminder->next_trigger_at?->format('d/m/Y'),
                 $time
@@ -128,4 +131,3 @@ class CreateReminderHandler extends BaseHandler
         };
     }
 }
-
