@@ -26,7 +26,7 @@ class ProjectionConversationService
 
         if ($projections->isEmpty()) {
             return [
-                'reply' => 'Nao encontrei projecoes suficientes ainda. Se quiser, posso gerar uma nova previsao para os proximos meses.',
+                'reply' => app(WhatsAppResponseBuilder::class)->empty('Nao encontrei projecoes suficientes ainda.', ['gerar projecao para os proximos meses', 'mostrar meu saldo atual']),
                 'entities' => $this->buildEntities($context),
             ];
         }
@@ -114,20 +114,20 @@ class ProjectionConversationService
 
     private function buildSummaryReply(Collection $projections, array $context): string
     {
-        $lines = $projections->take(4)->map(fn (array $projection) => sprintf(
-            '- %s: saldo R$ %s | entradas R$ %s | saidas R$ %s',
+        $items = $projections->take(4)->map(fn (array $projection) => sprintf(
+            '%s: saldo R$ %s | entradas R$ %s | saidas R$ %s',
             $projection['label'],
             $this->formatMoney($projection['projected_balance']),
             $this->formatMoney($projection['projected_income']),
             $this->formatMoney($projection['projected_expenses'])
-        ))->implode("\n");
+        ))->values()->all();
 
         $lowest = $projections->sortBy('projected_balance')->first();
-        $reply = "Suas projecoes financeiras:\n{$lines}";
+        $reply = app(WhatsAppResponseBuilder::class)->list('Suas projecoes financeiras:', $items);
 
         if (is_array($lowest)) {
             $reply .= sprintf(
-                "\n\nO ponto mais sensivel aparece em %s, com saldo projetado de R$ %s.",
+                "\n\nPonto mais sensivel: %s, com saldo projetado de R$ %s.",
                 $lowest['label'],
                 $this->formatMoney($lowest['projected_balance'])
             );
@@ -137,7 +137,11 @@ class ProjectionConversationService
             $reply .= ' '.$insight;
         }
 
-        $reply .= ' Se quiser, eu posso abrir um mes especifico, olhar daqui a 3 meses ou comparar com seu saldo atual.';
+        $reply .= "\n\n".app(WhatsAppResponseBuilder::class)->next([
+            'abrir o proximo mes',
+            'olhar daqui a 3 meses',
+            'comparar com meu saldo atual',
+        ]);
 
         return $reply;
     }
@@ -145,23 +149,30 @@ class ProjectionConversationService
     private function buildPointReply(Collection $projections, array $context): string
     {
         if ($projections->isEmpty()) {
-            return 'Nao encontrei essa projeção especifica ainda. Se quiser, posso te mostrar os proximos meses.';
+            return app(WhatsAppResponseBuilder::class)->empty(
+                'Nao encontrei essa projecao especifica ainda.',
+                ['mostrar os proximos meses', 'gerar nova projecao']
+            );
         }
 
         $projection = $projections->first();
-        $reply = sprintf(
-            'Para %s, a projecao indica saldo de R$ %s, com entradas de R$ %s e saidas de R$ %s.',
-            $projection['label'],
-            $this->formatMoney($projection['projected_balance']),
-            $this->formatMoney($projection['projected_income']),
-            $this->formatMoney($projection['projected_expenses'])
+        $reply = app(WhatsAppResponseBuilder::class)->success(
+            "Para {$projection['label']}, saldo de R$ ".$this->formatMoney($projection['projected_balance']).'.',
+            [
+                'Saldo projetado' => 'R$ '.$this->formatMoney($projection['projected_balance']),
+                'Entradas' => 'R$ '.$this->formatMoney($projection['projected_income']),
+                'Saidas' => 'R$ '.$this->formatMoney($projection['projected_expenses']),
+            ]
         );
 
         if (($insight = app(FinancialConversationAdvisor::class)->projectionPointInsight($projection)) !== null) {
             $reply .= ' '.$insight;
         }
 
-        $reply .= ' Se quiser, eu posso olhar o mes seguinte ou comparar com o horizonte atual.';
+        $reply .= "\n\n".app(WhatsAppResponseBuilder::class)->next([
+            'olhar o mes seguinte',
+            'comparar com o horizonte atual',
+        ]);
 
         return $reply;
     }

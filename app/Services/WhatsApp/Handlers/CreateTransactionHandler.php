@@ -13,6 +13,7 @@ use App\Services\CategoryRecognitionService;
 use App\Services\PerformanceMetricsService;
 use App\Services\WhatsApp\CompoundTransactionMessageParser;
 use App\Services\WhatsApp\FinancialSourceResolver;
+use App\Services\WhatsApp\WhatsAppResponseBuilder;
 use App\Services\WhatsAppFormatter;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Support\Facades\Cache;
@@ -137,10 +138,14 @@ class CreateTransactionHandler extends BaseHandler
                     ])
                     ->values()
                     ->toArray();
-                $reply = sprintf(
-                    'Entendi que voce quer registrar no *debito*, mas eu nao encontrei uma conta "%s" para usar no saldo. Quer usar "%s" (responda: caixa) ou me diga o nome da conta certa? Se quiser, diga: contas.',
-                    (string) $result['transaction_data']['bank_account_name'],
-                    $cashName
+                $reply = app(WhatsAppResponseBuilder::class)->guidance(
+                    sprintf('Entendi que voce quer registrar no debito, mas nao encontrei a conta "%s".', (string) $result['transaction_data']['bank_account_name']),
+                    [
+                        "usar {$cashName}",
+                        'usar saldo',
+                        'contas',
+                        'usar conta <nome da conta>',
+                    ]
                 );
 
                 $result['_conversation_metadata'] = [
@@ -186,9 +191,12 @@ class CreateTransactionHandler extends BaseHandler
                         unset($result['transaction_data']['credit_card_id'], $result['transaction_data']['credit_card_name'], $result['transaction_data']['use_default_card']);
                     }
                 } else {
-                    $reply = sprintf(
-                        'Entendi. Voce quer registrar isso no credito (limite do cartao) ou no debito (saldo da conta) para %s? Responda: credito ou debito.',
-                        $cardName
+                    $reply = app(WhatsAppResponseBuilder::class)->guidance(
+                        "Para {$cardName}, voce quer registrar onde?",
+                        [
+                            'credito',
+                            'debito',
+                        ]
                     );
 
                     $result['_conversation_metadata'] = [
@@ -224,9 +232,13 @@ class CreateTransactionHandler extends BaseHandler
             && empty($result['transaction_data']['use_default_card'])) {
 
             if (! $user->creditCards()->where('is_active', true)->exists()) {
-                $reply = 'Voce informou pagamento no cartao/credito, mas voce ainda nao tem cartoes ativos cadastrados. '
-                    .'Se quiser cadastrar, mande algo como: "registrar cartao de credito Nubank limite de 5000". '
-                    .'Se preferir registrar no saldo da conta, responda: "usar saldo".';
+                $reply = app(WhatsAppResponseBuilder::class)->guidance(
+                    'Voce informou pagamento no cartao, mas ainda nao tem cartoes ativos cadastrados.',
+                    [
+                        'registrar cartao de credito Nubank limite de 5000',
+                        'usar saldo',
+                    ]
+                );
 
                 $result['_conversation_metadata'] = [
                     'pending_intent' => 'select_credit_card',
@@ -243,8 +255,7 @@ class CreateTransactionHandler extends BaseHandler
                 return true;
             }
 
-            $reply = 'Você informou pagamento no cartão, mas não identifiquei qual cartão. '
-                .'Por favor, responda com o nome do cartão (ex.: "cartão Nubank") ou diga "usar cartão padrão" para prosseguir.';
+            $reply = app(WhatsAppResponseBuilder::class)->guidance('Voce informou pagamento no cartao, mas eu nao identifiquei qual cartao usar.', ['cartao Nubank',                     'usar cartao padrao',                     'usar saldo']);
 
             $result['_conversation_metadata'] = [
                 'pending_intent' => 'select_credit_card',

@@ -4,9 +4,6 @@ namespace App\Services;
 
 class WhatsAppFormatter
 {
-    /**
-     * Formats a message for WhatsApp and attempts to repair mojibake.
-     */
     public static function format(string $message): string
     {
         $message = self::normalizeTextEncoding($message);
@@ -14,10 +11,6 @@ class WhatsAppFormatter
         return self::removeFormatting($message);
     }
 
-    /**
-     * Tries to repair strings that were mis-decoded (UTF-8 bytes interpreted as Latin-1/Windows-1252).
-     * This shows up as sequences like "ServiÃƒÂ§o", "orÃƒÂ§amento", "cartÃƒÂ£o", etc.
-     */
     public static function normalizeTextEncoding(?string $text): string
     {
         $text = (string) ($text ?? '');
@@ -32,13 +25,14 @@ class WhatsAppFormatter
             return $text;
         }
 
-        $repaired = self::repairLatin1Mojibake($text);
-
-        if (! is_string($repaired) || $repaired === '') {
-            return $text;
+        $direct = self::replaceKnownMojibake($text);
+        if (self::mojibakeScore($direct) < self::mojibakeScore($text)) {
+            return $direct;
         }
 
-        if (! mb_check_encoding($repaired, 'UTF-8')) {
+        $repaired = self::repairLatin1Mojibake($text);
+
+        if (! is_string($repaired) || $repaired === '' || ! mb_check_encoding($repaired, 'UTF-8')) {
             return $text;
         }
 
@@ -67,7 +61,7 @@ class WhatsAppFormatter
 
     public static function formatMoney(float $amount, bool $bold = true): string
     {
-        $formatted = 'R$ ' . number_format($amount, 2, ',', '.');
+        $formatted = 'R$ '.number_format($amount, 2, ',', '.');
 
         return $bold ? self::bold($formatted) : $formatted;
     }
@@ -86,28 +80,28 @@ class WhatsAppFormatter
     {
         $status = $balance >= 0 ? 'Saldo disponivel' : 'Saldo negativo';
 
-        return self::formatTitle($status) . ":\n"
-            . self::formatMoney($balance) . "\n\n"
-            . ($balance < 0 ? 'Atencao: seu saldo esta negativo.' : 'Tudo certo.');
+        return self::formatTitle($status).":\n"
+            .self::formatMoney($balance)."\n\n"
+            .($balance < 0 ? 'Atencao: seu saldo esta negativo.' : 'Tudo certo.');
     }
 
     public static function formatTransactionCreated(array $data): string
     {
         $type = ($data['type'] ?? 'expense') === 'income' ? 'receita' : 'despesa';
 
-        $message = self::formatTitle("Registrei sua {$type}!") . "\n\n";
-        $message .= self::bold('Valor:') . ' ' . self::formatMoney((float) ($data['amount'] ?? 0), false) . "\n";
+        $message = self::formatTitle("Registrei sua {$type}!")."\n\n";
+        $message .= self::bold('Valor:').' '.self::formatMoney((float) ($data['amount'] ?? 0), false)."\n";
 
         if (! empty($data['description'])) {
-            $message .= self::bold('Descricao:') . ' ' . self::normalizeTextEncoding((string) $data['description']) . "\n";
+            $message .= self::bold('Descricao:').' '.self::normalizeTextEncoding((string) $data['description'])."\n";
         }
 
         if (! empty($data['category'])) {
-            $message .= self::bold('Categoria:') . ' ' . self::normalizeTextEncoding((string) $data['category']) . "\n";
+            $message .= self::bold('Categoria:').' '.self::normalizeTextEncoding((string) $data['category'])."\n";
         }
 
         if (! empty($data['date'])) {
-            $message .= self::bold('Data:') . " {$data['date']}\n";
+            $message .= self::bold('Data:')." {$data['date']}\n";
         }
 
         return $message;
@@ -124,7 +118,7 @@ class WhatsAppFormatter
 
     private static function containsPotentialMojibake(string $text): bool
     {
-        foreach (['ÃƒÆ’', 'Ãƒâ€š', 'ÃƒÂ¢', 'ÃƒÂ°', 'ÃƒÂ£', 'ÃƒÂ§', 'ÃƒÂ¡', 'ÃƒÂ©', 'ÃƒÂª', 'ÃƒÂ³', 'ÃƒÂº', 'Ã£', 'Ã§', 'Ã¡', 'Ã©', 'Ãª', 'Ã³', 'Ãº', 'Ã‚'] as $marker) {
+        foreach (self::mojibakeMarkers() as $marker) {
             if (str_contains($text, $marker)) {
                 return true;
             }
@@ -133,10 +127,6 @@ class WhatsAppFormatter
         return false;
     }
 
-    /**
-     * Equivalent to utf8_decode() (deprecated) but using mbstring.
-     * For the common mojibake pattern, this yields the original UTF-8 bytes.
-     */
     private static function repairLatin1Mojibake(string $text): ?string
     {
         $candidate = @mb_convert_encoding($text, 'ISO-8859-1', 'UTF-8');
@@ -152,11 +142,45 @@ class WhatsAppFormatter
     {
         $score = 0;
 
-        foreach (['ÃƒÆ’', 'Ãƒâ€š', 'ÃƒÂ¢', 'ÃƒÂ°', 'ÃƒÂ£', 'ÃƒÂ§', 'ÃƒÂ¡', 'ÃƒÂ©', 'ÃƒÂª', 'ÃƒÂ³', 'ÃƒÂº', 'Ã£', 'Ã§', 'Ã¡', 'Ã©', 'Ãª', 'Ã³', 'Ãº', 'Ã‚'] as $marker) {
+        foreach (self::mojibakeMarkers() as $marker) {
             $score += substr_count($text, $marker);
         }
 
         return $score;
     }
-}
 
+    private static function replaceKnownMojibake(string $text): string
+    {
+        return strtr($text, self::replacementMap());
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function mojibakeMarkers(): array
+    {
+        return array_merge(array_keys(self::replacementMap()), ["\xC3\x83", "\xC3\x82", "\xEF\xBF\xBD"]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function replacementMap(): array
+    {
+        return [
+            "\xC3\x83\xC2\xA3" => 'a', // a tilde mojibake
+            "\xC3\x83\xC2\xA1" => 'a',
+            "\xC3\x83\xC2\xA2" => 'a',
+            "\xC3\x83\xC2\xA9" => 'e',
+            "\xC3\x83\xC2\xAA" => 'e',
+            "\xC3\x83\xC2\xAD" => 'i',
+            "\xC3\x83\xC2\xB3" => 'o',
+            "\xC3\x83\xC2\xB4" => 'o',
+            "\xC3\x83\xC2\xBA" => 'u',
+            "\xC3\x83\xC2\xA7" => 'c',
+            "\xC3\xA2\xC2\x80\xC2\xA2" => '-',
+            "\xC3\xA2\xC2\x9D\xC2\x8C" => '',
+            "\xC3\xB0\xC5\xB8" => '',
+        ];
+    }
+}
