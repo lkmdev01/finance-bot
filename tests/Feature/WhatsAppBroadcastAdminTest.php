@@ -59,7 +59,7 @@ it('sends a whatsapp broadcast to verified contacts and records audit rows', fun
 
     $response = $this->post(route('admin.whatsapp-broadcasts.store'), [
         'audience' => 'verified',
-        'message' => 'Comunicado importante do InovaFinance.',
+        'message' => 'Oi {{primeiro_nome}}, comunicado importante do InovaFinance. Email: {{email}}.',
         'confirm_compliance' => '1',
     ]);
 
@@ -68,17 +68,18 @@ it('sends a whatsapp broadcast to verified contacts and records audit rows', fun
 
     expect(WhatsAppBroadcast::query()->count())->toBe(1);
     $broadcast = WhatsAppBroadcast::query()->first();
+    $firstName = str($recipient->name)->squish()->explode(' ')->first();
 
     expect($broadcast->status)->toBe('sent')
         ->and($broadcast->admin_user_id)->toBe($admin->id)
         ->and($broadcast->user_id)->toBe($recipient->id)
         ->and($broadcast->phone_number)->toBe('5513991290256')
-        ->and($broadcast->message)->toContain('Comunicado importante');
+        ->and($broadcast->message)->toBe("Oi {$firstName}, comunicado importante do InovaFinance. Email: {$recipient->email}.");
 
     Http::assertSent(fn ($request) => $request->url() === 'https://baileys.test/send-message'
         && $request['phone'] === '5513991290256@s.whatsapp.net'
         && $request['secret'] === 'secret-test'
-        && $request['message'] === 'Comunicado importante do InovaFinance.');
+        && $request['message'] === "Oi {$firstName}, comunicado importante do InovaFinance. Email: {$recipient->email}.");
 });
 
 it('requires compliance confirmation before sending marketing messages', function () {

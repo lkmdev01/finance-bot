@@ -28,6 +28,7 @@ class WhatsAppBroadcastService
                 'user_id' => null,
                 'contact_id' => null,
                 'name' => 'Numero manual',
+                'email' => '',
                 'phone' => $phone,
             ]]);
         }
@@ -51,6 +52,7 @@ class WhatsAppBroadcastService
                 'user_id' => $contact->user_id,
                 'contact_id' => $contact->id,
                 'name' => $contact->user?->name ?: $contact->name ?: 'Contato WhatsApp',
+                'email' => $contact->user?->email ?: '',
                 'phone' => $this->phoneNumberService->formatForStorage($contact->phone_number),
             ])
             ->filter(fn (array $recipient) => $recipient['phone'] !== '')
@@ -66,6 +68,8 @@ class WhatsAppBroadcastService
         $failed = 0;
 
         foreach ($recipients as $recipient) {
+            $personalizedMessage = $this->personalizeMessage($message, $recipient);
+
             $broadcast = WhatsAppBroadcast::create([
                 'admin_user_id' => $admin->id,
                 'user_id' => $recipient['user_id'],
@@ -73,14 +77,14 @@ class WhatsAppBroadcastService
                 'recipient_name' => $recipient['name'],
                 'phone_number' => $recipient['phone'],
                 'audience' => $audience,
-                'message' => $message,
+                'message' => $personalizedMessage,
                 'status' => 'pending',
             ]);
 
             try {
                 $response = $this->baileysService->sendTextMessage(
                     $this->phoneNumberService->toWhatsAppJid($recipient['phone']),
-                    $message,
+                    $personalizedMessage,
                 );
 
                 $ok = $response->successful();
@@ -114,5 +118,22 @@ class WhatsAppBroadcastService
             'sent' => $sent,
             'failed' => $failed,
         ];
+    }
+
+    public function personalizeMessage(string $message, array $recipient): string
+    {
+        $name = trim((string) ($recipient['name'] ?? ''));
+        $firstName = str($name)->squish()->explode(' ')->filter()->first() ?: 'tudo bem';
+
+        return strtr($message, [
+            '{{nome}}' => $name ?: 'Contato',
+            '{{ nome }}' => $name ?: 'Contato',
+            '{{primeiro_nome}}' => $firstName,
+            '{{ primeiro_nome }}' => $firstName,
+            '{{telefone}}' => (string) ($recipient['phone'] ?? ''),
+            '{{ telefone }}' => (string) ($recipient['phone'] ?? ''),
+            '{{email}}' => (string) ($recipient['email'] ?? ''),
+            '{{ email }}' => (string) ($recipient['email'] ?? ''),
+        ]);
     }
 }
