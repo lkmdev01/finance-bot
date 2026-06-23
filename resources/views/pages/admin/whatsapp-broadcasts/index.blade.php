@@ -105,6 +105,11 @@
                         <label for="message" class="text-sm font-semibold text-white">Mensagem</label>
                         <textarea id="message" name="message" rows="9" maxlength="1200" placeholder="Ex: Oi, aqui e o InovaFinance. Temos uma novidade..." class="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-500 focus:border-emerald-400">{{ old('message') }}</textarea>
                         <p class="mt-2 text-xs text-slate-400">Evite promessas agressivas. Seja claro sobre o motivo do contato e use mensagens curtas.</p>
+                        <div class="mt-3 rounded-2xl border border-emerald-300/15 bg-emerald-400/10 p-3 text-xs leading-5 text-emerald-50">
+                            <p class="font-bold">Variaveis disponiveis:</p>
+                            <p class="mt-1 font-mono text-emerald-100">@{{primeiro_nome}}, @{{nome}}, @{{telefone}}, @{{email}}</p>
+                            <p class="mt-1 text-emerald-100/80">Exemplo: Oi @{{primeiro_nome}}, temos uma novidade no InovaFinance.</p>
+                        </div>
                     </div>
 
                     <label class="flex items-start gap-3 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-50">
