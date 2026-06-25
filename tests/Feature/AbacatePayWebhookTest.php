@@ -688,7 +688,8 @@ test('webhook da abacatepay cria e atualiza assinatura de billing', function () 
 
     $user->refresh();
     expect($user->billing_plan_status)->toBe('cancelled')
-        ->and($user->billing_plan_code)->toBe('pro_monthly');
+        ->and($user->billing_plan_code)->toBe('pro_monthly')
+        ->and($user->billing_access_ends_at?->toDateTimeString())->toBe(now()->toDateTimeString());
 });
 
 test('webhook da abacatepay reconcila assinatura pendente criada pelo checkout', function () {

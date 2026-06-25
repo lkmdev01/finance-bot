@@ -7,7 +7,6 @@ use App\Models\AbacatePaySubscription;
 use App\Models\AbacatePayWebhookEvent;
 use App\Models\User;
 use Carbon\Carbon;
-use App\Services\BillingPlanService;
 
 class AbacatePayWebhookProcessor
 {
@@ -367,6 +366,7 @@ class AbacatePayWebhookProcessor
             $user->forceFill([
                 'billing_plan_code' => $subscription->plan_code,
                 'billing_plan_status' => 'cancelled',
+                'billing_access_ends_at' => now(),
             ])->save();
         }
     }
