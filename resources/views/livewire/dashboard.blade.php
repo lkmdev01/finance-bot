@@ -1733,10 +1733,25 @@ new class extends Component
                 @if(count($expensesByCategory) > 0)
                     <div class="flex flex-col xl:flex-row items-center gap-8">
                         <!-- Gráfico de Donut ApexCharts -->
-                        <div class="w-[200px] h-[200px] flex-shrink-0 mx-auto xl:mx-0 relative"
+                        <div
+                            wire:key="dashboard-expenses-donut-{{ $period }}-{{ md5(json_encode($pieSeries).json_encode($pieLabels)) }}"
+                            class="w-[200px] h-[200px] flex-shrink-0 mx-auto xl:mx-0 relative"
                             x-data="{
+                                chart: null,
                                 init() {
+                                    this.renderChart();
+                                },
+                                renderChart() {
                                     const isDark = document.documentElement.classList.contains('dark');
+                                    if (this.chart) {
+                                        this.chart.destroy();
+                                        this.chart = null;
+                                    }
+
+                                    if (this.$refs.chart) {
+                                        this.$refs.chart.innerHTML = '';
+                                    }
+
                                     let options = {
                                         chart: { type: 'donut', height: '100%', width: '100%', fontFamily: 'inherit', background: 'transparent' },
                                         series: @js($pieSeries),
@@ -1782,8 +1797,8 @@ new class extends Component
                                             y: { formatter: function(val) { return 'R$ ' + val.toLocaleString('pt-BR', {minimumFractionDigits: 2}) } }
                                         }
                                     };
-                                    let chart = new window.ApexCharts(this.$refs.chart, options);
-                                    chart.render();
+                                    this.chart = new window.ApexCharts(this.$refs.chart, options);
+                                    this.chart.render();
                                 }
                             }"
                         >
