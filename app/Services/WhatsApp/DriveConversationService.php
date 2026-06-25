@@ -44,7 +44,7 @@ class DriveConversationService
 
         if ($files->isEmpty()) {
             return [
-                'reply' => $this->buildEmptyReply($queryData),
+                'reply' => $this->buildEmptyReply($user, $queryData),
                 'entities' => [
                     'topic' => 'drive',
                     'drive_query_term' => $queryData['term'],
@@ -203,7 +203,7 @@ class DriveConversationService
         return $reply;
     }
 
-    private function buildEmptyReply(array $queryData): string
+    private function buildEmptyReply(User $user, array $queryData): string
     {
         $subject = match ($queryData['media_kind'] ?? null) {
             'image' => 'fotos',
@@ -226,8 +226,16 @@ class DriveConversationService
 
         $reply = "Nao encontrei {$subject}{$period}{$suffix}.";
 
+        $notAnalyzedCount = $user->driveFiles()
+            ->whereIn('metadata_status', ['pending', 'failed', 'unavailable'])
+            ->count();
+
+        if ($notAnalyzedCount > 0 && $term !== '') {
+            $reply .= "\n\nTenho {$notAnalyzedCount} arquivo(s) que ainda nao tem analise completa por IA. Posso listar arquivos recentes, ou voce pode tentar por nome, pasta, tipo ou data.";
+        }
+
         if (($queryData['time_scope'] ?? null) !== null || ($queryData['media_kind'] ?? null) !== null) {
-            $reply .= "\n\nPosso tentar outro filtro. Exemplos:\n- meus arquivos\n- procura fotos recentes\n- buscar arquivo sobre contrato";
+            $reply .= "\n\nPosso procurar em outros dias, listar todos os arquivos recentes ou tentar outro filtro. Exemplos:\n- meus arquivos\n- procura fotos recentes\n- buscar arquivo sobre contrato";
         } else {
             $reply .= "\n\nPara salvar algo novo:\n1. envie o arquivo/foto/audio\n2. diga \"salva isso no drive\"";
         }

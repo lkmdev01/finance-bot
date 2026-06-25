@@ -123,8 +123,14 @@ class DriveSemanticSearchService
             ->filter(fn ($tag) => is_scalar($tag))
             ->map(fn ($tag) => (string) $tag)
             ->implode(' ');
+        $aiTags = collect(data_get($file->metadata, 'ai_metadata.tags', []))
+            ->filter(fn ($tag) => is_scalar($tag))
+            ->map(fn ($tag) => (string) $tag)
+            ->implode(' ');
 
         return [
+            'ai_description' => $this->normalize((string) data_get($file->metadata, 'ai_metadata.description')),
+            'ai_tags' => $this->normalize($aiTags),
             'title' => $this->normalize((string) $file->title),
             'original_name' => $this->normalize((string) $file->original_name),
             'drive_path' => $this->normalize((string) $file->drive_path),
@@ -147,9 +153,14 @@ class DriveSemanticSearchService
             }
 
             if ($value === $term) {
-                $score += $field === 'title' || $field === 'original_name' ? 80 : 45;
+                $score += match ($field) {
+                    'ai_description', 'ai_tags' => 95,
+                    'title', 'original_name' => 80,
+                    default => 45,
+                };
             } elseif (str_contains($value, $term)) {
                 $score += match ($field) {
+                    'ai_description', 'ai_tags' => 60,
                     'title', 'original_name' => 50,
                     'tags', 'drive_path', 'description' => 28,
                     default => 18,
@@ -178,6 +189,7 @@ class DriveSemanticSearchService
 
             if ($this->containsToken($value, $token)) {
                 $score += match ($field) {
+                    'ai_description', 'ai_tags' => $primary ? 44 : 22,
                     'title', 'original_name' => $primary ? 35 : 18,
                     'tags' => $primary ? 30 : 16,
                     'drive_path', 'description' => $primary ? 24 : 12,
