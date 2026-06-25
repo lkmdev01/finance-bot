@@ -69,19 +69,19 @@ new class extends Component {
     }
 }; ?>
 
-<div class="p-6 space-y-6">
+<div class="space-y-6 p-4 sm:p-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold">CartÃµes de CrÃ©dito</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Acompanhe limite, vencimento e uso da fatura.</p>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2 sm:justify-end">
             @if (config('openfinance.enabled', false))
-                <flux:button href="{{ route('integrations.open-finance') }}" wire:navigate variant="ghost">
+                <flux:button href="{{ route('integrations.open-finance') }}" wire:navigate variant="ghost" class="w-full sm:w-auto">
                     Open Finance
                 </flux:button>
             @endif
-            <flux:button href="{{ route('credit-cards.create') }}" wire:navigate variant="primary">
+            <flux:button href="{{ route('credit-cards.create') }}" wire:navigate variant="primary" class="w-full sm:w-auto">
                 Novo CartÃ£o
             </flux:button>
         </div>
@@ -93,9 +93,9 @@ new class extends Component {
                 $usedPct = $this->utilizationPct($card);
                 $lastTx = $card->transactions->max('date');
             @endphp
-            <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 {{ ! $card->is_active ? 'opacity-60' : '' }}">
-                <div class="flex items-start justify-between gap-4">
-                    <div class="flex-1">
+            <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 sm:p-6 {{ ! $card->is_active ? 'opacity-60' : '' }}">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-3 mb-3 flex-wrap">
                             <h2 class="text-lg font-semibold">{{ $card->name }}</h2>
                             <span class="px-2 py-1 text-xs rounded-full {{ $card->is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200' }}">
@@ -188,7 +188,7 @@ new class extends Component {
                         @endif
                     </div>
 
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2 sm:justify-end">
                         <flux:button wire:click="toggleActive({{ $card->id }})" variant="ghost" size="sm" icon="{{ $card->is_active ? 'pause' : 'play' }}" />
                         <flux:button href="{{ route('credit-cards.edit', $card) }}" wire:navigate variant="ghost" size="sm" icon="pencil" />
                         <flux:button wire:click="delete({{ $card->id }})" wire:confirm="Deseja excluir este cartÃ£o?" variant="ghost" size="sm" icon="trash" class="text-red-600 hover:text-red-700 dark:text-red-400" />

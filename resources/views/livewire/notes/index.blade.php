@@ -42,21 +42,21 @@ new class extends Component {
     }
 }; ?>
 
-<div class="p-6 space-y-6">
+<div class="space-y-6 p-4 sm:p-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold">Notas</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Salve insights e encontre depois pelo painel ou via WhatsApp.</p>
         </div>
-        <div class="flex items-center gap-3">
-            <flux:input wire:model.live="q" placeholder="Buscar nas notas..." class="min-w-[220px]" />
-            <flux:button href="{{ route('notes.create') }}" wire:navigate variant="primary">Nova nota</flux:button>
+        <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+            <flux:input wire:model.live="q" placeholder="Buscar nas notas..." class="w-full sm:min-w-[220px]" />
+            <flux:button href="{{ route('notes.create') }}" wire:navigate variant="primary" class="w-full sm:w-auto">Nova nota</flux:button>
         </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4">
         @forelse($notes as $note)
-            <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-5">
+            <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 sm:p-5">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
@@ -71,12 +71,13 @@ new class extends Component {
                         <p class="mt-3 text-xs text-zinc-500">Criada em {{ $note->created_at?->format('d/m/Y H:i') }}</p>
                     </div>
 
-                    <div class="flex items-center gap-2 shrink-0">
-                        <flux:button href="{{ route('notes.edit', $note) }}" wire:navigate variant="ghost">Editar</flux:button>
+                    <div class="flex flex-wrap items-center gap-2 sm:shrink-0">
+                        <flux:button href="{{ route('notes.edit', $note) }}" wire:navigate variant="ghost" class="w-full sm:w-auto">Editar</flux:button>
                         <flux:button
                             wire:click="delete({{ $note->id }})"
                             wire:confirm="Tem certeza que deseja excluir esta nota?"
                             variant="danger"
+                            class="w-full sm:w-auto"
                         >
                             Excluir
                         </flux:button>
@@ -91,4 +92,3 @@ new class extends Component {
         @endforelse
     </div>
 </div>
-

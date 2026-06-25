@@ -54,9 +54,9 @@ new class extends Component {
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 {{ $goal->is_completed ? 'opacity-75' : '' }}">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
                     <div class="min-w-0 flex-1">
-                        <h3 class="font-semibold text-lg">{{ $goal->name }}</h3>
+                        <h3 class="break-words text-lg font-semibold">{{ $goal->name }}</h3>
                         @if($goal->description)
-                            <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{{ $goal->description }}</p>
+                            <p class="mt-1 break-words text-sm text-zinc-600 dark:text-zinc-400">{{ $goal->description }}</p>
                         @endif
                         @if($goal->target_date)
                             <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-2">

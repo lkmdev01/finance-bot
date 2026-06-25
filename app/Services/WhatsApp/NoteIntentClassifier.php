@@ -58,7 +58,10 @@ class NoteIntentClassifier
 
     private function looksLikeNoteQuery(string $normalizedMessage, array $state): bool
     {
-        if ($this->containsAnyText($normalizedMessage, [
+        $isNotesContext = ($state['last_action'] ?? null) === 'query_notes'
+            || ($state['last_entities']['topic'] ?? null) === 'notes';
+
+        if (! $isNotesContext && $this->containsAnyText($normalizedMessage, [
             'arquivo',
             'arquivos',
             'documento',
@@ -82,10 +85,11 @@ class NoteIntentClassifier
             if (str_contains($normalizedMessage, 'nota fiscal')) {
                 return false;
             }
+
             return true;
         }
 
-        return ($state['last_action'] ?? null) === 'query_notes'
+        return $isNotesContext
             && ! $this->containsAnyText($normalizedMessage, ['orcamento', 'gasto', 'receita', 'saldo', 'meta', 'assinatura', 'lembrete'])
             && $this->noteMessageParser->looksLikeContextualQueryFollowUp($normalizedMessage);
     }
