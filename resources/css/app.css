@@ -67,7 +67,7 @@ select:focus[data-flux-control] {
 
 /*
   Smooth fade-in on the main content area after wire:navigate.
-  The sidebar is @persist-ed so it never flashes — only the main
+  The sidebar is @persist-ed so it never flashes â€” only the main
   content area gets this subtle entrance animation.
 */
 [data-flux-main] {
@@ -100,4 +100,15 @@ select:focus[data-flux-control] {
     justify-content: center !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
+}
+
+/* Compact sidebar: hide group labels and expose grouped icons. */
+[data-flux-sidebar-collapsed-desktop] [data-sidebar-group-toggle] {
+    display: none !important;
+}
+
+[data-flux-sidebar-collapsed-desktop] [data-sidebar-group-panel] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.25rem !important;
 }
