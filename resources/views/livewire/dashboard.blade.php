@@ -1906,17 +1906,17 @@ new class extends Component
 
         <!-- Gráfico de evolução -->
         @if($period === 'monthly')
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-lg font-bold">Evolução Diária</h2>
-                    <div class="flex items-center gap-4">
+            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-6">
+                    <h2 class="text-base sm:text-lg font-bold">Evolução Diária</h2>
+                    <div class="flex flex-wrap items-center gap-3 sm:gap-4">
                         <div class="flex items-center gap-2">
                             <div class="w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                            <span class="text-sm font-medium text-zinc-600 dark:text-zinc-300">Receitas</span>
+                            <span class="text-xs sm:text-sm font-medium text-zinc-600 dark:text-zinc-300">Receitas</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <div class="w-3 h-3 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
-                            <span class="text-sm font-medium text-zinc-600 dark:text-zinc-300">Despesas</span>
+                            <span class="text-xs sm:text-sm font-medium text-zinc-600 dark:text-zinc-300">Despesas</span>
                         </div>
                     </div>
                 </div>
@@ -1927,12 +1927,39 @@ new class extends Component
                     $dailyIncome = collect($dailyData)->pluck('income')->toArray();
                     $dailyExpense = collect($dailyData)->pluck('expense')->toArray();
                 @endphp
-                <div class="relative w-full" style="min-height: 320px;" 
+                <div class="relative w-full overflow-hidden min-h-[300px] sm:min-h-[320px]"
+                    wire:key="dashboard-daily-evolution-{{ $selectedMonth }}-{{ md5(json_encode($dailyIncome).json_encode($dailyExpense)) }}"
                     x-data="{
+                        chart: null,
                         init() {
+                            this.renderChart();
+                        },
+                        renderChart() {
                             const isDark = document.documentElement.classList.contains('dark');
+                            const isMobile = window.matchMedia('(max-width: 640px)').matches;
+                            const labels = @js($dailyLabels);
+                            const tickEvery = isMobile ? Math.max(1, Math.ceil(labels.length / 6)) : 1;
+                            const moneyLabel = (value, compact = false) => {
+                                const amount = Number(value || 0);
+
+                                if (compact && Math.abs(amount) >= 1000) {
+                                    return 'R$ ' + (amount / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'k';
+                                }
+
+                                return 'R$ ' + amount.toLocaleString('pt-BR', {
+                                    minimumFractionDigits: compact ? 0 : 2,
+                                    maximumFractionDigits: compact ? 0 : 2,
+                                });
+                            };
+
+                            if (this.chart) {
+                                this.chart.destroy();
+                            }
+
+                            this.$refs.chart.innerHTML = '';
+
                             let options = {
-                                chart: { type: 'area', height: 320, toolbar: { show: false }, background: 'transparent', fontFamily: 'inherit', parentHeightOffset: 0 },
+                                chart: { type: 'area', height: isMobile ? 300 : 320, toolbar: { show: false }, background: 'transparent', fontFamily: 'inherit', parentHeightOffset: 0, zoom: { enabled: false }, animations: { enabled: !isMobile } },
                                 theme: { mode: isDark ? 'dark' : 'light' },
                                 colors: ['#10b981', '#ef4444'],
                                 series: [
@@ -1940,48 +1967,61 @@ new class extends Component
                                     { name: 'Despesas', data: @js($dailyExpense) }
                                 ],
                                 xaxis: { 
-                                    categories: @js($dailyLabels),
-                                    labels: { style: { colors: isDark ? '#94a3b8' : '#64748b' } },
+                                    categories: labels,
+                                    tickAmount: isMobile ? 5 : undefined,
+                                    labels: {
+                                        rotate: 0,
+                                        hideOverlappingLabels: true,
+                                        trim: true,
+                                        style: { colors: isDark ? '#94a3b8' : '#64748b', fontSize: isMobile ? '12px' : '11px', fontWeight: isMobile ? 700 : 500 },
+                                        formatter: function (value, timestamp, opts) {
+                                            const index = opts?.i ?? labels.indexOf(value);
+
+                                            return !isMobile || index % tickEvery === 0 ? value : '';
+                                        }
+                                    },
                                     axisBorder: { show: false },
                                     axisTicks: { show: false },
                                     tooltip: { enabled: false }
                                 },
                                 yaxis: {
                                     labels: { 
-                                        style: { colors: isDark ? '#94a3b8' : '#64748b' },
-                                        formatter: (value) => 'R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 2})
+                                        style: { colors: isDark ? '#94a3b8' : '#64748b', fontSize: isMobile ? '11px' : '12px' },
+                                        formatter: (value) => moneyLabel(value, isMobile)
                                     }
                                 },
                                 dataLabels: { enabled: false },
-                                stroke: { curve: 'smooth', width: 3 },
+                                stroke: { curve: 'smooth', width: isMobile ? 2.5 : 3 },
                                 fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.45, opacityTo: 0.0, stops: [0, 90, 100] } },
-                                tooltip: { theme: isDark ? 'dark' : 'light', y: { formatter: function (val) { return 'R$ ' + val.toLocaleString('pt-BR', {minimumFractionDigits: 2}) } } },
-                                grid: { borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.05)', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: true } } },
+                                markers: { size: 0, hover: { size: isMobile ? 5 : 6 } },
+                                tooltip: { theme: isDark ? 'dark' : 'light', shared: true, intersect: false, y: { formatter: function (val) { return moneyLabel(val) } } },
+                                grid: { borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.05)', strokeDashArray: 4, xaxis: { lines: { show: !isMobile } }, yaxis: { lines: { show: true } } },
                                 legend: { show: false }
                             };
-                            let chart = new window.ApexCharts(this.$refs.chart, options);
-                            chart.render();
+
+                            this.chart = new window.ApexCharts(this.$refs.chart, options);
+                            this.chart.render();
                         }
                     }"
                 >
-                    <div x-ref="chart" class="-ml-4" wire:ignore></div>
+                    <div x-ref="chart" class="-mx-2 sm:mx-0 sm:-ml-4" wire:ignore></div>
                 </div>
             </div>
         @endif
 
         <!-- Gráfico de evolução mensal -->
         @if($period === 'monthly')
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-lg font-bold">Evolução Mensal (Últimos 12 meses)</h2>
-                    <div class="flex items-center gap-4">
+            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-6">
+                    <h2 class="text-base sm:text-lg font-bold">Evolução Mensal (Últimos 12 meses)</h2>
+                    <div class="flex flex-wrap items-center gap-3 sm:gap-4">
                         <div class="flex items-center gap-2">
                             <div class="w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                            <span class="text-sm font-medium text-zinc-600 dark:text-zinc-300">Receitas</span>
+                            <span class="text-xs sm:text-sm font-medium text-zinc-600 dark:text-zinc-300">Receitas</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <div class="w-3 h-3 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
-                            <span class="text-sm font-medium text-zinc-600 dark:text-zinc-300">Despesas</span>
+                            <span class="text-xs sm:text-sm font-medium text-zinc-600 dark:text-zinc-300">Despesas</span>
                         </div>
                     </div>
                 </div>
@@ -1992,61 +2032,98 @@ new class extends Component
                     $monthlyIncome = collect($monthlyData)->pluck('income')->toArray();
                     $monthlyExpense = collect($monthlyData)->pluck('expense')->toArray();
                 @endphp
-                <div class="relative w-full" style="min-height: 320px;" 
+                <div class="relative w-full overflow-hidden min-h-[300px] sm:min-h-[320px]"
+                    wire:key="dashboard-monthly-evolution-{{ md5(json_encode($monthlyIncome).json_encode($monthlyExpense)) }}"
                     x-data="{
+                        chart: null,
                         init() {
+                            this.renderChart();
+                        },
+                        renderChart() {
                             const isDark = document.documentElement.classList.contains('dark');
+                            const isMobile = window.matchMedia('(max-width: 640px)').matches;
+                            const labels = @js($monthlyLabels);
+                            const moneyLabel = (value, compact = false) => {
+                                const amount = Number(value || 0);
+
+                                if (compact && Math.abs(amount) >= 1000) {
+                                    return 'R$ ' + (amount / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'k';
+                                }
+
+                                return 'R$ ' + amount.toLocaleString('pt-BR', {
+                                    minimumFractionDigits: compact ? 0 : 2,
+                                    maximumFractionDigits: compact ? 0 : 2,
+                                });
+                            };
+
+                            if (this.chart) {
+                                this.chart.destroy();
+                            }
+
+                            this.$refs.chart.innerHTML = '';
+
                             let options = {
-                                chart: { type: 'bar', height: 320, toolbar: { show: false }, background: 'transparent', fontFamily: 'inherit', parentHeightOffset: 0 },
+                                chart: { type: 'bar', height: isMobile ? 300 : 320, toolbar: { show: false }, background: 'transparent', fontFamily: 'inherit', parentHeightOffset: 0, zoom: { enabled: false }, animations: { enabled: !isMobile } },
                                 theme: { mode: isDark ? 'dark' : 'light' },
                                 colors: ['#10b981', '#ef4444'],
                                 series: [
                                     { name: 'Receitas', data: @js($monthlyIncome) },
                                     { name: 'Despesas', data: @js($monthlyExpense) }
                                 ],
-                                plotOptions: { bar: { horizontal: false, columnWidth: '55%', borderRadius: 4, borderRadiusApplication: 'end' } },
+                                plotOptions: { bar: { horizontal: false, columnWidth: isMobile ? '68%' : '55%', borderRadius: 4, borderRadiusApplication: 'end' } },
                                 xaxis: { 
-                                    categories: @js($monthlyLabels),
-                                    labels: { style: { colors: isDark ? '#94a3b8' : '#64748b' } },
+                                    categories: labels,
+                                    labels: {
+                                        rotate: 0,
+                                        hideOverlappingLabels: true,
+                                        trim: true,
+                                        style: { colors: isDark ? '#94a3b8' : '#64748b', fontSize: isMobile ? '12px' : '11px', fontWeight: isMobile ? 700 : 500 },
+                                        formatter: function (value, timestamp, opts) {
+                                            const index = opts?.i ?? labels.indexOf(value);
+
+                                            return !isMobile || index % 2 === 0 ? value : '';
+                                        }
+                                    },
                                     axisBorder: { show: false },
                                     axisTicks: { show: false },
                                     tooltip: { enabled: false }
                                 },
                                 yaxis: {
                                     labels: { 
-                                        style: { colors: isDark ? '#94a3b8' : '#64748b' },
-                                        formatter: (value) => 'R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 2})
+                                        style: { colors: isDark ? '#94a3b8' : '#64748b', fontSize: isMobile ? '11px' : '12px' },
+                                        formatter: (value) => moneyLabel(value, isMobile)
                                     }
                                 },
                                 dataLabels: { enabled: false },
                                 stroke: { show: true, width: 2, colors: ['transparent'] },
-                                tooltip: { theme: isDark ? 'dark' : 'light', y: { formatter: function (val) { return 'R$ ' + val.toLocaleString('pt-BR', {minimumFractionDigits: 2}) } } },
-                                grid: { borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.05)', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: true } } },
+                                tooltip: { theme: isDark ? 'dark' : 'light', shared: true, intersect: false, y: { formatter: function (val) { return moneyLabel(val) } } },
+                                grid: { borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.05)', strokeDashArray: 4, xaxis: { lines: { show: !isMobile } }, yaxis: { lines: { show: true } } },
                                 legend: { show: false }
                             };
-                            let chart = new window.ApexCharts(this.$refs.chart, options);
-                            chart.render();
+
+                            this.chart = new window.ApexCharts(this.$refs.chart, options);
+                            this.chart.render();
                         }
                     }"
                 >
-                    <div x-ref="chart" class="-ml-4" wire:ignore></div>
+                    <div x-ref="chart" class="-mx-2 sm:mx-0 sm:-ml-4" wire:ignore></div>
                 </div>
             </div>
         @endif
 
         <!-- Gráfico de evolução anual -->
         @if($period === 'yearly')
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-lg font-bold">Evolução Anual (Últimos 5 anos)</h2>
-                    <div class="flex items-center gap-4">
+            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-6">
+                    <h2 class="text-base sm:text-lg font-bold">Evolução Anual (Últimos 5 anos)</h2>
+                    <div class="flex flex-wrap items-center gap-3 sm:gap-4">
                         <div class="flex items-center gap-2">
                             <div class="w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                            <span class="text-sm font-medium text-zinc-600 dark:text-zinc-300">Receitas</span>
+                            <span class="text-xs sm:text-sm font-medium text-zinc-600 dark:text-zinc-300">Receitas</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <div class="w-3 h-3 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
-                            <span class="text-sm font-medium text-zinc-600 dark:text-zinc-300">Despesas</span>
+                            <span class="text-xs sm:text-sm font-medium text-zinc-600 dark:text-zinc-300">Despesas</span>
                         </div>
                     </div>
                 </div>
@@ -2057,44 +2134,76 @@ new class extends Component
                     $yearlyIncome = collect($yearlyData)->pluck('income')->toArray();
                     $yearlyExpense = collect($yearlyData)->pluck('expense')->toArray();
                 @endphp
-                <div class="relative w-full" style="min-height: 320px;" 
+                <div class="relative w-full overflow-hidden min-h-[300px] sm:min-h-[320px]"
+                    wire:key="dashboard-yearly-evolution-{{ md5(json_encode($yearlyIncome).json_encode($yearlyExpense)) }}"
                     x-data="{
+                        chart: null,
                         init() {
+                            this.renderChart();
+                        },
+                        renderChart() {
                             const isDark = document.documentElement.classList.contains('dark');
+                            const isMobile = window.matchMedia('(max-width: 640px)').matches;
+                            const labels = @js($yearlyLabels);
+                            const moneyLabel = (value, compact = false) => {
+                                const amount = Number(value || 0);
+
+                                if (compact && Math.abs(amount) >= 1000) {
+                                    return 'R$ ' + (amount / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'k';
+                                }
+
+                                return 'R$ ' + amount.toLocaleString('pt-BR', {
+                                    minimumFractionDigits: compact ? 0 : 2,
+                                    maximumFractionDigits: compact ? 0 : 2,
+                                });
+                            };
+
+                            if (this.chart) {
+                                this.chart.destroy();
+                            }
+
+                            this.$refs.chart.innerHTML = '';
+
                             let options = {
-                                chart: { type: 'bar', height: 320, toolbar: { show: false }, background: 'transparent', fontFamily: 'inherit', parentHeightOffset: 0 },
+                                chart: { type: 'bar', height: isMobile ? 300 : 320, toolbar: { show: false }, background: 'transparent', fontFamily: 'inherit', parentHeightOffset: 0, zoom: { enabled: false }, animations: { enabled: !isMobile } },
                                 theme: { mode: isDark ? 'dark' : 'light' },
                                 colors: ['#10b981', '#ef4444'],
                                 series: [
                                     { name: 'Receitas', data: @js($yearlyIncome) },
                                     { name: 'Despesas', data: @js($yearlyExpense) }
                                 ],
-                                plotOptions: { bar: { horizontal: false, columnWidth: '40%', borderRadius: 4, borderRadiusApplication: 'end' } },
+                                plotOptions: { bar: { horizontal: false, columnWidth: isMobile ? '62%' : '40%', borderRadius: 4, borderRadiusApplication: 'end' } },
                                 xaxis: { 
-                                    categories: @js($yearlyLabels),
-                                    labels: { style: { colors: isDark ? '#94a3b8' : '#64748b' } },
+                                    categories: labels,
+                                    labels: {
+                                        rotate: 0,
+                                        hideOverlappingLabels: true,
+                                        trim: true,
+                                        style: { colors: isDark ? '#94a3b8' : '#64748b', fontSize: isMobile ? '12px' : '11px', fontWeight: isMobile ? 700 : 500 },
+                                    },
                                     axisBorder: { show: false },
                                     axisTicks: { show: false },
                                     tooltip: { enabled: false }
                                 },
                                 yaxis: {
                                     labels: { 
-                                        style: { colors: isDark ? '#94a3b8' : '#64748b' },
-                                        formatter: (value) => 'R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 2})
+                                        style: { colors: isDark ? '#94a3b8' : '#64748b', fontSize: isMobile ? '11px' : '12px' },
+                                        formatter: (value) => moneyLabel(value, isMobile)
                                     }
                                 },
                                 dataLabels: { enabled: false },
                                 stroke: { show: true, width: 2, colors: ['transparent'] },
-                                tooltip: { theme: isDark ? 'dark' : 'light', y: { formatter: function (val) { return 'R$ ' + val.toLocaleString('pt-BR', {minimumFractionDigits: 2}) } } },
-                                grid: { borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.05)', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: true } } },
+                                tooltip: { theme: isDark ? 'dark' : 'light', shared: true, intersect: false, y: { formatter: function (val) { return moneyLabel(val) } } },
+                                grid: { borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0,0,0,0.05)', strokeDashArray: 4, xaxis: { lines: { show: !isMobile } }, yaxis: { lines: { show: true } } },
                                 legend: { show: false }
                             };
-                            let chart = new window.ApexCharts(this.$refs.chart, options);
-                            chart.render();
+
+                            this.chart = new window.ApexCharts(this.$refs.chart, options);
+                            this.chart.render();
                         }
                     }"
                 >
-                    <div x-ref="chart" class="-ml-4" wire:ignore></div>
+                    <div x-ref="chart" class="-mx-2 sm:mx-0 sm:-ml-4" wire:ignore></div>
                 </div>
             </div>
         @endif
