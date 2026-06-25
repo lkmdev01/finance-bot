@@ -393,9 +393,9 @@
                                         </div>
 
                                         @if (($previewItemKey ?? null) === ($item['key'] ?? null) && $fixtureItemPreview)
-                                            <div class="mt-4 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/5 p-4">
+                                            <div class="mt-4 min-w-0 overflow-hidden rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/5 p-4">
                                                 <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                                    <div>
+                                                    <div class="min-w-0">
                                                         <p class="text-xs uppercase tracking-[0.22em] text-fuchsia-200/80">Preview seletivo por item</p>
                                                         <p class="mt-1 text-sm text-slate-300">{{ $fixtureItemPreview['path'] }}</p>
                                                     </div>
@@ -410,7 +410,7 @@
                                                 </div>
 
                                                 <div class="mt-4 grid gap-4 xl:grid-cols-2">
-                                                    <div>
+                                                    <div class="min-w-0">
                                                         <p class="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">Atual</p>
                                                         <pre class="overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ $fixtureItemPreview['current_content'] ?? 'Arquivo ainda nao existe.' }}</pre>
                                                     </div>
@@ -431,11 +431,11 @@
                             </div>
 
                             @if (($previewDomain ?? null) === $domain && $fixturePreview)
-                                <div class="mt-4 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/5 p-4">
+                                <div class="mt-4 min-w-0 overflow-hidden rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/5 p-4">
                                     <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                        <div>
+                                        <div class="min-w-0">
                                             <p class="text-xs uppercase tracking-[0.22em] text-fuchsia-200/80">Preview do fixture</p>
-                                            <p class="mt-1 text-sm text-slate-300">{{ $fixturePreview['path'] }}</p>
+                                            <p class="mt-1 break-all text-sm text-slate-300">{{ $fixturePreview['path'] }}</p>
                                         </div>
                                         <div class="flex flex-wrap gap-2 text-xs">
                                             <span class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-slate-200">
@@ -451,11 +451,11 @@
                                     </div>
 
                                     <div class="mt-4 grid gap-4 xl:grid-cols-2">
-                                        <div>
+                                            <div class="min-w-0">
                                             <p class="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">Atual</p>
                                             <pre class="overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ $fixturePreview['current_content'] ?? 'Arquivo ainda nao existe.' }}</pre>
                                         </div>
-                                        <div>
+                                            <div class="min-w-0">
                                             <p class="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">Gerado</p>
                                             <pre class="overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-cyan-100">{{ $fixturePreview['generated_content'] }}</pre>
                                         </div>
@@ -474,7 +474,7 @@
                 </div>
             </section>
 
-            <section class="rounded-3xl border border-white/10 bg-black/20 p-6">
+            <section class="overflow-hidden rounded-3xl border border-white/10 bg-black/20 p-4 sm:p-6">
                 <div class="mb-4">
                     <h2 class="text-xl font-semibold text-white">Mensagens desconhecidas mais frequentes</h2>
                     <p class="mt-1 text-sm text-slate-400">Bom lugar para ampliar o catalogo e os exemplos de regressao.</p>
@@ -482,9 +482,9 @@
 
                 <div class="space-y-3">
                     @forelse ($summary['top_unknown_messages'] as $row)
-                        <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                            <div class="flex items-start justify-between gap-4">
-                                <p class="text-sm text-slate-200">{{ $row['message'] }}</p>
+                        <article class="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <p class="min-w-0 break-words text-sm text-slate-200">{{ $row['message'] }}</p>
                                 <span class="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-semibold text-amber-200">{{ $row['count'] }}x</span>
                             </div>
                             <p class="mt-2 text-xs text-slate-500">Ultima ocorrencia: {{ $row['last_seen_at'] }}</p>
@@ -495,7 +495,7 @@
                 </div>
             </section>
 
-            <section class="rounded-3xl border border-white/10 bg-black/20 p-6">
+            <section class="overflow-hidden rounded-3xl border border-white/10 bg-black/20 p-4 sm:p-6">
                 <div class="mb-4">
                     <h2 class="text-xl font-semibold text-white">Falhas recentes</h2>
                     <p class="mt-1 text-sm text-slate-400">Une erros reais e interacoes que ainda caem como `unknown`.</p>
@@ -503,7 +503,7 @@
 
                 <div class="space-y-3">
                     @forelse ($summary['recent_failures'] as $row)
-                        <article class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <article class="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="rounded-full bg-rose-400/15 px-2.5 py-1 text-xs font-semibold text-rose-200">{{ $row['status'] }}</span>
                                 <span class="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-300">{{ $row['assistant_intent'] }}</span>
@@ -511,9 +511,9 @@
                                     <span class="rounded-full bg-fuchsia-400/15 px-2.5 py-1 text-xs text-fuchsia-200">usou IA</span>
                                 @endif
                             </div>
-                            <p class="mt-3 text-sm text-white">{{ $row['message'] }}</p>
+                            <p class="mt-3 break-words text-sm text-white">{{ $row['message'] }}</p>
                             @if ($row['error_message'])
-                                <p class="mt-2 text-xs text-rose-200">{{ $row['error_message'] }}</p>
+                                <p class="mt-2 break-words text-xs text-rose-200">{{ $row['error_message'] }}</p>
                             @endif
                             <p class="mt-2 text-xs text-slate-500">Em {{ $row['created_at'] }}</p>
                         </article>

@@ -128,6 +128,7 @@ select:focus[data-flux-control] {
 
 [data-assistant-observability] {
     max-width: 100%;
+    overflow-x: hidden;
 }
 
 [data-assistant-observability] pre {
@@ -139,4 +140,30 @@ select:focus[data-flux-control] {
 [data-assistant-observability] section,
 [data-assistant-observability] form {
     min-width: 0;
+}
+
+[data-assistant-observability] .grid,
+[data-assistant-observability] .flex {
+    min-width: 0;
+}
+
+[data-assistant-observability] a,
+[data-assistant-observability] button,
+[data-assistant-observability] p,
+[data-assistant-observability] span,
+[data-assistant-observability] h1,
+[data-assistant-observability] h2,
+[data-assistant-observability] h3 {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    [data-assistant-observability] pre {
+        font-size: 0.6875rem;
+        line-height: 1.45;
+    }
+
+    [data-assistant-observability] table {
+        min-width: 720px;
+    }
 }
