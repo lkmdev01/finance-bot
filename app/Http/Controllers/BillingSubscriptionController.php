@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AbacatePaySubscription;
+use App\Notifications\BillingSubscriptionCancelledNotification;
 use App\Services\AbacatePayService;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -64,6 +65,12 @@ class BillingSubscriptionController extends Controller
             'billing_access_ends_at' => now(),
         ])->save();
 
+        try {
+            $user->notify(new BillingSubscriptionCancelledNotification($subscription));
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+
         return $this->respond($request, true, 'Assinatura cancelada. Seu acesso premium foi encerrado agora.');
     }
 
@@ -81,4 +88,3 @@ class BillingSubscriptionController extends Controller
             ->with('status', $message);
     }
 }
-
