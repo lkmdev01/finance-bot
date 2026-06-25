@@ -15,3 +15,17 @@ it('executes curated whatsapp simulation suites without manual messaging', funct
         ->and($report['failed_count'])->toBe(0)
         ->and($report['passed_count'])->toBe($report['suite_count']);
 });
+
+it('executes curated whatsapp simulation suites by domain', function () {
+    $report = app(SimulationSuiteService::class)->runAll(domains: ['general'], persistData: true);
+
+    if (($report['all_passed'] ?? false) !== true) {
+        $failed = collect($report['results'] ?? [])->first(fn (array $result) => ($result['passed'] ?? false) !== true);
+
+        throw new RuntimeException(json_encode($failed, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    expect($report['suite_count'])->toBe(1)
+        ->and($report['domains'])->toBe(['general'])
+        ->and($report['failed_count'])->toBe(0);
+});

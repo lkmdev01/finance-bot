@@ -7,12 +7,12 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use Throwable;
 
 class WhatsAppTestSuiteCommand extends Command
 {
     protected $signature = 'whatsapp:test-suite
         {--suite=* : Executa apenas as suites informadas}
+        {--domain=* : Executa apenas suites do dominio informado, ex: finance, drive, notes}
         {--output-dir= : Diretorio onde os transcripts serao exportados}
         {--keep-data : Mantem os registros criados em vez de rollback}
         {--fail-fast : Para na primeira suite com falha}
@@ -26,7 +26,12 @@ class WhatsAppTestSuiteCommand extends Command
     {
         if ($this->option('list')) {
             foreach ($suiteService->suites() as $suite) {
-                $this->line((string) ($suite['key'] ?? 'suite'));
+                $this->line(sprintf(
+                    '[%s] %s%s',
+                    (string) ($suite['domain'] ?? 'general'),
+                    (string) ($suite['key'] ?? 'suite'),
+                    filled($suite['title'] ?? null) ? ' - '.(string) $suite['title'] : '',
+                ));
             }
 
             return self::SUCCESS;
@@ -43,9 +48,14 @@ class WhatsAppTestSuiteCommand extends Command
                 array_map('trim', (array) $this->option('suite')),
                 fn (string $value) => $value !== ''
             ));
+            $domains = array_values(array_filter(
+                array_map('trim', (array) $this->option('domain')),
+                fn (string $value) => $value !== ''
+            ));
 
             $report = $suiteService->runAll(
                 suiteKeys: $suiteKeys,
+                domains: $domains,
                 persistData: (bool) $this->option('keep-data'),
                 failFast: (bool) $this->option('fail-fast'),
             );
@@ -81,7 +91,7 @@ class WhatsAppTestSuiteCommand extends Command
     }
 
     /**
-     * @param array<string, mixed> $report
+     * @param  array<string, mixed>  $report
      */
     private function persistReport(array $report, string $outputDirectory): void
     {
@@ -104,12 +114,13 @@ class WhatsAppTestSuiteCommand extends Command
     }
 
     /**
-     * @param array<string, mixed> $report
+     * @param  array<string, mixed>  $report
      */
     private function renderSummary(array $report, string $outputDirectory): void
     {
         $this->info('WhatsApp test suite executada.');
         $this->line('Suites executadas: '.($report['suite_count'] ?? 0));
+        $this->line('Dominios: '.implode(', ', $report['domains'] ?? []));
         $this->line('Passaram: '.($report['passed_count'] ?? 0));
         $this->line('Falharam: '.($report['failed_count'] ?? 0));
         $this->line("Transcripts: {$outputDirectory}");
@@ -118,8 +129,9 @@ class WhatsAppTestSuiteCommand extends Command
         foreach ($report['results'] ?? [] as $result) {
             $status = (($result['passed'] ?? false) === true) ? 'PASS' : 'FAIL';
             $this->line(sprintf(
-                '[%s] %s',
+                '[%s] [%s] %s',
                 $status,
+                (string) ($result['domain'] ?? 'general'),
                 (string) ($result['key'] ?? 'suite')
             ));
 
@@ -140,7 +152,7 @@ class WhatsAppTestSuiteCommand extends Command
     private function bootIsolatedDatabase(): array
     {
         $connectionName = 'whatsapp_suite_runtime';
-        $tempPath = storage_path('app/testing/whatsapp-suite-runtime.sqlite');
+        $tempPath = storage_path('app/testing/whatsapp-suite-runtime-'.getmypid().'-'.str_replace('.', '', uniqid('', true)).'.sqlite');
         $originalDefault = config('database.default');
         $originalConnection = config("database.connections.{$connectionName}");
 
@@ -185,7 +197,7 @@ class WhatsAppTestSuiteCommand extends Command
     }
 
     /**
-     * @param array<string, mixed> $context
+     * @param  array<string, mixed>  $context
      */
     private function restoreDatabaseContext(array $context): void
     {

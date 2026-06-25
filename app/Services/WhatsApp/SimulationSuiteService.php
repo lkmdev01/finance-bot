@@ -35,15 +35,22 @@ class SimulationSuiteService
     }
 
     /**
-     * @param array<int, string> $suiteKeys
+     * @param  array<int, string>  $suiteKeys
      * @return array<string, mixed>
      */
-    public function runAll(array $suiteKeys = [], bool $persistData = false, bool $failFast = false): array
+    public function runAll(array $suiteKeys = [], array $domains = [], bool $persistData = false, bool $failFast = false): array
     {
         $availableSuites = collect($this->suites());
-        $selectedSuites = $suiteKeys === []
-            ? $availableSuites
-            : $availableSuites->filter(fn (array $suite) => in_array((string) ($suite['key'] ?? ''), $suiteKeys, true))->values();
+        $normalizedDomains = collect($domains)
+            ->map(fn (string $domain) => trim(strtolower($domain)))
+            ->filter()
+            ->values()
+            ->all();
+
+        $selectedSuites = $availableSuites
+            ->when($suiteKeys !== [], fn ($suites) => $suites->filter(fn (array $suite) => in_array((string) ($suite['key'] ?? ''), $suiteKeys, true)))
+            ->when($normalizedDomains !== [], fn ($suites) => $suites->filter(fn (array $suite) => in_array(strtolower((string) ($suite['domain'] ?? 'general')), $normalizedDomains, true)))
+            ->values();
 
         $results = [];
 
@@ -62,6 +69,8 @@ class SimulationSuiteService
             'generated_at' => now()->toIso8601String(),
             'suite_count' => count($results),
             'available_suite_count' => $availableSuites->count(),
+            'domain_count' => collect($results)->pluck('domain')->filter()->unique()->count(),
+            'domains' => collect($results)->pluck('domain')->filter()->unique()->values()->all(),
             'all_passed' => collect($results)->every(fn (array $result) => ($result['passed'] ?? false) === true),
             'passed_count' => $passedCount,
             'failed_count' => count($results) - $passedCount,
@@ -70,7 +79,7 @@ class SimulationSuiteService
     }
 
     /**
-     * @param array<string, mixed> $suite
+     * @param  array<string, mixed>  $suite
      * @return array<string, mixed>
      */
     public function runSuite(array $suite, bool $persistData = false): array
@@ -78,6 +87,8 @@ class SimulationSuiteService
         $suiteKey = (string) ($suite['key'] ?? 'suite');
         $result = [
             'key' => $suiteKey,
+            'domain' => (string) ($suite['domain'] ?? 'general'),
+            'title' => $suite['title'] ?? null,
             'seed' => $suite['seed'] ?? null,
             'generated_at' => now()->toIso8601String(),
             'passed' => false,
@@ -209,7 +220,7 @@ class SimulationSuiteService
     }
 
     /**
-     * @param array<string, mixed> $context
+     * @param  array<string, mixed>  $context
      */
     private function seedContext(array &$context, mixed $seed): void
     {
@@ -377,8 +388,8 @@ class SimulationSuiteService
                     'mime_type' => 'application/pdf',
                     'size_bytes' => 285500,
                     'sha256' => hash('sha256', 'mvp-comprovante-mecanico'),
-                    'drive_file_id' => 'mvp-drive-file-1',
-                    'drive_parent_id' => 'mvp-drive-parent-1',
+                    'drive_file_id' => 'mvp-drive-file-1-'.$context['user']->id,
+                    'drive_parent_id' => 'mvp-drive-parent-1-'.$context['user']->id,
                     'drive_path' => 'Comprovantes / Veiculos',
                     'title' => 'comprovante_mecanico',
                     'description' => 'Comprovante do mecanico',
@@ -394,8 +405,8 @@ class SimulationSuiteService
                     'mime_type' => 'image/png',
                     'size_bytes' => 91500,
                     'sha256' => hash('sha256', 'mvp-foto-neve'),
-                    'drive_file_id' => 'mvp-drive-file-2',
-                    'drive_parent_id' => 'mvp-drive-parent-2',
+                    'drive_file_id' => 'mvp-drive-file-2-'.$context['user']->id,
+                    'drive_parent_id' => 'mvp-drive-parent-2-'.$context['user']->id,
                     'drive_path' => 'Fotos / Viagens',
                     'title' => 'foto_neve',
                     'description' => 'Foto na neve durante a viagem',
@@ -443,8 +454,8 @@ class SimulationSuiteService
                     'mime_type' => 'application/pdf',
                     'size_bytes' => 285500,
                     'sha256' => hash('sha256', 'comprovante-mecanico'),
-                    'drive_file_id' => 'drive-file-1',
-                    'drive_parent_id' => 'drive-parent-1',
+                    'drive_file_id' => 'drive-file-1-'.$context['user']->id,
+                    'drive_parent_id' => 'drive-parent-1-'.$context['user']->id,
                     'drive_path' => 'Comprovantes / Veiculos',
                     'title' => 'comprovante_mecanico',
                     'description' => 'Comprovante do mecanico de marco',
@@ -462,8 +473,8 @@ class SimulationSuiteService
                     'mime_type' => 'application/pdf',
                     'size_bytes' => 128000,
                     'sha256' => hash('sha256', 'contrato-aluguel'),
-                    'drive_file_id' => 'drive-file-2',
-                    'drive_parent_id' => 'drive-parent-2',
+                    'drive_file_id' => 'drive-file-2-'.$context['user']->id,
+                    'drive_parent_id' => 'drive-parent-2-'.$context['user']->id,
                     'drive_path' => 'Documentos / Contratos',
                     'title' => 'contrato_aluguel',
                     'description' => 'Contrato do apartamento',
@@ -481,8 +492,8 @@ class SimulationSuiteService
                     'mime_type' => 'image/png',
                     'size_bytes' => 91500,
                     'sha256' => hash('sha256', 'foto-neve'),
-                    'drive_file_id' => 'drive-file-3',
-                    'drive_parent_id' => 'drive-parent-3',
+                    'drive_file_id' => 'drive-file-3-'.$context['user']->id,
+                    'drive_parent_id' => 'drive-parent-3-'.$context['user']->id,
                     'drive_path' => 'Fotos / Viagens',
                     'title' => 'foto_neve',
                     'description' => 'Foto na neve durante a viagem',
@@ -500,8 +511,8 @@ class SimulationSuiteService
                     'mime_type' => 'image/png',
                     'size_bytes' => 88300,
                     'sha256' => hash('sha256', 'recibo-oficina'),
-                    'drive_file_id' => 'drive-file-4',
-                    'drive_parent_id' => 'drive-parent-4',
+                    'drive_file_id' => 'drive-file-4-'.$context['user']->id,
+                    'drive_parent_id' => 'drive-parent-4-'.$context['user']->id,
                     'drive_path' => 'Comprovantes / Veiculos',
                     'title' => 'recibo_oficina',
                     'description' => 'Recibo da oficina do carro',
@@ -519,8 +530,8 @@ class SimulationSuiteService
                     'mime_type' => 'audio/mpeg',
                     'size_bytes' => 2048000,
                     'sha256' => hash('sha256', 'audio-projeto'),
-                    'drive_file_id' => 'drive-file-5',
-                    'drive_parent_id' => 'drive-parent-5',
+                    'drive_file_id' => 'drive-file-5-'.$context['user']->id,
+                    'drive_parent_id' => 'drive-parent-5-'.$context['user']->id,
                     'drive_path' => 'Audios / Projetos',
                     'title' => 'audio_projeto',
                     'description' => 'Audio com ideias sobre o projeto',
@@ -549,8 +560,8 @@ class SimulationSuiteService
     }
 
     /**
-     * @param array<int, array<string, mixed>> $entries
-     * @param array<string, mixed> $context
+     * @param  array<int, array<string, mixed>>  $entries
+     * @param  array<string, mixed>  $context
      * @return array<int, array<string, mixed>>
      */
     private function resolveEntries(array $entries, array $context): array
@@ -570,7 +581,7 @@ class SimulationSuiteService
     }
 
     /**
-     * @param array<string, string> $replacements
+     * @param  array<string, string>  $replacements
      */
     private function replaceTokens(mixed $value, array $replacements): mixed
     {
@@ -588,7 +599,7 @@ class SimulationSuiteService
     }
 
     /**
-     * @param array<string, mixed> $transcript
+     * @param  array<string, mixed>  $transcript
      * @return array<int, array<string, mixed>>
      */
     private function collectViolations(string $suiteKey, array $transcript): array
@@ -607,7 +618,7 @@ class SimulationSuiteService
     }
 
     /**
-     * @param array<string, mixed> $context
+     * @param  array<string, mixed>  $context
      * @return array<int, array<string, mixed>>
      */
     private function validateSideEffects(array $context, string $suiteKey): array
