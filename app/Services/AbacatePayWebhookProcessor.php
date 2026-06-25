@@ -439,6 +439,16 @@ class AbacatePayWebhookProcessor
 
     protected function safeNotify(User $user, mixed $notification): void
     {
+        if (
+            $notification instanceof BillingPaymentFailedNotification
+            || $notification instanceof BillingSubscriptionActivatedNotification
+            || $notification instanceof BillingSubscriptionCancelledNotification
+        ) {
+            if (! $user->wantsEmail('billing')) {
+                return;
+            }
+        }
+
         try {
             $user->notify($notification);
         } catch (\Throwable $exception) {

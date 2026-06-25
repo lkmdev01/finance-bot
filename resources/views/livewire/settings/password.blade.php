@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use App\Notifications\PasswordChangedNotification;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -26,9 +27,15 @@ new class extends Component {
             throw $e;
         }
 
-        Auth::user()->update([
+        $user = Auth::user();
+
+        $user->update([
             'password' => $validated['password'],
         ]);
+
+        if ($user->wantsEmail('security')) {
+            $user->notify(new PasswordChangedNotification);
+        }
 
         $this->reset('current_password', 'password', 'password_confirmation');
 

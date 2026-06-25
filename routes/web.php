@@ -179,6 +179,8 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
             ->name('admin.beta.index');
         Route::patch('admin/beta/users/{user}', [\App\Http\Controllers\Admin\BetaDashboardController::class, 'update'])
             ->name('admin.beta.users.update');
+        Route::get('admin/email-logs', [\App\Http\Controllers\Admin\EmailLogController::class, 'index'])
+            ->name('admin.email-logs.index');
     });
 
     // Projecoes Financeiras
@@ -320,6 +322,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Volt::route('settings/password', 'settings.password')->name('user-password.edit');
     Volt::route('settings/appearance', 'settings.appearance')->name('appearance.edit');
     Volt::route('settings/whatsapp', 'settings.whatsapp')->name('whatsapp.settings');
+    Volt::route('settings/email-preferences', 'settings.email-preferences')->name('email-preferences.edit');
     Volt::route('settings/assistant-operations', 'settings.assistant-operations')
         ->middleware('can:viewAssistantObservability')
         ->name('assistant.operations.settings');

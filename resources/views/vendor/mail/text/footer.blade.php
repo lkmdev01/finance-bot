@@ -1,0 +1,4 @@
+{{ $slot }}
+
+InovaFinance
+{{ route('home') }}
