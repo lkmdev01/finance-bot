@@ -106,7 +106,7 @@
                 </div>
 
                 @if(auth()->user()?->isAdmin())
-                    <div x-data="{ open: {{ request()->routeIs('assistant.observability', 'admin.whatsapp-broadcasts.*') ? 'true' : 'false' }} }" class="space-y-1">
+                    <div x-data="{ open: {{ request()->routeIs('assistant.observability', 'admin.whatsapp-broadcasts.*', 'admin.beta.*') ? 'true' : 'false' }} }" class="space-y-1">
                         <button type="button" data-sidebar-group-toggle @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300/80 transition hover:bg-emerald-400/10 hover:text-emerald-200">
                             <span>Admin</span>
                             <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">&rsaquo;</span>
@@ -120,6 +120,11 @@
                             @can('manageWhatsAppBroadcasts')
                                 <flux:sidebar.item icon="paper-airplane" :href="route('admin.whatsapp-broadcasts.index')" :current="request()->routeIs('admin.whatsapp-broadcasts.*')" wire:navigate>
                                     Disparos WhatsApp
+                                </flux:sidebar.item>
+                            @endcan
+                            @can('viewBetaDashboard')
+                                <flux:sidebar.item icon="users" :href="route('admin.beta.index')" :current="request()->routeIs('admin.beta.*')" wire:navigate>
+                                    Beta
                                 </flux:sidebar.item>
                             @endcan
                         </div>

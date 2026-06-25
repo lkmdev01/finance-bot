@@ -174,6 +174,12 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
         Route::post('admin/whatsapp-broadcasts', [\App\Http\Controllers\Admin\WhatsAppBroadcastController::class, 'store'])
             ->name('admin.whatsapp-broadcasts.store');
     });
+    Route::middleware('can:viewBetaDashboard')->group(function () {
+        Route::get('admin/beta', [\App\Http\Controllers\Admin\BetaDashboardController::class, 'index'])
+            ->name('admin.beta.index');
+        Route::patch('admin/beta/users/{user}', [\App\Http\Controllers\Admin\BetaDashboardController::class, 'update'])
+            ->name('admin.beta.users.update');
+    });
 
     // Projecoes Financeiras
     Route::get('financial-projections', function () {

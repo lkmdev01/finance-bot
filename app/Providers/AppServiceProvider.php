@@ -131,6 +131,10 @@ class AppServiceProvider extends ServiceProvider
             return $user->isAdmin();
         });
 
+        Gate::define('viewBetaDashboard', function (User $user): bool {
+            return $user->isAdmin();
+        });
+
         if (config('app.env') === 'production') {
             URL::forceScheme('https');
         }
