@@ -6,6 +6,9 @@ use App\Models\AbacatePayCharge;
 use App\Models\AbacatePaySubscription;
 use App\Models\AbacatePayWebhookEvent;
 use App\Models\User;
+use App\Notifications\BillingPaymentFailedNotification;
+use App\Notifications\BillingSubscriptionActivatedNotification;
+use App\Notifications\BillingSubscriptionCancelledNotification;
 use Carbon\Carbon;
 
 class AbacatePayWebhookProcessor
@@ -25,6 +28,7 @@ class AbacatePayWebhookProcessor
             'subscription.completed' => $this->handleSubscriptionUpsert($event, $payload, 'completed'),
             'subscription.renewed' => $this->handleSubscriptionUpsert($event, $payload, 'renewed'),
             'subscription.cancelled' => $this->handleSubscriptionUpsert($event, $payload, 'cancelled'),
+            'subscription.failed', 'subscription.payment_failed', 'billing.failed', 'payment.failed' => $this->handlePaymentFailed($event, $payload),
             default => null,
         };
     }
@@ -281,6 +285,53 @@ class AbacatePayWebhookProcessor
         $this->syncUserBillingAccess($user, $record, $kind);
     }
 
+    protected function handlePaymentFailed(AbacatePayWebhookEvent $event, array $payload): void
+    {
+        $subscription = $payload['data']['subscription'] ?? [];
+        $payment = $payload['data']['payment'] ?? [];
+        $billing = $payload['data']['billing'] ?? [];
+        $customer = $payload['data']['customer'] ?? ($billing['customer']['metadata'] ?? []);
+
+        $externalId = $payment['externalId'] ?? $billing['externalId'] ?? $event->external_id;
+        $gatewaySubscriptionId = $subscription['id'] ?? null;
+        $gatewayPaymentId = $payment['id'] ?? $billing['id'] ?? null;
+
+        $record = null;
+
+        if (filled($gatewaySubscriptionId) || filled($externalId)) {
+            $record = AbacatePaySubscription::query()
+                ->where(function ($query) use ($gatewaySubscriptionId, $externalId) {
+                    if (filled($gatewaySubscriptionId)) {
+                        $query->where('gateway_subscription_id', $gatewaySubscriptionId);
+                    }
+
+                    if (filled($externalId)) {
+                        $method = filled($gatewaySubscriptionId) ? 'orWhere' : 'where';
+                        $query->{$method}('external_id', $externalId);
+                    }
+                })
+                ->latest('id')
+                ->first();
+        }
+
+        $user = $this->resolveUser($customer['email'] ?? null) ?? $record?->user;
+
+        if ($record) {
+            $record->forceFill([
+                'gateway_payment_id' => $gatewayPaymentId ?: $record->gateway_payment_id,
+                'status' => $subscription['status'] ?? $payment['status'] ?? $billing['status'] ?? 'PAYMENT_FAILED',
+                'payload' => $payload,
+            ])->save();
+        }
+
+        if ($user) {
+            $this->safeNotify($user, new BillingPaymentFailedNotification(
+                subscription: $record,
+                reason: $payload['data']['error']['message'] ?? $payment['failureReason'] ?? $billing['failureReason'] ?? null,
+            ));
+        }
+    }
+
     protected function resolveUser(?string $email): ?User
     {
         if (blank($email)) {
@@ -337,6 +388,9 @@ class AbacatePayWebhookProcessor
             return;
         }
 
+        $wasActivePaidPlan = $user->hasActivePaidPlan();
+        $previousPlanCode = $user->billing_plan_code;
+        $previousBillingStatus = $user->billing_plan_status;
         $accessEndsAt = $user->billing_access_ends_at instanceof Carbon
             ? $user->billing_access_ends_at->copy()
             : null;
@@ -359,6 +413,14 @@ class AbacatePayWebhookProcessor
                 'billing_access_ends_at' => $nextAccessEndsAt,
             ])->save();
 
+            if ($kind === 'renewed' || ! $wasActivePaidPlan || $previousPlanCode !== $subscription->plan_code) {
+                $this->safeNotify($user, new BillingSubscriptionActivatedNotification(
+                    subscription: $subscription,
+                    accessEndsAt: $nextAccessEndsAt,
+                    renewed: $kind === 'renewed',
+                ));
+            }
+
             return;
         }
 
@@ -368,6 +430,19 @@ class AbacatePayWebhookProcessor
                 'billing_plan_status' => 'cancelled',
                 'billing_access_ends_at' => now(),
             ])->save();
+
+            if ($previousBillingStatus !== 'cancelled') {
+                $this->safeNotify($user, new BillingSubscriptionCancelledNotification($subscription));
+            }
+        }
+    }
+
+    protected function safeNotify(User $user, mixed $notification): void
+    {
+        try {
+            $user->notify($notification);
+        } catch (\Throwable $exception) {
+            report($exception);
         }
     }
 }

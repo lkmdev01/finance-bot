@@ -39,6 +39,9 @@ use App\Services\WhatsApp\Handlers\UpdateBudgetHandler;
 use App\Services\WhatsApp\Handlers\UpdateRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\UpdateSavingsGoalHandler;
 use App\Services\WhatsApp\Handlers\UpdateSubscriptionHandler;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -133,6 +136,31 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define('viewBetaDashboard', function (User $user): bool {
             return $user->isAdmin();
+        });
+
+        VerifyEmail::toMailUsing(function (User $notifiable, string $url): MailMessage {
+            return (new MailMessage)
+                ->subject('Confirme seu e-mail no InovaFinance')
+                ->greeting("Oi, {$notifiable->name}.")
+                ->line('Falta pouco para ativar sua conta no InovaFinance.')
+                ->line('Confirme seu e-mail para proteger sua conta e continuar o cadastro com seguranca.')
+                ->action('Confirmar e-mail', $url)
+                ->line('Se voce nao criou essa conta, ignore esta mensagem.');
+        });
+
+        ResetPassword::toMailUsing(function (User $notifiable, string $token): MailMessage {
+            $url = url(route('password.reset', [
+                'token' => $token,
+                'email' => $notifiable->getEmailForPasswordReset(),
+            ], false));
+
+            return (new MailMessage)
+                ->subject('Redefina sua senha do InovaFinance')
+                ->greeting("Oi, {$notifiable->name}.")
+                ->line('Recebemos uma solicitacao para redefinir a senha da sua conta.')
+                ->line('Use o botao abaixo para criar uma nova senha. Este link expira por seguranca.')
+                ->action('Redefinir senha', $url)
+                ->line('Se voce nao pediu essa alteracao, nenhuma acao e necessaria.');
         });
 
         if (config('app.env') === 'production') {
