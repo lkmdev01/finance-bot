@@ -56,7 +56,7 @@ new class extends Component {
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
                     <div class="min-w-0 flex-1">
                         <div class="flex flex-wrap items-center gap-2 mb-3">
-                            <h2 class="text-lg font-semibold">{{ $account->name }}</h2>
+                            <h2 class="break-words text-lg font-semibold">{{ $account->name }}</h2>
                             <span class="px-2 py-1 text-xs rounded-full {{ $account->is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200' }}">
                                 {{ $account->is_active ? 'Ativa' : 'Inativa' }}
                             </span>

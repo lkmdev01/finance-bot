@@ -203,13 +203,13 @@ new class extends Component
 }; ?>
 
 
-<div class="p-6 space-y-6">
-    <div class="flex items-center justify-between">
+<div class="space-y-6 p-4 sm:p-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold">Transações</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Gerencie suas receitas e despesas</p>
         </div>
-        <flux:button href="{{ route('transactions.create') }}" wire:navigate variant="primary">
+        <flux:button href="{{ route('transactions.create') }}" wire:navigate variant="primary" class="w-full sm:w-auto">
             Nova Transação
         </flux:button>
     </div>
@@ -238,9 +238,9 @@ new class extends Component
 
     <!-- Filtros -->
     <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-        <div class="flex items-center justify-between mb-4">
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Filtros</h3>
-            <flux:button wire:click="clearFilters" variant="ghost" size="sm">
+            <flux:button wire:click="clearFilters" variant="ghost" size="sm" class="w-full sm:w-auto">
                 Limpar Filtros
             </flux:button>
         </div>
@@ -298,7 +298,71 @@ new class extends Component
     </div>
 
     <!-- Tabela de Transações -->
-    <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+    <div class="rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900 md:hidden">
+        <div class="divide-y divide-zinc-200 dark:divide-zinc-700">
+            @forelse($transactions as $transaction)
+                <article class="p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="break-words text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                {{ $transaction->description ?? '-' }}
+                            </p>
+                            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                <span>{{ $transaction->date->format('d/m/Y') }}</span>
+                                @if($transaction->category)
+                                    <span>Â·</span>
+                                    <span>
+                                        @if($transaction->category->icon)
+                                            {{ $transaction->category->icon }}
+                                        @endif
+                                        {{ $transaction->category->name }}
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+                        <p class="shrink-0 text-right text-sm font-black {{ $transaction->type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
+                            {{ $transaction->type === 'income' ? '+' : '-' }}R$ {{ number_format($transaction->amount, 2, ',', '.') }}
+                        </p>
+                    </div>
+
+                    <div class="mt-3 flex items-center justify-between gap-3">
+                        <span class="rounded-full px-2 py-1 text-xs font-medium {{ $transaction->type === 'income' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' }}">
+                            {{ $transaction->type === 'income' ? 'Receita' : 'Despesa' }}
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <flux:button
+                                href="{{ route('transactions.edit', $transaction) }}"
+                                wire:navigate
+                                variant="ghost"
+                                size="sm"
+                                icon="pencil"
+                            />
+                            <flux:button
+                                wire:click="delete({{ $transaction->id }})"
+                                wire:confirm="Tem certeza que deseja excluir esta transaÃ§Ã£o?"
+                                variant="ghost"
+                                size="sm"
+                                icon="trash"
+                                class="text-red-600 hover:text-red-700 dark:text-red-400"
+                            />
+                        </div>
+                    </div>
+                </article>
+            @empty
+                <div class="px-6 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                    Nenhuma transaÃ§Ã£o encontrada.
+                </div>
+            @endforelse
+        </div>
+
+        @if($transactions->hasPages())
+            <div class="border-t border-zinc-200 px-4 py-4 dark:border-zinc-700">
+                {{ $transactions->links() }}
+            </div>
+        @endif
+    </div>
+
+    <div class="hidden overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900 md:block">
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
