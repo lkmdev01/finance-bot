@@ -102,13 +102,26 @@ select:focus[data-flux-control] {
     padding-right: 0 !important;
 }
 
-/* Compact sidebar: hide group labels and expose grouped icons. */
+/* Compact sidebar: keep the rail clean. Grouped navigation is available when expanded. */
 [data-flux-sidebar-collapsed-desktop] [data-sidebar-group-toggle] {
     display: none !important;
 }
 
 [data-flux-sidebar-collapsed-desktop] [data-sidebar-group-panel] {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 0.25rem !important;
+    display: none !important;
+}
+
+[data-flux-sidebar-collapsed-desktop] [data-sidebar-compact-hide] {
+    display: none !important;
+}
+
+[data-flux-sidebar-collapsed-desktop] [data-app-sidebar-nav] {
+    align-items: center !important;
+    gap: 0.5rem !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+[data-app-sidebar][data-flux-sidebar-collapsed-desktop] {
+    overflow: hidden !important;
 }

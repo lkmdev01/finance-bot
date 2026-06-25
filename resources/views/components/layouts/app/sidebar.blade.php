@@ -10,7 +10,7 @@
             <div class="absolute bottom-[-10%] right-[-10%] w-[100%] h-[100%] blur-gradient opacity-30"></div>
         </div>
 
-        <flux:sidebar sticky collapsible class="sticky top-0 z-50 border-e border-white/5 bg-black/40 backdrop-blur-xl overflow-x-hidden">
+        <flux:sidebar sticky collapsible data-app-sidebar class="sticky top-0 z-50 border-e border-white/5 bg-black/40 backdrop-blur-xl overflow-x-hidden">
             <flux:sidebar.header class="relative py-6 border-b border-white/5 mb-4 px-4 flex items-center justify-between min-h-[80px] transition-all duration-300 overflow-hidden">
                 {{-- Logo: hidden via CSS when [data-flux-sidebar-collapsed-desktop] is set --}}
                 <a data-sidebar-logo href="{{ route('dashboard') }}" class="flex items-center gap-3 min-w-0 group" wire:navigate title="Dashboard">
@@ -21,7 +21,7 @@
                 <flux:sidebar.collapse class="hidden lg:flex shrink-0 items-center justify-center rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer" />
             </flux:sidebar.header>
 
-            <flux:sidebar.nav class="gap-1 px-2">
+            <flux:sidebar.nav data-app-sidebar-nav class="gap-1 px-2">
                 <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                     Dashboard
                 </flux:sidebar.item>
@@ -29,7 +29,7 @@
                     {{ config('mascot.name', 'Orbita') }}
                 </flux:sidebar.item>
 
-                <flux:separator class="my-3 bg-white/10" />
+                <flux:separator data-sidebar-compact-hide class="my-3 bg-white/10" />
 
                 <div x-data="{ open: {{ request()->routeIs('transactions.*', 'bank-accounts.*', 'credit-cards.*', 'categories.*', 'budgets.*', 'savings-goals.*', 'recurring-transactions.*', 'subscriptions.*', 'billing.*', 'integrations.open-finance*') ? 'true' : 'false' }} }" class="space-y-1">
                     <button type="button" data-sidebar-group-toggle @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
