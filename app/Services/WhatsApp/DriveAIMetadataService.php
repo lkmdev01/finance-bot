@@ -10,7 +10,7 @@ class DriveAIMetadataService
 {
     /**
      * @param  array<int, string>  $labels
-     * @return array{description: string|null, tags: array<int, string>, source: string|null}
+     * @return array{description: string|null, tags: array<int, string>, source: string|null, status: string, error: string|null}
      */
     public function analyze(
         string $kind,
@@ -22,7 +22,7 @@ class DriveAIMetadataService
         array $labels = [],
     ): array {
         if (! $this->isAvailable()) {
-            return $this->empty();
+            return $this->empty('unavailable');
         }
 
         try {
@@ -38,23 +38,23 @@ class DriveAIMetadataService
                 'error' => $throwable->getMessage(),
             ]);
 
-            return $this->empty();
+            return $this->empty('failed', $throwable->getMessage());
         }
     }
 
     /**
      * @param  array<int, string>  $labels
-     * @return array{description: string|null, tags: array<int, string>, source: string|null}
+     * @return array{description: string|null, tags: array<int, string>, source: string|null, status: string, error: string|null}
      */
     private function analyzeImage(?string $localPath, ?string $mimeType, string $fileName, ?string $folderName, ?string $extractedText, array $labels): array
     {
         if (! $localPath || ! is_file($localPath)) {
-            return $this->empty();
+            return $this->empty('unavailable');
         }
 
         $binary = file_get_contents($localPath);
         if ($binary === false || $binary === '') {
-            return $this->empty();
+            return $this->empty('unavailable');
         }
 
         $mimeType = $mimeType ?: 'image/jpeg';
@@ -88,13 +88,13 @@ class DriveAIMetadataService
 
     /**
      * @param  array<int, string>  $labels
-     * @return array{description: string|null, tags: array<int, string>, source: string|null}
+     * @return array{description: string|null, tags: array<int, string>, source: string|null, status: string, error: string|null}
      */
     private function analyzeText(string $kindLabel, string $fileName, ?string $folderName, ?string $extractedText, array $labels): array
     {
         $text = trim((string) $extractedText);
         if ($text === '' && $labels === []) {
-            return $this->empty();
+            return $this->empty('unavailable');
         }
 
         $response = $this->postChatCompletion((string) config('ai.drive_metadata.metadata_model'), [
@@ -178,18 +178,18 @@ PROMPT;
     }
 
     /**
-     * @return array{description: string|null, tags: array<int, string>, source: string|null}
+     * @return array{description: string|null, tags: array<int, string>, source: string|null, status: string, error: string|null}
      */
     private function parseResponse(array $response, string $source): array
     {
         $content = trim((string) data_get($response, 'choices.0.message.content', ''));
         if ($content === '') {
-            return $this->empty();
+            return $this->empty('failed', 'Resposta vazia da IA de metadados.');
         }
 
         $payload = json_decode($content, true);
         if (! is_array($payload)) {
-            return $this->empty();
+            return $this->empty('failed', 'Resposta da IA de metadados nao veio em JSON valido.');
         }
 
         $description = trim((string) ($payload['description'] ?? ''));
@@ -206,6 +206,8 @@ PROMPT;
             'description' => $description !== '' ? Str::limit($description, 700, '') : null,
             'tags' => $tags,
             'source' => $source,
+            'status' => ($description !== '' || $tags !== []) ? 'completed' : 'unavailable',
+            'error' => null,
         ];
     }
 
@@ -234,14 +236,16 @@ PROMPT;
     }
 
     /**
-     * @return array{description: string|null, tags: array<int, string>, source: string|null}
+     * @return array{description: string|null, tags: array<int, string>, source: string|null, status: string, error: string|null}
      */
-    private function empty(): array
+    private function empty(string $status = 'unavailable', ?string $error = null): array
     {
         return [
             'description' => null,
             'tags' => [],
             'source' => null,
+            'status' => $status,
+            'error' => $error ? Str::limit($error, 1000, '') : null,
         ];
     }
 }

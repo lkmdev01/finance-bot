@@ -5,8 +5,8 @@ return [
     'trial_days' => 7,
     'trial_expired_message' => 'Seu teste gratuito terminou. Para continuar registrando novas informações, ative um plano.',
 
-    // Metodos exibidos no checkout da AbacatePay.
-    // Para MVP, usamos checkout avulso (sem renovacao automatica), entao vale liberar PIX + Cartao.
+    // Metodos exibidos no checkout avulso da AbacatePay.
+    // Mantemos PIX + Cartao apenas para planos sem recorrencia automatica.
     'checkout_methods' => ['PIX', 'CARD'],
 
     // Metodos permitidos para checkout de assinatura (recorrencia automatica).
@@ -44,7 +44,7 @@ return [
         'pro_monthly' => [
             'code' => 'pro_monthly',
             'name' => 'Pro Mensal',
-            'description' => 'Relatórios, projeções, Orbita e acesso completo por 30 dias após o pagamento.',
+            'description' => 'Relatorios, projecoes, Orbita e acesso completo com renovacao mensal no cartao.',
             'price_cents' => 1997,
             'frequency' => 'MONTHLY',
             'badge' => 'Mais popular',
@@ -71,13 +71,13 @@ return [
         'pro_yearly' => [
             'code' => 'pro_yearly',
             'name' => 'Pro Anual',
-            'description' => 'Tudo do Pro com acesso por 12 meses após o pagamento e melhor custo.',
+            'description' => 'Tudo do Pro com renovacao anual no cartao e melhor custo.',
             'price_cents' => 19970,
             'frequency' => 'YEARLY',
             'badge' => 'Economize 2 meses',
             'highlight' => false,
             'product_id' => env('ABACATEPAY_PLAN_PRO_YEARLY_PRODUCT_ID'),
-            'checkout_flow' => env('BILLING_PLAN_PRO_YEARLY_FLOW', 'checkout'),
+            'checkout_flow' => env('BILLING_PLAN_PRO_YEARLY_FLOW', 'subscription'),
             'features' => [
                 'transactions',
                 'categories',
@@ -95,4 +95,3 @@ return [
         ],
     ],
 ];
-

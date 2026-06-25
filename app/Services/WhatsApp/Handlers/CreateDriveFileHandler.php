@@ -113,6 +113,8 @@ class CreateDriveFileHandler extends BaseHandler
             }
 
             $title = $this->inferTitle($media, $tags);
+            $metadataStatus = 'pending';
+            $metadataError = null;
             $aiMetadata = app(DriveAIMetadataService::class)->analyze(
                 $media->kind,
                 $localPath,
@@ -122,6 +124,20 @@ class CreateDriveFileHandler extends BaseHandler
                 $extractedText,
                 $tags
             );
+            $metadataStatus = (string) ($aiMetadata['status'] ?? 'unavailable');
+            $metadataError = isset($aiMetadata['error']) && is_string($aiMetadata['error'])
+                ? $aiMetadata['error']
+                : null;
+
+            if ($metadataStatus === 'failed') {
+                Log::warning('Drive metadata analysis failed after upload.', [
+                    'user_id' => $user->id,
+                    'media_id' => $media->id,
+                    'file_name' => $fileName,
+                    'provider' => config('ai.drive_metadata.provider'),
+                    'error' => $metadataError,
+                ]);
+            }
 
             $enrichedLabels = array_values(array_unique(array_merge(
                 $tags,
@@ -166,6 +182,9 @@ class CreateDriveFileHandler extends BaseHandler
                     'web_url' => $url,
                     'ai_metadata' => $aiMetadata,
                 ],
+                'metadata_status' => $metadataStatus,
+                'metadata_error' => $metadataError,
+                'metadata_analyzed_at' => in_array($metadataStatus, ['completed', 'failed'], true) ? now() : null,
             ]);
 
             // Best-effort cleanup: once uploaded, we don't need the local copy.
@@ -180,6 +199,14 @@ class CreateDriveFileHandler extends BaseHandler
                 $reply .= "\nPasta: *{$folderName}*";
             } else {
                 $reply .= "\nPasta: Drive";
+            }
+
+            if ($metadataStatus === 'completed' && filled($aiMetadata['description'] ?? null)) {
+                $reply .= "\n\nAnalisei o conteudo: ".Str::limit((string) $aiMetadata['description'], 180, '');
+            } elseif ($metadataStatus === 'failed') {
+                $reply .= "\n\nSalvei normalmente, mas ainda nao consegui analisar o conteudo por IA. Mesmo assim, voce ja pode buscar por nome, tipo, pasta e data.";
+            } elseif ($metadataStatus === 'unavailable') {
+                $reply .= "\n\nSalvei normalmente. A analise por IA nao estava disponivel para este arquivo, entao a busca usara nome, tipo, pasta, texto extraido e data.";
             }
 
             if ($url) {

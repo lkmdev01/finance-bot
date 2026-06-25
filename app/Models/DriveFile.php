@@ -26,6 +26,9 @@ class DriveFile extends Model
         'tags',
         'extracted_text',
         'metadata',
+        'metadata_status',
+        'metadata_error',
+        'metadata_analyzed_at',
     ];
 
     protected function casts(): array
@@ -33,7 +36,18 @@ class DriveFile extends Model
         return [
             'tags' => 'array',
             'metadata' => 'array',
+            'metadata_analyzed_at' => 'datetime',
         ];
+    }
+
+    public function scopeMetadataFailed($query)
+    {
+        return $query->where('metadata_status', 'failed');
+    }
+
+    public function scopeMetadataPending($query)
+    {
+        return $query->where('metadata_status', 'pending');
     }
 
     public function user(): BelongsTo
@@ -46,4 +60,3 @@ class DriveFile extends Model
         return $this->belongsTo(WhatsAppIncomingMedia::class, 'whatsapp_incoming_media_id');
     }
 }
-

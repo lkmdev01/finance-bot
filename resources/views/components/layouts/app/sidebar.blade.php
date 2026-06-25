@@ -32,11 +32,11 @@
                 <flux:separator class="my-3 bg-white/10" />
 
                 <div x-data="{ open: {{ request()->routeIs('transactions.*', 'bank-accounts.*', 'credit-cards.*', 'categories.*', 'budgets.*', 'savings-goals.*', 'recurring-transactions.*', 'subscriptions.*', 'billing.*', 'integrations.open-finance*') ? 'true' : 'false' }} }" class="space-y-1">
-                    <button type="button" @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
+                    <button type="button" data-sidebar-group-toggle @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
                         <span>Financas</span>
-                        <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">›</span>
+                        <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">&rsaquo;</span>
                     </button>
-                    <div x-show="open" class="space-y-1" x-cloak>
+                    <div x-show="open" data-sidebar-group-panel class="space-y-1" x-cloak>
                         <flux:sidebar.item icon="currency-dollar" :href="route('transactions.index')" :current="request()->routeIs('transactions.*')" wire:navigate>
                             Transacoes
                         </flux:sidebar.item>
@@ -73,11 +73,11 @@
                 </div>
 
                 <div x-data="{ open: {{ request()->routeIs('reminders.*', 'notes.*', 'drive.*') ? 'true' : 'false' }} }" class="space-y-1">
-                    <button type="button" @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
+                    <button type="button" data-sidebar-group-toggle @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
                         <span>Organizacao</span>
-                        <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">›</span>
+                        <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">&rsaquo;</span>
                     </button>
-                    <div x-show="open" class="space-y-1" x-cloak>
+                    <div x-show="open" data-sidebar-group-panel class="space-y-1" x-cloak>
                         <flux:sidebar.item icon="bell" :href="route('reminders.index')" :current="request()->routeIs('reminders.*')" wire:navigate>
                             Lembretes
                         </flux:sidebar.item>
@@ -91,11 +91,11 @@
                 </div>
 
                 <div x-data="{ open: {{ request()->routeIs('reports.*', 'financial-projections.*') ? 'true' : 'false' }} }" class="space-y-1">
-                    <button type="button" @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
+                    <button type="button" data-sidebar-group-toggle @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
                         <span>Analise</span>
-                        <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">›</span>
+                        <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">&rsaquo;</span>
                     </button>
-                    <div x-show="open" class="space-y-1" x-cloak>
+                    <div x-show="open" data-sidebar-group-panel class="space-y-1" x-cloak>
                         <flux:sidebar.item icon="document-text" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
                             Relatorios
                         </flux:sidebar.item>
@@ -107,11 +107,11 @@
 
                 @if(auth()->user()?->isAdmin())
                     <div x-data="{ open: {{ request()->routeIs('assistant.observability', 'admin.whatsapp-broadcasts.*') ? 'true' : 'false' }} }" class="space-y-1">
-                        <button type="button" @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300/80 transition hover:bg-emerald-400/10 hover:text-emerald-200">
+                        <button type="button" data-sidebar-group-toggle @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300/80 transition hover:bg-emerald-400/10 hover:text-emerald-200">
                             <span>Admin</span>
-                            <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">›</span>
+                            <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">&rsaquo;</span>
                         </button>
-                        <div x-show="open" class="space-y-1" x-cloak>
+                        <div x-show="open" data-sidebar-group-panel class="space-y-1" x-cloak>
                             @can('viewAssistantObservability')
                                 <flux:sidebar.item icon="command-line" :href="route('assistant.observability')" :current="request()->routeIs('assistant.observability')" wire:navigate>
                                     Observabilidade IA
@@ -149,7 +149,7 @@
                         </div>
                     </div>
 
-                    <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>ConfiguraÃƒÂ§ÃƒÂµes</flux:menu.item>
+                    <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configuracoes</flux:menu.item>
                     <flux:menu.separator />
 
                     <form method="POST" action="{{ route('logout') }}" class="w-full">
@@ -187,7 +187,7 @@
                         </div>
                     </div>
 
-                    <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>ConfiguraÃƒÂ§ÃƒÂµes</flux:menu.item>
+                    <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configuracoes</flux:menu.item>
                     <flux:menu.separator />
 
                     <form method="POST" action="{{ route('logout') }}" class="w-full">

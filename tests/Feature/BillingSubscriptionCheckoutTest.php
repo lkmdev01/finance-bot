@@ -61,6 +61,8 @@ test('pagina de planos exibe cancelar assinatura quando ha assinatura recorrente
 
     $response->assertOk()
         ->assertSee('Cancelar assinatura')
+        ->assertSee('Proxima cobranca')
+        ->assertSee($user->billing_access_ends_at->format('d/m/Y'))
         ->assertSee('Cancelamento e imediato e irreversivel', false);
 });
 
@@ -139,6 +141,66 @@ test('usuario pode iniciar checkout do plano pro apos confirmar dados', function
         ->and($subscription->gateway_checkout_id)->toBe('checkout_123')
         ->and($subscription->checkout_url)->toBe('https://pay.abacatepay.com/checkout_123')
         ->and($subscription->customer_tax_id)->toBe('111.444.777-35');
+});
+
+test('usuario pode iniciar checkout anual recorrente com cartao', function () {
+    $planPrice = config('billing.plans.pro_yearly.price_cents');
+    config(['billing.plans.pro_yearly.product_id' => 'prod_pro_yearly_123']);
+    config(['billing.plans.pro_yearly.checkout_flow' => 'subscription']);
+    config(['billing.subscription_methods' => ['CARD']]);
+
+    $user = User::factory()->create([
+        'email' => 'annual@example.com',
+        'name' => 'Annual User',
+        'phone_number' => '5511999999999',
+        'tax_id' => '11144477735',
+        'abacatepay_customer_id' => 'cust_existing_annual',
+    ]);
+
+    config([
+        'abacatepay.api_key' => 'abacate_dev_123',
+        'abacatepay.base_url' => 'https://api.abacatepay.com/v2',
+    ]);
+
+    Http::fake([
+        'https://api.abacatepay.com/v2/subscriptions/create' => Http::response([
+            'success' => true,
+            'error' => null,
+            'data' => [
+                'id' => 'checkout_yearly_123',
+                'url' => 'https://pay.abacatepay.com/checkout_yearly_123',
+                'amount' => $planPrice,
+                'status' => 'PENDING',
+                'customerId' => 'cust_existing_annual',
+            ],
+        ]),
+    ]);
+
+    $response = $this->actingAs($user)
+        ->post(route('billing.subscribe', 'pro_yearly'));
+
+    $response->assertRedirect('https://pay.abacatepay.com/checkout_yearly_123');
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://api.abacatepay.com/v2/subscriptions/create'
+            && $request['items'][0]['id'] === 'prod_pro_yearly_123'
+            && $request['items'][0]['quantity'] === 1
+            && $request['customerId'] === 'cust_existing_annual'
+            && ($request['methods'] ?? []) === ['CARD']
+            && str_starts_with((string) $request['externalId'], 'plan_pro_yearly_')
+            && ($request['metadata']['plan_code'] ?? null) === 'pro_yearly'
+            && ($request['metadata']['source'] ?? null) === 'app_billing';
+    });
+
+    $subscription = AbacatePaySubscription::query()->where('user_id', $user->id)->latest()->first();
+
+    expect($subscription)->not->toBeNull()
+        ->and($subscription->plan_code)->toBe('pro_yearly')
+        ->and($subscription->frequency)->toBe('YEARLY')
+        ->and($subscription->gateway_customer_id)->toBe('cust_existing_annual')
+        ->and($subscription->gateway_checkout_id)->toBe('checkout_yearly_123')
+        ->and($subscription->checkout_url)->toBe('https://pay.abacatepay.com/checkout_yearly_123')
+        ->and($subscription->amount)->toBe($planPrice);
 });
 
 test('usuario sem cpf e redirecionado para a tela de confirmacao antes do checkout', function () {

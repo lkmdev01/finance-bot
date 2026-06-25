@@ -47,7 +47,9 @@ it('gera metadados humanos para imagens usando visao com groq', function () {
 
     expect($metadata['description'])->toBe('Foto de uma viagem na neve com montanhas ao fundo.')
         ->and($metadata['tags'])->toContain('neve')
-        ->and($metadata['source'])->toBe('groq_vision');
+        ->and($metadata['source'])->toBe('groq_vision')
+        ->and($metadata['status'])->toBe('completed')
+        ->and($metadata['error'])->toBeNull();
 
     Http::assertSent(function ($request) {
         $payload = $request->data();
@@ -88,7 +90,9 @@ it('gera metadados humanos para audios usando transcricao com groq', function ()
 
     expect($metadata['description'])->toBe('Audio com ideias sobre o projeto de expansao.')
         ->and($metadata['tags'])->toContain('projeto')
-        ->and($metadata['source'])->toBe('groq_text');
+        ->and($metadata['source'])->toBe('groq_text')
+        ->and($metadata['status'])->toBe('completed')
+        ->and($metadata['error'])->toBeNull();
 });
 
 it('continua suportando openai como provider opcional', function () {
@@ -122,7 +126,8 @@ it('continua suportando openai como provider opcional', function () {
     );
 
     expect($metadata['source'])->toBe('openai_text')
-        ->and($metadata['tags'])->toContain('teste');
+        ->and($metadata['tags'])->toContain('teste')
+        ->and($metadata['status'])->toBe('completed');
 });
 
 it('nao chama ia quando nao esta configurado', function () {
@@ -144,7 +149,33 @@ it('nao chama ia quando nao esta configurado', function () {
 
     expect($metadata['description'])->toBeNull()
         ->and($metadata['tags'])->toBe([])
-        ->and($metadata['source'])->toBeNull();
+        ->and($metadata['source'])->toBeNull()
+        ->and($metadata['status'])->toBe('unavailable')
+        ->and($metadata['error'])->toBeNull();
 
     Http::assertNothingSent();
+});
+
+it('marca metadata como failed quando provider externo falha', function () {
+    Http::fake([
+        'api.groq.com/openai/v1/chat/completions' => Http::response([
+            'error' => ['message' => 'rate limit'],
+        ], 429),
+    ]);
+
+    $metadata = app(DriveAIMetadataService::class)->analyze(
+        kind: 'audio',
+        localPath: null,
+        mimeType: 'audio/mpeg',
+        fileName: 'audio_001.mp3',
+        folderName: null,
+        extractedText: 'Texto qualquer',
+        labels: [],
+    );
+
+    expect($metadata['description'])->toBeNull()
+        ->and($metadata['tags'])->toBe([])
+        ->and($metadata['source'])->toBeNull()
+        ->and($metadata['status'])->toBe('failed')
+        ->and($metadata['error'])->toContain('groq metadata error');
 });

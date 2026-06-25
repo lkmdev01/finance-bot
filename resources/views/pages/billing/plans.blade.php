@@ -2,6 +2,9 @@
     @php
         $user = auth()->user();
         $hasSubscriptionFlow = collect($plans ?? [])->contains(fn ($plan) => ($plan['checkout_flow'] ?? 'checkout') === 'subscription' && (($plan['price_cents'] ?? 0) > 0));
+        $nextBillingDate = $cancelableSubscription && $user->billing_access_ends_at
+            ? $user->billing_access_ends_at->format('d/m/Y')
+            : null;
     @endphp
 
     <div class="space-y-8">
@@ -66,6 +69,21 @@
                     </div>
 
                     @if ($cancelableSubscription)
+                        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                            <div class="rounded-2xl border border-emerald-300/15 bg-emerald-400/10 px-4 py-3">
+                                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100/80">Assinatura</p>
+                                <p class="mt-1 text-sm font-semibold text-white">
+                                    {{ str($cancelableSubscription->status ?: 'ACTIVE')->replace('_', ' ')->title() }}
+                                </p>
+                            </div>
+                            <div class="rounded-2xl border border-indigo-300/15 bg-indigo-400/10 px-4 py-3">
+                                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-100/80">Proxima cobranca</p>
+                                <p class="mt-1 text-sm font-semibold text-white">
+                                    {{ $nextBillingDate ? $nextBillingDate : 'Aguardando confirmacao' }}
+                                </p>
+                            </div>
+                        </div>
+
                         <div class="mt-6">
                             <button type="button" class="inline-flex w-full items-center justify-center rounded-xl border border-rose-300/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15" data-billing-cancel-open>
                                 Cancelar assinatura
@@ -391,4 +409,3 @@
         })();
     </script>
 </x-layouts.checkout>
-

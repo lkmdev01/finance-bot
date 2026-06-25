@@ -2,7 +2,45 @@
 
 return [
     [
+        'key' => 'greeting_help_small_talk',
+        'domain' => 'general',
+        'title' => 'Saudacao, ajuda e conversa casual nao devem cair em dominio antigo',
+        'seed' => 'general',
+        'entries' => [
+            [
+                'message' => 'oi',
+                'expected_classification' => 'greeting',
+                'expected_reply_contains' => ['Ola'],
+                'expected_reply_not_contains' => ['Nao encontrei arquivos', 'Nao encontrei nenhuma nota', 'Suas metas atuais'],
+                'expected_state_topic' => 'general',
+            ],
+            [
+                'message' => 'bom dia',
+                'expected_classification' => 'greeting',
+                'expected_reply_contains' => ['Ola'],
+                'expected_reply_not_contains' => ['Nao encontrei arquivos', 'Nao encontrei nenhuma nota', 'Suas metas atuais'],
+                'expected_state_topic' => 'general',
+            ],
+            [
+                'message' => 'como voce pode me ajudar',
+                'expected_classification' => 'help',
+                'expected_reply_contains' => ['Posso te ajudar de varios jeitos', 'registrar gasto', 'Drive'],
+                'expected_reply_not_contains' => ['Nao encontrei arquivos', 'Nao encontrei nenhuma nota', 'Suas metas atuais'],
+                'expected_state_topic' => 'general',
+            ],
+            [
+                'message' => 'tudo bem?',
+                'expected_classification' => 'small_talk',
+                'expected_reply_contains' => ['Estou bem'],
+                'expected_reply_not_contains' => ['Nao encontrei arquivos', 'Nao encontrei nenhuma nota', 'Suas metas atuais'],
+                'expected_state_topic' => 'general',
+            ],
+        ],
+    ],
+    [
         'key' => 'mvp_acceptance',
+        'domain' => 'context',
+        'title' => 'Roteiro real de aceitacao com troca entre metas, notas, drive e conversa geral',
         'seed' => 'mvp_acceptance',
         'entries' => [
             [
@@ -94,6 +132,8 @@ return [
     ],
     [
         'key' => 'finance_core',
+        'domain' => 'finance',
+        'title' => 'Gastos, receitas, saldo e relatorios financeiros essenciais',
         'seed' => 'finance_core',
         'entries' => [
             [
@@ -117,6 +157,8 @@ return [
     ],
     [
         'key' => 'notes_and_reminders_create',
+        'domain' => 'productivity',
+        'title' => 'Criacao de nota e lembrete por WhatsApp',
         'seed' => 'notes_and_reminders_create',
         'entries' => [
             [
@@ -131,6 +173,8 @@ return [
     ],
     [
         'key' => 'notes_and_reminders_queries',
+        'domain' => 'productivity',
+        'title' => 'Consultas contextuais de notas e lembretes',
         'seed' => 'notes_and_reminders_queries',
         'entries' => [
             [
@@ -166,6 +210,8 @@ return [
     ],
     [
         'key' => 'notes_context_reset',
+        'domain' => 'context',
+        'title' => 'Notas nao podem capturar saudacoes ou pedidos de ajuda',
         'seed' => 'notes_and_reminders_queries',
         'entries' => [
             [
@@ -199,6 +245,8 @@ return [
     ],
     [
         'key' => 'reminders_context_reset',
+        'domain' => 'context',
+        'title' => 'Lembretes nao podem capturar saudacoes ou conversa casual',
         'seed' => 'notes_and_reminders_queries',
         'entries' => [
             [
@@ -231,6 +279,8 @@ return [
     ],
     [
         'key' => 'planning_queries',
+        'domain' => 'planning',
+        'title' => 'Consultas de metas, assinaturas e recorrencias',
         'seed' => 'planning_queries',
         'entries' => [
             [
@@ -269,6 +319,8 @@ return [
     ],
     [
         'key' => 'savings_context_reset',
+        'domain' => 'context',
+        'title' => 'Metas nao podem capturar saudacoes ou ajuda',
         'seed' => 'planning_queries',
         'entries' => [
             [
@@ -301,6 +353,8 @@ return [
     ],
     [
         'key' => 'planning_creations',
+        'domain' => 'planning',
+        'title' => 'Criacao guiada de metas e assinaturas',
         'seed' => 'planning_creations',
         'entries' => [
             [
@@ -321,6 +375,8 @@ return [
     ],
     [
         'key' => 'transaction_and_budget_context',
+        'domain' => 'context',
+        'title' => 'Edicao contextual de transacao e cancelamento de orcamento',
         'seed' => 'transaction_and_budget_context',
         'entries' => [
             [
@@ -377,6 +433,8 @@ return [
     ],
     [
         'key' => 'drive_queries',
+        'domain' => 'drive',
+        'title' => 'Listagem de arquivos e referencia ao ultimo arquivo',
         'seed' => 'drive_queries',
         'entries' => [
             [
@@ -394,6 +452,8 @@ return [
     ],
     [
         'key' => 'drive_contextual_filters',
+        'domain' => 'drive',
+        'title' => 'Busca semantica/contextual por data, tipo e assunto',
         'seed' => 'drive_queries',
         'entries' => [
             [
@@ -445,6 +505,8 @@ return [
     ],
     [
         'key' => 'drive_context_reset',
+        'domain' => 'context',
+        'title' => 'Drive nao pode capturar saudacoes, ajuda ou conversa casual',
         'seed' => 'drive_queries',
         'entries' => [
             [
@@ -478,6 +540,8 @@ return [
     ],
     [
         'key' => 'recurring_cancel_flow',
+        'domain' => 'planning',
+        'title' => 'Cancelamento guiado de recorrencia',
         'seed' => 'recurring_cancel_flow',
         'entries' => [
             [
