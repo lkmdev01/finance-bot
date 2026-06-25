@@ -74,7 +74,7 @@ new class extends Component
     }
 }; ?>
 
-<div class="space-y-6 p-6">
+<div class="space-y-6 px-4 py-5 sm:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-sky-500 dark:text-sky-300">Planejamento</p>
@@ -131,14 +131,14 @@ new class extends Component
     </div>
 
     @if($projections->count() > 0)
-        <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-[#07111f]">
+        <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-[#07111f] sm:p-6">
             <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                     <h2 class="text-lg font-black text-zinc-900 dark:text-white">Evolução projetada do saldo</h2>
                     <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Comparação entre saldo, receitas e despesas ao longo do horizonte selecionado.</p>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-4 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     <div class="flex items-center gap-2">
                         <div class="h-3 w-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.45)]"></div>
                         <span>Saldo</span>
@@ -154,13 +154,16 @@ new class extends Component
                 </div>
             </div>
 
-            <div
-                class="relative w-full"
+            <div class="-mx-2 overflow-x-auto overscroll-x-contain px-2 pb-2 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
+                <div
+                class="relative min-w-[620px] sm:min-w-0"
                 style="min-height: 340px;"
                 wire:key="financial-projections-chart-{{ $months }}-{{ md5($chartData->toJson()) }}"
                 x-data="{
                     chart: null,
+                    isMobile: false,
                     init() {
+                        this.isMobile = window.matchMedia('(max-width: 640px)').matches;
                         this.renderChart();
                     },
                     renderChart() {
@@ -173,7 +176,7 @@ new class extends Component
                         const options = {
                             chart: {
                                 type: 'area',
-                                height: 340,
+                                height: this.isMobile ? 300 : 340,
                                 toolbar: { show: false },
                                 background: 'transparent',
                                 fontFamily: 'inherit',
@@ -188,14 +191,27 @@ new class extends Component
                             ],
                             xaxis: {
                                 categories: @js($chartData->pluck('date')->values()),
-                                labels: { style: { colors: isDark ? '#94a3b8' : '#64748b' } },
+                                tickAmount: this.isMobile ? 6 : undefined,
+                                labels: {
+                                    rotate: this.isMobile ? -35 : -45,
+                                    hideOverlappingLabels: true,
+                                    trim: true,
+                                    style: {
+                                        colors: isDark ? '#94a3b8' : '#64748b',
+                                        fontSize: this.isMobile ? '11px' : '12px',
+                                    },
+                                },
                                 axisBorder: { show: false },
                                 axisTicks: { show: false },
                                 tooltip: { enabled: false },
                             },
                             yaxis: {
                                 labels: {
-                                    style: { colors: isDark ? '#94a3b8' : '#64748b' },
+                                    offsetX: this.isMobile ? -8 : 0,
+                                    style: {
+                                        colors: isDark ? '#94a3b8' : '#64748b',
+                                        fontSize: this.isMobile ? '11px' : '12px',
+                                    },
                                     formatter: (value) => 'R$ ' + Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                                 },
                             },
@@ -219,6 +235,7 @@ new class extends Component
                                 },
                             },
                             legend: {
+                                show: ! this.isMobile,
                                 position: 'top',
                                 horizontalAlign: 'left',
                                 labels: { colors: isDark ? '#cbd5e1' : '#475569' },
@@ -235,6 +252,7 @@ new class extends Component
                 }"
             >
                 <div x-ref="chart" class="-ml-4" wire:ignore></div>
+                </div>
             </div>
         </div>
 

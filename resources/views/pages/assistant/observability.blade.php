@@ -1,6 +1,6 @@
 <x-layouts.app.sidebar title="Observabilidade do Assistente">
-    <div class="space-y-6">
-        <section class="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+    <div data-assistant-observability class="space-y-6 overflow-hidden">
+        <section class="overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl sm:p-6">
             <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                     <p class="text-xs uppercase tracking-[0.24em] text-cyan-300/80">Observabilidade</p>
@@ -11,26 +11,26 @@
                     </p>
                 </div>
 
-                <form method="GET" class="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                <form method="GET" class="flex w-full flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center md:w-auto">
                     <label for="days" class="text-sm text-slate-300">Periodo</label>
-                    <select id="days" name="days" class="rounded-xl border border-white/10 bg-space-950 px-3 py-2 text-sm text-white">
+                    <select id="days" name="days" class="w-full min-w-0 rounded-xl border border-white/10 bg-space-950 px-3 py-2 text-sm text-white sm:w-auto">
                         @foreach ([7, 14, 30] as $option)
                             <option value="{{ $option }}" @selected($days === $option)>{{ $option }} dias</option>
                         @endforeach
                     </select>
-                    <select id="source" name="source" class="rounded-xl border border-white/10 bg-space-950 px-3 py-2 text-sm text-white">
+                    <select id="source" name="source" class="w-full min-w-0 rounded-xl border border-white/10 bg-space-950 px-3 py-2 text-sm text-white sm:w-auto">
                         @foreach ($sourceOptions as $sourceKey => $sourceLabel)
                             <option value="{{ $sourceKey }}" @selected($source === $sourceKey)>{{ $sourceLabel }}</option>
                         @endforeach
                     </select>
                     <input type="hidden" name="focus" value="{{ $focus }}" />
-                    <button type="submit" class="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-space-950 transition hover:bg-cyan-300">
+                    <button type="submit" class="w-full rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-space-950 transition hover:bg-cyan-300 sm:w-auto">
                         Atualizar
                     </button>
                 </form>
             </div>
 
-            <div class="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div class="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-4">
                 <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Sync de Fixtures</p>
                 <p class="mt-2 text-sm text-slate-300">
                     Quando quisermos materializar o backlog em arquivos de teste por categoria, o comando ja esta pronto:
@@ -46,12 +46,12 @@
                         @csrf
                         <input type="hidden" name="days" value="{{ $days }}" />
                         <input type="hidden" name="focus" value="{{ $focus }}" />
-                        <button type="submit" class="rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/20">
+                        <button type="submit" class="max-w-full rounded-xl border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/20">
                             Sincronizar fixtures geradas
                         </button>
                     </form>
 
-                    <a href="{{ route('assistant.observability.export-fixtures', ['approved' => 1, 'approved_days' => $approvedDays, 'source' => $source]) }}" class="rounded-xl border border-emerald-300/40 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/20">
+                    <a href="{{ route('assistant.observability.export-fixtures', ['approved' => 1, 'approved_days' => $approvedDays, 'source' => $source]) }}" class="max-w-full rounded-xl border border-emerald-300/40 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/20">
                         Exportar aprovados dos ultimos {{ $approvedDays }} dias
                     </a>
 
@@ -60,7 +60,7 @@
                         <input type="hidden" name="days" value="7" />
                         <input type="hidden" name="focus" value="all" />
                         <input type="hidden" name="sync" value="1" />
-                        <button type="submit" class="rounded-xl border border-fuchsia-300/40 bg-fuchsia-300/10 px-4 py-2 text-sm font-semibold text-fuchsia-100 transition hover:bg-fuchsia-300/20">
+                        <button type="submit" class="max-w-full rounded-xl border border-fuchsia-300/40 bg-fuchsia-300/10 px-4 py-2 text-sm font-semibold text-fuchsia-100 transition hover:bg-fuchsia-300/20">
                             Rodar review agora
                         </button>
                     </form>
@@ -87,7 +87,7 @@
             </article>
         </section>
 
-        <section class="rounded-3xl border border-white/10 bg-black/20 p-6">
+        <section class="overflow-hidden rounded-3xl border border-white/10 bg-black/20 p-4 sm:p-6">
             <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h2 class="text-xl font-semibold text-white">Uso da revisao semanal</h2>
@@ -229,7 +229,7 @@
             </div>
         </section>
 
-        <section class="rounded-3xl border border-white/10 bg-black/20 p-6">
+        <section class="overflow-hidden rounded-3xl border border-white/10 bg-black/20 p-4 sm:p-6">
             <div class="mb-4">
                 <h2 class="text-xl font-semibold text-white">Quebras por intencao</h2>
                 <p class="mt-1 text-sm text-slate-400">Acompanha volume, taxa de erro, confianca media e os `missing_fields` que mais aparecem.</p>
@@ -282,14 +282,14 @@
         </section>
 
         <div class="grid gap-6 xl:grid-cols-2">
-            <section class="rounded-3xl border border-white/10 bg-black/20 p-6 xl:col-span-2">
+            <section class="overflow-hidden rounded-3xl border border-white/10 bg-black/20 p-4 sm:p-6 xl:col-span-2">
                 <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
                         <h2 class="text-xl font-semibold text-white">Fila priorizada de regressao</h2>
                         <p class="mt-1 text-sm text-slate-400">Transforma `unknown` e `missing_fields` recorrentes em candidatos reais para fixtures e testes.</p>
                     </div>
 
-                    <div class="flex flex-wrap gap-2">
+                    <div class="flex min-w-0 flex-wrap gap-2">
                         <a href="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus]) }}" class="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-100">
                             Exportar fixtures
                         </a>
@@ -318,13 +318,13 @@
 
                     @forelse ($filteredBacklog as $domain => $items)
                         <section class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                            <div class="flex flex-col gap-3 border-b border-white/10 pb-4 md:flex-row md:items-center md:justify-between">
+                            <div class="flex min-w-0 flex-col gap-3 border-b border-white/10 pb-4 md:flex-row md:items-center md:justify-between">
                                 <div>
                                     <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Dominio</p>
                                     <h3 class="mt-1 text-lg font-semibold text-white">{{ $domain }}</h3>
                                 </div>
 
-                                <div class="flex flex-wrap gap-2">
+                                <div class="flex min-w-0 flex-wrap gap-2">
                                     <a href="{{ route('assistant.observability.export-fixtures', ['days' => $days, 'focus' => $focus, 'domain' => $domain]) }}" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200">
                                         Baixar fixture
                                     </a>
@@ -354,9 +354,9 @@
                                 </div>
                             </div>
 
-                            <div class="mt-4 space-y-3">
+                            <div class="mt-4 min-w-0 space-y-3">
                                 @foreach ($items as $item)
-                                    <article class="rounded-2xl border {{ ($previewItemKey ?? null) === ($item['key'] ?? null) ? 'border-fuchsia-300/40 bg-fuchsia-300/5' : 'border-white/10 bg-black/20' }} p-4">
+                                    <article class="min-w-0 overflow-hidden rounded-2xl border {{ ($previewItemKey ?? null) === ($item['key'] ?? null) ? 'border-fuchsia-300/40 bg-fuchsia-300/5' : 'border-white/10 bg-black/20' }} p-4">
                                         <div class="flex flex-wrap items-center gap-2">
                                             <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $item['priority'] === 'high' ? 'bg-rose-400/15 text-rose-200' : 'bg-cyan-400/15 text-cyan-200' }}">
                                                 {{ $item['priority'] }}
@@ -367,9 +367,9 @@
                                         </div>
                                         <p class="mt-3 text-sm text-white">{{ $item['message'] }}</p>
                                         <p class="mt-2 text-xs text-slate-400">{{ $item['reason'] }}</p>
-                                        <pre class="mt-3 overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ json_encode($item['suggested_example'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                        <pre class="mt-3 max-w-full overflow-x-auto rounded-xl border border-white/10 bg-space-950/80 p-3 text-xs text-slate-300">{{ json_encode($item['suggested_example'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
 
-                                        <div class="mt-3 flex flex-wrap gap-2">
+                                        <div class="mt-3 flex min-w-0 flex-wrap gap-2">
                                             <a href="{{ route('assistant.observability', ['days' => $days, 'focus' => $focus, 'preview_domain' => $domain, 'preview_item' => $item['key'], 'source' => $source]) }}" class="rounded-full border border-fuchsia-300/40 bg-fuchsia-300/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
                                                 Ver item
                                             </a>

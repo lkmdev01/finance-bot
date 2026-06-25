@@ -125,3 +125,18 @@ select:focus[data-flux-control] {
 [data-app-sidebar][data-flux-sidebar-collapsed-desktop] {
     overflow: hidden !important;
 }
+
+[data-assistant-observability] {
+    max-width: 100%;
+}
+
+[data-assistant-observability] pre {
+    max-width: 100%;
+    white-space: pre;
+}
+
+[data-assistant-observability] article,
+[data-assistant-observability] section,
+[data-assistant-observability] form {
+    min-width: 0;
+}
