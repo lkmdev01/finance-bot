@@ -8,6 +8,7 @@
             @endif
             <flux:navlist.item :href="route('appearance.edit')" wire:navigate>Aparencia</flux:navlist.item>
             <flux:navlist.item :href="route('whatsapp.settings')" wire:navigate>WhatsApp</flux:navlist.item>
+            <flux:navlist.item :href="route('email-preferences.edit')" wire:navigate>E-mails</flux:navlist.item>
             <flux:navlist.item :href="route('assistant.operations.settings')" wire:navigate>Operacao do assistente</flux:navlist.item>
         </flux:navlist>
     </div>

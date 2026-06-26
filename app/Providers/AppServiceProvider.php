@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\EmailLog;
 use App\Models\User;
+use App\Notifications\LoginAlertNotification;
 use App\Services\AbacatePayService;
 use App\Services\AbacatePayWebhookProcessor;
 use App\Services\AIContextBuilder;
@@ -39,9 +41,12 @@ use App\Services\WhatsApp\Handlers\UpdateBudgetHandler;
 use App\Services\WhatsApp\Handlers\UpdateRecurringTransactionHandler;
 use App\Services\WhatsApp\Handlers\UpdateSavingsGoalHandler;
 use App\Services\WhatsApp\Handlers\UpdateSubscriptionHandler;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -161,6 +166,46 @@ class AppServiceProvider extends ServiceProvider
                 ->line('Use o botao abaixo para criar uma nova senha. Este link expira por seguranca.')
                 ->action('Redefinir senha', $url)
                 ->line('Se voce nao pediu essa alteracao, nenhuma acao e necessaria.');
+        });
+
+        Event::listen(Login::class, function (Login $event): void {
+            if (! $event->user instanceof User || ! $event->user->wantsEmail('login_alerts')) {
+                return;
+            }
+
+            try {
+                $event->user->notify(new LoginAlertNotification(
+                    ipAddress: request()?->ip(),
+                    userAgent: request()?->userAgent(),
+                ));
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
+        });
+
+        Event::listen(MessageSent::class, function (MessageSent $event): void {
+            try {
+                $message = $event->message;
+                $notificationType = $message->getHeaders()->get('X-Laravel-Notification')?->getBodyAsString();
+
+                foreach ($message->getTo() as $address) {
+                    $email = $address->getAddress();
+
+                    EmailLog::query()->create([
+                        'user_id' => User::query()->where('email', $email)->value('id'),
+                        'to_email' => $email,
+                        'subject' => $message->getSubject(),
+                        'notification_type' => $notificationType,
+                        'mailer' => config('mail.default'),
+                        'status' => 'sent',
+                        'metadata' => [
+                            'from' => collect($message->getFrom())->map(fn ($from) => $from->getAddress())->values()->all(),
+                        ],
+                    ]);
+                }
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
         });
 
         if (config('app.env') === 'production') {

@@ -57,6 +57,7 @@ class User extends Authenticatable
         'beta_status',
         'beta_notes',
         'beta_invited_at',
+        'email_preferences',
         'phone_number',
         'whatsapp_verified_at',
         'tax_id',
@@ -96,6 +97,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_admin' => 'boolean',
             'beta_invited_at' => 'datetime',
+            'email_preferences' => 'array',
             'billing_access_ends_at' => 'datetime',
             'trial_started_at' => 'datetime',
             'trial_ends_at' => 'datetime',
@@ -127,6 +129,20 @@ class User extends Authenticatable
             config('app.admin_emails', []),
             true,
         );
+    }
+
+    public function wantsEmail(string $key): bool
+    {
+        $defaults = [
+            'billing' => true,
+            'security' => true,
+            'login_alerts' => true,
+            'marketing' => false,
+        ];
+
+        $preferences = is_array($this->email_preferences) ? $this->email_preferences : [];
+
+        return (bool) ($preferences[$key] ?? $defaults[$key] ?? true);
     }
 
     public function categories(): HasMany
@@ -162,6 +178,11 @@ class User extends Authenticatable
     public function whatsappConversationLogs(): HasMany
     {
         return $this->hasMany(WhatsAppConversationLog::class);
+    }
+
+    public function emailLogs(): HasMany
+    {
+        return $this->hasMany(EmailLog::class);
     }
 
     public function googleDriveConnection(): HasOne
