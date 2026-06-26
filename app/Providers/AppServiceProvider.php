@@ -200,6 +200,8 @@ class AppServiceProvider extends ServiceProvider
                         'status' => 'sent',
                         'metadata' => [
                             'from' => collect($message->getFrom())->map(fn ($from) => $from->getAddress())->values()->all(),
+                            'notification_data' => $event->data,
+                            'billing_cycle_key' => $event->data['billing_cycle_key'] ?? null,
                         ],
                     ]);
                 }

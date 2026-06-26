@@ -37,4 +37,19 @@ class BillingPlanExpiringNotification extends Notification implements ShouldQueu
             ->action('Ver minha assinatura', route('billing.plans'))
             ->line('Se precisar de ajuda, responda este e-mail ou fale com o suporte.');
     }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'billing_cycle_key' => implode(':', [
+                $this->planCode ?: 'unknown',
+                $this->accessEndsAt->toDateString(),
+            ]),
+            'plan_code' => $this->planCode,
+            'access_ends_at' => $this->accessEndsAt->toDateString(),
+        ];
+    }
 }

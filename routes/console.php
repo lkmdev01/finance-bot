@@ -42,3 +42,7 @@ Schedule::command('assistant:weekly-review --days=7 --sync')
 Schedule::command('assistant:send-weekly-summary')
     ->weeklyOn(1, '09:40')
     ->withoutOverlapping();
+
+Schedule::command('billing:send-expiring-emails --days=3 --max-per-cycle=2')
+    ->dailyAt('10:00')
+    ->withoutOverlapping();
