@@ -188,6 +188,10 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
             ->name('admin.beta.users.update');
         Route::get('admin/email-logs', [\App\Http\Controllers\Admin\EmailLogController::class, 'index'])
             ->name('admin.email-logs.index');
+        Route::get('admin/email-broadcasts', [\App\Http\Controllers\Admin\EmailBroadcastController::class, 'index'])
+            ->name('admin.email-broadcasts.index');
+        Route::post('admin/email-broadcasts', [\App\Http\Controllers\Admin\EmailBroadcastController::class, 'store'])
+            ->name('admin.email-broadcasts.store');
         Route::get('admin/commercial-readiness', \App\Http\Controllers\Admin\CommercialReadinessController::class)
             ->name('admin.commercial-readiness');
     });
