@@ -71,13 +71,17 @@ it('sends expiring plan emails and avoids recent duplicates', function () {
         'billing_access_ends_at' => now()->addDays(2),
     ]);
 
-    EmailLog::query()->create([
-        'user_id' => $duplicate->id,
-        'to_email' => $duplicate->email,
-        'subject' => 'Seu plano InovaFinance esta proximo de vencer',
-        'notification_type' => BillingPlanExpiringNotification::class,
-        'status' => 'sent',
-    ]);
+    foreach ([2, 1] as $daysAgo) {
+        EmailLog::query()->create([
+            'user_id' => $duplicate->id,
+            'to_email' => $duplicate->email,
+            'subject' => 'Seu plano InovaFinance esta proximo de vencer',
+            'notification_type' => BillingPlanExpiringNotification::class,
+            'status' => 'sent',
+            'created_at' => now()->subDays($daysAgo),
+            'updated_at' => now()->subDays($daysAgo),
+        ]);
+    }
 
     $this->artisan('billing:send-expiring-emails')
         ->expectsOutput('Avisos enviados: 1')

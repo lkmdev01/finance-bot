@@ -10,6 +10,7 @@ Route::get('/', function () {
 
 Route::view('/politica-de-privacidade', 'pages.privacy-policy')->name('privacy-policy');
 Route::view('/termos-de-uso', 'pages.terms-of-use')->name('terms-of-use');
+Route::view('/suporte', 'pages.support')->name('support');
 
 Route::get('/sitemap.xml', function () {
     $urls = collect([
@@ -30,6 +31,12 @@ Route::get('/sitemap.xml', function () {
             'lastmod' => now()->toDateString(),
             'changefreq' => 'yearly',
             'priority' => '0.4',
+        ],
+        [
+            'loc' => route('support'),
+            'lastmod' => now()->toDateString(),
+            'changefreq' => 'monthly',
+            'priority' => '0.5',
         ],
     ]);
 
@@ -181,6 +188,8 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
             ->name('admin.beta.users.update');
         Route::get('admin/email-logs', [\App\Http\Controllers\Admin\EmailLogController::class, 'index'])
             ->name('admin.email-logs.index');
+        Route::get('admin/commercial-readiness', \App\Http\Controllers\Admin\CommercialReadinessController::class)
+            ->name('admin.commercial-readiness');
     });
 
     // Projecoes Financeiras
