@@ -49,7 +49,7 @@ class BillingPlanController extends Controller
         if (! $this->isSellablePlan($plan)) {
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'Esta oferta nao esta mais disponivel. Use a campanha Brasil na Copa do Pro Mensal.');
+                ->with('status', 'Esta oferta não está mais disponível. Use a campanha Brasil na Copa do Pro Mensal.');
         }
 
         return view('pages.billing.checkout-data', [
@@ -65,7 +65,7 @@ class BillingPlanController extends Controller
         if (! $this->isSellablePlan($plan)) {
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'Esta oferta nao esta mais disponivel. Use a campanha Brasil na Copa do Pro Mensal.');
+                ->with('status', 'Esta oferta não está mais disponível. Use a campanha Brasil na Copa do Pro Mensal.');
         }
 
         $validated = $request->validate([
@@ -97,21 +97,21 @@ class BillingPlanController extends Controller
         if (! $this->isSellablePlan($plan)) {
             return $this->respondBillingStatus(
                 $request,
-                'Esta oferta nao esta mais disponivel. Use a campanha Brasil na Copa do Pro Mensal.'
+                'Esta oferta não está mais disponível. Use a campanha Brasil na Copa do Pro Mensal.'
             );
         }
 
         if (($plan['price_cents'] ?? 0) === 0) {
             return $this->respondBillingStatus(
                 $request,
-                'O plano Starter ja esta disponivel sem cobranca.'
+                'O plano Inicial já está disponível sem cobrança.'
             );
         }
 
         if ($user->hasActivePaidPlan() && $user->billing_plan_code === $planCode) {
             return $this->respondBillingStatus(
                 $request,
-                'Voce ja possui este plano ativo.'
+                'Você já possui este plano ativo.'
             );
         }
 
@@ -158,7 +158,7 @@ class BillingPlanController extends Controller
         if (blank($productId)) {
             return redirect()
                 ->route('billing.checkout-data.show', $planCode)
-                ->with('status', 'Este plano ainda nao esta configurado para pagamento. Entre em contato com o suporte.');
+                ->with('status', 'Este plano ainda não está configurado para pagamento. Entre em contato com o suporte.');
         }
 
         try {
@@ -181,7 +181,7 @@ class BillingPlanController extends Controller
                 if (! ($customerResponse['success'] ?? false) || blank($customerResponse['data']['id'] ?? null)) {
                     return redirect()
                         ->route('billing.checkout-data.show', $planCode)
-                        ->with('status', $customerResponse['error'] ?? 'Nao foi possivel iniciar o pagamento do plano agora. Tente novamente.');
+                        ->with('status', $customerResponse['error'] ?? 'Não foi possível iniciar o pagamento do plano agora. Tente novamente.');
                 }
 
                 $customerId = (string) $customerResponse['data']['id'];
@@ -223,7 +223,7 @@ class BillingPlanController extends Controller
                     $methods = ['PIX', 'CARD'];
                 }
 
-                // Pagamento avulso (sem renovacao automatica). O acesso e liberado pelo periodo do plano.
+                // Pagamento avulso (sem renovação automática). O acesso é liberado pelo período do plano.
                 $response = $this->abacatePayService->createCheckout([
                     'items' => [
                         [
@@ -249,11 +249,11 @@ class BillingPlanController extends Controller
 
             return redirect()
                 ->route('billing.checkout-data.show', $planCode)
-                ->with('status', 'Nao foi possivel iniciar o pagamento do plano agora. Verifique a configuracao da AbacatePay.');
+                ->with('status', 'Não foi possível iniciar o pagamento do plano agora. Verifique a configuração da AbacatePay.');
         }
 
         if (! ($response['success'] ?? false) || blank($response['data']['url'] ?? null)) {
-            $message = $response['error'] ?? 'Nao foi possivel iniciar o pagamento do plano agora. Tente novamente.';
+            $message = $response['error'] ?? 'Não foi possível iniciar o pagamento do plano agora. Tente novamente.';
 
             if ($request->expectsJson()) {
                 return response()->json([

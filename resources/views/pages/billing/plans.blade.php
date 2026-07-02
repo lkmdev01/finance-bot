@@ -1,16 +1,37 @@
-<x-layouts.checkout title="Planos" :back-href="route('dashboard')">
+﻿<x-layouts.checkout title="Planos" :back-href="route('dashboard')">
     @php
         $user = auth()->user();
         $hasSubscriptionFlow = collect($plans ?? [])->contains(fn ($plan) => ($plan['checkout_flow'] ?? 'checkout') === 'subscription' && (($plan['price_cents'] ?? 0) > 0));
         $nextBillingDate = $cancelableSubscription && $user->billing_access_ends_at
             ? $user->billing_access_ends_at->format('d/m/Y')
             : null;
+        $subscriptionStatusLabel = match (strtoupper((string) ($cancelableSubscription?->status ?: ''))) {
+            'ACTIVE' => 'Ativa',
+            'PENDING' => 'Pendente',
+            'CANCELED', 'CANCELLED' => 'Cancelada',
+            'PAUSED' => 'Pausada',
+            default => str($cancelableSubscription?->status ?: 'Ativa')->replace('_', ' ')->title(),
+        };
+        $featureLabels = [
+            'transactions' => 'Lançamentos',
+            'categories' => 'Categorias',
+            'budgets' => 'Orçamentos',
+            'savings_goals' => 'Metas de economia',
+            'bank_accounts' => 'Contas bancárias',
+            'credit_cards' => 'Cartões de crédito',
+            'recurring_transactions' => 'Transações recorrentes',
+            'subscriptions' => 'Assinaturas',
+            'whatsapp_basic' => 'WhatsApp',
+            'reports' => 'Relatórios',
+            'financial_projections' => 'Projeções financeiras',
+            'mascot' => config('mascot.name', 'Órbita'),
+        ];
     @endphp
 
     <div class="space-y-8">
         @if (!empty($checkoutReturned))
             <div class="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                Recebemos seu retorno do checkout. Se o pagamento ja foi concluido, a liberacao do plano acontece automaticamente em instantes.
+                Recebemos seu retorno do pagamento. Se ele já foi concluído, a liberação do plano acontece automaticamente em instantes.
             </div>
         @endif
 
@@ -24,17 +45,17 @@
             <div class="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
                 <div>
                     <div class="inline-flex items-center gap-2 rounded-full border border-yellow-300/35 bg-yellow-300/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-yellow-100">
-                        Brasil na Copa • 30% OFF
+                        Brasil na Copa • 30% de desconto
                     </div>
                     <h1 class="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl">Oferta especial para liberar o InovaFinance completo.</h1>
                     <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                        Enquanto o Brasil estiver na Copa, o Pro Mensal sai por R$ 19,97/mes. Ele libera relatorios avancados, projecoes financeiras e a experiencia completa do {{ config('mascot.name', 'Orbita') }}.
+                        Enquanto o Brasil estiver na Copa, o Pro Mensal sai por R$ 19,97/mês. Ele libera relatórios avançados, projeções financeiras e a experiência completa do {{ config('mascot.name', 'Orbita') }}.
                     </p>
                     <p class="mt-2 max-w-2xl text-sm leading-7 text-slate-400">
                         @if ($hasSubscriptionFlow)
-                            A oferta Pro renova automaticamente no cartao e pode ser cancelada pelo painel.
+                            A oferta Pro renova automaticamente no cartão e pode ser cancelada pelo painel.
                         @else
-                            O pagamento libera o acesso pelo periodo escolhido. Nao ha renovacao automatica nesta etapa.
+                            O pagamento libera o acesso pelo período escolhido. Não há renovação automática nesta etapa.
                         @endif
                     </p>
                 </div>
@@ -49,7 +70,7 @@
                         </span>
                         @if ($user->hasActiveTrial())
                             <span class="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-emerald-100">
-                                Teste gratis ate {{ $user->trial_ends_at?->format('d/m/Y') }}
+                                Teste grátis até {{ $user->trial_ends_at?->format('d/m/Y') }}
                             </span>
                         @elseif ($user->trial_ends_at)
                             <span class="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-amber-100">
@@ -58,14 +79,14 @@
                         @endif
                         @if ($user->billing_access_ends_at)
                             <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                Acesso ate {{ $user->billing_access_ends_at->format('d/m/Y') }}
+                                Acesso até {{ $user->billing_access_ends_at->format('d/m/Y') }}
                             </span>
                         @endif
                     </div>
 
                     <div class="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
                         <p class="font-semibold text-white">Como esse plano funciona</p>
-                        <p class="mt-1">{{ $currentPlan['billing_mode_label'] ?? 'Pagamento unico' }} • {{ $currentPlan['billing_mode_description'] ?? '' }}</p>
+                        <p class="mt-1">{{ $currentPlan['billing_mode_label'] ?? 'Pagamento único' }} • {{ $currentPlan['billing_mode_description'] ?? '' }}</p>
                     </div>
 
                     @if ($cancelableSubscription)
@@ -73,13 +94,13 @@
                             <div class="rounded-2xl border border-emerald-300/15 bg-emerald-400/10 px-4 py-3">
                                 <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100/80">Assinatura</p>
                                 <p class="mt-1 text-sm font-semibold text-white">
-                                    {{ str($cancelableSubscription->status ?: 'ACTIVE')->replace('_', ' ')->title() }}
+                                    {{ $subscriptionStatusLabel }}
                                 </p>
                             </div>
                             <div class="rounded-2xl border border-indigo-300/15 bg-indigo-400/10 px-4 py-3">
-                                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-100/80">Proxima cobranca</p>
+                                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-100/80">Próxima cobrança</p>
                                 <p class="mt-1 text-sm font-semibold text-white">
-                                    {{ $nextBillingDate ? $nextBillingDate : 'Aguardando confirmacao' }}
+                                    {{ $nextBillingDate ? $nextBillingDate : 'Aguardando confirmação' }}
                                 </p>
                             </div>
                         </div>
@@ -89,12 +110,12 @@
                                 Cancelar assinatura
                             </button>
                             <p class="mt-2 text-xs leading-6 text-slate-400">
-                                Cancelamento e imediato e irreversivel. Seu acesso premium sera encerrado na hora.
+                                Cancelamento é imediato e irreversível. Seu acesso premium será encerrado na hora.
                             </p>
                         </div>
                     @elseif (in_array($user->billing_plan_status, ['active', 'renewed'], true) && filled($user->billing_plan_code) && $user->billing_plan_code !== config('billing.default_plan', 'starter'))
                         <p class="mt-6 text-xs leading-6 text-slate-400">
-                            Seu plano atual nao esta vinculado a uma assinatura recorrente cancelavel por aqui.
+                            Seu plano atual não está vinculado a uma assinatura recorrente cancelável por aqui.
                         </p>
                     @endif
                 </div>
@@ -128,7 +149,7 @@
                     @if ($plan['highlight'])
                         <div class="mt-4 rounded-2xl border border-yellow-300/20 bg-slate-950/45 px-4 py-3 text-sm text-yellow-50">
                             <p class="font-semibold">Campanha Brasil na Copa</p>
-                            <p class="mt-1 text-xs leading-5 text-slate-300">30% OFF especial enquanto a campanha estiver ativa. Depois da oferta, novos clientes podem voltar ao preco normal.</p>
+                            <p class="mt-1 text-xs leading-5 text-slate-300">30% de desconto especial enquanto a campanha estiver ativa. Depois da oferta, novos clientes podem voltar ao preço normal.</p>
                         </div>
                     @endif
 
@@ -137,7 +158,7 @@
                             {{ strtoupper($plan['frequency_label'] ?? 'livre') }}
                         </span>
                         <span class="rounded-full border border-indigo-300/20 bg-indigo-400/10 px-3 py-1 text-indigo-100">
-                            {{ $plan['billing_mode_label'] ?? 'Pagamento unico' }}
+                            {{ $plan['billing_mode_label'] ?? 'Pagamento único' }}
                         </span>
                     </div>
 
@@ -149,7 +170,7 @@
                         @foreach ($plan['features'] as $feature)
                             <li class="flex items-center gap-3">
                                 <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/15"><span class="h-2.5 w-2.5 rounded-full bg-emerald-200"></span></span>
-                                <span>{{ str($feature)->replace('_', ' ')->title() }}</span>
+                                <span>{{ $featureLabels[$feature] ?? str($feature)->replace('_', ' ')->title() }}</span>
                             </li>
                         @endforeach
                     </ul>
@@ -157,7 +178,7 @@
                     <div class="mt-8">
                         @if ($plan['price_cents'] === 0)
                             <flux:button variant="ghost" class="w-full" disabled>
-                                Sempre disponivel
+                                Sempre disponível
                             </flux:button>
                         @elseif ($isCurrent)
                             <flux:button variant="ghost" class="w-full" disabled>
@@ -177,7 +198,7 @@
         </section>
     </div>
 
-    {{-- Checkout invisivel: coleta CPF/CNPJ inline (se faltar) e inicia o checkout via AJAX sem sair da tela. --}}
+    {{-- Pagamento invisível: coleta CPF/CNPJ inline (se faltar) e inicia o checkout via AJAX sem sair da tela. --}}
     <div id="billing-tax-modal" class="fixed inset-0 z-[999] hidden">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" data-billing-tax-close></div>
         <div class="relative mx-auto mt-24 w-[92%] max-w-lg rounded-[1.75rem] border border-white/10 bg-slate-950/90 p-6 shadow-[0_24px_90px_rgba(2,6,23,0.55)]">
@@ -186,7 +207,7 @@
                     <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Confirmar dados</p>
                     <h3 class="mt-2 text-2xl font-black text-white">CPF ou CNPJ</h3>
                     <p class="mt-2 text-sm leading-7 text-slate-300">
-                        Para abrir o checkout do plano <span class="font-semibold text-white" data-billing-tax-plan></span>, preciso do seu CPF/CNPJ.
+                        Para abrir o pagamento do plano <span class="font-semibold text-white" data-billing-tax-plan></span>, preciso do seu CPF/CNPJ.
                     </p>
                 </div>
                 <button type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10" data-billing-tax-close>
@@ -205,7 +226,7 @@
                     class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
                     value="{{ old('tax_id', \App\Support\BrazilTaxId::format($user->tax_id)) }}"
                 />
-                <p class="text-xs leading-6 text-slate-400">A oferta Pro Mensal renova automaticamente no cartao e pode ser cancelada pelo painel.</p>
+                <p class="text-xs leading-6 text-slate-400">A oferta Pro Mensal renova automaticamente no cartão e pode ser cancelada pelo painel.</p>
                 <p class="hidden text-sm text-rose-300" data-billing-tax-error></p>
             </div>
 
@@ -213,7 +234,7 @@
                 <button type="button" class="inline-flex w-full items-center justify-center rounded-xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60" data-billing-tax-confirm>
                     Continuar para pagamento
                 </button>
-                <div class="text-center text-xs text-slate-400" data-billing-tax-loading style="display:none;">Iniciando checkout...</div>
+                <div class="text-center text-xs text-slate-400" data-billing-tax-loading style="display:none;">Iniciando pagamento...</div>
             </div>
         </div>
     </div>
@@ -227,7 +248,7 @@
                     <p class="text-xs font-semibold uppercase tracking-[0.22em] text-rose-200/80">Cancelar assinatura</p>
                     <h3 class="mt-2 text-2xl font-black text-white">Confirmar cancelamento</h3>
                     <p class="mt-2 text-sm leading-7 text-slate-300">
-                        Este cancelamento e imediato. Nenhuma cobranca futura sera gerada, mas seu acesso premium sera encerrado agora.
+                        Este cancelamento é imediato. Nenhuma cobrança futura será gerada, mas seu acesso premium será encerrado agora.
                     </p>
                 </div>
                 <button type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10" data-billing-cancel-close>
@@ -246,7 +267,7 @@
                     Sim, cancelar agora
                 </button>
                 <button type="button" class="inline-flex w-full items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10" data-billing-cancel-close>
-                    Nao, manter assinatura
+                    Não, manter assinatura
                 </button>
                 <div class="text-center text-xs text-slate-400" data-billing-cancel-loading style="display:none;">Cancelando...</div>
                 <p class="hidden text-sm text-rose-300" data-billing-cancel-error></p>
@@ -309,7 +330,7 @@
                     return;
                 }
 
-                const message = data?.message || 'Nao foi possivel iniciar o pagamento agora. Tente novamente.';
+                const message = data?.message || 'Não foi possível iniciar o pagamento agora. Tente novamente.';
 
                 if (res.status === 422 && data?.requires_tax_id) {
                     pendingForm = form;
@@ -342,7 +363,7 @@
                     await submitSubscribe(pendingForm, { tax_id: taxId });
                 } catch (err) {
                     if (errorEl) {
-                        errorEl.textContent = 'Falha ao iniciar o checkout. Tente novamente.';
+                        errorEl.textContent = 'Falha ao iniciar o pagamento. Tente novamente.';
                         errorEl.classList.remove('hidden');
                     }
                     confirmButton.disabled = false;
@@ -401,7 +422,7 @@
                         return;
                     }
 
-                    const msg = data?.message || 'Nao foi possivel cancelar sua assinatura agora.';
+                    const msg = data?.message || 'Não foi possível cancelar sua assinatura agora.';
                     if (errorEl) {
                         errorEl.textContent = msg;
                         errorEl.classList.remove('hidden');
@@ -421,3 +442,4 @@
         })();
     </script>
 </x-layouts.checkout>
+
