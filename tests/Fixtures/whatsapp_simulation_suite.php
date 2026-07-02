@@ -24,9 +24,30 @@ return [
             [
                 'message' => 'como voce pode me ajudar',
                 'expected_classification' => 'help',
-                'expected_reply_contains' => ['Posso te ajudar de varios jeitos', 'registrar gasto', 'Drive'],
+                'expected_reply_contains' => ['Voce quer ajuda com qual parte', 'Comandos e funcoes', 'Suporte humano'],
                 'expected_reply_not_contains' => ['Nao encontrei arquivos', 'Nao encontrei nenhuma nota', 'Suas metas atuais'],
                 'expected_state_topic' => 'general',
+            ],
+            [
+                'message' => 'comandos',
+                'expected_classification' => 'help_commands',
+                'expected_reply_contains' => ['Posso te ajudar de varios jeitos', 'registrar gasto', 'Drive'],
+                'expected_reply_not_contains' => ['Nao encontrei arquivos', 'Nao encontrei nenhuma nota', 'Suas metas atuais'],
+                'expected_state_topic' => 'help_commands',
+            ],
+            [
+                'message' => 'ajuda',
+                'expected_classification' => 'help',
+                'expected_reply_contains' => ['Voce quer ajuda com qual parte', 'Comandos e funcoes', 'Suporte humano'],
+                'expected_reply_not_contains' => ['Nao encontrei arquivos', 'Nao encontrei nenhuma nota', 'Suas metas atuais'],
+                'expected_state_topic' => 'general',
+            ],
+            [
+                'message' => 'suporte',
+                'expected_classification' => 'help_support',
+                'expected_reply_contains' => ['suporte humano', 'E-mail:', 'Pagina de suporte'],
+                'expected_reply_not_contains' => ['Nao encontrei arquivos', 'Nao encontrei nenhuma nota', 'Suas metas atuais'],
+                'expected_state_topic' => 'support',
             ],
             [
                 'message' => 'tudo bem?',
@@ -52,7 +73,7 @@ return [
             [
                 'message' => 'como voce pode me ajudar',
                 'expected_classification' => 'help',
-                'expected_reply_contains' => ['Posso te ajudar de varios jeitos', 'Drive'],
+                'expected_reply_contains' => ['Voce quer ajuda com qual parte', 'Comandos e funcoes', 'Suporte humano'],
                 'expected_state_topic' => 'general',
             ],
             [
@@ -237,7 +258,7 @@ return [
             [
                 'message' => 'Como voce pode me ajudar',
                 'expected_classification' => 'help',
-                'expected_reply_contains' => ['Posso te ajudar de varios jeitos'],
+                'expected_reply_contains' => ['Voce quer ajuda com qual parte', 'Comandos e funcoes', 'Suporte humano'],
                 'expected_reply_not_contains' => ['Projeto Alpha', 'Nota salva'],
                 'expected_state_topic' => 'general',
             ],
@@ -345,7 +366,7 @@ return [
             [
                 'message' => 'Como voce pode me ajudar',
                 'expected_classification' => 'help',
-                'expected_reply_contains' => ['Posso te ajudar de varios jeitos'],
+                'expected_reply_contains' => ['Voce quer ajuda com qual parte', 'Comandos e funcoes', 'Suporte humano'],
                 'expected_reply_not_contains' => ['R$ 5.000,00'],
                 'expected_state_topic' => 'general',
             ],
@@ -525,7 +546,7 @@ return [
             [
                 'message' => 'Como voce pode me ajudar',
                 'expected_classification' => 'help',
-                'expected_reply_contains' => ['Posso te ajudar de varios jeitos'],
+                'expected_reply_contains' => ['Voce quer ajuda com qual parte', 'Comandos e funcoes', 'Suporte humano'],
                 'expected_reply_not_contains' => ['Abrir o primeiro', 'Nao encontrei arquivos'],
                 'expected_state_topic' => 'general',
             ],

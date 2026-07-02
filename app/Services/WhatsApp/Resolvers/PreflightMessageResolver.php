@@ -26,12 +26,35 @@ class PreflightMessageResolver
             ],
             'help' => [
                 'handled' => true,
-                'reply' => $this->composer->composeHelp($user),
+                'reply' => $this->composer->composeHelpChoice($user),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'pending_intent' => 'help_choice',
+                    'pending_mode' => 'awaiting_clarification',
+                    'pending_payload' => [],
+                    'entities' => ['topic' => 'general'],
+                ],
+            ],
+            'help_commands' => [
+                'handled' => true,
+                'reply' => $this->composer->composeHelpCommands($user),
                 'action' => null,
                 'metadata' => [
                     'clear_pending' => true,
                     'reply_kind' => 'message',
-                    'entities' => ['topic' => 'general'],
+                    'entities' => ['topic' => 'help_commands'],
+                ],
+            ],
+            'help_support' => [
+                'handled' => true,
+                'reply' => $this->composer->composeSupportHelp($user),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'message',
+                    'entities' => ['topic' => 'support'],
                 ],
             ],
             'small_talk' => [

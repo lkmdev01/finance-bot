@@ -44,8 +44,8 @@ class CommercialReadinessController extends Controller
             $this->check('API key AbacatePay', filled(config('abacatepay.api_key')), 'Chave da API esta preenchida.'),
             $this->check('Webhook secret', filled(config('abacatepay.webhook_secret')), 'Secret do webhook esta preenchido.'),
             $this->check('HMAC webhook', filled(config('abacatepay.public_hmac_key')), 'Chave HMAC/public key esta preenchida.'),
-            $this->check('Plano mensal recorrente', ($plans['pro_monthly']['checkout_flow'] ?? null) === 'subscription' && filled($plans['pro_monthly']['product_id'] ?? null), 'Plano mensal usa assinatura e tem product_id.'),
-            $this->check('Plano anual recorrente', ($plans['pro_yearly']['checkout_flow'] ?? null) === 'subscription' && filled($plans['pro_yearly']['product_id'] ?? null), 'Plano anual usa assinatura e tem product_id.'),
+            $this->check('Oferta unica Pro Mensal', ($plans['pro_monthly']['checkout_flow'] ?? null) === 'subscription' && filled($plans['pro_monthly']['product_id'] ?? null) && (($plans['pro_monthly']['price_cents'] ?? null) === 1997), 'Pro Mensal usa assinatura, custa R$ 19,97 e tem product_id.'),
+            $this->check('Plano anual desativado', ($plans['pro_yearly']['sellable'] ?? true) === false && ($plans['pro_yearly']['visible'] ?? true) === false, 'Plano anual nao aparece e nao pode ser vendido.'),
             $this->check('Suporte visivel', filled(config('support.email')) || filled(config('support.whatsapp_url')) || filled(config('support.whatsapp_number')), 'Ha pelo menos um canal de suporte configurado.'),
             $this->check('Scheduler configurado no codigo', true, 'Comando billing:send-expiring-emails esta agendado no Laravel; confirme o cron php artisan schedule:run no Coolify.'),
         ];

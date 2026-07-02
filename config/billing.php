@@ -44,12 +44,14 @@ return [
         'pro_monthly' => [
             'code' => 'pro_monthly',
             'name' => 'Pro Mensal',
-            'description' => 'Relatorios, projecoes, Orbita e acesso completo com renovacao mensal no cartao.',
+            'description' => 'Brasil na Copa: 30% OFF especial com acesso completo e renovacao mensal no cartao.',
             'price_cents' => 1997,
             'frequency' => 'MONTHLY',
-            'badge' => 'Mais popular',
+            'badge' => 'Brasil na Copa',
             'highlight' => true,
             'product_id' => env('ABACATEPAY_PLAN_PRO_MONTHLY_PRODUCT_ID'),
+            'visible' => true,
+            'sellable' => true,
             // checkout = pagamento avulso (sem renovacao automatica)
             // subscription = assinatura recorrente (renova automaticamente no cartao)
             'checkout_flow' => env('BILLING_PLAN_PRO_MONTHLY_FLOW', 'subscription'),
@@ -71,12 +73,14 @@ return [
         'pro_yearly' => [
             'code' => 'pro_yearly',
             'name' => 'Pro Anual',
-            'description' => 'Tudo do Pro com renovacao anual no cartao e melhor custo.',
+            'description' => 'Plano legado mantido apenas para compatibilidade de historico.',
             'price_cents' => 19970,
             'frequency' => 'YEARLY',
-            'badge' => 'Economize 2 meses',
+            'badge' => 'Legado',
             'highlight' => false,
             'product_id' => env('ABACATEPAY_PLAN_PRO_YEARLY_PRODUCT_ID'),
+            'visible' => false,
+            'sellable' => false,
             'checkout_flow' => env('BILLING_PLAN_PRO_YEARLY_FLOW', 'subscription'),
             'features' => [
                 'transactions',

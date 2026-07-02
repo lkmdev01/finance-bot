@@ -8,6 +8,7 @@ use App\Services\WhatsApp\Resolvers\ClarificationResolver;
 use App\Services\WhatsApp\Resolvers\ConfirmationResolver;
 use App\Services\WhatsApp\Resolvers\DomainRoutingResolver;
 use App\Services\WhatsApp\Resolvers\PreflightMessageResolver;
+use Illuminate\Support\Str;
 
 class ConversationOrchestrator
 {
@@ -103,6 +104,14 @@ class ConversationOrchestrator
         }
 
         if (($state['mode'] ?? 'idle') === 'awaiting_clarification'
+            && ($state['pending_intent'] ?? null) === 'help_choice') {
+            $helpChoice = $this->resolveHelpChoice($message, $user);
+            if ($helpChoice !== null) {
+                return $helpChoice;
+            }
+        }
+
+        if (($state['mode'] ?? 'idle') === 'awaiting_clarification'
             && $this->clarificationResolver->shouldResolve($classification['kind'], $state)) {
             $clarification = $this->clarificationResolver->resolve($message, $state);
             if ($clarification !== null) {
@@ -149,5 +158,58 @@ class ConversationOrchestrator
         }
 
         return $metadata;
+    }
+
+    private function resolveHelpChoice(string $message, User $user): ?array
+    {
+        $normalized = Str::of($message)
+            ->ascii()
+            ->lower()
+            ->replaceMatches('/[!?.]+/u', '')
+            ->squish()
+            ->toString();
+
+        $composer = app(ResponseComposer::class);
+
+        if (str_contains($normalized, 'suporte')
+            || str_contains($normalized, 'email')
+            || str_contains($normalized, 'e-mail')
+            || str_contains($normalized, 'humano')
+            || str_contains($normalized, 'atendimento')) {
+            return [
+                'handled' => true,
+                'reply' => $composer->composeSupportHelp($user),
+                'action' => null,
+                'classification' => 'help_support',
+                'domain' => 'general',
+                'metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'message',
+                    'entities' => ['topic' => 'support'],
+                ],
+            ];
+        }
+
+        if (str_contains($normalized, 'comando')
+            || str_contains($normalized, 'funcao')
+            || str_contains($normalized, 'funcoes')
+            || str_contains($normalized, 'recurso')
+            || str_contains($normalized, 'usar')
+            || str_contains($normalized, 'exemplo')) {
+            return [
+                'handled' => true,
+                'reply' => $composer->composeHelpCommands($user),
+                'action' => null,
+                'classification' => 'help_commands',
+                'domain' => 'general',
+                'metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'message',
+                    'entities' => ['topic' => 'help_commands'],
+                ],
+            ];
+        }
+
+        return null;
     }
 }

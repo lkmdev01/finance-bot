@@ -12,6 +12,7 @@ class BillingPlanService
     public function all(): Collection
     {
         return collect(config('billing.plans', []))
+            ->filter(fn (array $plan) => ($plan['visible'] ?? true) !== false)
             ->map(fn (array $plan) => $this->decorate($plan));
     }
 

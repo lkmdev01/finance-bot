@@ -27,6 +27,14 @@ class MessageClassifier
             return ['kind' => 'greeting', 'normalized' => $stripped];
         }
 
+        if ($this->isSupportRequest($stripped)) {
+            return ['kind' => 'help_support', 'normalized' => $stripped];
+        }
+
+        if ($this->isHelpCommandsRequest($stripped)) {
+            return ['kind' => 'help_commands', 'normalized' => $stripped];
+        }
+
         if ($this->isHelp($stripped)) {
             return ['kind' => 'help', 'normalized' => $stripped];
         }
@@ -111,8 +119,48 @@ class MessageClassifier
             'o que vc faz',
             'o que voce pode fazer',
             'o que vc pode fazer',
-            'quais comandos voce entende',
             'como funciona',
+        ] as $phrase) {
+            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isHelpCommandsRequest(string $message): bool
+    {
+        foreach ([
+            'comandos',
+            'comando',
+            'funcoes',
+            'funcao',
+            'recursos',
+            'exemplos',
+            'como usar',
+            'quais comandos',
+            'quais comandos voce entende',
+        ] as $phrase) {
+            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isSupportRequest(string $message): bool
+    {
+        foreach ([
+            'suporte',
+            'suporte humano',
+            'atendimento',
+            'atendimento humano',
+            'email do suporte',
+            'e-mail do suporte',
+            'falar com suporte',
+            'falar com humano',
         ] as $phrase) {
             if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
                 return true;
@@ -169,7 +217,7 @@ class MessageClassifier
         }
 
         foreach (['nao quero', 'agora nao', 'nao precisa'] as $phrase) {
-            if ($message === $phrase || str_starts_with($message, $phrase . ' ')) {
+            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
                 return true;
             }
         }

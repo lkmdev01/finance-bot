@@ -401,54 +401,53 @@
 
         <section id="planos" class="relative z-10 py-20 px-6 max-w-7xl mx-auto">
             <div class="text-center mb-10">
-                <h2 class="text-3xl lg:text-4xl font-bold mb-3">Planos simples</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">Assine quando quiser. Cancelamento facil no painel.</p>
+                <div class="inline-flex items-center gap-2 rounded-full border border-yellow-300/40 bg-gradient-to-r from-emerald-400/15 via-yellow-300/15 to-blue-500/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.22em] text-yellow-100 shadow-[0_0_35px_rgba(34,197,94,0.18)]">
+                    Brasil na Copa • 30% OFF
+                </div>
+                <h2 class="mt-5 text-3xl lg:text-4xl font-bold mb-3">Enquanto o Brasil estiver em campo, sua vida financeira entra em jogo.</h2>
+                <p class="text-slate-400 max-w-2xl mx-auto">Oferta especial da Copa: Pro Mensal por R$ 19,97/mes, com acesso completo, renovacao no cartao e cancelamento facil pelo painel.</p>
             </div>
 
-            <div class="grid lg:grid-cols-2 gap-6 items-stretch">
-                <div class="glass rounded-3xl p-8 border border-white/10">
-                    <div class="flex items-center justify-between gap-4">
-                        <div>
-                            <div class="text-sm text-slate-400">Mensal</div>
-                            <div class="text-2xl font-extrabold">Pro</div>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-slate-300 font-bold text-3xl">R$ 19</div>
-                            <div class="text-slate-500 text-sm">por mes</div>
-                        </div>
-                    </div>
-                    <div class="mt-6 space-y-2 text-sm text-slate-300">
-                        <div>• WhatsApp + painel completo</div>
-                        <div>• Orcamentos, metas, recorrencias e lembretes</div>
-                        <div>• Cartoes e contas com reconciliacao basica</div>
-                        <div>• Relatorios e projecoes</div>
-                    </div>
-                    <a href="{{ $primaryCtaUrl }}" class="mt-7 inline-flex w-full justify-center px-5 py-3 rounded-2xl bg-white text-space-950 font-extrabold hover:bg-slate-200 transition-all">
-                        Comecar no Pro
-                    </a>
-                    <div class="mt-3 text-xs text-slate-500 text-center">Voce escolhe o plano depois do cadastro.</div>
-                </div>
+            <div class="mx-auto max-w-3xl">
+                <div class="glass relative overflow-hidden rounded-[2rem] border border-yellow-300/25 p-8 shadow-[0_0_65px_rgba(34,197,94,0.18)]">
+                    <div class="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-yellow-300/20 blur-3xl"></div>
+                    <div class="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl"></div>
+                    <div class="pointer-events-none absolute right-10 bottom-10 h-32 w-32 rounded-full bg-blue-500/10 blur-2xl"></div>
 
-                <div class="glass rounded-3xl p-8 border border-primary/25 shadow-[0_0_35px_rgba(34,197,94,0.15)]">
-                    <div class="flex items-center justify-between gap-4">
-                        <div>
-                            <div class="text-sm text-primary font-semibold">Mais vantajoso</div>
-                            <div class="text-2xl font-extrabold">Pro Anual</div>
+                    <div class="relative mb-6 flex flex-wrap items-center gap-2 text-xs font-bold">
+                        <span class="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-emerald-100">Promocao relampago</span>
+                        <span class="rounded-full border border-yellow-300/30 bg-yellow-300/10 px-3 py-1 text-yellow-100">30% OFF especial</span>
+                        <span class="rounded-full border border-blue-300/30 bg-blue-500/10 px-3 py-1 text-blue-100">Enquanto o Brasil estiver na Copa</span>
+                    </div>
+
+                    <div class="grid gap-8 md:grid-cols-[1.1fr_0.9fr] md:items-center">
+                        <div class="relative">
+                            <div class="text-sm font-semibold text-yellow-100">Pro Mensal</div>
+                            <div class="mt-2 text-3xl font-extrabold">Acesso completo</div>
+                            <p class="mt-3 text-sm leading-7 text-slate-300">
+                                Organize gastos, metas, cartoes, lembretes, Drive inteligente, relatorios e projecoes pelo painel e pelo WhatsApp. Menos bagunca, mais controle no placar.
+                            </p>
                         </div>
-                        <div class="text-right">
-                            <div class="text-slate-300 font-bold text-3xl">R$ 190</div>
-                            <div class="text-slate-500 text-sm">por ano</div>
+                        <div class="relative rounded-3xl border border-yellow-300/20 bg-slate-950/70 p-6 text-center">
+                            <div class="text-slate-500 text-sm line-through">De R$ 29,90</div>
+                            <div class="mt-1 text-slate-100 font-black text-5xl">R$ 19,97</div>
+                            <div class="mt-1 text-slate-400 text-sm">por mes</div>
+                            <div class="mt-4 rounded-full border border-yellow-300/40 bg-yellow-300/10 px-3 py-1 text-xs font-bold text-yellow-100">
+                                campanha Brasil na Copa
+                            </div>
                         </div>
                     </div>
-                    <div class="mt-6 space-y-2 text-sm text-slate-300">
-                        <div>• Tudo do Pro</div>
-                        <div>• Melhor custo-beneficio</div>
-                        <div>• Ideal para manter constancia</div>
+
+                    <div class="relative mt-8 grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
+                        <div>• WhatsApp + painel completo</div>
+                        <div>• Orcamentos, metas e recorrencias</div>
+                        <div>• Cartoes, contas e relatorios</div>
+                        <div>• Drive, notas, lembretes e projecoes</div>
                     </div>
-                    <a href="{{ $primaryCtaUrl }}" class="mt-7 inline-flex w-full justify-center px-5 py-3 rounded-2xl bg-primary text-space-950 font-extrabold hover:brightness-110 transition-all">
-                        Assinar anual
+                    <a href="{{ $primaryCtaUrl }}" class="relative mt-8 inline-flex w-full justify-center rounded-2xl bg-gradient-to-r from-emerald-400 via-yellow-300 to-blue-500 px-5 py-4 font-extrabold text-space-950 shadow-[0_18px_45px_rgba(34,197,94,0.22)] transition-all hover:brightness-110">
+                        Entrar no jogo por R$ 19,97
                     </a>
-                    <div class="mt-3 text-xs text-slate-500 text-center">Cancelamento quando quiser.</div>
+                    <div class="relative mt-3 text-center text-xs text-slate-500">7 dias de teste. Depois, R$ 19,97/mes durante a oferta. Cancelamento quando quiser.</div>
                 </div>
             </div>
         </section>
