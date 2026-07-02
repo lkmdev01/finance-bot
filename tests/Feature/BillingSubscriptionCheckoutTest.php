@@ -4,7 +4,7 @@ use App\Models\AbacatePaySubscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
-test('pagina de planos mostra retorno do checkout e modo de cobranca', function () {
+test('pagina de planos mostra retorno do pagamento e modo de cobranca', function () {
     config(['billing.plans.pro_monthly.checkout_flow' => 'subscription']);
 
     $user = User::factory()->create([
@@ -16,11 +16,11 @@ test('pagina de planos mostra retorno do checkout e modo de cobranca', function 
         ->get(route('billing.plans', ['checkout' => 'success']));
 
     $response->assertOk()
-        ->assertSee('Recebemos seu retorno do checkout')
-        ->assertSee('Renovacao automatica')
-        ->assertSee('Renova automaticamente todo mes no cartao')
+        ->assertSee('Recebemos seu retorno do pagamento')
+        ->assertSee('Renovação automática')
+        ->assertSee('Renova automaticamente todo mês no cartão')
         ->assertSee('Brasil na Copa')
-        ->assertSee('30% OFF')
+        ->assertSee('30% de desconto')
         ->assertSee('R$ 19,97')
         ->assertDontSee('Pro Anual');
 });
@@ -39,7 +39,7 @@ test('pagina de planos nao exibe cancelar assinatura quando nao ha assinatura re
     $response = $this->actingAs($user)->get(route('billing.plans'));
 
     $response->assertOk()
-        ->assertSee('nao esta vinculado a uma assinatura recorrente cancelavel por aqui', false);
+        ->assertSee('não está vinculado a uma assinatura recorrente cancelável por aqui', false);
 });
 
 test('pagina de planos exibe cancelar assinatura quando ha assinatura recorrente ativa', function () {
@@ -65,9 +65,9 @@ test('pagina de planos exibe cancelar assinatura quando ha assinatura recorrente
 
     $response->assertOk()
         ->assertSee('Cancelar assinatura')
-        ->assertSee('Proxima cobranca')
+        ->assertSee('Próxima cobrança')
         ->assertSee($user->billing_access_ends_at->format('d/m/Y'))
-        ->assertSee('Cancelamento e imediato e irreversivel', false);
+        ->assertSee('Cancelamento é imediato e irreversível', false);
 });
 
 test('usuario pode iniciar checkout do plano pro apos confirmar dados', function () {
@@ -168,7 +168,7 @@ test('usuario nao pode iniciar checkout anual desativado', function () {
         ->post(route('billing.subscribe', 'pro_yearly'));
 
     $response->assertRedirect(route('billing.plans'));
-    $response->assertSessionHas('status', 'Esta oferta nao esta mais disponivel. Use a campanha Brasil na Copa do Pro Mensal.');
+    $response->assertSessionHas('status', 'Esta oferta não está mais disponível. Use a campanha Brasil na Copa do Pro Mensal.');
 
     Http::assertNothingSent();
 
@@ -206,8 +206,8 @@ test('usuario sem numero cadastrado continua vendo a tela intermediaria', functi
 
     $response->assertOk()
         ->assertSee('Configurar WhatsApp')
-        ->assertSee('Renovacao automatica')
-        ->assertSee('Renova automaticamente todo mes no cartao');
+        ->assertSee('Renovação automática')
+        ->assertSee('Renova automaticamente todo mês no cartão');
 });
 
 test('checkout invisivel retorna erro json quando falta cpf', function () {

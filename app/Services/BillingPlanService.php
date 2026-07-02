@@ -28,7 +28,7 @@ class BillingPlanService
         $plan = $this->find($code);
 
         if (! $plan) {
-            throw new InvalidArgumentException("Plano [{$code}] nao encontrado.");
+            throw new InvalidArgumentException("Plano [{$code}] não encontrado.");
         }
 
         return $plan;
@@ -75,11 +75,11 @@ class BillingPlanService
             $date = $user->trial_ends_at?->format('d/m/Y');
 
             return $date
-                ? "Seu teste gratis esta ativo ate {$date}."
-                : 'Seu teste gratis esta ativo.';
+                ? "Seu teste grátis está ativo até {$date}."
+                : 'Seu teste grátis está ativo.';
         }
 
-        return (string) config('billing.trial_expired_message', 'Seu teste gratuito terminou. Para continuar registrando novas informacoes, ative um plano.');
+        return (string) config('billing.trial_expired_message', 'Seu teste gratuito terminou. Para continuar registrando novas informações, ative um plano.');
     }
 
     public function missingBillingRequirements(User $user): array
@@ -114,7 +114,7 @@ class BillingPlanService
         $frequency = strtoupper((string) ($plan['frequency'] ?? 'NONE'));
 
         $plan['formatted_price'] = $priceCents === 0
-            ? 'Gratis'
+            ? 'Grátis'
             : 'R$ '.number_format($priceCents / 100, 2, ',', '.');
 
         $plan['frequency_label'] = match ($frequency) {
@@ -125,16 +125,16 @@ class BillingPlanService
 
         $plan['billing_mode'] = $flow === 'subscription' ? 'recurring' : 'one_time';
         $plan['billing_mode_label'] = $flow === 'subscription'
-            ? 'Renovacao automatica'
-            : 'Pagamento unico';
+            ? 'Renovação automática'
+            : 'Pagamento único';
 
         $plan['billing_mode_description'] = match (true) {
-            $priceCents === 0 => 'Sem cobranca.',
-            $flow === 'subscription' && $frequency === 'MONTHLY' => 'Renova automaticamente todo mes no cartao.',
-            $flow === 'subscription' && $frequency === 'YEARLY' => 'Renova automaticamente a cada ano no cartao.',
-            $frequency === 'MONTHLY' => 'Libera 30 dias de acesso sem renovacao automatica.',
-            $frequency === 'YEARLY' => 'Libera 12 meses de acesso sem renovacao automatica.',
-            default => 'Acesso liberado conforme o periodo do plano.',
+            $priceCents === 0 => 'Sem cobrança.',
+            $flow === 'subscription' && $frequency === 'MONTHLY' => 'Renova automaticamente todo mês no cartão.',
+            $flow === 'subscription' && $frequency === 'YEARLY' => 'Renova automaticamente a cada ano no cartão.',
+            $frequency === 'MONTHLY' => 'Libera 30 dias de acesso sem renovação automática.',
+            $frequency === 'YEARLY' => 'Libera 12 meses de acesso sem renovação automática.',
+            default => 'Acesso liberado conforme o período do plano.',
         };
 
         return $plan;
