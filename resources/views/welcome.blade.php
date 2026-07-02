@@ -35,7 +35,9 @@
                 ],
             ];
 
-            $primaryCtaUrl = Route::has('register') ? route('register') : (Route::has('login') ? route('login') : '#');
+            $trialCtaUrl = Route::has('register') ? route('register') : (Route::has('login') ? route('login') : '#');
+            $paidCtaUrl = Route::has('billing.plans') ? route('billing.plans') : $trialCtaUrl;
+            $primaryCtaUrl = $trialCtaUrl;
         @endphp
 
         <meta charset="utf-8">
@@ -153,8 +155,8 @@
                         <a href="{{ route('login') }}" class="px-3 py-2.5 text-sm font-semibold text-slate-200 hover:text-white transition-colors">
                             Entrar
                         </a>
-                        <a href="{{ $primaryCtaUrl }}" class="px-4 py-2.5 bg-white text-space-950 rounded-xl font-bold hover:bg-slate-200 transition-all shadow-xl">
-                            Começar agora
+                        <a href="{{ $trialCtaUrl }}" class="px-4 py-2.5 bg-white text-space-950 rounded-xl font-bold hover:bg-slate-200 transition-all shadow-xl">
+                            Testar grátis
                         </a>
                     @endauth
                 @endif
@@ -188,11 +190,11 @@
                 </p>
 
                 <div class="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-                    <a href="{{ $primaryCtaUrl }}" class="px-7 py-4 bg-white text-space-950 rounded-2xl font-extrabold hover:bg-slate-200 transition-all shadow-2xl hover:scale-[1.01]">
-                            Começar agora
+                    <a href="{{ $trialCtaUrl }}" class="px-7 py-4 bg-white text-space-950 rounded-2xl font-extrabold hover:bg-slate-200 transition-all shadow-2xl hover:scale-[1.01]">
+                        Testar grátis por 7 dias
                     </a>
-                    <a href="#como-funciona" class="px-7 py-4 glass rounded-2xl font-bold hover:border-primary/40 transition-all">
-                        Ver como funciona
+                    <a href="{{ $paidCtaUrl }}" class="px-7 py-4 glass rounded-2xl font-bold hover:border-yellow-300/50 transition-all">
+                        Assinar agora por R$ 19,97
                     </a>
                 </div>
 
@@ -405,7 +407,7 @@
                     Brasil na Copa • 30% de desconto
                 </div>
                 <h2 class="mt-5 text-3xl lg:text-4xl font-bold mb-3">Enquanto o Brasil estiver em campo, sua vida financeira entra em jogo.</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">Oferta especial da Copa: Pro Mensal por R$ 19,97/mês, com acesso completo, renovação no cartão e cancelamento fácil pelo painel.</p>
+                <p class="text-slate-400 max-w-2xl mx-auto">Oferta especial da Copa: comece com 7 dias grátis ou pule o teste e assine agora o Pro Mensal por R$ 19,97/mês.</p>
             </div>
 
             <div class="mx-auto max-w-3xl">
@@ -444,10 +446,15 @@
                         <div>• Cartões, contas e relatórios</div>
                         <div>• Drive, notas, lembretes e projeções</div>
                     </div>
-                    <a href="{{ $primaryCtaUrl }}" class="relative mt-8 inline-flex w-full justify-center rounded-2xl bg-gradient-to-r from-emerald-400 via-yellow-300 to-blue-500 px-5 py-4 font-extrabold text-space-950 shadow-[0_18px_45px_rgba(34,197,94,0.22)] transition-all hover:brightness-110">
-                        Entrar no jogo por R$ 19,97
-                    </a>
-                    <div class="relative mt-3 text-center text-xs text-slate-500">7 dias de teste. Depois, R$ 19,97/mês durante a oferta. Cancelamento quando quiser.</div>
+                    <div class="relative mt-8 grid gap-3 sm:grid-cols-2">
+                        <a href="{{ $trialCtaUrl }}" class="inline-flex justify-center rounded-2xl bg-white px-5 py-4 font-extrabold text-space-950 shadow-[0_18px_45px_rgba(255,255,255,0.12)] transition-all hover:bg-slate-200">
+                            Testar grátis por 7 dias
+                        </a>
+                        <a href="{{ $paidCtaUrl }}" class="inline-flex justify-center rounded-2xl bg-gradient-to-r from-emerald-400 via-yellow-300 to-blue-500 px-5 py-4 font-extrabold text-space-950 shadow-[0_18px_45px_rgba(34,197,94,0.22)] transition-all hover:brightness-110">
+                            Assinar agora
+                        </a>
+                    </div>
+                    <div class="relative mt-3 text-center text-xs text-slate-500">Se assinar agora, o plano pago substitui o teste grátis. Cancelamento quando quiser.</div>
                 </div>
             </div>
         </section>
@@ -491,8 +498,8 @@
                 </div>
 
                 <div class="mt-10 text-center">
-                    <a href="{{ $primaryCtaUrl }}" class="inline-flex px-7 py-4 rounded-2xl bg-white text-space-950 font-extrabold hover:bg-slate-200 transition-all shadow-xl">
-                        Começar agora
+                    <a href="{{ $trialCtaUrl }}" class="inline-flex px-7 py-4 rounded-2xl bg-white text-space-950 font-extrabold hover:bg-slate-200 transition-all shadow-xl">
+                        Testar grátis por 7 dias
                     </a>
                 </div>
             </div>
@@ -670,8 +677,8 @@
                         <div class="text-sm font-bold uppercase tracking-[0.22em] text-slate-300">Conta</div>
                         <ul class="space-y-3 text-sm text-slate-400">
                             <li><a class="hover:text-white" href="{{ Route::has('login') ? route('login') : '#' }}">Entrar</a></li>
-                            <li><a class="hover:text-white" href="{{ Route::has('register') ? route('register') : '#' }}">Criar conta</a></li>
-                            <li><a class="hover:text-white" href="{{ Route::has('billing.plans') ? route('billing.plans') : '#' }}">Assinar plano</a></li>
+                            <li><a class="hover:text-white" href="{{ $trialCtaUrl }}">Testar grátis</a></li>
+                            <li><a class="hover:text-white" href="{{ $paidCtaUrl }}">Assinar agora</a></li>
                             <li><a class="hover:text-white" href="{{ route('terms-of-use') }}">Termos de uso</a></li>
                             <li><a class="hover:text-white" href="{{ route('privacy-policy') }}">Política de privacidade</a></li>
                         </ul>
