@@ -20,21 +20,21 @@
             </div>
         @endif
 
-        <section class="rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/80 p-6 shadow-[0_24px_80px_rgba(2,6,23,0.34)] sm:p-8">
+        <section class="rounded-[2rem] border border-yellow-300/20 bg-gradient-to-br from-slate-950 via-emerald-950/35 to-blue-950/70 p-6 shadow-[0_24px_80px_rgba(2,6,23,0.34)] sm:p-8">
             <div class="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
                 <div>
-                    <div class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
-                        Billing
+                    <div class="inline-flex items-center gap-2 rounded-full border border-yellow-300/35 bg-yellow-300/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-yellow-100">
+                        Brasil na Copa • 30% OFF
                     </div>
-                    <h1 class="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl">Escolha o plano ideal para continuar subindo.</h1>
+                    <h1 class="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl">Oferta especial para liberar o InovaFinance completo.</h1>
                     <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                        O Starter cobre o basico. Os planos Pro liberam relatorios avancados, projecoes financeiras e a experiencia completa do {{ config('mascot.name', 'Orbita') }}.
+                        Enquanto o Brasil estiver na Copa, o Pro Mensal sai por R$ 19,97/mes. Ele libera relatorios avancados, projecoes financeiras e a experiencia completa do {{ config('mascot.name', 'Orbita') }}.
                     </p>
                     <p class="mt-2 max-w-2xl text-sm leading-7 text-slate-400">
                         @if ($hasSubscriptionFlow)
-                            Alguns planos renovam automaticamente no cartao (assinatura). Outros funcionam como pagamento avulso e nao renovam automaticamente.
+                            A oferta Pro renova automaticamente no cartao e pode ser cancelada pelo painel.
                         @else
-                            Cada pagamento libera o acesso pelo periodo do plano escolhido. Nao ha renovacao automatica nesta etapa.
+                            O pagamento libera o acesso pelo periodo escolhido. Nao ha renovacao automatica nesta etapa.
                         @endif
                     </p>
                 </div>
@@ -101,24 +101,36 @@
             </div>
         </section>
 
-        <section class="grid gap-6 xl:grid-cols-3">
+        <section class="grid gap-6 lg:grid-cols-2">
             @foreach ($plans as $plan)
                 @php
                     $isCurrent = ($user->billing_plan_code ?: config('billing.default_plan', 'starter')) === $plan['code'] && (($plan['price_cents'] === 0) || $user->hasActivePaidPlan());
                 @endphp
 
-                <article class="rounded-[2rem] border {{ $plan['highlight'] ? 'border-indigo-400/40 bg-indigo-500/10' : 'border-white/10 bg-slate-950/80' }} p-6 shadow-[0_16px_60px_rgba(2,6,23,0.28)]">
+                <article class="rounded-[2rem] border {{ $plan['highlight'] ? 'border-yellow-300/30 bg-gradient-to-br from-emerald-500/10 via-yellow-300/10 to-blue-500/10' : 'border-white/10 bg-slate-950/80' }} p-6 shadow-[0_16px_60px_rgba(2,6,23,0.28)]">
                     <div class="flex items-start justify-between gap-4">
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{{ $plan['badge'] }}</p>
                             <h2 class="mt-3 text-2xl font-black text-white">{{ $plan['name'] }}</h2>
                         </div>
-                        <div class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white">
-                            {{ $plan['formatted_price'] }}
+                        <div class="text-right">
+                            @if ($plan['highlight'])
+                                <div class="text-xs text-slate-500 line-through">R$ 29,90</div>
+                            @endif
+                            <div class="rounded-full border {{ $plan['highlight'] ? 'border-yellow-300/35 bg-yellow-300/10 text-yellow-100' : 'border-white/10 bg-white/5 text-white' }} px-3 py-1 text-sm font-semibold">
+                                {{ $plan['formatted_price'] }}
+                            </div>
                         </div>
                     </div>
 
                     <p class="mt-4 text-sm leading-7 text-slate-300">{{ $plan['description'] }}</p>
+
+                    @if ($plan['highlight'])
+                        <div class="mt-4 rounded-2xl border border-yellow-300/20 bg-slate-950/45 px-4 py-3 text-sm text-yellow-50">
+                            <p class="font-semibold">Campanha Brasil na Copa</p>
+                            <p class="mt-1 text-xs leading-5 text-slate-300">30% OFF especial enquanto a campanha estiver ativa. Depois da oferta, novos clientes podem voltar ao preco normal.</p>
+                        </div>
+                    @endif
 
                     <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
                         <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">
@@ -193,7 +205,7 @@
                     class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
                     value="{{ old('tax_id', \App\Support\BrazilTaxId::format($user->tax_id)) }}"
                 />
-                <p class="text-xs leading-6 text-slate-400">Se o plano for assinatura, ele renova automaticamente no cartao. Caso contrario, e pagamento unico.</p>
+                <p class="text-xs leading-6 text-slate-400">A oferta Pro Mensal renova automaticamente no cartao e pode ser cancelada pelo painel.</p>
                 <p class="hidden text-sm text-rose-300" data-billing-tax-error></p>
             </div>
 

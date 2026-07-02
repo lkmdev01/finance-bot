@@ -59,7 +59,17 @@ class BillingSmokeCommand extends Command
             ),
         ];
 
-        foreach (['pro_monthly' => 'MONTHLY', 'pro_yearly' => 'YEARLY'] as $planCode => $frequency) {
+        $sellablePlans = collect($plans)
+            ->filter(fn (array $plan) => ($plan['price_cents'] ?? 0) > 0)
+            ->filter(fn (array $plan) => ($plan['sellable'] ?? true) !== false);
+
+        $checks[] = $this->check(
+            'sellable_plans.single_offer',
+            $sellablePlans->keys()->values()->all() === ['pro_monthly'],
+            'apenas a oferta unica Pro Mensal deve estar vendavel'
+        );
+
+        foreach (['pro_monthly' => 'MONTHLY'] as $planCode => $frequency) {
             $plan = $plans[$planCode] ?? [];
 
             $checks[] = $this->check(

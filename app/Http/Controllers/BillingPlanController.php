@@ -46,6 +46,12 @@ class BillingPlanController extends Controller
     {
         $plan = $this->billingPlanService->findOrFail($planCode);
 
+        if (! $this->isSellablePlan($plan)) {
+            return redirect()
+                ->route('billing.plans')
+                ->with('status', 'Esta oferta nao esta mais disponivel. Use a campanha Brasil na Copa do Pro Mensal.');
+        }
+
         return view('pages.billing.checkout-data', [
             'plan' => $plan,
             'formattedPhoneNumber' => $this->formatBillingPhone($request->user()->phone_number),
@@ -54,7 +60,13 @@ class BillingPlanController extends Controller
 
     public function storeCheckoutData(Request $request, string $planCode): Response
     {
-        $this->billingPlanService->findOrFail($planCode);
+        $plan = $this->billingPlanService->findOrFail($planCode);
+
+        if (! $this->isSellablePlan($plan)) {
+            return redirect()
+                ->route('billing.plans')
+                ->with('status', 'Esta oferta nao esta mais disponivel. Use a campanha Brasil na Copa do Pro Mensal.');
+        }
 
         $validated = $request->validate([
             'tax_id' => [
@@ -81,6 +93,13 @@ class BillingPlanController extends Controller
     {
         $plan = $this->billingPlanService->findOrFail($planCode);
         $user = $request->user();
+
+        if (! $this->isSellablePlan($plan)) {
+            return $this->respondBillingStatus(
+                $request,
+                'Esta oferta nao esta mais disponivel. Use a campanha Brasil na Copa do Pro Mensal.'
+            );
+        }
 
         if (($plan['price_cents'] ?? 0) === 0) {
             return $this->respondBillingStatus(
@@ -328,5 +347,10 @@ class BillingPlanController extends Controller
             11 => preg_replace('/(\d{2})(\d{5})(\d{4})/', '($1) $2-$3', $digits),
             default => $phoneNumber,
         };
+    }
+
+    protected function isSellablePlan(array $plan): bool
+    {
+        return ($plan['sellable'] ?? true) !== false;
     }
 }

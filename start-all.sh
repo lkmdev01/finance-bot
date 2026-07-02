@@ -9,6 +9,8 @@ QUEUE_WORKERS="${QUEUE_WORKERS:-2}"
 QUEUE_WORKER_TRIES="${QUEUE_WORKER_TRIES:-3}"
 QUEUE_WORKER_TIMEOUT="${QUEUE_WORKER_TIMEOUT:-120}"
 QUEUE_WORKER_SLEEP="${QUEUE_WORKER_SLEEP:-0}"
+APP_PORT="${PORT:-8000}"
+RUN_BILLING_SMOKE="${RUN_BILLING_SMOKE:-true}"
 
 echo "--- 1. Preparando Ambiente ---"
 mkdir -p storage/logs
@@ -18,10 +20,17 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
+if [ "$RUN_BILLING_SMOKE" = "true" ]; then
+  echo "--- 1.1 Validando configuracao comercial/billing ---"
+  php artisan billing:smoke
+fi
+
 echo "--- 2. Iniciando Workers e Scheduler ---"
 echo "Conexao da fila: $QUEUE_CONNECTION_NAME"
 echo "Fila: $QUEUE_NAME"
 echo "Workers: $QUEUE_WORKERS"
+
+php artisan queue:restart
 
 i=1
 while [ "$i" -le "$QUEUE_WORKERS" ]; do
@@ -44,5 +53,5 @@ npm start &
 cd ..
 
 echo "--- 4. Iniciando Servidor Web Principal ---"
-echo "Rodando na porta: $PORT"
-php artisan serve --host=0.0.0.0 --port=$PORT
+echo "Rodando na porta: $APP_PORT"
+php artisan serve --host=0.0.0.0 --port="$APP_PORT"
