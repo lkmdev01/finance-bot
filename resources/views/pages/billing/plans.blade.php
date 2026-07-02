@@ -26,6 +26,7 @@
             'financial_projections' => 'Projeções financeiras',
             'mascot' => config('mascot.name', 'Órbita'),
         ];
+        $isTrialOnly = $user->hasActiveTrial() && ! $user->hasActivePaidPlan();
     @endphp
 
     <div class="space-y-8">
@@ -53,11 +54,18 @@
                     </p>
                     <p class="mt-2 max-w-2xl text-sm leading-7 text-slate-400">
                         @if ($hasSubscriptionFlow)
-                            A oferta Pro renova automaticamente no cartão e pode ser cancelada pelo painel.
+                            Você pode usar o teste grátis até o fim ou assinar agora para ativar o Pro pago imediatamente. A oferta Pro renova automaticamente no cartão e pode ser cancelada pelo painel.
                         @else
                             O pagamento libera o acesso pelo período escolhido. Não há renovação automática nesta etapa.
                         @endif
                     </p>
+
+                    @if ($isTrialOnly)
+                        <div class="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-50">
+                            <p class="font-semibold">Você está no teste grátis.</p>
+                            <p class="mt-1 text-emerald-100/80">Se já quiser garantir a oferta da Copa, pode assinar agora. O plano pago passa a valer como seu acesso principal.</p>
+                        </div>
+                    @endif
                 </div>
 
                 <div class="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
@@ -188,7 +196,11 @@
                             <form method="POST" action="{{ route('billing.subscribe', $plan['code']) }}" data-billing-subscribe-form data-plan-name="{{ $plan['name'] }}">
                                 @csrf
                                 <flux:button type="submit" variant="primary" class="w-full">
-                                    Ativar {{ $plan['name'] }}
+                                    @if ($plan['highlight'])
+                                        Assinar agora por {{ $plan['formatted_price'] }}/mês
+                                    @else
+                                        Ativar {{ $plan['name'] }}
+                                    @endif
                                 </flux:button>
                             </form>
                         @endif
