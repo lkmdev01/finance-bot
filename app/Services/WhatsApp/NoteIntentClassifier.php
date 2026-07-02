@@ -61,7 +61,7 @@ class NoteIntentClassifier
         $isNotesContext = ($state['last_action'] ?? null) === 'query_notes'
             || ($state['last_entities']['topic'] ?? null) === 'notes';
 
-        if (! $isNotesContext && $this->containsAnyText($normalizedMessage, [
+        if ($this->containsAnyText($normalizedMessage, [
             'arquivo',
             'arquivos',
             'documento',

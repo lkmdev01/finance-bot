@@ -8,8 +8,8 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
 use App\Services\BaileysService;
-use App\Services\PhoneNumberService;
 use App\Services\PerformanceMetricsService;
+use App\Services\PhoneNumberService;
 use App\Services\WhatsApp\ActionHandlerFactory;
 use App\Services\WhatsApp\ConversationOrchestrator;
 use App\Services\WhatsApp\ConversationStateService;
@@ -27,6 +27,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
     use Queueable;
 
     private ?string $finalReply = null;
+
     private ?string $normalizedMessage = null;
 
     public function __construct(
@@ -195,6 +196,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                         'assistant_used_ai' => $assistantResponse->usedAI,
                     ],
                 ]);
+
                 return;
             }
 
@@ -234,6 +236,10 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $handled = $handlerFactory->process($action, $result, $user, $contact, $this);
             // Handlers may refine/override the action after clarification/confirmation.
             $effectiveAction = $result['action'] ?? $action;
+            $assistantIntentValue = $assistantResponse->intent->intent->value;
+            $telemetryIntent = ($assistantIntentValue === 'unknown' && is_string($effectiveAction) && $effectiveAction !== '')
+                ? $effectiveAction
+                : $assistantIntentValue;
 
             Log::info('WhatsApp pos-handler', [
                 'user_id' => $user->id,
@@ -267,7 +273,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
                 $telemetry->record($user, $contact, $this->message, [
                     'classification' => $preflight['classification'] ?? null,
-                    'assistant_intent' => $assistantResponse->intent->intent->value,
+                    'assistant_intent' => $telemetryIntent,
                     'action' => $effectiveAction,
                     'handler' => $result['_selected_handler'] ?? null,
                     'used_ai' => $assistantResponse->usedAI,
@@ -281,13 +287,14 @@ class ProcessWhatsAppMessage implements ShouldQueue
                         'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
                         'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                         'entities' => $result['_conversation_metadata']['entities'] ?? null,
-                        'assistant_intent' => $assistantResponse->intent->intent->value,
+                        'assistant_intent' => $telemetryIntent,
                         'assistant_confidence' => $assistantResponse->intent->confidence,
                         'assistant_missing_fields' => $assistantResponse->intent->missingFields,
                         'assistant_domain' => $assistantResponse->intent->domain,
                         'assistant_used_ai' => $assistantResponse->usedAI,
                     ],
                 ]);
+
                 return;
             }
 
@@ -300,7 +307,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $proactiveTrigger->dispatch($user, $contact, $effectiveAction, $result, $this);
             $telemetry->record($user, $contact, $this->message, [
                 'classification' => $preflight['classification'] ?? null,
-                'assistant_intent' => $assistantResponse->intent->intent->value,
+                'assistant_intent' => $telemetryIntent,
                 'action' => $effectiveAction,
                 'handler' => $result['_selected_handler'] ?? null,
                 'used_ai' => $assistantResponse->usedAI,
@@ -313,7 +320,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
                     'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                     'entities' => $result['_conversation_metadata']['entities'] ?? null,
-                    'assistant_intent' => $assistantResponse->intent->intent->value,
+                    'assistant_intent' => $telemetryIntent,
                     'assistant_confidence' => $assistantResponse->intent->confidence,
                     'assistant_missing_fields' => $assistantResponse->intent->missingFields,
                     'assistant_domain' => $assistantResponse->intent->domain,
@@ -520,7 +527,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             ."- Gastei 32 no Uber\n"
             ."- Gastei 48 no mercado\n"
             ."- Recebi 420 de freelance\n\n"
-            ."Se quiser, pode me enviar uma mensagem atras da outra que eu registro tudo.";
+            .'Se quiser, pode me enviar uma mensagem atras da outra que eu registro tudo.';
     }
 
     private function buildValidationGuidanceReply(array $errors = []): string
@@ -536,7 +543,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 ."Tente assim:\n"
                 ."- apagar ultima transacao\n"
                 ."- apagar Uber de 18 reais\n"
-                ."- apagar mercado de ontem";
+                .'- apagar mercado de ontem';
         }
 
         if (str_contains($message, 'relatorio') || str_contains($message, 'relatório')) {
@@ -544,7 +551,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 ."Tente assim:\n"
                 ."- me gera um relatorio do mes\n"
                 ."- me manda o relatorio em PDF\n"
-                ."- relatorio anual em Excel";
+                .'- relatorio anual em Excel';
         }
 
         if (str_contains($message, 'saldo') || str_contains($message, 'gastos') || str_contains($message, 'receitas') || str_contains($message, 'ultimos') || str_contains($message, 'últimos')) {
@@ -552,7 +559,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 ."Voce pode tentar assim:\n"
                 ."- qual e o meu saldo?\n"
                 ."- quais foram meus ultimos gastos?\n"
-                ."- quanto eu gastei esse mes?";
+                .'- quanto eu gastei esse mes?';
         }
 
         $details = $this->sanitizeUtf8(collect($errors)->filter()->implode(' '));
@@ -560,7 +567,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             ."Tente mandar em um destes formatos:\n"
             ."- Gastei 50 no supermercado\n"
             ."- Recebi 1000 de salario\n"
-            ."- Qual e o meu saldo?";
+            .'- Qual e o meu saldo?';
 
         return $details !== '' ? $base."\n\nDetalhe: {$details}" : $base;
     }

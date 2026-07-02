@@ -4,12 +4,12 @@
 /** @noinspection PhpUndefinedMethodInspection */
 
 use App\Jobs\ProcessWhatsAppMessage;
+use App\Models\BankAccount;
 use App\Models\Budget;
 use App\Models\Category;
+use App\Models\CreditCard;
 use App\Models\RecurringTransaction;
 use App\Models\Reminder;
-use App\Models\BankAccount;
-use App\Models\CreditCard;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppContact;
@@ -815,13 +815,82 @@ it('nao deixa contexto de drive capturar saudacao e pedido de ajuda', function (
         ->values();
 
     expect($logs[0]->classification)->toBe('help')
-        ->and($logs[0]->reply)->toContain('Posso te ajudar de varios jeitos')
-        ->and($logs[0]->reply)->toContain('Para destravar melhor o painel')
-        ->and($logs[0]->reply)->toContain('Registrar sua primeira transacao')
+        ->and($logs[0]->reply)->toContain('Voce quer ajuda com qual parte')
+        ->and($logs[0]->reply)->toContain('Comandos e funcoes')
+        ->and($logs[0]->reply)->toContain('Suporte humano')
         ->and($logs[1]->classification)->toBe('greeting');
 
     currentTestCase()->contact->refresh();
     expect(currentTestCase()->contact->conversation_state['last_entities']['topic'] ?? null)->toBe('general');
+});
+
+it('guia ajuda para comandos ou suporte humano sem prender outras intencoes', function () {
+    Http::preventStrayRequests();
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->times(4)
+            ->with(\Mockery::type('string'), \Mockery::type('string'))
+            ->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    runWhatsAppJob(new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'ajuda',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    ));
+
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBe('help_choice');
+
+    runWhatsAppJob(new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'comandos',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    ));
+
+    runWhatsAppJob(new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'ajuda',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    ));
+
+    runWhatsAppJob(new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'suporte',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    ));
+
+    $logs = WhatsAppConversationLog::query()
+        ->where('user_id', currentTestCase()->user->id)
+        ->latest('id')
+        ->take(4)
+        ->get()
+        ->reverse()
+        ->values();
+
+    expect($logs[0]->classification)->toBe('help')
+        ->and($logs[0]->reply)->toContain('Voce quer ajuda com qual parte')
+        ->and($logs[1]->classification)->toBe('help_commands')
+        ->and($logs[1]->reply)->toContain('Posso te ajudar de varios jeitos')
+        ->and($logs[1]->reply)->toContain('registrar gasto')
+        ->and($logs[2]->classification)->toBe('help')
+        ->and($logs[3]->classification)->toBe('help_support')
+        ->and($logs[3]->reply)->toContain('suporte humano')
+        ->and($logs[3]->reply)->toContain('E-mail:')
+        ->and($logs[3]->reply)->toContain('Pagina de suporte');
+
+    currentTestCase()->contact->refresh();
+    expect(currentTestCase()->contact->conversation_state['pending_intent'] ?? null)->toBeNull()
+        ->and(currentTestCase()->contact->conversation_state['last_entities']['topic'] ?? null)->toBe('support');
 });
 
 it('cria lembrete mensal quando a mensagem nao informa valor', function () {
@@ -1485,4 +1554,3 @@ it('usa conta caixa quando nao informa fonte em debito', function () {
         'bank_account_id' => BankAccount::where('user_id', currentTestCase()->user->id)->where('type', 'cash')->first()->id,
     ]);
 });
-

@@ -54,7 +54,20 @@ class ResponseComposer
         };
     }
 
-    public function composeHelp(User $user): string
+    public function composeHelpChoice(User $user): string
+    {
+        $firstName = trim((string) explode(' ', trim($user->name))[0]);
+        $namePart = $firstName !== '' ? " {$firstName}" : '';
+
+        return "Claro{$namePart}. Voce quer ajuda com qual parte?\n\n"
+            ."1. *Comandos e funcoes*\n"
+            ."   Para ver exemplos do que eu consigo fazer no WhatsApp.\n\n"
+            ."2. *Suporte humano*\n"
+            ."   Para falar com nossa equipe por e-mail.\n\n"
+            .'Responda com: *comandos* ou *suporte*.';
+    }
+
+    public function composeHelpCommands(User $user): string
     {
         $firstName = trim((string) explode(' ', trim($user->name))[0]);
         $namePart = $firstName !== '' ? " {$firstName}" : '';
@@ -67,7 +80,7 @@ class ResponseComposer
             ."- metas e assinaturas: Como estao minhas metas?\n"
             ."- notas e lembretes: Anota isso / Me lembra amanha\n"
             ."- Drive: Quais arquivos eu tenho no drive?\n\n"
-            ."Se quiser, me manda uma dessas frases que eu ja continuo.";
+            .'Se quiser, me manda uma dessas frases que eu ja continuo.';
 
         $checklist = app(OnboardingChecklistService::class)->checklist($user);
 
@@ -78,13 +91,30 @@ class ResponseComposer
         return $message;
     }
 
+    public function composeSupportHelp(User $user): string
+    {
+        $supportEmail = config('support.email') ?: config('mail.from.address');
+        $supportUrl = route('support');
+        $firstName = trim((string) explode(' ', trim($user->name))[0]);
+        $namePart = $firstName !== '' ? " {$firstName}" : '';
+
+        return "Certo{$namePart}. Para suporte humano, fale com nossa equipe:\n\n"
+            ."E-mail: {$supportEmail}\n"
+            ."Pagina de suporte: {$supportUrl}\n\n"
+            ."Para agilizar, envie:\n"
+            ."- seu e-mail de cadastro\n"
+            ."- o que voce tentou fazer\n"
+            ."- print ou mensagem de erro, se tiver\n\n"
+            .'Se quiser voltar para exemplos do bot, responda *comandos*.';
+    }
+
     public function composeSmallTalk(User $user): string
     {
         $firstName = trim((string) explode(' ', trim($user->name))[0]);
         $namePart = $firstName !== '' ? " {$firstName}" : '';
 
         return "Estou bem{$namePart} e pronto para te ajudar.\n\n"
-            ."Se quiser, posso registrar um gasto, consultar seu saldo, olhar seus arquivos do Drive ou te mostrar o que eu consigo fazer.";
+            .'Se quiser, posso registrar um gasto, consultar seu saldo, olhar seus arquivos do Drive ou te mostrar o que eu consigo fazer.';
     }
 
     public function composeGratitude(User $user): string
@@ -93,7 +123,7 @@ class ResponseComposer
         $namePart = $firstName !== '' ? " {$firstName}" : '';
 
         return "Sempre que precisar{$namePart}, estou por aqui.\n\n"
-            ."Posso continuar com financas, metas, assinaturas, notas, lembretes ou Drive.";
+            .'Posso continuar com financas, metas, assinaturas, notas, lembretes ou Drive.';
     }
 
     public function composePendingConfirmationPrompt(): string
