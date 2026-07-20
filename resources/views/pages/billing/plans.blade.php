@@ -46,11 +46,11 @@
             <div class="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
                 <div>
                     <div class="inline-flex items-center gap-2 rounded-full border border-yellow-300/35 bg-yellow-300/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-yellow-100">
-                        Brasil na Copa • 30% de desconto
+                        Oferta única • 30% de desconto
                     </div>
                     <h1 class="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl">Oferta especial para liberar o InovaFinance completo.</h1>
                     <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                        Enquanto o Brasil estiver na Copa, o Pro Mensal sai por R$ 19,97/mês. Ele libera relatórios avançados, projeções financeiras e a experiência completa do {{ config('mascot.name', 'Orbita') }}.
+                        Por tempo limitado, o Pro Mensal sai por R$ 19,97/mês. Ele libera relatórios avançados, projeções financeiras e a experiência completa do {{ config('mascot.name', 'Orbita') }}.
                     </p>
                     <p class="mt-2 max-w-2xl text-sm leading-7 text-slate-400">
                         @if ($hasSubscriptionFlow)
@@ -63,7 +63,7 @@
                     @if ($isTrialOnly)
                         <div class="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-50">
                             <p class="font-semibold">Você está no teste grátis.</p>
-                            <p class="mt-1 text-emerald-100/80">Se já quiser garantir a oferta da Copa, pode assinar agora. O plano pago passa a valer como seu acesso principal.</p>
+                            <p class="mt-1 text-emerald-100/80">Se já quiser garantir a oferta única, pode assinar agora. O plano pago passa a valer como seu acesso principal.</p>
                         </div>
                     @endif
                 </div>
@@ -156,7 +156,7 @@
 
                     @if ($plan['highlight'])
                         <div class="mt-4 rounded-2xl border border-yellow-300/20 bg-slate-950/45 px-4 py-3 text-sm text-yellow-50">
-                            <p class="font-semibold">Campanha Brasil na Copa</p>
+                            <p class="font-semibold">Oferta única ativa</p>
                             <p class="mt-1 text-xs leading-5 text-slate-300">30% de desconto especial enquanto a campanha estiver ativa. Depois da oferta, novos clientes podem voltar ao preço normal.</p>
                         </div>
                     @endif

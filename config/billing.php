@@ -44,10 +44,10 @@ return [
         'pro_monthly' => [
             'code' => 'pro_monthly',
             'name' => 'Pro Mensal',
-            'description' => 'Brasil na Copa: 30% de desconto especial com acesso completo e renovação mensal no cartão.',
+            'description' => 'Oferta única: 30% de desconto especial com acesso completo e renovação mensal no cartão.',
             'price_cents' => 1997,
             'frequency' => 'MONTHLY',
-            'badge' => 'Brasil na Copa',
+            'badge' => 'Oferta única',
             'highlight' => true,
             'product_id' => env('ABACATEPAY_PLAN_PRO_MONTHLY_PRODUCT_ID'),
             'visible' => true,
