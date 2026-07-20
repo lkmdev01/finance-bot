@@ -15,7 +15,7 @@
         <div class="mt-8 grid gap-4 rounded-[1.5rem] border border-white/10 bg-white/5 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
             <div>
                 <p class="text-sm font-semibold text-white">Desbloqueie com Pro Mensal</p>
-                <p class="mt-1 text-sm text-slate-400">Aproveite a campanha Brasil na Copa para liberar relatorios avancados, projecoes e o Orbita por R$ 19,97/mes.</p>
+                <p class="mt-1 text-sm text-slate-400">Aproveite a oferta única para liberar relatórios avançados, projeções e o {{ config('mascot.name', 'Orbita') }} por R$ 19,97/mês.</p>
             </div>
 
             <flux:button :href="route('billing.plans')" wire:navigate variant="primary">

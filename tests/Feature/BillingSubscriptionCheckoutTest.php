@@ -19,7 +19,7 @@ test('pagina de planos mostra retorno do pagamento e modo de cobranca', function
         ->assertSee('Recebemos seu retorno do pagamento')
         ->assertSee('Renovação automática')
         ->assertSee('Renova automaticamente todo mês no cartão')
-        ->assertSee('Brasil na Copa')
+        ->assertSee('Oferta única')
         ->assertSee('30% de desconto')
         ->assertSee('R$ 19,97')
         ->assertDontSee('Pro Anual');
@@ -168,7 +168,7 @@ test('usuario nao pode iniciar checkout anual desativado', function () {
         ->post(route('billing.subscribe', 'pro_yearly'));
 
     $response->assertRedirect(route('billing.plans'));
-    $response->assertSessionHas('status', 'Esta oferta não está mais disponível. Use a campanha Brasil na Copa do Pro Mensal.');
+    $response->assertSessionHas('status', 'Esta oferta não está mais disponível. Use a oferta única do Pro Mensal.');
 
     Http::assertNothingSent();
 

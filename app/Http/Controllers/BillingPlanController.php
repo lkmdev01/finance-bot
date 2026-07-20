@@ -49,7 +49,7 @@ class BillingPlanController extends Controller
         if (! $this->isSellablePlan($plan)) {
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'Esta oferta não está mais disponível. Use a campanha Brasil na Copa do Pro Mensal.');
+                ->with('status', 'Esta oferta não está mais disponível. Use a oferta única do Pro Mensal.');
         }
 
         return view('pages.billing.checkout-data', [
@@ -65,7 +65,7 @@ class BillingPlanController extends Controller
         if (! $this->isSellablePlan($plan)) {
             return redirect()
                 ->route('billing.plans')
-                ->with('status', 'Esta oferta não está mais disponível. Use a campanha Brasil na Copa do Pro Mensal.');
+                ->with('status', 'Esta oferta não está mais disponível. Use a oferta única do Pro Mensal.');
         }
 
         $validated = $request->validate([
@@ -97,7 +97,7 @@ class BillingPlanController extends Controller
         if (! $this->isSellablePlan($plan)) {
             return $this->respondBillingStatus(
                 $request,
-                'Esta oferta não está mais disponível. Use a campanha Brasil na Copa do Pro Mensal.'
+                'Esta oferta não está mais disponível. Use a oferta única do Pro Mensal.'
             );
         }
 

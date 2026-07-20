@@ -404,10 +404,10 @@
         <section id="planos" class="relative z-10 py-20 px-6 max-w-7xl mx-auto">
             <div class="text-center mb-10">
                 <div class="inline-flex items-center gap-2 rounded-full border border-yellow-300/40 bg-gradient-to-r from-emerald-400/15 via-yellow-300/15 to-blue-500/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.22em] text-yellow-100 shadow-[0_0_35px_rgba(34,197,94,0.18)]">
-                    Brasil na Copa • 30% de desconto
+                    Oferta única • 30% de desconto
                 </div>
-                <h2 class="mt-5 text-3xl lg:text-4xl font-bold mb-3">Enquanto o Brasil estiver em campo, sua vida financeira entra em jogo.</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">Oferta especial da Copa: comece com 7 dias grátis ou pule o teste e assine agora o Pro Mensal por R$ 19,97/mês.</p>
+                <h2 class="mt-5 text-3xl lg:text-4xl font-bold mb-3">Uma condição especial para organizar sua vida financeira agora.</h2>
+                <p class="text-slate-400 max-w-2xl mx-auto">Oferta única: comece com 7 dias grátis ou pule o teste e assine agora o Pro Mensal por R$ 19,97/mês.</p>
             </div>
 
             <div class="mx-auto max-w-3xl">
@@ -417,9 +417,9 @@
                     <div class="pointer-events-none absolute right-10 bottom-10 h-32 w-32 rounded-full bg-blue-500/10 blur-2xl"></div>
 
                     <div class="relative mb-6 flex flex-wrap items-center gap-2 text-xs font-bold">
-                        <span class="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-emerald-100">Promocao relampago</span>
+                        <span class="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-emerald-100">Oferta única</span>
                         <span class="rounded-full border border-yellow-300/30 bg-yellow-300/10 px-3 py-1 text-yellow-100">30% de desconto especial</span>
-                        <span class="rounded-full border border-blue-300/30 bg-blue-500/10 px-3 py-1 text-blue-100">Enquanto o Brasil estiver na Copa</span>
+                        <span class="rounded-full border border-blue-300/30 bg-blue-500/10 px-3 py-1 text-blue-100">Vagas promocionais limitadas</span>
                     </div>
 
                     <div class="grid gap-8 md:grid-cols-[1.1fr_0.9fr] md:items-center">
@@ -427,7 +427,7 @@
                             <div class="text-sm font-semibold text-yellow-100">Pro Mensal</div>
                             <div class="mt-2 text-3xl font-extrabold">Acesso completo</div>
                             <p class="mt-3 text-sm leading-7 text-slate-300">
-                                Organize gastos, metas, cartões, lembretes, Drive inteligente, relatórios e projeções pelo painel e pelo WhatsApp. Menos bagunça, mais controle no placar.
+                                Organize gastos, metas, cartões, lembretes, Drive inteligente, relatórios e projeções pelo painel e pelo WhatsApp. Menos bagunça, mais clareza para decidir.
                             </p>
                         </div>
                         <div class="relative rounded-3xl border border-yellow-300/20 bg-slate-950/70 p-6 text-center">
@@ -435,7 +435,7 @@
                             <div class="mt-1 text-slate-100 font-black text-5xl">R$ 19,97</div>
                             <div class="mt-1 text-slate-400 text-sm">por mês</div>
                             <div class="mt-4 rounded-full border border-yellow-300/40 bg-yellow-300/10 px-3 py-1 text-xs font-bold text-yellow-100">
-                                campanha Brasil na Copa
+                                oferta única ativa
                             </div>
                         </div>
                     </div>
