@@ -12,6 +12,7 @@ use App\Services\WhatsApp\BudgetMessageParser;
 use App\Services\WhatsApp\DriveIntentClassifier;
 use App\Services\WhatsApp\DriveMessageParser;
 use App\Services\WhatsApp\IncomingMessageNormalizer;
+use App\Services\WhatsApp\InstallmentTransactionMessageParser;
 use App\Services\WhatsApp\MessageClassifier;
 use App\Services\WhatsApp\NoteIntentClassifier;
 use App\Services\WhatsApp\NoteMessageParser;
@@ -22,6 +23,7 @@ use App\Services\WhatsApp\ReminderMessageParser;
 use App\Services\WhatsApp\SavingsGoalMessageParser;
 use App\Services\WhatsApp\SimpleTransactionMessageParser;
 use App\Services\WhatsApp\SubscriptionMessageParser;
+use App\Services\WhatsApp\TransactionActionMessageParser;
 
 it('maps legacy classifier kinds into the assistant financial intents catalog', function () {
     $user = new User(['id' => 1, 'name' => 'Lucas', 'email' => 'lucas@example.com']);
@@ -39,6 +41,8 @@ it('maps legacy classifier kinds into the assistant financial intents catalog', 
     $classifier = new IntentClassifier(
         $legacyClassifier,
         $simpleParser,
+        Mockery::mock(InstallmentTransactionMessageParser::class),
+        Mockery::mock(TransactionActionMessageParser::class),
         Mockery::mock(BudgetIntentClassifier::class),
         Mockery::mock(BudgetMessageParser::class),
         Mockery::mock(NoteIntentClassifier::class),

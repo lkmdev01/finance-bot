@@ -871,6 +871,22 @@ class IntentClassifier
 
     private function looksLikeMonthReportQuery(string $message): bool
     {
+        if (
+            preg_match('/\b(?:gasto|gastos|despesa|despesas|relatorio|relatório|resumo)\b/u', $message) === 1
+            && preg_match('/\b(?:sem categoria|sem categorias|com categoria|com categorias|categorizado|categorizados)\b/u', $message) === 1
+        ) {
+            return true;
+        }
+
+        if (
+            preg_match('/\b(?:gasto|gastos|despesa|despesas|relatorio|relatório|resumo)\b/u', $message) === 1
+            && preg_match('/\b(?:de|do|da|entre|dia)\b/u', $message) === 1
+            && preg_match('/\b(?:a|ate|até|e)\b/u', $message) === 1
+            && preg_match('/\d{1,2}/u', $message) === 1
+        ) {
+            return true;
+        }
+
         foreach ([
             'quanto gastei esse mes',
             'quanto gastei este mes',
