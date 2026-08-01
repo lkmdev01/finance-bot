@@ -19,7 +19,21 @@ class TransactionActionMessageParser
             'credit_card_name' => $this->extractCreditCardName($message),
         ];
 
-        if (! $this->looksLikeEditIntent($normalized) && $payload['payment_method'] === null) {
+        $hasEditIntent = $this->looksLikeEditIntent($normalized);
+        $hasRecentTransactionContext = ! empty($state['last_entities']['transaction_id'])
+            || ! empty($state['last_entities']['latest_transaction_id']);
+        $hasCorrectionData = $payload['amount'] !== null
+            || $payload['payment_method'] !== null
+            || $payload['category_name'] !== null
+            || $payload['bank_account_name'] !== null
+            || $payload['credit_card_name'] !== null
+            || $payload['target_description'] !== null
+            || $payload['target_date_scope'] !== null;
+
+        if (
+            ! $hasEditIntent
+            && (! $hasRecentTransactionContext || ! $hasCorrectionData)
+        ) {
             return null;
         }
 
@@ -135,6 +149,7 @@ class TransactionActionMessageParser
         if (preg_match('/(?:na conta|pela conta|via conta)\s+(.+?)(?:\s+(?:categoria|hoje|ontem)|[,.]|$)/iu', $message, $matches) === 1) {
             $name = trim((string) ($matches[1] ?? ''));
             $name = trim($name, " \t\n\r\0\x0B-:");
+
             return $name !== '' ? mb_convert_case($name, MB_CASE_TITLE, 'UTF-8') : null;
         }
 
@@ -146,6 +161,7 @@ class TransactionActionMessageParser
         if (preg_match('/(?:no cart(?:a|ã)o|pelo cart(?:a|ã)o|via cart(?:a|ã)o)\s+(.+?)(?:\s+(?:categoria|hoje|ontem)|[,.]|$)/iu', $message, $matches) === 1) {
             $name = trim((string) ($matches[1] ?? ''));
             $name = trim($name, " \t\n\r\0\x0B-:");
+
             return $name !== '' ? mb_convert_case($name, MB_CASE_TITLE, 'UTF-8') : null;
         }
 
@@ -177,7 +193,7 @@ class TransactionActionMessageParser
             return 'debit';
         }
 
-        if ($this->containsAny($message, ['credito'])) {
+        if ($this->containsAny($message, ['credito', 'cartao', 'cartão'])) {
             return 'credit';
         }
 

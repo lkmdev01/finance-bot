@@ -74,9 +74,15 @@ class NoteIntentClassifier
             'audio',
             'audios',
             'comprovante',
-            'contrato',
             'pdf',
         ]) && ! $this->containsAnyText($normalizedMessage, ['nota', 'notas'])) {
+            return false;
+        }
+
+        if (! $isNotesContext
+            && $this->containsAnyText($normalizedMessage, ['contrato'])
+            && ! $this->containsAnyText($normalizedMessage, ['nota', 'notas'])
+        ) {
             return false;
         }
 

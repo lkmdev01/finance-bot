@@ -60,6 +60,7 @@ class TransactionConversationService
         };
         $period = $this->resolvePeriod($normalized, $lastEntities);
         $categoryNames = $this->resolveCategories($normalized, $availableCategories, $lastEntities, $mode);
+        $categoryFilter = $this->resolveCategoryFilter($normalized);
         $comparisonMode = $this->resolveComparisonMode($normalized, $categoryNames, $mode);
 
         return [
@@ -68,6 +69,7 @@ class TransactionConversationService
             'type' => $type,
             'period' => $period,
             'category_names' => $categoryNames,
+            'category_filter' => $categoryFilter,
             'comparison_mode' => $comparisonMode,
         ];
     }
@@ -102,6 +104,10 @@ class TransactionConversationService
         $reference = CarbonImmutable::now();
         $scope = 'current_month';
 
+        if ($customRange = $this->extractCustomDateRange($message, $reference)) {
+            return $customRange;
+        }
+
         if ($this->containsAny($message, ['mes passado', 'mês passado', 'ultimo mes', 'último mês'])) {
             $reference = $reference->subMonthNoOverflow();
             $scope = 'previous_month';
@@ -131,12 +137,69 @@ class TransactionConversationService
             'year' => $reference->year,
             'month' => $reference->month,
             'day' => in_array($scope, ['today', 'yesterday'], true) ? $reference->day : null,
+            'start_date' => null,
+            'end_date' => null,
             'label' => match ($scope) {
                 'today' => 'hoje',
                 'yesterday' => 'ontem',
                 default => $reference->locale('pt_BR')->translatedFormat('F/Y'),
             },
         ];
+    }
+
+    private function extractCustomDateRange(string $message, CarbonImmutable $reference): ?array
+    {
+        $patterns = [
+            '/\b(?:de|do|da|entre)\s+(\d{1,2})[\/\-\.](\d{1,2})(?:[\/\-\.](\d{2,4}))?\s+(?:a|ate|até|e)\s+(?:dia\s+)?(\d{1,2})[\/\-\.](\d{1,2})(?:[\/\-\.](\d{2,4}))?\b/u',
+            '/\bdia\s+(\d{1,2})\s+(?:do\s+)?(?:mes|mês)\s+(\d{1,2})(?:\s+(?:de\s+)?(\d{4}))?\s+(?:a|ate|até|e)\s+(?:dia\s+)?(\d{1,2})\s+(?:do\s+)?(?:mes|mês)\s+(\d{1,2})(?:\s+(?:de\s+)?(\d{4}))?\b/u',
+            '/\b(\d{1,2})\s+(?:do\s+)?(?:mes|mês)\s+(\d{1,2})(?:\s+(?:de\s+)?(\d{4}))?\s+(?:a|ate|até|e)\s+(\d{1,2})\s+(?:do\s+)?(?:mes|mês)\s+(\d{1,2})(?:\s+(?:de\s+)?(\d{4}))?\b/u',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $message, $matches) !== 1) {
+                continue;
+            }
+
+            $start = $this->buildDateFromParts($matches[1] ?? null, $matches[2] ?? null, $matches[3] ?? null, $reference);
+            $end = $this->buildDateFromParts($matches[4] ?? null, $matches[5] ?? null, $matches[6] ?? null, $reference);
+
+            if ($start === null || $end === null) {
+                return null;
+            }
+
+            if ($end->lessThan($start)) {
+                $end = $end->addYear();
+            }
+
+            return [
+                'scope' => 'custom_range',
+                'year' => $start->year,
+                'month' => $start->month,
+                'day' => $start->day,
+                'start_date' => $start->toDateString(),
+                'end_date' => $end->toDateString(),
+                'label' => sprintf('%s a %s', $start->format('d/m/Y'), $end->format('d/m/Y')),
+            ];
+        }
+
+        return null;
+    }
+
+    private function buildDateFromParts(mixed $day, mixed $month, mixed $year, CarbonImmutable $reference): ?CarbonImmutable
+    {
+        $day = (int) $day;
+        $month = (int) $month;
+        $year = (string) $year !== '' ? (int) $year : $reference->year;
+
+        if ($year > 0 && $year < 100) {
+            $year += 2000;
+        }
+
+        if (! checkdate($month, $day, $year)) {
+            return null;
+        }
+
+        return CarbonImmutable::create($year, $month, $day)->startOfDay();
     }
 
     private function resolveCategories(string $message, Collection $availableCategories, array $lastEntities, string $mode): array
@@ -162,6 +225,34 @@ class TransactionConversationService
         return [];
     }
 
+    private function resolveCategoryFilter(string $message): ?string
+    {
+        if ($this->containsAny($message, [
+            'sem categoria',
+            'sem categorias',
+            'sem categorizar',
+            'nao categorizado',
+            'nao categorizados',
+            'não categorizado',
+            'não categorizados',
+        ])) {
+            return 'uncategorized';
+        }
+
+        if ($this->containsAny($message, [
+            'com categoria',
+            'com categorias',
+            'categorizado',
+            'categorizados',
+            'organizado',
+            'organizados',
+        ])) {
+            return 'categorized';
+        }
+
+        return null;
+    }
+
     private function resolveComparisonMode(string $message, array $categoryNames, string $mode): ?string
     {
         if ($mode !== 'category') {
@@ -184,7 +275,11 @@ class TransactionConversationService
 
         $period = $context['period'];
 
-        if ($period['scope'] === 'today' || $period['scope'] === 'yesterday') {
+        if ($period['scope'] === 'custom_range' && filled($period['start_date'] ?? null) && filled($period['end_date'] ?? null)) {
+            $query
+                ->whereDate('date', '>=', $period['start_date'])
+                ->whereDate('date', '<=', $period['end_date']);
+        } elseif ($period['scope'] === 'today' || $period['scope'] === 'yesterday') {
             $date = CarbonImmutable::create($period['year'], $period['month'], $period['day']);
             $query->whereDate('date', $date->toDateString());
         } else {
@@ -200,6 +295,12 @@ class TransactionConversationService
             });
         }
 
+        if (($context['category_filter'] ?? null) === 'uncategorized') {
+            $query->whereNull('category_id');
+        } elseif (($context['category_filter'] ?? null) === 'categorized') {
+            $query->whereNotNull('category_id');
+        }
+
         return $query->latest('date')->latest('id')->get();
     }
 
@@ -211,6 +312,14 @@ class TransactionConversationService
             return "Não encontrei {$this->labelForType($context['type'])} em {$category} para {$context['period']['label']}. Se quiser, eu posso comparar outra categoria ou olhar outro período.";
         }
 
+        if (($context['category_filter'] ?? null) === 'uncategorized') {
+            return "Nao encontrei {$this->labelForType($context['type'])} sem categoria para {$context['period']['label']}. Parece que esse periodo ja esta organizado.";
+        }
+
+        if (($context['category_filter'] ?? null) === 'categorized') {
+            return "Nao encontrei {$this->labelForType($context['type'])} com categoria para {$context['period']['label']}. Se quiser, posso listar os sem categoria para voce revisar.";
+        }
+
         return "Não encontrei {$this->labelForType($context['type'])} para {$context['period']['label']}. Se quiser, eu posso filtrar por categoria ou comparar com o mês passado.";
     }
 
@@ -220,6 +329,12 @@ class TransactionConversationService
             'income' => 'Suas receitas',
             'expense' => 'Seus gastos',
             default => 'Suas transações',
+        };
+
+        $title .= match ($context['category_filter'] ?? null) {
+            'uncategorized' => ' sem categoria',
+            'categorized' => ' com categoria',
+            default => '',
         };
 
         $visibleTransactions = $transactions->take(5);
@@ -453,6 +568,9 @@ class TransactionConversationService
             'year' => $context['period']['year'],
             'month' => $context['period']['month'],
             'day' => $context['period']['day'],
+            'start_date' => $context['period']['start_date'] ?? null,
+            'end_date' => $context['period']['end_date'] ?? null,
+            'category_filter' => $context['category_filter'] ?? null,
             'category_name' => count($context['category_names']) === 1 ? $context['category_names'][0] : null,
             'category_names' => count($context['category_names']) > 1 ? $context['category_names'] : null,
             'comparison_mode' => $context['comparison_mode'],

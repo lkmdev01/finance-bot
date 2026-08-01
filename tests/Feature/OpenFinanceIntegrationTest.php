@@ -4,6 +4,8 @@ use App\Models\OpenFinanceConnection;
 use App\Models\User;
 
 it('renderiza a pagina de integracao de open finance para usuario autenticado', function () {
+    config(['openfinance.enabled' => true]);
+
     $user = User::factory()->create();
 
     OpenFinanceConnection::create([

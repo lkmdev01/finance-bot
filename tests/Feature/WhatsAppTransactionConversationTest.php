@@ -353,3 +353,165 @@ it('resume gastos do periodo inteiro e destaca lancamentos sem categoria', funct
         app(\App\Services\PerformanceMetricsService::class)
     );
 });
+
+it('filtra gastos sem categoria quando usuario pede explicitamente', function () {
+    Transaction::create([
+        'user_id' => $this->user->id,
+        'category_id' => null,
+        'type' => 'expense',
+        'amount' => 100.00,
+        'description' => 'Transacao sem categoria',
+        'date' => now()->toDateString(),
+    ]);
+
+    Transaction::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->compras->id,
+        'type' => 'expense',
+        'amount' => 260.00,
+        'description' => 'Compra categorizada',
+        'date' => now()->toDateString(),
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Seus gastos sem categoria')
+                    && str_contains($message, 'R$ 100,00')
+                    && str_contains($message, 'Transacao sem categoria')
+                    && str_contains($message, 'Sem categoria R$ 100,00')
+                    && str_contains($message, route('dashboard'))
+                    && ! str_contains($message, 'Compra categorizada')
+                    && ! str_contains($message, 'R$ 260,00');
+            }))
+            ->andReturn(fakeTransactionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'quais gastos sem categoria esse mes',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
+it('filtra gastos com categoria quando usuario pede explicitamente', function () {
+    Transaction::create([
+        'user_id' => $this->user->id,
+        'category_id' => null,
+        'type' => 'expense',
+        'amount' => 100.00,
+        'description' => 'Transacao sem categoria',
+        'date' => now()->toDateString(),
+    ]);
+
+    Transaction::create([
+        'user_id' => $this->user->id,
+        'category_id' => $this->compras->id,
+        'type' => 'expense',
+        'amount' => 260.00,
+        'description' => 'Compra categorizada',
+        'date' => now()->toDateString(),
+    ]);
+
+    Http::preventStrayRequests();
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Seus gastos com categoria')
+                    && str_contains($message, 'R$ 260,00')
+                    && str_contains($message, 'Compra categorizada')
+                    && str_contains($message, 'Compras R$ 260,00')
+                    && str_contains($message, route('dashboard'))
+                    && ! str_contains($message, 'Transacao sem categoria')
+                    && ! str_contains($message, 'R$ 100,00');
+            }))
+            ->andReturn(fakeTransactionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'quais gastos com categoria esse mes',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
+
+it('consulta gastos por intervalo customizado entre dois meses', function () {
+    \Illuminate\Support\Carbon::setTestNow('2026-08-03 10:00:00');
+
+    try {
+        foreach ([
+            ['2026-07-15', 999.00, 'Fora antes'],
+            ['2026-07-16', 100.00, 'Inicio intervalo'],
+            ['2026-07-31', 79.00, 'Meio intervalo'],
+            ['2026-08-02', 50.00, 'Fim intervalo'],
+            ['2026-08-03', 888.00, 'Fora depois'],
+        ] as [$date, $amount, $description]) {
+            Transaction::create([
+                'user_id' => $this->user->id,
+                'category_id' => $this->compras->id,
+                'type' => 'expense',
+                'amount' => $amount,
+                'description' => $description,
+                'date' => $date,
+            ]);
+        }
+
+        Http::preventStrayRequests();
+
+        $this->mock(BaileysService::class, function ($mock) {
+            $mock->shouldReceive('sendTextMessage')
+                ->once()
+                ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                    return str_contains($message, 'de 16/07/2026 a 02/08/2026')
+                        && str_contains($message, 'R$ 229,00')
+                        && str_contains($message, 'Inicio intervalo')
+                        && str_contains($message, 'Meio intervalo')
+                        && str_contains($message, 'Fim intervalo')
+                        && ! str_contains($message, 'Fora antes')
+                        && ! str_contains($message, 'Fora depois')
+                        && str_contains($message, route('dashboard'));
+                }))
+                ->andReturn(fakeTransactionBaileysSuccessResponse());
+        });
+
+        $job = new ProcessWhatsAppMessage(
+            phoneNumber: '5513991290256',
+            message: 'quais gastos do dia 16 do mes 7 a dia 2 do mes 8',
+            userId: $this->user->id,
+            pushName: 'Test User',
+            remoteJid: '5513991290256@s.whatsapp.net'
+        );
+
+        $job->handle(
+            app(AIService::class),
+            app(BaileysService::class),
+            app(\App\Services\PhoneNumberService::class),
+            app(\App\Services\PerformanceMetricsService::class)
+        );
+    } finally {
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+});
