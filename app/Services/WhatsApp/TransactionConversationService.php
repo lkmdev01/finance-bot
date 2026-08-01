@@ -195,12 +195,12 @@ class TransactionConversationService
             $normalizedTargets = array_map(fn ($name) => $this->normalize($name), $context['category_names']);
             $query->whereHas('category', function ($builder) use ($normalizedTargets) {
                 foreach ($normalizedTargets as $target) {
-                    $builder->orWhereRaw('LOWER(name) LIKE ?', ['%' . $target . '%']);
+                    $builder->orWhereRaw('LOWER(name) LIKE ?', ['%'.$target.'%']);
                 }
             });
         }
 
-        return $query->latest('date')->latest('id')->limit($context['mode'] === 'transactions' ? 10 : 100)->get();
+        return $query->latest('date')->latest('id')->get();
     }
 
     private function buildEmptyReply(array $context): string
@@ -222,7 +222,9 @@ class TransactionConversationService
             default => 'Suas transações',
         };
 
-        $lines = $transactions->take(5)->map(function (Transaction $transaction) {
+        $visibleTransactions = $transactions->take(5);
+
+        $lines = $visibleTransactions->map(function (Transaction $transaction) {
             $date = $transaction->date?->format('d/m') ?? now()->format('d/m');
             $label = trim((string) ($transaction->description ?? ''));
             $labelNormalized = mb_strtolower($label);
@@ -241,13 +243,61 @@ class TransactionConversationService
         $insight = $advisor->transactionSummaryInsight($user, $transactions, $context);
         $reply = "{$title} de {$context['period']['label']}:\n{$lines}\n\nTotal no período: R$ {$total}.";
 
+        if ($transactions->count() > $visibleTransactions->count()) {
+            $reply .= sprintf(
+                ' Mostrei os %d lançamentos mais recentes de %d encontrados.',
+                $visibleTransactions->count(),
+                $transactions->count()
+            );
+        }
+
+        $categorySummary = $this->buildCategorySummaryLine($transactions);
+        if ($categorySummary !== null) {
+            $reply .= "\n\n".$categorySummary;
+        }
+
         if ($insight !== null) {
             $reply .= ' '.$insight;
         }
 
+        $reply .= "\n\nVer tudo no dashboard: ".route('dashboard');
         $reply .= ' Se quiser, eu posso filtrar por categoria, comparar com o mês passado ou te mostrar o que mais pesou.';
 
         return $reply;
+    }
+
+    private function buildCategorySummaryLine(Collection $transactions): ?string
+    {
+        if ($transactions->isEmpty()) {
+            return null;
+        }
+
+        $byCategory = $transactions
+            ->groupBy(fn (Transaction $transaction) => $transaction->category?->name ?? 'Sem categoria')
+            ->map(fn (Collection $items, string $categoryName) => [
+                'name' => $categoryName,
+                'total' => (float) $items->sum('amount'),
+                'count' => $items->count(),
+            ])
+            ->sortByDesc('total')
+            ->values();
+
+        $parts = $byCategory->take(4)->map(function (array $row) {
+            return sprintf('%s R$ %s', $row['name'], $this->formatMoney($row['total']));
+        })->implode('; ');
+
+        $uncategorized = $byCategory->firstWhere('name', 'Sem categoria');
+        $suffix = '';
+
+        if ($uncategorized !== null) {
+            $suffix = sprintf(
+                ' Tenho %d %s sem categoria nesse período; se quiser, posso te ajudar a organizar depois.',
+                $uncategorized['count'],
+                $uncategorized['count'] === 1 ? 'lançamento' : 'lançamentos'
+            );
+        }
+
+        return 'Resumo por categoria: '.$parts.'.'.$suffix;
     }
 
     private function formatSourceSuffix(Transaction $transaction): string

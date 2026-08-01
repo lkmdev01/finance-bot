@@ -108,6 +108,19 @@ class ResponseComposer
             .'Se quiser voltar para exemplos do bot, responda *comandos*.';
     }
 
+    public function composeDashboardLink(User $user): string
+    {
+        $firstName = trim((string) explode(' ', trim($user->name))[0]);
+        $namePart = $firstName !== '' ? " {$firstName}" : '';
+        $dashboardUrl = route('dashboard');
+        $supportUrl = route('support');
+
+        return "Claro{$namePart}. Aqui esta o link do seu painel:\n\n"
+            ."Dashboard: {$dashboardUrl}\n\n"
+            ."Se abrir pelo celular, entre com o mesmo e-mail cadastrado no InovaFinance.\n"
+            ."Se tiver dificuldade para acessar, use o suporte: {$supportUrl}";
+    }
+
     public function composeSmallTalk(User $user): string
     {
         $firstName = trim((string) explode(' ', trim($user->name))[0]);

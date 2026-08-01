@@ -283,3 +283,73 @@ it('traz insight proativo sobre categoria que mais pesou ao consultar gastos', f
         app(\App\Services\PerformanceMetricsService::class)
     );
 });
+
+it('resume gastos do periodo inteiro e destaca lancamentos sem categoria', function () {
+    $marketing = Category::factory()->create([
+        'user_id' => $this->user->id,
+        'type' => 'expense',
+        'name' => 'Marketing',
+    ]);
+
+    foreach ([
+        [null, 100.00, 'Transacao'],
+        [null, 79.00, 'Transacao'],
+        [$this->compras->id, 260.00, 'Internos'],
+        [$marketing->id, 355.00, 'Marketing'],
+        [$this->alimentacao->id, 45.00, 'Almoco'],
+        [$this->alimentacao->id, 25.00, 'Cafe'],
+    ] as [$categoryId, $amount, $description]) {
+        Transaction::create([
+            'user_id' => $this->user->id,
+            'category_id' => $categoryId,
+            'type' => 'expense',
+            'amount' => $amount,
+            'description' => $description,
+            'date' => now()->toDateString(),
+        ]);
+    }
+
+    Http::fake([
+        'api.groq.com/*' => Http::response([
+            'choices' => [[
+                'message' => [
+                    'content' => json_encode([
+                        'reply' => 'Vou listar seus gastos.',
+                        'action' => 'query_transactions',
+                    ]),
+                ],
+            ]],
+        ], 200),
+    ]);
+
+    $this->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Total no')
+                    && str_contains($message, 'R$ 864,00')
+                    && str_contains($message, 'Mostrei os 5')
+                    && str_contains($message, 'Resumo por categoria')
+                    && str_contains($message, 'Sem categoria R$ 179,00')
+                    && str_contains($message, 'sem categoria')
+                    && str_contains($message, 'Ver tudo no dashboard')
+                    && str_contains($message, route('dashboard'));
+            }))
+            ->andReturn(fakeTransactionBaileysSuccessResponse());
+    });
+
+    $job = new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'resumo de gastos',
+        userId: $this->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    );
+
+    $job->handle(
+        app(AIService::class),
+        app(BaileysService::class),
+        app(\App\Services\PhoneNumberService::class),
+        app(\App\Services\PerformanceMetricsService::class)
+    );
+});
