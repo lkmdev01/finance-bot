@@ -893,6 +893,38 @@ it('guia ajuda para comandos ou suporte humano sem prender outras intencoes', fu
         ->and(currentTestCase()->contact->conversation_state['last_entities']['topic'] ?? null)->toBe('support');
 });
 
+it('responde pedido de link do site com dashboard sem cair no fallback', function () {
+    Http::preventStrayRequests();
+
+    currentTestCase()->mock(BaileysService::class, function ($mock) {
+        $mock->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(\Mockery::type('string'), \Mockery::on(function ($message) {
+                return str_contains($message, 'Dashboard:')
+                    && str_contains($message, route('dashboard'))
+                    && ! str_contains($message, 'nao entendi')
+                    && ! str_contains($message, 'não entendi');
+            }))
+            ->andReturn(fakeActionBaileysSuccessResponse());
+    });
+
+    runWhatsAppJob(new ProcessWhatsAppMessage(
+        phoneNumber: '5513991290256',
+        message: 'Me mande o link para o site',
+        userId: currentTestCase()->user->id,
+        pushName: 'Test User',
+        remoteJid: '5513991290256@s.whatsapp.net'
+    ));
+
+    $log = WhatsAppConversationLog::query()
+        ->where('user_id', currentTestCase()->user->id)
+        ->latest('id')
+        ->first();
+
+    expect($log->classification)->toBe('dashboard_link')
+        ->and($log->reply)->toContain(route('dashboard'));
+});
+
 it('cria lembrete mensal quando a mensagem nao informa valor', function () {
     Http::preventStrayRequests();
 

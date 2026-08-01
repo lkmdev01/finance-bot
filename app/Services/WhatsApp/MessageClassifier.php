@@ -27,6 +27,10 @@ class MessageClassifier
             return ['kind' => 'greeting', 'normalized' => $stripped];
         }
 
+        if ($this->isDashboardLinkRequest($stripped)) {
+            return ['kind' => 'dashboard_link', 'normalized' => $stripped];
+        }
+
         if ($this->isSupportRequest($stripped)) {
             return ['kind' => 'help_support', 'normalized' => $stripped];
         }
@@ -120,6 +124,42 @@ class MessageClassifier
             'o que voce pode fazer',
             'o que vc pode fazer',
             'como funciona',
+        ] as $phrase) {
+            if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isDashboardLinkRequest(string $message): bool
+    {
+        foreach ([
+            'me mande o link para o site',
+            'manda o link para o site',
+            'mande o link para o site',
+            'me manda o link do site',
+            'me mande o link do site',
+            'link do site',
+            'link para o site',
+            'qual o site',
+            'qual e o site',
+            'qual é o site',
+            'abrir site',
+            'abrir o site',
+            'acessar site',
+            'acessar o site',
+            'link do dashboard',
+            'link para o dashboard',
+            'link do painel',
+            'link para o painel',
+            'abrir dashboard',
+            'abrir painel',
+            'acessar dashboard',
+            'acessar painel',
+            'entrar no dashboard',
+            'entrar no painel',
         ] as $phrase) {
             if ($message === $phrase || str_starts_with($message, $phrase.' ')) {
                 return true;

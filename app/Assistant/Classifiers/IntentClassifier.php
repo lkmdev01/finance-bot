@@ -5,11 +5,11 @@ namespace App\Assistant\Classifiers;
 use App\Assistant\DTO\AssistantContextDTO;
 use App\Assistant\DTO\ParsedIntentDTO;
 use App\Assistant\Enums\FinancialIntent;
-use App\Services\WhatsApp\IncomingMessageNormalizer;
 use App\Services\WhatsApp\BudgetIntentClassifier;
 use App\Services\WhatsApp\BudgetMessageParser;
 use App\Services\WhatsApp\DriveIntentClassifier;
 use App\Services\WhatsApp\DriveMessageParser;
+use App\Services\WhatsApp\IncomingMessageNormalizer;
 use App\Services\WhatsApp\InstallmentTransactionMessageParser;
 use App\Services\WhatsApp\MessageClassifier;
 use App\Services\WhatsApp\NoteIntentClassifier;
@@ -811,7 +811,7 @@ class IntentClassifier
             'attach_receipt' => FinancialIntent::ATTACH_RECEIPT,
             'drive_save', 'drive_needs_file', 'create_drive_file' => FinancialIntent::CREATE_DRIVE_FILE,
             'query_drive_files', 'drive_query' => FinancialIntent::QUERY_DRIVE_FILES,
-            'help', 'greeting' => FinancialIntent::HELP,
+            'help', 'greeting', 'dashboard_link' => FinancialIntent::HELP,
             default => FinancialIntent::UNKNOWN,
         };
     }
@@ -821,7 +821,7 @@ class IntentClassifier
         return match ($kind) {
             'default', 'acknowledgement' => 0.35,
             'confirmation', 'cancellation' => 0.72,
-            'greeting', 'help' => 0.95,
+            'greeting', 'help', 'dashboard_link' => 0.95,
             'budget_needs_details', 'savings_needs_details', 'subscription_needs_details', 'savings_edit_needs_change', 'subscription_edit_needs_change', 'subscription_edit_needs_target', 'subscription_cancel_needs_target', 'recurring_transaction_edit_needs_change', 'recurring_transaction_edit_needs_target', 'recurring_transaction_delete_needs_target', 'note_edit_needs_target', 'note_edit_needs_content', 'note_delete_needs_target', 'reminder_edit_needs_target', 'reminder_edit_needs_change', 'reminder_delete_needs_target' => 0.83,
             default => 0.9,
         };

@@ -57,6 +57,16 @@ class PreflightMessageResolver
                     'entities' => ['topic' => 'support'],
                 ],
             ],
+            'dashboard_link' => [
+                'handled' => true,
+                'reply' => $this->composer->composeDashboardLink($user),
+                'action' => null,
+                'metadata' => [
+                    'clear_pending' => true,
+                    'reply_kind' => 'message',
+                    'entities' => ['topic' => 'dashboard'],
+                ],
+            ],
             'small_talk' => [
                 'handled' => true,
                 'reply' => $this->composer->composeSmallTalk($user),

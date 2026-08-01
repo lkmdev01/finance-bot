@@ -5,7 +5,6 @@ namespace App\Services\WhatsApp;
 use App\Models\Budget;
 use App\Models\SavingsGoal;
 use App\Models\Subscription;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FinancialDataCalculator;
 use Carbon\CarbonInterface;
@@ -100,6 +99,10 @@ class FinancialConversationAdvisor
 
             $topCategory = $financialData['expenses_by_category_this_month'][0] ?? null;
             if ($topCategory && ! empty($topCategory['category_name'])) {
+                if ($topCategory['category_name'] === 'Sem categoria') {
+                    return 'Boa parte dos gastos ainda esta sem categoria; organizar isso melhora bastante seus proximos resumos.';
+                }
+
                 return sprintf(
                     '%s é a categoria que mais pesou no mês até aqui.',
                     $topCategory['category_name']
