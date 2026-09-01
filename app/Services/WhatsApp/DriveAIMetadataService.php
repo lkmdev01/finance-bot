@@ -134,6 +134,25 @@ class DriveAIMetadataService
                 'response_format' => ['type' => 'json_object'],
             ]);
 
+        if ($this->shouldRetryWithoutJsonMode($response->status(), $response->body())) {
+            Log::warning('Drive AI metadata retry sem JSON mode.', [
+                'provider' => $provider,
+                'model' => $model,
+                'status' => $response->status(),
+                'error' => Str::limit($response->body(), 500, ''),
+            ]);
+
+            $response = Http::withToken($this->apiKey())
+                ->acceptJson()
+                ->timeout(30)
+                ->post($url, [
+                    'model' => $model,
+                    'messages' => $messages,
+                    'temperature' => 0.2,
+                    'max_tokens' => 350,
+                ]);
+        }
+
         if (! $response->successful()) {
             throw new \RuntimeException("{$provider} metadata error: ".$response->body());
         }
@@ -189,6 +208,11 @@ PROMPT;
 
         $payload = json_decode($content, true);
         if (! is_array($payload)) {
+            $json = $this->extractJsonObject($content);
+            $payload = $json !== null ? json_decode($json, true) : null;
+        }
+
+        if (! is_array($payload)) {
             return $this->empty('failed', 'Resposta da IA de metadados nao veio em JSON valido.');
         }
 
@@ -217,6 +241,30 @@ PROMPT;
         $tag = preg_replace('/[^a-z0-9\s]+/u', ' ', $tag) ?? $tag;
 
         return trim(Str::squish($tag));
+    }
+
+    private function shouldRetryWithoutJsonMode(int $status, string $body): bool
+    {
+        return $status === 400
+            && str_contains(Str::lower($body), 'failed to validate json');
+    }
+
+    private function extractJsonObject(string $content): ?string
+    {
+        $content = trim($content);
+
+        if (preg_match('/```(?:json)?\s*(\{.*?\})\s*```/is', $content, $matches)) {
+            return $matches[1];
+        }
+
+        $start = strpos($content, '{');
+        $end = strrpos($content, '}');
+
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+
+        return substr($content, $start, $end - $start + 1);
     }
 
     private function isAvailable(): bool
