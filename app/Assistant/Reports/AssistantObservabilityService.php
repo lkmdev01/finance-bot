@@ -5,6 +5,7 @@ namespace App\Assistant\Reports;
 use App\Models\WhatsAppConversationLog;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class AssistantObservabilityService
 {
@@ -108,9 +109,9 @@ class AssistantObservabilityService
     }
 
     public function previewFixtureItem(
-        int $days = 14,
-        int $sampleSize = 1000,
-        string $focus = 'all',
+        int $days,
+        int $sampleSize,
+        string $focus,
         string $itemKey,
         ?string $outputDirectory = null
     ): ?array {
@@ -142,9 +143,9 @@ class AssistantObservabilityService
     }
 
     public function syncFixtureItem(
-        int $days = 14,
-        int $sampleSize = 1000,
-        string $focus = 'all',
+        int $days,
+        int $sampleSize,
+        string $focus,
         string $itemKey,
         ?string $outputDirectory = null
     ): ?array {
@@ -306,10 +307,10 @@ class AssistantObservabilityService
     {
         $examples = $this->filterActivitiesBySource(
             $this->recentActivities($days)
-            ->where('type', 'fixture_item_approved')
-            ->filter(function (array $activity) use ($domain) {
-                return $domain === null || ($activity['domain'] ?? 'unknown') === $domain;
-            }),
+                ->where('type', 'fixture_item_approved')
+                ->filter(function (array $activity) use ($domain) {
+                    return $domain === null || ($activity['domain'] ?? 'unknown') === $domain;
+                }),
             $source
         )
             ->pluck('suggested_example')
@@ -550,7 +551,7 @@ class AssistantObservabilityService
             })
             ->take(20)
             ->map(fn (WhatsAppConversationLog $log) => [
-                'message' => $log->message,
+                'message' => $this->displayMessage($log->message),
                 'assistant_intent' => $this->assistantIntent($log),
                 'status' => $log->status,
                 'action' => $log->action,
@@ -566,6 +567,7 @@ class AssistantObservabilityService
     {
         return $logs
             ->filter(fn (WhatsAppConversationLog $log) => $this->assistantIntent($log) === 'unknown')
+            ->filter(fn (WhatsAppConversationLog $log) => $this->isActionableRegressionMessage($log->message))
             ->groupBy('message')
             ->map(fn (Collection $group, string $message) => [
                 'message' => $message,
@@ -584,6 +586,7 @@ class AssistantObservabilityService
 
         $unknowns = $logs
             ->filter(fn (WhatsAppConversationLog $log) => $this->assistantIntent($log) === 'unknown')
+            ->filter(fn (WhatsAppConversationLog $log) => $this->isActionableRegressionMessage($log->message))
             ->groupBy('message')
             ->map(function (Collection $group, string $message) {
                 return [
@@ -614,6 +617,7 @@ class AssistantObservabilityService
             ->groupBy(fn (WhatsAppConversationLog $log) => $this->assistantIntent($log))
             ->flatMap(function (Collection $intentLogs, string $intent) {
                 return $intentLogs
+                    ->filter(fn (WhatsAppConversationLog $log) => $this->isActionableRegressionMessage($log->message))
                     ->flatMap(function (WhatsAppConversationLog $log) use ($intent) {
                         $fields = data_get($log->metadata, 'assistant_missing_fields', []);
                         if (! is_array($fields) || $fields === []) {
@@ -811,6 +815,49 @@ class AssistantObservabilityService
     private function renderFixtureContent(array $items): string
     {
         return "<?php\n\nreturn ".var_export(array_values($items), true).";\n";
+    }
+
+    private function displayMessage(?string $message): string
+    {
+        $message = trim((string) $message);
+
+        return $this->looksLikeReadableUserText($message)
+            ? Str::limit($message, 500, '')
+            : '[mensagem sem texto legivel]';
+    }
+
+    private function isActionableRegressionMessage(?string $message): bool
+    {
+        $message = trim((string) $message);
+
+        if (! $this->looksLikeReadableUserText($message)) {
+            return false;
+        }
+
+        return ! preg_match('/^senha\s*:\s*\d{4,8}$/i', $message);
+    }
+
+    private function looksLikeReadableUserText(string $message): bool
+    {
+        if ($message === '' || mb_strlen($message) > 1000) {
+            return false;
+        }
+
+        if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $message)) {
+            return false;
+        }
+
+        $length = mb_strlen($message);
+        if ($length === 0) {
+            return false;
+        }
+
+        $readableCharacters = preg_match_all('/[\pL\pN\s.,!?;:\/@#%$()\-_\+]/u', $message, $matches);
+        if ($readableCharacters === false) {
+            return false;
+        }
+
+        return ($readableCharacters / max(1, $length)) >= 0.7;
     }
 
     private function activityLogPath(): string

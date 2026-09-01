@@ -78,6 +78,36 @@ it('aggregates assistant observability by intent', function () {
         ->and($byDomain)->toHaveKey('notes');
 });
 
+it('ignora mensagens sem texto legivel e codigos de senha no backlog de regressao', function () {
+    $user = User::factory()->create();
+
+    foreach (["\x00\x01\x02arquivo-binario", 'Senha: 1961', 'Podemos montar um orçamento para o mes de setembro'] as $message) {
+        WhatsAppConversationLog::query()->create([
+            'user_id' => $user->id,
+            'message' => $message,
+            'classification' => 'default',
+            'action' => null,
+            'used_ai' => true,
+            'status' => 'error',
+            'reply' => 'erro',
+            'error_message' => 'falhou',
+            'metadata' => [
+                'assistant_intent' => 'unknown',
+                'assistant_confidence' => 0.2,
+                'assistant_missing_fields' => [],
+            ],
+        ]);
+    }
+
+    $messages = collect(app(AssistantObservabilityService::class)->summary(14, 100)['regression_backlog'])
+        ->pluck('message')
+        ->all();
+
+    expect($messages)->toContain('Podemos montar um orçamento para o mes de setembro')
+        ->and($messages)->not->toContain('Senha: 1961')
+        ->and(implode(' ', $messages))->not->toContain('arquivo-binario');
+});
+
 it('renders the assistant observability page for authenticated users', function () {
     $user = User::factory()->create();
     $this->actingAs($user);

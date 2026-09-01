@@ -8,8 +8,8 @@ beforeEach(function () {
     config()->set('ai.api_key', 'test-groq-key');
     config()->set('ai.drive_metadata.provider', 'groq');
     config()->set('ai.drive_metadata.api_key', 'test-groq-key');
-    config()->set('ai.drive_metadata.vision_model', 'meta-llama/llama-4-scout-17b-16e-instruct');
-    config()->set('ai.drive_metadata.metadata_model', 'llama-3.1-8b-instant');
+    config()->set('ai.drive_metadata.vision_model', 'qwen/qwen3.6-27b');
+    config()->set('ai.drive_metadata.metadata_model', 'openai/gpt-oss-20b');
 });
 
 it('gera metadados humanos para imagens usando visao com groq', function () {
@@ -57,8 +57,63 @@ it('gera metadados humanos para imagens usando visao com groq', function () {
         $image = $content[1]['image_url']['url'] ?? '';
 
         return $request->url() === 'https://api.groq.com/openai/v1/chat/completions'
-            && $payload['model'] === 'meta-llama/llama-4-scout-17b-16e-instruct'
+            && $payload['model'] === 'qwen/qwen3.6-27b'
             && str_starts_with($image, 'data:image/png;base64,');
+    });
+});
+
+it('migra modelos groq antigos para modelos ativos antes da chamada', function () {
+    config()->set('ai.drive_metadata.vision_model', 'meta-llama/llama-4-scout-17b-16e-instruct');
+    config()->set('ai.drive_metadata.metadata_model', 'llama-3.1-8b-instant');
+
+    Http::fake([
+        'api.groq.com/openai/v1/chat/completions' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => json_encode([
+                            'description' => 'Foto de teste.',
+                            'tags' => ['foto'],
+                        ]),
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $path = tempnam(sys_get_temp_dir(), 'drive-ai-image-');
+    file_put_contents($path, 'fake-image-binary');
+
+    try {
+        app(DriveAIMetadataService::class)->analyze(
+            kind: 'image',
+            localPath: $path,
+            mimeType: 'image/jpeg',
+            fileName: 'imagem.jpg',
+            folderName: 'Fotos',
+            extractedText: null,
+            labels: [],
+        );
+    } finally {
+        @unlink($path);
+    }
+
+    Http::assertSent(function ($request) {
+        return $request->data()['model'] === 'qwen/qwen3.6-27b';
+    });
+
+    app(DriveAIMetadataService::class)->analyze(
+        kind: 'document',
+        localPath: null,
+        mimeType: 'application/pdf',
+        fileName: 'arquivo.pdf',
+        folderName: 'Documentos',
+        extractedText: 'conteudo',
+        labels: [],
+    );
+
+    Http::assertSent(function ($request) {
+        return $request->data()['model'] === 'openai/gpt-oss-20b';
     });
 });
 
