@@ -38,7 +38,7 @@ class AIService
         $parsedResponse = $this->responseParser->parse($response);
 
         // Fallback se o parser falhar
-        if (!isset($parsedResponse['reply'])) {
+        if (! isset($parsedResponse['reply'])) {
             Log::warning('AI response parser failed to extract reply', [
                 'raw_response' => substr($response, 0, 500),
                 'parsed' => $parsedResponse,
@@ -178,7 +178,7 @@ class AIService
      */
     private function callGroq(string $prompt): string
     {
-        $model = config('ai.groq.model');
+        $model = $this->resolveGroqModel((string) config('ai.groq.model'));
         $maxRetries = 5;
         $retryDelay = 2; // base em segundos
 
@@ -201,27 +201,38 @@ class AIService
 
             if ($response->successful()) {
                 $data = $response->json();
+
                 return $data['choices'][0]['message']['content'] ?? '';
             }
 
             // Se for rate limit (429), aguarda com backoff exponencial
             if ($response->status() === 429 && $i < $maxRetries - 1) {
                 $wait = $retryDelay * pow(2, $i);
-                Log::warning("Groq Rate Limit atingido. Tentativa ".($i+1)."/$maxRetries. Aguardando {$wait}s...");
+                Log::warning('Groq Rate Limit atingido. Tentativa '.($i + 1)."/$maxRetries. Aguardando {$wait}s...");
                 sleep($wait);
+
                 continue;
             }
 
             Log::error('Erro ao chamar Groq API', [
                 'status' => $response->status(),
                 'body' => $response->body(),
-                'attempt' => $i + 1
+                'attempt' => $i + 1,
             ]);
 
             throw new \RuntimeException('Erro ao chamar Groq API: '.$response->body());
         }
 
-        throw new \RuntimeException('Erro ao chamar Groq API após ' . $maxRetries . ' tentativas');
+        throw new \RuntimeException('Erro ao chamar Groq API após '.$maxRetries.' tentativas');
+    }
+
+    private function resolveGroqModel(string $model): string
+    {
+        return match ($model) {
+            'llama-3.1-8b-instant' => 'openai/gpt-oss-20b',
+            'llama-3.3-70b-versatile' => 'openai/gpt-oss-120b',
+            default => $model,
+        };
     }
 
     /**

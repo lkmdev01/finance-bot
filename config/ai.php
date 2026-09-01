@@ -8,7 +8,7 @@ return [
         'model' => env('OLLAMA_MODEL', 'llama3.2'),
     ],
     'groq' => [
-        'model' => env('GROQ_MODEL', 'llama-3.1-8b-instant'),
+        'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
     ],
     'openai' => [
         'model' => env('OPENAI_MODEL', 'gpt-3.5-turbo'),
@@ -16,7 +16,7 @@ return [
     'drive_metadata' => [
         'provider' => env('DRIVE_AI_PROVIDER', 'none'),
         'api_key' => env('DRIVE_AI_API_KEY', env('AI_API_KEY')),
-        'vision_model' => env('DRIVE_AI_VISION_MODEL', 'meta-llama/llama-4-scout-17b-16e-instruct'),
-        'metadata_model' => env('DRIVE_AI_METADATA_MODEL', env('GROQ_MODEL', 'llama-3.1-8b-instant')),
+        'vision_model' => env('DRIVE_AI_VISION_MODEL', 'qwen/qwen3.6-27b'),
+        'metadata_model' => env('DRIVE_AI_METADATA_MODEL', env('GROQ_MODEL', 'openai/gpt-oss-20b')),
     ],
 ];

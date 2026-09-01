@@ -219,9 +219,21 @@
             <div
                 x-data="{
                     notifications: [],
+                    notificationIcon(type) {
+                        return {
+                            success: '✓',
+                            error: '×',
+                            warning: '!',
+                            info: 'i',
+                        }[type] || 'i';
+                    },
                     addNotification(message, type = 'success') {
                         const id = Date.now();
-                        this.notifications.push({ id, message, type });
+                        this.notifications.push({
+                            id,
+                            message: String(message || ''),
+                            type: ['success', 'error', 'warning', 'info'].includes(type) ? type : 'info',
+                        });
                         setTimeout(() => this.removeNotification(id), 5000);
                     },
                     removeNotification(id) {
@@ -230,10 +242,11 @@
                 }"
                 x-init="
                     Livewire.on('toast', (data) => {
-                        addNotification(data.message, data.type || 'success');
+                        const payload = Array.isArray(data) ? (data[0] || {}) : (data || {});
+                        addNotification(payload.message, payload.type || 'success');
                     });
                     @if(session('message'))
-                        addNotification('{{ session('message') }}', 'success');
+                        addNotification(@js(session('message')), 'success');
                     @endif
                 "
                 class="fixed top-4 right-4 z-50 space-y-2"
@@ -273,10 +286,7 @@
                                     'text-blue-600 dark:text-blue-400': notification.type === 'info'
                                 }"
                             >
-                                <template x-if="notification.type === 'success'">&#10003;</template>
-                                <template x-if="notification.type === 'error'">&#10005;</template>
-                                <template x-if="notification.type === 'warning'">&#9888;</template>
-                                <template x-if="notification.type === 'info'">&#8505;</template>
+                                <span x-text="notificationIcon(notification.type)"></span>
                             </span>
                         </div>
                         <p class="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-100" x-text="notification.message"></p>

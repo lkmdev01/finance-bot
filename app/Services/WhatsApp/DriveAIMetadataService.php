@@ -60,7 +60,7 @@ class DriveAIMetadataService
         $mimeType = $mimeType ?: 'image/jpeg';
         $dataUrl = 'data:'.$mimeType.';base64,'.base64_encode($binary);
 
-        $response = $this->postChatCompletion((string) config('ai.drive_metadata.vision_model'), [
+        $response = $this->postChatCompletion($this->resolveProviderModel((string) config('ai.drive_metadata.vision_model')), [
             [
                 'role' => 'system',
                 'content' => $this->systemPrompt(),
@@ -97,7 +97,7 @@ class DriveAIMetadataService
             return $this->empty('unavailable');
         }
 
-        $response = $this->postChatCompletion((string) config('ai.drive_metadata.metadata_model'), [
+        $response = $this->postChatCompletion($this->resolveProviderModel((string) config('ai.drive_metadata.metadata_model')), [
             [
                 'role' => 'system',
                 'content' => $this->systemPrompt(),
@@ -233,6 +233,20 @@ PROMPT;
     private function sourceName(string $kind): string
     {
         return ((string) config('ai.drive_metadata.provider')).'_'.$kind;
+    }
+
+    private function resolveProviderModel(string $model): string
+    {
+        if ((string) config('ai.drive_metadata.provider') !== 'groq') {
+            return $model;
+        }
+
+        return match ($model) {
+            'llama-3.1-8b-instant' => 'openai/gpt-oss-20b',
+            'llama-3.3-70b-versatile' => 'openai/gpt-oss-120b',
+            'meta-llama/llama-4-scout-17b-16e-instruct' => 'qwen/qwen3.6-27b',
+            default => $model,
+        };
     }
 
     /**
