@@ -50,7 +50,7 @@ class AISmokeCommand extends Command
         }
 
         $checks = [
-            ['principal', $mainProvider, $mainModel, $mainKey, false],
+            ['principal', $mainProvider, $mainModel, $mainKey, false, false],
         ];
 
         if ($this->option('drive')) {
@@ -62,6 +62,7 @@ class AISmokeCommand extends Command
                 $this->effectiveModel($driveProvider, (string) config('ai.drive_metadata.metadata_model')),
                 $driveKey,
                 false,
+                true,
             ];
             $checks[] = [
                 'drive_vision',
@@ -69,12 +70,13 @@ class AISmokeCommand extends Command
                 $this->effectiveModel($driveProvider, (string) config('ai.drive_metadata.vision_model')),
                 $driveKey,
                 true,
+                true,
             ];
         }
 
         $failed = false;
 
-        foreach ($checks as [$label, $provider, $model, $key, $vision]) {
+        foreach ($checks as [$label, $provider, $model, $key, $vision, $jsonMode]) {
             if (! in_array($provider, ['groq', 'openai'], true)) {
                 $this->warn("[SKIP] {$label}: provider {$provider} nao usa smoke HTTP.");
 
@@ -88,7 +90,7 @@ class AISmokeCommand extends Command
                 continue;
             }
 
-            $ok = $this->callChatCompletion($label, $provider, $model, $key, $vision);
+            $ok = $this->callChatCompletion($label, $provider, $model, $key, $vision, $jsonMode);
             $failed = $failed || ! $ok;
         }
 
@@ -106,7 +108,7 @@ class AISmokeCommand extends Command
         ));
     }
 
-    private function callChatCompletion(string $label, string $provider, string $model, string $key, bool $vision): bool
+    private function callChatCompletion(string $label, string $provider, string $model, string $key, bool $vision, bool $jsonMode): bool
     {
         $url = match ($provider) {
             'groq' => 'https://api.groq.com/openai/v1/chat/completions',
@@ -115,26 +117,48 @@ class AISmokeCommand extends Command
 
         $content = $vision
             ? [
-                ['type' => 'text', 'text' => 'Responda apenas JSON: {"ok":true,"kind":"vision"}'],
-                ['type' => 'image_url', 'image_url' => ['url' => $this->tinyPngDataUrl()]],
+                ['type' => 'text', 'text' => 'Descreva a imagem em JSON valido no formato {"ok":true,"kind":"vision","description":"..."}'],
+                ['type' => 'image_url', 'image_url' => ['url' => 'https://upload.wikimedia.org/wikipedia/commons/d/da/SF_From_Marin_Highlands3.jpg']],
             ]
-            : 'Responda apenas JSON: {"ok":true,"kind":"text"}';
+            : ($jsonMode
+                ? 'Responda somente com este JSON valido, sem markdown: {"ok":true,"kind":"text"}'
+                : 'Responda apenas: ok');
+
+        $payload = [
+            'model' => $model,
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $content,
+                ],
+            ],
+            'temperature' => 0,
+            'max_tokens' => 80,
+        ];
+
+        if ($jsonMode) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
 
         $response = Http::withToken($key)
             ->acceptJson()
             ->timeout(30)
-            ->post($url, [
-                'model' => $model,
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => $content,
-                    ],
-                ],
-                'temperature' => 0,
-                'max_tokens' => 80,
-                'response_format' => ['type' => 'json_object'],
-            ]);
+            ->post($url, $payload);
+
+        if ($jsonMode && $this->shouldRetryWithoutJsonMode($response->status(), $response->body())) {
+            unset($payload['response_format']);
+
+            $response = Http::withToken($key)
+                ->acceptJson()
+                ->timeout(30)
+                ->post($url, $payload);
+
+            if ($response->successful()) {
+                $this->warn("[WARN] {$label}: JSON mode falhou, mas retry simples passou.");
+
+                return true;
+            }
+        }
 
         if ($response->successful()) {
             $this->info("[OK] {$label}: chamada aceita.");
@@ -167,8 +191,9 @@ class AISmokeCommand extends Command
         };
     }
 
-    private function tinyPngDataUrl(): string
+    private function shouldRetryWithoutJsonMode(int $status, string $body): bool
     {
-        return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+        return $status === 400
+            && str_contains(Str::lower($body), 'failed to validate json');
     }
 }

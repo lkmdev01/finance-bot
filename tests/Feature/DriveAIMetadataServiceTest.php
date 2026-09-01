@@ -117,6 +117,44 @@ it('migra modelos groq antigos para modelos ativos antes da chamada', function (
     });
 });
 
+it('tenta novamente sem json mode quando groq recusa response_format', function () {
+    Http::fake([
+        'api.groq.com/openai/v1/chat/completions' => Http::sequence()
+            ->push([
+                'error' => [
+                    'message' => 'Failed to validate JSON. Please adjust your prompt.',
+                ],
+            ], 400)
+            ->push([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => '```json
+{"description":"Documento MEI encontrado.","tags":["mei","das","comprovante"]}
+```',
+                        ],
+                    ],
+                ],
+            ], 200),
+    ]);
+
+    $metadata = app(DriveAIMetadataService::class)->analyze(
+        kind: 'document',
+        localPath: null,
+        mimeType: 'application/pdf',
+        fileName: 'DAS.pdf',
+        folderName: 'MEI',
+        extractedText: 'Documento de arrecadacao do simples nacional MEI',
+        labels: [],
+    );
+
+    expect($metadata['status'])->toBe('completed')
+        ->and($metadata['description'])->toBe('Documento MEI encontrado.')
+        ->and($metadata['tags'])->toContain('mei', 'das', 'comprovante');
+
+    Http::assertSentCount(2);
+});
+
 it('gera metadados humanos para audios usando transcricao com groq', function () {
     Http::fake([
         'api.groq.com/openai/v1/chat/completions' => Http::response([
