@@ -178,7 +178,7 @@ new class extends Component {
     </div>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-[#07111f]">
+        <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-space-900">
             <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/12 blur-2xl"></div>
             <p class="text-sm font-semibold text-zinc-500 dark:text-zinc-400">Total de Receitas</p>
             <p class="mt-3 text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
@@ -187,7 +187,7 @@ new class extends Component {
             <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{{ $incomeByCategory->count() }} categoria(s)</p>
         </div>
 
-        <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-[#07111f]">
+        <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-space-900">
             <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-rose-500/12 blur-2xl"></div>
             <p class="text-sm font-semibold text-zinc-500 dark:text-zinc-400">Total de Despesas</p>
             <p class="mt-3 text-3xl font-black tracking-tight text-red-600 dark:text-red-400">
@@ -196,7 +196,7 @@ new class extends Component {
             <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{{ $expensesByCategory->count() }} categoria(s)</p>
         </div>
 
-        <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-[#07111f]">
+        <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-space-900">
             <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-sky-500/12 blur-2xl"></div>
             <p class="text-sm font-semibold text-zinc-500 dark:text-zinc-400">Saldo do Período</p>
             <p class="mt-3 text-3xl font-black tracking-tight {{ $balance >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-rose-600 dark:text-rose-300' }}">
@@ -205,7 +205,7 @@ new class extends Component {
             <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{{ $transactionCount }} transação(ões)</p>
         </div>
 
-        <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-[#07111f]">
+        <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-space-900">
             <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-violet-500/12 blur-2xl"></div>
             <p class="text-sm font-semibold text-zinc-500 dark:text-zinc-400">Saldo Disponível</p>
             <p class="mt-3 text-3xl font-black tracking-tight {{ $availableBalance >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300' }}">
@@ -217,7 +217,7 @@ new class extends Component {
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
         @if($expensesByCategory->isNotEmpty())
-            <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#07111f]">
+            <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-space-900">
                 <h2 class="text-lg font-black text-zinc-900 dark:text-white">Despesas por Categoria</h2>
                 <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Onde o período selecionado concentrou mais saída de caixa.</p>
 
@@ -244,7 +244,7 @@ new class extends Component {
         @endif
 
         @if($incomeByCategory->isNotEmpty())
-            <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#07111f]">
+            <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-space-900">
                 <h2 class="text-lg font-black text-zinc-900 dark:text-white">Receitas por Categoria</h2>
                 <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Principais fontes de entrada dentro do período analisado.</p>
 
@@ -271,7 +271,7 @@ new class extends Component {
         @endif
     </div>
 
-    <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#07111f]">
+    <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-space-900">
         <div class="mb-5">
             <h2 class="text-lg font-black text-zinc-900 dark:text-white">Todas as Transações</h2>
             <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Lista completa usada para compor o relatório atual.</p>

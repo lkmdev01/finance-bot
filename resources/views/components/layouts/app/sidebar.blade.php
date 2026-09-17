@@ -2,13 +2,11 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
+        <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650;9..144,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     </head>
-    <body class="min-h-screen bg-space-950 text-slate-100 antialiased overflow-x-clip pt-0">
+    <body class="app-brand min-h-screen bg-space-950 text-slate-100 antialiased overflow-x-clip pt-0">
         {{-- Background Effects --}}
-        <div class="fixed inset-0 z-0 pointer-events-none">
-            <div class="absolute top-[-10%] left-[-10%] w-[100%] h-[100%] blur-gradient opacity-40"></div>
-            <div class="absolute bottom-[-10%] right-[-10%] w-[100%] h-[100%] blur-gradient opacity-30"></div>
-        </div>
+        <div class="app-atmosphere fixed inset-0 z-0 pointer-events-none" aria-hidden="true"></div>
 
         <flux:sidebar sticky collapsible data-app-sidebar class="sticky top-0 z-50 border-e border-white/5 bg-black/40 backdrop-blur-xl overflow-x-hidden">
             <flux:sidebar.header class="relative py-6 border-b border-white/5 mb-4 px-4 flex items-center justify-between min-h-[80px] transition-all duration-300 overflow-hidden">

@@ -13,7 +13,7 @@ class AIContextBuilder
     ) {}
 
     /**
-     * Constrói o contexto completo para a IA
+     * ConstrÃ³i o contexto completo para a IA
      */
     public function build(User $user, ?WhatsAppContact $contact): array
     {

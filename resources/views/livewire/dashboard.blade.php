@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -1368,7 +1368,7 @@ new class extends Component
 
         <!-- Contas e Cartoes -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                 <div class="flex items-center justify-between mb-5">
                     <div>
                         <h2 class="text-lg font-bold">Contas</h2>
@@ -1421,7 +1421,7 @@ new class extends Component
                 @endif
             </div>
 
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                 <div class="flex items-center justify-between mb-5">
                     <div>
                         <h2 class="text-lg font-bold">Cartoes</h2>
@@ -1486,7 +1486,7 @@ new class extends Component
 
         <!-- Proximos vencimentos e insights -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                 <div class="flex items-center justify-between mb-5">
                     <div>
                         <h2 class="text-lg font-bold">Proximos vencimentos</h2>
@@ -1556,7 +1556,7 @@ new class extends Component
                 @endif
             </div>
 
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                 <div class="flex items-center justify-between mb-5">
                     <div>
                         <h2 class="text-lg font-bold">Insights</h2>
@@ -1593,7 +1593,7 @@ new class extends Component
             </div>
 
             @if($canViewAssistantOperations)
-                <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+                <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                     <div class="flex items-center justify-between mb-5">
                         <div>
                             <h2 class="text-lg font-bold">Tendencia semanal do assistente</h2>
@@ -1716,7 +1716,7 @@ new class extends Component
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Despesas por Categoria -->
             <!-- Despesas por Categoria -->
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-lg font-bold">Despesas por categoria</h2>
                     <flux:button variant="ghost" size="sm" icon="plus" />
@@ -1790,7 +1790,7 @@ new class extends Component
                                                 }
                                             }
                                         },
-                                        stroke: { width: isDark ? 2 : 2, colors: [isDark ? '#07111f' : '#ffffff'] },
+                                        stroke: { width: isDark ? 2 : 2, colors: [isDark ? '#10231a' : '#ffffff'] },
                                         legend: { show: false },
                                         tooltip: {
                                             theme: isDark ? 'dark' : 'light',
@@ -1849,7 +1849,7 @@ new class extends Component
             </div>
 
             <!-- Transações Recentes -->
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-lg font-bold">Transações Recentes</h2>
                     <flux:button href="{{ route('transactions.index') }}" wire:navigate variant="ghost" size="sm">
@@ -1858,7 +1858,7 @@ new class extends Component
                 </div>
                 
                 <div class="space-y-2 max-h-96 overflow-y-auto pr-2 relative">
-                    <div wire:loading.class="absolute inset-0 z-10 bg-white/50 dark:bg-[#07111f]/50 backdrop-blur-sm flex items-center justify-center rounded-lg" style="display: none;"></div>
+                    <div wire:loading.class="absolute inset-0 z-10 bg-white/50 dark:bg-space-900/50 backdrop-blur-sm flex items-center justify-center rounded-lg" style="display: none;"></div>
                     @forelse($this->getRecentTransactions() as $transaction)
                         <div class="group flex items-center justify-between p-3 rounded-2xl hover:bg-zinc-50 dark:hover:bg-white/[0.02] transition duration-200 cursor-pointer">
                             <div class="flex items-center gap-4">
@@ -1906,7 +1906,7 @@ new class extends Component
 
         <!-- Gráfico de evolução -->
         @if($period === 'monthly')
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-6">
                     <h2 class="text-base sm:text-lg font-bold">Evolução Diária</h2>
                     <div class="flex flex-wrap items-center gap-3 sm:gap-4">
@@ -2011,7 +2011,7 @@ new class extends Component
 
         <!-- Gráfico de evolução mensal -->
         @if($period === 'monthly')
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-6">
                     <h2 class="text-base sm:text-lg font-bold">Evolução Mensal (Últimos 12 meses)</h2>
                     <div class="flex flex-wrap items-center gap-3 sm:gap-4">
@@ -2113,7 +2113,7 @@ new class extends Component
 
         <!-- Gráfico de evolução anual -->
         @if($period === 'yearly')
-            <div class="bg-white dark:bg-[#07111f] rounded-2xl border border-zinc-200 dark:border-white/10 p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div class="bg-white dark:bg-space-900 rounded-2xl border border-zinc-200 dark:border-white/10 p-4 sm:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-6">
                     <h2 class="text-base sm:text-lg font-bold">Evolução Anual (Últimos 5 anos)</h2>
                     <div class="flex flex-wrap items-center gap-3 sm:gap-4">

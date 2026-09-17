@@ -131,7 +131,7 @@ new class extends Component
     </div>
 
     @if($projections->count() > 0)
-        <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-[#07111f] sm:p-6">
+        <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-space-900 sm:p-6">
             <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                     <h2 class="text-lg font-black text-zinc-900 dark:text-white">Evolução projetada do saldo</h2>
@@ -256,7 +256,7 @@ new class extends Component
             </div>
         </div>
 
-        <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-[#07111f]">
+        <div class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-white/10 dark:bg-space-900">
             <div class="mb-5 flex items-center justify-between">
                 <div>
                     <h2 class="text-lg font-black text-zinc-900 dark:text-white">Detalhes das projeções</h2>
@@ -296,7 +296,7 @@ new class extends Component
             </div>
         </div>
     @else
-        <div class="rounded-2xl border border-zinc-200 bg-white p-12 text-center shadow-sm dark:border-white/10 dark:bg-[#07111f]">
+        <div class="rounded-2xl border border-zinc-200 bg-white p-12 text-center shadow-sm dark:border-white/10 dark:bg-space-900">
             <p class="mb-4 text-zinc-500 dark:text-zinc-400">Nenhuma projeção disponível. Clique em "Atualizar projeções" para gerar.</p>
             <flux:button wire:click="generateProjections" variant="primary">
                 Gerar projeções

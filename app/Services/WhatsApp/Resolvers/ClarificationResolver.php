@@ -915,7 +915,7 @@ class ClarificationResolver
             }
         }
 
-        // Use the same normalization layer as the rest of the bot so mojibake (e.g. "cartÃ£o")
+        // Use the same normalization layer as the rest of the bot so mojibake (e.g. "cartão")
         // does not break the extraction.
         $cleaned = app(\App\Services\WhatsApp\IncomingMessageNormalizer::class)->clean($message);
         $cleaned = preg_replace('/\b(?:no|na|pelo|pela|via|com|cartao|cartão|de|do|da|credito|crédito|debito|débito)\b/iu', ' ', $cleaned) ?? $cleaned;

@@ -10,7 +10,7 @@ new class extends Component {
         $card = Auth::user()->creditCards()->findOrFail($cardId);
         $card->delete();
 
-        session()->flash('message', 'CartÃ£o excluÃ­do com sucesso.');
+        session()->flash('message', 'Cartão excluído com sucesso.');
     }
 
     public function toggleActive(int $cardId): void
@@ -18,7 +18,7 @@ new class extends Component {
         $card = Auth::user()->creditCards()->findOrFail($cardId);
         $card->update(['is_active' => ! $card->is_active]);
 
-        session()->flash('message', 'Status do cartÃ£o atualizado com sucesso.');
+        session()->flash('message', 'Status do cartão atualizado com sucesso.');
     }
 
     public function with(): array
@@ -48,7 +48,7 @@ new class extends Component {
     public function nextDueDateLabel($card): string
     {
         if (empty($card->due_day)) {
-            return 'NÃ£o definido';
+            return 'Não definido';
         }
 
         $today = CarbonImmutable::now();
@@ -63,7 +63,7 @@ new class extends Component {
         }
 
         $days = $today->startOfDay()->diffInDays($due, false);
-        $suffix = $days === 0 ? ' (hoje)' : ($days === 1 ? ' (amanhÃ£)' : " (em {$days} dias)");
+        $suffix = $days === 0 ? ' (hoje)' : ($days === 1 ? ' (amanhã)' : " (em {$days} dias)");
 
         return $due->format('d/m/Y') . $suffix;
     }
@@ -72,7 +72,7 @@ new class extends Component {
 <div class="space-y-6 p-4 sm:p-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl font-bold">CartÃµes de CrÃ©dito</h1>
+            <h1 class="text-2xl font-bold">Cartões de Crédito</h1>
             <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1">Acompanhe limite, vencimento e uso da fatura.</p>
         </div>
         <div class="flex flex-wrap gap-2 sm:justify-end">
@@ -82,7 +82,7 @@ new class extends Component {
                 </flux:button>
             @endif
             <flux:button href="{{ route('credit-cards.create') }}" wire:navigate variant="primary" class="w-full sm:w-auto">
-                Novo CartÃ£o
+                Novo Cartão
             </flux:button>
         </div>
     </div>
@@ -116,7 +116,7 @@ new class extends Component {
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
                                 <p class="text-xs text-zinc-500">Emissor</p>
-                                <p class="font-medium">{{ $card->issuer ?: 'NÃ£o informado' }}</p>
+                                <p class="font-medium">{{ $card->issuer ?: 'Não informado' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-zinc-500">Limite</p>
@@ -150,14 +150,14 @@ new class extends Component {
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
                             <div>
                                 <p class="text-xs text-zinc-500">Fechamento</p>
-                                <p class="font-medium">{{ $card->closing_day ?: 'NÃ£o definido' }}</p>
+                                <p class="font-medium">{{ $card->closing_day ?: 'Não definido' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-zinc-500">Vencimento</p>
                                 <p class="font-medium">{{ $this->nextDueDateLabel($card) }}</p>
                             </div>
                             <div>
-                                <p class="text-xs text-zinc-500">TransaÃ§Ãµes vinculadas</p>
+                                <p class="text-xs text-zinc-500">Transações vinculadas</p>
                                 <p class="font-medium">{{ $card->transactions->count() }}</p>
                             </div>
                             <div>
@@ -191,15 +191,15 @@ new class extends Component {
                     <div class="flex flex-wrap items-center gap-2 sm:justify-end">
                         <flux:button wire:click="toggleActive({{ $card->id }})" variant="ghost" size="sm" icon="{{ $card->is_active ? 'pause' : 'play' }}" />
                         <flux:button href="{{ route('credit-cards.edit', $card) }}" wire:navigate variant="ghost" size="sm" icon="pencil" />
-                        <flux:button wire:click="delete({{ $card->id }})" wire:confirm="Deseja excluir este cartÃ£o?" variant="ghost" size="sm" icon="trash" class="text-red-600 hover:text-red-700 dark:text-red-400" />
+                        <flux:button wire:click="delete({{ $card->id }})" wire:confirm="Deseja excluir este cartão?" variant="ghost" size="sm" icon="trash" class="text-red-600 hover:text-red-700 dark:text-red-400" />
                     </div>
                 </div>
             </div>
         @empty
             <div class="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
-                <p class="text-zinc-500 dark:text-zinc-400 mb-4">Nenhum cartÃ£o cadastrado.</p>
+                <p class="text-zinc-500 dark:text-zinc-400 mb-4">Nenhum cartão cadastrado.</p>
                 <flux:button href="{{ route('credit-cards.create') }}" wire:navigate variant="primary">
-                    Criar primeiro cartÃ£o
+                    Criar primeiro cartão
                 </flux:button>
             </div>
         @endforelse

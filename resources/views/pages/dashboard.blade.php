@@ -37,7 +37,7 @@
         }
     @endphp
 
-    <div class="mb-6 rounded-3xl border border-emerald-400/20 bg-gradient-to-r from-emerald-400/10 via-cyan-400/10 to-transparent p-5">
+    <div class="brand-paper mb-6 rounded-3xl p-5">
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
                 <p class="text-xs uppercase tracking-[0.24em] text-emerald-300/80">Suporte</p>

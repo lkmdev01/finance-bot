@@ -1,4 +1,4 @@
-﻿@php
+@php
     $stepOneFields = ['name', 'email', 'email_confirmation', 'phone_number', 'password', 'password_confirmation', 'terms'];
     $stepTwoFields = ['category_setup'];
     $stepThreeFields = ['activation_code'];
@@ -24,7 +24,7 @@
         class="space-y-6"
     >
         <div class="space-y-3">
-            <p class="text-sm font-semibold uppercase tracking-[0.24em] text-fuchsia-300" data-register-step-indicator>
+            <p class="text-sm font-semibold uppercase tracking-[0.24em] text-emerald-300" data-register-step-indicator>
                 Passo {{ $initialStep }} de 3
             </p>
 
@@ -52,7 +52,7 @@
             <div class="h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div
                     data-register-progress
-                    class="h-full rounded-full bg-[linear-gradient(90deg,#a855f7,#ec4899)] transition-all duration-300"
+                    class="h-full rounded-full bg-[linear-gradient(90deg,#19d66b,#d4ff68)] transition-all duration-300"
                     style="width: {{ $initialStep === 1 ? '33.333%' : ($initialStep === 2 ? '66.666%' : '100%') }};"
                 ></div>
             </div>
@@ -170,15 +170,15 @@
                         type="checkbox"
                         value="1"
                         @checked(old('terms'))
-                        class="mt-1 h-5 w-5 rounded border-white/20 bg-transparent text-fuchsia-500 focus:ring-fuchsia-400"
+                        class="mt-1 h-5 w-5 rounded border-white/20 bg-transparent text-emerald-500 focus:ring-emerald-400"
                     />
                     <span class="text-sm leading-7 text-slate-300">
                         Li e concordo com os
-                        <a href="{{ route('terms-of-use') }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-fuchsia-200 underline decoration-fuchsia-400/50 underline-offset-4 hover:text-fuchsia-100">
+                        <a href="{{ route('terms-of-use') }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-emerald-200 underline decoration-emerald-400/50 underline-offset-4 hover:text-emerald-100">
                             termos de uso
                         </a>
                         e a
-                        <a href="{{ route('privacy-policy') }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-fuchsia-200 underline decoration-fuchsia-400/50 underline-offset-4 hover:text-fuchsia-100">
+                        <a href="{{ route('privacy-policy') }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-emerald-200 underline decoration-emerald-400/50 underline-offset-4 hover:text-emerald-100">
                             política de privacidade
                         </a>.
                     </span>
@@ -207,10 +207,10 @@
                     <button
                         type="button"
                         data-category-option="recommended"
-                        class="w-full rounded-[24px] border border-fuchsia-400/50 bg-[linear-gradient(135deg,rgba(168,85,247,0.24),rgba(236,72,153,0.18))] px-5 py-5 text-left transition"
+                        class="w-full rounded-[24px] border border-emerald-400/50 bg-[linear-gradient(135deg,rgba(25,214,107,0.24),rgba(212,255,104,0.18))] px-5 py-5 text-left transition"
                     >
                         <div class="flex items-start gap-4">
-                            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-fuchsia-300 bg-fuchsia-400/25 text-white" data-category-check="recommended">
+                            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-300 bg-emerald-400/25 text-white" data-category-check="recommended">
                                 <span>✓</span>
                             </div>
                             <div>
@@ -243,17 +243,17 @@
 
                 <div class="grid gap-4 md:grid-cols-3">
                     <div class="rounded-[20px] border border-white/8 bg-white/5 p-5">
-                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fuchsia-200">1. Reconhecimento</p>
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">1. Reconhecimento</p>
                         <p class="mt-3 text-lg font-bold text-white">Seu número entra preparado</p>
                         <p class="mt-2 text-sm leading-6 text-slate-300">Usamos o número do passo 1 para validar a ativação com o WhatsApp certo.</p>
                     </div>
                     <div class="rounded-[20px] border border-white/8 bg-white/5 p-5">
-                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fuchsia-200">2. Código único</p>
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">2. Código único</p>
                         <p class="mt-3 text-lg font-bold text-white">Você envia uma mensagem</p>
                         <p class="mt-2 text-sm leading-6 text-slate-300">O passo final gera um código exclusivo e já abre a conversa oficial com ele preenchido.</p>
                     </div>
                     <div class="rounded-[20px] border border-white/8 bg-white/5 p-5">
-                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fuchsia-200">3. Conta ativa</p>
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">3. Conta ativa</p>
                         <p class="mt-3 text-lg font-bold text-white">Cadastro concluído de verdade</p>
                         <p class="mt-2 text-sm leading-6 text-slate-300">Quando o bot confirmar o código, seu número fica ativado e a conta pode ser finalizada.</p>
                     </div>
@@ -374,13 +374,13 @@
             categoryOptions.forEach((option) => {
                 const isSelected = option.dataset.categoryOption === selected;
                 option.className = isSelected
-                    ? 'w-full rounded-[24px] border border-fuchsia-400/50 bg-[linear-gradient(135deg,rgba(168,85,247,0.24),rgba(236,72,153,0.18))] px-5 py-5 text-left transition'
+                    ? 'w-full rounded-[24px] border border-emerald-400/50 bg-[linear-gradient(135deg,rgba(25,214,107,0.24),rgba(212,255,104,0.18))] px-5 py-5 text-left transition'
                     : 'w-full rounded-[24px] border border-white/8 bg-white/5 px-5 py-5 text-left transition';
 
                 const check = option.querySelector('[data-category-check]');
                 if (check) {
                     check.className = isSelected
-                        ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-fuchsia-300 bg-fuchsia-400/25 text-white'
+                        ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-300 bg-emerald-400/25 text-white'
                         : 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 text-transparent';
                 }
             });

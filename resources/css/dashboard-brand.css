@@ -1,0 +1,84 @@
+/* Shared authenticated theme; financial status colors remain independent. */
+.app-brand {
+    --font-sans: 'Plus Jakarta Sans', sans-serif;
+    --color-space-950: #07110b;
+    --color-space-900: #10271d;
+    --color-space-800: #1b382b;
+    --color-zinc-950: #091710;
+    --color-zinc-900: #10231a;
+    --color-zinc-800: #20382b;
+    --color-zinc-700: #375043;
+    --color-zinc-600: #667e70;
+    --color-zinc-500: #8ca396;
+    --color-zinc-400: #a8bbb0;
+    --color-zinc-300: #ced9d0;
+    --color-slate-950: #07110b;
+    --color-slate-900: #10231a;
+    --color-slate-800: #20382b;
+    --color-slate-400: #a8bbb0;
+    --color-slate-300: #ced9d0;
+    --color-primary: #19d66b;
+    --color-accent: #19d66b;
+    --color-accent-content: #5de59a;
+    --color-accent-foreground: #052e23;
+    background: #07110b;
+    color: #f3eddc;
+    font-family: var(--font-sans);
+}
+
+.app-brand .app-atmosphere {
+    background: radial-gradient(ellipse at 75% 0%, rgba(25, 214, 107, .08), transparent 55%),
+        radial-gradient(ellipse at 0% 100%, rgba(244, 200, 86, .04), transparent 50%);
+}
+
+.app-brand [data-flux-main] { min-width: 0; }
+.app-brand [data-flux-main] h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(1.8rem, 2.6vw, 2.65rem);
+    line-height: 1.12;
+    letter-spacing: -.04em;
+    color: #fff8e8;
+}
+.app-brand [data-flux-main] h2 { letter-spacing: -.025em; }
+.app-brand [data-sidebar-logo] > :last-child > * { font-family: var(--font-sans); }
+.app-brand [data-sidebar-logo] > :first-child { background: #10271d; box-shadow: none; }
+.app-brand [data-app-sidebar] { background: rgba(7, 20, 13, .96); border-color: #24392c; }
+.app-brand [data-sidebar-group-toggle] { color: #a4b59d; }
+.app-brand [data-flux-sidebar-item][data-current] {
+    background: #d4ff68;
+    color: #052e23;
+    font-weight: 800;
+}
+.app-brand [data-flux-sidebar-item][data-current] svg { color: inherit; }
+.app-brand [data-flux-main] :is(.rounded-xl, .rounded-2xl, .rounded-3xl).border {
+    border-color: rgba(195, 218, 199, .14);
+}
+.app-brand [data-flux-main] .rounded-xl.border { border-radius: 1rem; }
+.app-brand [data-flux-input],
+.app-brand [data-flux-textarea],
+.app-brand [data-flux-select] { border-radius: .75rem; }
+.app-brand [data-flux-main] table { font-variant-numeric: tabular-nums; }
+.app-brand [data-flux-main] thead { color: #ced9d0; }
+.app-brand :is(a, button, summary):focus-visible {
+    outline: 2px solid #d4ff68;
+    outline-offset: 3px;
+}
+
+.app-brand .brand-paper {
+    background: linear-gradient(135deg, #fff8e8, #e9e0c8);
+    border: 1px solid rgba(243, 237, 220, .3);
+    color: #073426;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, .12);
+}
+.app-brand .brand-paper :is(h2, p) { color: #073426; }
+.app-brand .brand-paper p { opacity: .8; }
+.app-brand .brand-paper a {
+    color: #073426;
+    border-color: rgba(7, 52, 38, .25);
+    background: rgba(255, 255, 255, .45);
+}
+.app-brand .brand-paper a:hover { background: #fff8e8; }
+
+@media (prefers-reduced-motion: reduce) {
+    .app-brand [data-flux-main] { animation: none; }
+}

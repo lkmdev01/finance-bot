@@ -34,12 +34,12 @@ class ReportHandler extends BaseHandler
                 $period = 'yearly';
             }
 
-            if (preg_match('/\b(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(\d{4})\b/iu', $job->message, $matches)) {
+            if (preg_match('/\b(janeiro|fevereiro|marco|marÃ§o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(\d{4})\b/iu', $job->message, $matches)) {
                 $monthMap = [
                     'janeiro' => '01',
                     'fevereiro' => '02',
                     'marco' => '03',
-                    'março' => '03',
+                    'marÃ§o' => '03',
                     'abril' => '04',
                     'maio' => '05',
                     'junho' => '06',

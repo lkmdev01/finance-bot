@@ -855,7 +855,7 @@ class IntentClassifier
     {
         foreach ([
             'qual e meu saldo',
-            'qual Ã© meu saldo',
+            'qual é meu saldo',
             'quanto tenho',
             'quanto sobrou',
             'saldo de hoje',
@@ -893,7 +893,7 @@ class IntentClassifier
             'resumo do mes',
             'resumo desse mes',
             'relatorio do mes',
-            'relatÃ³rio do mes',
+            'relatório do mes',
             'resumo mensal',
             'gastos do mes',
             'gastos desse mes',

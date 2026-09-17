@@ -1,7 +1,7 @@
-﻿<x-layouts.auth.immersive>
+<x-layouts.auth.immersive>
     <div class="space-y-7">
         <div class="space-y-4">
-            <div class="inline-flex rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-fuchsia-200">
+            <div class="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-200">
                 Bem-vindo de volta
             </div>
 
@@ -73,7 +73,7 @@
                             type="checkbox"
                             value="1"
                             @checked(old('remember'))
-                            class="h-5 w-5 rounded border-white/20 bg-transparent text-fuchsia-500 focus:ring-fuchsia-400"
+                            class="h-5 w-5 rounded border-white/20 bg-transparent text-emerald-500 focus:ring-emerald-400"
                         />
                         <span class="text-sm text-slate-300">Lembrar de mim neste dispositivo</span>
                     </label>
@@ -86,7 +86,7 @@
 
             <div class="space-y-4">
                 <div class="rounded-[24px] border border-white/8 bg-white/5 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
-                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fuchsia-200">Acesso rápido</p>
+                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">Acesso rápido</p>
                     <p class="mt-3 text-lg font-bold text-white">Continue com Google</p>
                     <p class="mt-2 text-sm leading-6 text-slate-300">
                         Entre com sua conta Google e volte direto para o dashboard com o mesmo contexto do seu teste e do seu WhatsApp.
@@ -98,7 +98,7 @@
                 </div>
 
                 <div class="rounded-[24px] border border-white/8 bg-white/5 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
-                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-fuchsia-200">Novo por aqui?</p>
+                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">Novo por aqui?</p>
                     <p class="mt-3 text-lg font-bold text-white">Crie sua conta e ative o WhatsApp</p>
                     <p class="mt-2 text-sm leading-6 text-slate-300">
                         O cadastro guiado termina com o seu número validado. Você já entra com tudo pronto para começar a usar.

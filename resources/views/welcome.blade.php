@@ -1,12 +1,12 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth">
     <head>
         @php
-            $seoTitle = 'InovaFinance | Gestão financeira via WhatsApp com IA';
-            $seoDescription = 'Controle gastos, receitas, orçamentos, metas e relatórios financeiros pelo WhatsApp com apoio de IA.';
+            $seoTitle = 'InovaFinance | Controle financeiro pelo WhatsApp';
+            $seoDescription = 'Organize gastos, receitas, metas, lembretes, notas e arquivos do Drive conversando com o InovaFinance no WhatsApp.';
             $seoImage = asset('social-card.png');
             $seoUrl = route('home');
-            $seoKeywords = 'gestão financeira, controle financeiro, finanças pessoais, WhatsApp, inteligência artificial, orçamento, controle de gastos';
+            $seoKeywords = 'controle financeiro, finanças pessoais, WhatsApp financeiro, organização financeira, gastos, receitas, metas, orçamento';
             $faviconVersion = file_exists(public_path('favicon.ico')) ? filemtime(public_path('favicon.ico')) : time();
             $structuredData = [
                 [
@@ -32,12 +32,24 @@
                     'operatingSystem' => 'Web',
                     'description' => $seoDescription,
                     'url' => $seoUrl,
+                    'offers' => [
+                        '@type' => 'Offer',
+                        'price' => '19.97',
+                        'priceCurrency' => 'BRL',
+                    ],
                 ],
             ];
 
             $trialCtaUrl = Route::has('register') ? route('register') : (Route::has('login') ? route('login') : '#');
             $paidCtaUrl = Route::has('billing.plans') ? route('billing.plans') : $trialCtaUrl;
-            $primaryCtaUrl = $trialCtaUrl;
+            $loginUrl = Route::has('login') ? route('login') : '#';
+            $dashboardUrl = Route::has('dashboard') ? route('dashboard') : '#';
+            $supportEmail = (string) (config('mail.from.address') ?: 'suporte@inovaforce.com.br');
+            $tutorialContactNumber = config('whatsapp.tutorial.contact_number');
+            $tutorialContactDigits = preg_replace('/\D+/', '', (string) $tutorialContactNumber);
+            $supportWhatsappUrl = $tutorialContactDigits
+                ? 'https://wa.me/'.$tutorialContactDigits.'?text='.urlencode('Oi! Quero conhecer o InovaFinance.')
+                : null;
         @endphp
 
         <meta charset="utf-8">
@@ -48,7 +60,7 @@
         <meta name="keywords" content="{{ $seoKeywords }}">
         <meta name="robots" content="index, follow">
         <meta name="googlebot" content="index, follow">
-        <meta name="theme-color" content="#070b14">
+        <meta name="theme-color" content="#07110b">
         <link rel="canonical" href="{{ $seoUrl }}">
 
         <meta property="og:type" content="website">
@@ -77,712 +89,808 @@
 
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650;9..144,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
             tailwind.config = {
-                darkMode: 'class',
                 theme: {
                     extend: {
                         fontFamily: {
-                            sans: ['Outfit', 'sans-serif'],
+                            display: ['Fraunces', 'serif'],
+                            sans: ['Plus Jakarta Sans', 'sans-serif'],
                         },
-                        colors: {
-                            space: {
-                                950: '#070b14',
-                                900: '#0f172a',
-                                800: '#1e293b',
-                            },
-                            primary: '#22c55e',
-                        }
-                    }
-                }
-            }
+                    },
+                },
+            };
         </script>
 
         <style>
-            html, body {
+            :root {
+                --ink: #07110b;
+                --paper: #f3eddc;
+                --paper-2: #fff8e8;
+                --line: rgba(243, 237, 220, .16);
+                --green: #19d66b;
+                --green-deep: #086c3b;
+                --lime: #d4ff68;
+                --gold: #f4c856;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
                 min-height: 100%;
-                background-color: #070b14;
-                color: #f8fafc;
+                max-width: 100%;
+                overflow-x: hidden;
+                background: var(--ink);
+                color: var(--paper-2);
+                font-family: 'Plus Jakarta Sans', sans-serif;
             }
-            .blur-gradient {
-                background: radial-gradient(circle at 50% 50%, rgba(34, 197, 94, 0.14) 0%, rgba(7, 11, 20, 0) 70%);
+
+            body {
+                overflow-x: hidden;
+                position: relative;
             }
-            .glass {
-                background: rgba(30, 41, 59, 0.5);
-                backdrop-filter: blur(12px);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+
+            @supports (overflow: clip) {
+                html,
+                body {
+                    overflow-x: clip;
+                }
             }
-            .rocket-float {
-                animation: float 5s ease-in-out infinite;
+
+            body::before {
+                content: '';
+                position: fixed;
+                inset: 0;
+                z-index: -3;
+                pointer-events: none;
+                background:
+                    radial-gradient(circle at 15% 10%, rgba(25, 214, 107, .25), transparent 28rem),
+                    radial-gradient(circle at 86% 15%, rgba(244, 200, 86, .16), transparent 25rem),
+                    radial-gradient(circle at 50% 100%, rgba(126, 231, 207, .12), transparent 35rem),
+                    linear-gradient(145deg, #061009 0%, #0a1610 42%, #05090d 100%);
             }
-            @keyframês float {
-                0%, 100% { transform: translateY(0); }
-                50% { transform: translateY(-15px); }
+
+            body::after {
+                content: '';
+                position: fixed;
+                inset: 0;
+                z-index: -2;
+                pointer-events: none;
+                opacity: .14;
+                background-image:
+                    linear-gradient(rgba(255, 255, 255, .08) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255, 255, 255, .08) 1px, transparent 1px);
+                background-size: 44px 44px;
+                mask-image: linear-gradient(to bottom, black, transparent 85%);
             }
-            .mix-screen {
-                mix-blend-mode: screen;
+
+            .noise {
+                position: fixed;
+                inset: 0;
+                z-index: -1;
+                pointer-events: none;
+                opacity: .17;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+            }
+
+            .display {
+                font-family: 'Fraunces', serif;
+                letter-spacing: -.055em;
+            }
+
+            .scroll-enter {
+                opacity: 0;
+                translate: 0 24px;
+                transition: opacity .65s ease, translate .65s cubic-bezier(.2, .8, .2, 1);
+                transition-delay: var(--enter-delay, 0ms);
+            }
+
+            .scroll-enter.is-visible,
+            .scroll-enter:focus-within {
+                opacity: 1;
+                translate: 0 0;
+            }
+
+            a:focus-visible,
+            summary:focus-visible {
+                outline: 3px solid #19d66b;
+                outline-offset: 5px;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                html { scroll-behavior: auto !important; }
+                .scroll-enter,
+                .reveal-lift,
+                .motion-money,
+                .motion-chat,
+                .motion-piggy,
+                .motion-panel {
+                    opacity: 1 !important;
+                    translate: none !important;
+                    animation: none !important;
+                    transition: none !important;
+                }
+                .ticker-track { animation: none; }
+            }
+
+            .paper-card {
+                background: linear-gradient(145deg, rgba(255, 248, 232, .98), rgba(233, 224, 200, .93));
+                color: #132015;
+                box-shadow: 0 34px 100px rgba(0, 0, 0, .38);
+            }
+
+            .paper-section {
+                position: relative;
+                isolation: isolate;
+                overflow: hidden;
+                background:
+                    radial-gradient(circle at 8% 15%, rgba(25, 214, 107, .12), transparent 24rem),
+                    radial-gradient(circle at 92% 82%, rgba(244, 200, 86, .16), transparent 26rem),
+                    linear-gradient(145deg, #fff8e8 0%, #eee5cf 100%);
+                color: #073426;
+            }
+
+            .paper-section::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                z-index: -1;
+                pointer-events: none;
+                opacity: .35;
+                background-image: radial-gradient(circle, rgba(8, 108, 59, .22) 1px, transparent 1px);
+                background-size: 22px 22px;
+                mask-image: linear-gradient(105deg, black, transparent 45%, black);
+            }
+
+            .paper-feature {
+                background: rgba(255, 252, 242, .8);
+                border: 1px solid rgba(7, 52, 38, .13);
+                box-shadow: 0 18px 55px rgba(37, 47, 34, .09);
+                backdrop-filter: blur(10px);
+            }
+
+            .paper-feature:nth-child(3n + 2) {
+                background: rgba(214, 232, 203, .58);
+            }
+
+            .dark-card {
+                background: linear-gradient(150deg, rgba(15, 33, 23, .84), rgba(4, 12, 10, .9));
+                border: 1px solid var(--line);
+                box-shadow: 0 24px 80px rgba(0, 0, 0, .34);
+                backdrop-filter: blur(18px);
+            }
+
+            .cutout {
+                filter: drop-shadow(0 34px 35px rgba(0, 0, 0, .42));
+            }
+
+            .dollar-rain {
+                background-image: radial-gradient(circle, rgba(25, 214, 107, .24) 1.5px, transparent 1.5px);
+                background-size: 18px 18px;
+            }
+
+            .ticker-track {
+                display: flex;
+                width: max-content;
+                animation: ticker 18s linear infinite;
+                will-change: transform;
+            }
+
+            .ticker-group {
+                display: flex;
+                flex-shrink: 0;
+                align-items: center;
+                gap: .5rem;
+                padding-right: .5rem;
+            }
+
+            @media (max-width: 767px) {
+                body::after,
+                .noise {
+                    display: none;
+                }
+            }
+
+            @media (max-width: 359px) {
+                .mobile-hide-brand {
+                    display: none;
+                }
+            }
+
+            .reveal-lift {
+                opacity: 0;
+                animation: revealLift .8s cubic-bezier(.2, .8, .2, 1) forwards;
+            }
+
+            .delay-1 { animation-delay: .08s; }
+            .delay-2 { animation-delay: .18s; }
+            .delay-3 { animation-delay: .3s; }
+            .delay-4 { animation-delay: .42s; }
+
+            .motion-money {
+                opacity: 0;
+                animation:
+                    moneyEnter .75s cubic-bezier(.2, .8, .2, 1) .22s forwards,
+                    moneyBreathe 7s ease-in-out 1.1s infinite;
+            }
+
+            .motion-chat {
+                opacity: 0;
+                animation:
+                    chatEnter .8s cubic-bezier(.2, .8, .2, 1) .36s forwards,
+                    chatBreathe 6.5s ease-in-out 1.25s infinite;
+            }
+
+            .motion-piggy {
+                opacity: 0;
+                animation:
+                    piggyEnter .7s cubic-bezier(.2, .8, .2, 1) .62s forwards,
+                    piggyBreathe 5.8s ease-in-out 1.4s infinite;
+            }
+
+            .motion-panel {
+                opacity: 0;
+                animation:
+                    panelEnter .9s cubic-bezier(.2, .8, .2, 1) .52s forwards,
+                    panelBreathe 7.4s ease-in-out 1.55s infinite;
+            }
+
+            @keyframes revealLift {
+                from {
+                    opacity: 0;
+                    transform: translate3d(0, 18px, 0);
+                }
+                to {
+                    opacity: 1;
+                    transform: translate3d(0, 0, 0);
+                }
+            }
+
+            @keyframes moneyEnter {
+                from {
+                    opacity: 0;
+                    transform: translate3d(22px, 26px, 0) rotate(10deg) scale(.92);
+                }
+                to {
+                    opacity: 1;
+                    transform: translate3d(0, 0, 0) rotate(6deg) scale(1);
+                }
+            }
+
+            @keyframes moneyBreathe {
+                0%, 100% {
+                    opacity: .9;
+                    transform: translate3d(0, 0, 0) rotate(6deg) scale(.98);
+                }
+                50% {
+                    opacity: 1;
+                    transform: translate3d(-8px, -10px, 0) rotate(4deg) scale(1);
+                }
+            }
+
+            @keyframes chatEnter {
+                from {
+                    opacity: 0;
+                    transform: translate3d(-26px, 20px, 0) scale(.94);
+                }
+                to {
+                    opacity: 1;
+                    transform: translate3d(0, 0, 0) scale(1);
+                }
+            }
+
+            @keyframes chatBreathe {
+                0%, 100% {
+                    opacity: .92;
+                    transform: translate3d(0, 0, 0) scale(.99);
+                }
+                50% {
+                    opacity: 1;
+                    transform: translate3d(0, -8px, 0) scale(1);
+                }
+            }
+
+            @keyframes piggyEnter {
+                from {
+                    opacity: 0;
+                    transform: translate3d(18px, 18px, 0) rotate(8deg) scale(.86);
+                }
+                to {
+                    opacity: 1;
+                    transform: translate3d(0, 0, 0) rotate(3deg) scale(1);
+                }
+            }
+
+            @keyframes piggyBreathe {
+                0%, 100% {
+                    opacity: .82;
+                    transform: translate3d(0, 0, 0) rotate(3deg) scale(.96);
+                }
+                50% {
+                    opacity: 1;
+                    transform: translate3d(8px, -7px, 0) rotate(0deg) scale(1);
+                }
+            }
+
+            @keyframes panelEnter {
+                from {
+                    opacity: 0;
+                    transform: translate3d(10px, 34px, 0) rotate(-6deg) scale(.94);
+                }
+                to {
+                    opacity: 1;
+                    transform: translate3d(0, 0, 0) rotate(-2deg) scale(1);
+                }
+            }
+
+            @keyframes panelBreathe {
+                0%, 100% {
+                    opacity: .94;
+                    transform: translate3d(0, 0, 0) rotate(-2deg) scale(.985);
+                }
+                50% {
+                    opacity: 1;
+                    transform: translate3d(-7px, -9px, 0) rotate(-1deg) scale(1);
+                }
+            }
+
+            @keyframes ticker {
+                0% { transform: translate3d(0, 0, 0); }
+                100% { transform: translate3d(-50%, 0, 0); }
             }
         </style>
     </head>
-    <body class="antialiased overflow-x-hidden pt-10">
-        <nav class="relative z-50 px-6 py-6 max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <a href="{{ route('home') }}" class="flex items-center gap-3 group min-w-0">
-                <div class="w-10 h-10 bg-primary/15 border border-primary/25 rounded-xl flex items-center justify-center shadow-[0_0_18px_rgba(34,197,94,0.35)] transition-transform group-hover:scale-105 p-2 shrink-0">
-                    <img src="{{ asset('logo.png') }}" alt="InovaFinance" class="h-full w-full object-contain" />
-                </div>
-                <span class="text-xl font-bold tracking-tight truncate">InovaFinance</span>
+
+    <body class="antialiased">
+        <div class="noise" aria-hidden="true"></div>
+
+        <header class="relative z-20 mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-5 sm:gap-4 sm:px-8 lg:px-10">
+            <a href="{{ route('home') }}" class="group flex min-w-0 items-center gap-3">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-300/25 bg-emerald-400/10 shadow-[0_0_32px_rgba(25,214,107,.28)] sm:h-11 sm:w-11">
+                    <img src="{{ asset('logo.png') }}" alt="InovaFinance" class="h-6 w-6 object-contain sm:h-7 sm:w-7">
+                </span>
+                <span class="mobile-hide-brand truncate text-lg font-extrabold tracking-tight text-white sm:inline">InovaFinance</span>
             </a>
 
-            <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
-                <a href="#produto" class="hover:text-white transition-colors">Produto</a>
-                <a href="#sobre-app" class="hover:text-white transition-colors">Sobre o app</a>
-                <a href="#recursos" class="hover:text-white transition-colors">Recursos</a>
-                <a href="#planos" class="hover:text-white transition-colors">Planos</a>
-                <a href="#depoimentos" class="hover:text-white transition-colors">Histórias</a>
-                <a href="#faq" class="hover:text-white transition-colors">FAQ</a>
-            </div>
+            <nav class="hidden items-center gap-8 text-sm font-semibold text-emerald-50/70 lg:flex" aria-label="Navegação principal">
+                <a href="#produto" class="transition hover:text-white">Produto</a>
+                <a href="#rotina" class="transition hover:text-white">Rotina</a>
+                <a href="#planos" class="transition hover:text-white">Oferta</a>
+                <a href="#faq" class="transition hover:text-white">Dúvidas</a>
+                <a href="{{ route('support') }}" class="transition hover:text-white">Suporte</a>
+            </nav>
 
-            <div class="flex items-center gap-3 shrink-0">
-                @if (Route::has('login'))
-                    @auth
-                        <a href="{{ url('/dashboard') }}" class="px-4 py-2.5 bg-primary text-space-950 rounded-xl font-semibold transition-all shadow-lg hover:shadow-primary/25 hover:brightness-110">
-                            Ir para o painel
-                        </a>
-                    @else
-                        <a href="{{ route('login') }}" class="px-3 py-2.5 text-sm font-semibold text-slate-200 hover:text-white transition-colors">
-                            Entrar
-                        </a>
-                        <a href="{{ $trialCtaUrl }}" class="px-4 py-2.5 bg-white text-space-950 rounded-xl font-bold hover:bg-slate-200 transition-all shadow-xl">
-                            Testar grátis
-                        </a>
-                    @endauth
-                @endif
-            </div>
-        </nav>
-
-        <section id="produto" class="relative z-10 pt-10 pb-14 px-6 max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 items-center">
-            <div class="absolute inset-0 blur-gradient opacity-80 -z-10"></div>
-            <div class="absolute top-0 left-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -z-10"></div>
-            <div class="absolute bottom-0 right-0 w-72 h-72 bg-cyan-400/10 rounded-full blur-3xl -z-10"></div>
-
-            <div class="space-y-7 text-center lg:text-left">
-                <div class="flex flex-wrap justify-center lg:justify-start gap-2">
-                    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass text-xs text-slate-200 border-primary/20">
-                        <span class="w-2 h-2 rounded-full bg-primary"></span>
-                        WhatsApp + IA + Painel
-                    </span>
-                    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass text-xs text-slate-200">
-                        Orçamentos, metas, recorrências e lembretes
-                    </span>
-                </div>
-
-                <h1 class="text-4xl lg:text-6xl font-bold leading-tight tracking-tight">
-                    InovaFinance:
-                    <br>
-                    seu financeiro em dia,
-                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-400">pelo WhatsApp</span>.
-                </h1>
-                <p class="text-lg lg:text-xl text-slate-300 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                    O InovaFinance é um aplicativo de organização financeira com assistente via WhatsApp e painel web. Registre gastos e ganhos com frases simples, acompanhe orçamentos, metas, cartões, lembretes, notas e arquivos salvos no Google Drive.
-                </p>
-
-                <div class="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-                    <a href="{{ $trialCtaUrl }}" class="px-7 py-4 bg-white text-space-950 rounded-2xl font-extrabold hover:bg-slate-200 transition-all shadow-2xl hover:scale-[1.01]">
-                        Testar grátis por 7 dias
+            <div class="flex shrink-0 items-center gap-2">
+                @auth
+                    <a href="{{ $dashboardUrl }}" class="rounded-full bg-white px-3 py-2.5 text-xs font-extrabold text-emerald-950 transition hover:bg-emerald-100 sm:px-4 sm:text-sm">
+                        <span class="hidden sm:inline">Abrir painel</span>
+                        <span class="sm:hidden">Painel</span>
                     </a>
-                    <a href="{{ $paidCtaUrl }}" class="px-7 py-4 glass rounded-2xl font-bold hover:border-yellow-300/50 transition-all">
-                        Assinar agora por R$ 19,97
+                @else
+                    <a href="{{ $loginUrl }}" class="inline-flex rounded-full px-2 py-2.5 text-xs font-bold text-emerald-50/75 transition hover:text-white sm:px-4 sm:text-sm">
+                        Entrar
                     </a>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
-                    <div class="glass rounded-2xl p-4">
-                        <div class="text-xs text-slate-400">Exemplo</div>
-                        <div class="font-semibold">"Gastei 20 no uber"</div>
-                    </div>
-                    <div class="glass rounded-2xl p-4">
-                        <div class="text-xs text-slate-400">Exemplo</div>
-                        <div class="font-semibold">"Me lembra dia 5 pagar o design"</div>
-                    </div>
-                    <div class="glass rounded-2xl p-4">
-                        <div class="text-xs text-slate-400">Exemplo</div>
-                        <div class="font-semibold">"Criar orçamento 500 compras"</div>
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap justify-center lg:justify-start gap-5 text-sm text-slate-400">
-                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-primary/80"></span> Sem planilhas</div>
-                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-primary/80"></span> Sem "app pesado"</div>
-                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-primary/80"></span> Respostas com base nos seus dados</div>
-                </div>
+                    <a href="{{ $trialCtaUrl }}" class="rounded-full bg-white px-3 py-2.5 text-xs font-extrabold text-emerald-950 transition hover:bg-emerald-100 sm:px-4 sm:text-sm">
+                        <span class="hidden sm:inline">Começar grátis</span>
+                        <span class="sm:hidden">Começar</span>
+                    </a>
+                @endauth
             </div>
+        </header>
 
-            <div class="relative rocket-float">
-                <div class="glass rounded-[36px] p-5 shadow-2xl overflow-hidden">
-                    <img src="/hero.png" alt="InovaFinance" class="w-full max-w-[620px] mx-auto mix-screen">
+        <main>
+            <section id="produto" class="relative mx-auto grid max-w-7xl overflow-hidden gap-10 px-5 pb-12 pt-10 sm:px-8 lg:grid-cols-[1.02fr_.98fr] lg:px-10 lg:pb-24 lg:pt-16">
+                <div class="relative z-10 flex flex-col justify-center">
+                    <div class="reveal-lift delay-1 mb-6 inline-flex w-fit items-center gap-3 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-4 py-2 text-xs font-extrabold uppercase tracking-[.24em] text-emerald-100">
+                        <span class="h-2 w-2 rounded-full bg-[var(--green)]"></span>
+                        Finanças por conversa
+                    </div>
+
+                    <h1 class="reveal-lift delay-2 display max-w-4xl text-5xl font-black leading-[.94] text-white sm:text-7xl lg:text-8xl">
+                        Seu dinheiro sob seu controle.
+                    </h1>
+
+                    <p class="reveal-lift delay-3 mt-7 max-w-2xl text-lg leading-8 text-emerald-50/70 sm:text-xl">
+                        O InovaFinance transforma WhatsApp em controle financeiro: você fala o que aconteceu, ele registra, organiza e mostra o caminho no painel.
+                    </p>
+
+                    <div class="reveal-lift delay-4 mt-8 flex flex-col gap-3 sm:flex-row">
+                        <a href="{{ $trialCtaUrl }}" class="inline-flex items-center justify-center rounded-2xl bg-[var(--green)] px-7 py-4 text-base font-extrabold text-emerald-950 shadow-[0_20px_70px_rgba(25,214,107,.28)] transition hover:brightness-110">
+                            Testar por 7 dias
+                        </a>
+                        <a href="{{ $paidCtaUrl }}" class="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-7 py-4 text-base font-extrabold text-white transition hover:bg-white/10">
+                            Comprar acesso por R$ 19,97
+                        </a>
+                    </div>
+
                 </div>
-                <div class="absolute -top-10 -right-10 w-40 h-40 bg-primary/10 rounded-full blur-3xl"></div>
-                <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-cyan-400/10 rounded-full blur-3xl"></div>
-            </div>
-        </section>
 
-        <section class="relative z-10 py-10 px-6 max-w-7xl mx-auto">
-            <div class="glass rounded-3xl p-6 lg:p-8">
-                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div>
-                        <div class="text-xs uppercase tracking-wider text-slate-400">Foco</div>
-                        <div class="text-lg font-bold">Velocidade no registro</div>
-                        <div class="text-sm text-slate-400">Anote no momento que acontecer.</div>
-                    </div>
-                    <div>
-                        <div class="text-xs uppercase tracking-wider text-slate-400">Organização</div>
-                        <div class="text-lg font-bold">Categorias e alertas</div>
-                        <div class="text-sm text-slate-400">Menos surpresa no fim do mês.</div>
-                    </div>
-                    <div>
-                        <div class="text-xs uppercase tracking-wider text-slate-400">Fontes</div>
-                        <div class="text-lg font-bold">Cartões e contas</div>
-                        <div class="text-sm text-slate-400">Crédito, débito e saldo.</div>
-                    </div>
-                    <div>
-                        <div class="text-xs uppercase tracking-wider text-slate-400">Assistente</div>
-                        <div class="text-lg font-bold">Lembretes e recorrências</div>
-                        <div class="text-sm text-slate-400">Automatize o que sempre volta.</div>
-                    </div>
-                </div>
-            </div>
-        </section>
+                <div class="relative min-h-[520px] lg:min-h-[590px]">
+                    <div class="absolute -right-20 top-4 h-56 w-56 rounded-full bg-[var(--gold)]/20 blur-3xl" aria-hidden="true"></div>
+                    <div class="absolute bottom-8 left-4 h-64 w-64 rounded-full bg-[var(--green)]/20 blur-3xl" aria-hidden="true"></div>
 
-        <section id="sobre-app" class="relative z-10 py-12 px-6 max-w-7xl mx-auto">
-            <div class="glass rounded-[32px] p-7 lg:p-10">
-                <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-                    <div>
-                        <div class="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                            Informações públicas do aplicativo
+                    <div class="motion-money paper-card absolute right-0 top-0 hidden h-52 w-64 overflow-hidden rounded-[1.8rem] p-0 md:block">
+                        <img src="{{ asset('landing/money-hand.png') }}" alt="Colagem financeira com dinheiro e blocos verdes" class="h-full w-full object-cover">
+                        <div class="absolute inset-x-4 bottom-4 rounded-2xl bg-emerald-950/90 px-4 py-3 text-xs font-bold leading-5 text-emerald-50 shadow-2xl">
+                            Dinheiro precisa de movimento, mas também de direção.
+                        </div>
+                    </div>
+
+                    <div class="motion-chat dark-card absolute left-0 top-20 w-full max-w-[21rem] rounded-[1.8rem] p-4 lg:left-4">
+                        <div class="mb-4 flex items-center justify-between gap-3 border-b border-white/10 pb-4">
+                            <div class="flex items-center gap-3">
+                                <span class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--green)]/15">
+                                    <img src="{{ asset('logo.png') }}" alt="" class="h-5 w-5 object-contain">
+                                </span>
+                                <div>
+                                    <div class="text-sm font-extrabold text-white">InovaFinance</div>
+                                    <div class="text-xs font-semibold text-emerald-200/70">online no WhatsApp</div>
+                                </div>
+                            </div>
+                            <span class="rounded-full bg-emerald-400/10 px-3 py-1 text-[11px] font-bold text-emerald-100">com dados</span>
                         </div>
 
-                        <h2 class="mt-5 text-3xl font-black tracking-tight text-white lg:text-4xl">
-                            O que o InovaFinance faz
-                        </h2>
+                        <div class="space-y-3 text-xs leading-6">
+                            <div class="ml-auto max-w-[85%] rounded-[1.2rem] rounded-tr-sm bg-[var(--green)] px-4 py-2.5 font-semibold text-emerald-950">
+                                Gastei 79 no mercado ontem no cartão Nubank
+                            </div>
+                            <div class="max-w-[88%] rounded-[1.2rem] rounded-tl-sm bg-white/10 px-4 py-2.5 text-emerald-50">
+                                Registrei R$ 79,00 em Mercado, no cartão Nubank, com data de ontem.
+                            </div>
+                            <div class="ml-auto max-w-[82%] rounded-[1.2rem] rounded-tr-sm bg-[var(--green)] px-4 py-2.5 font-semibold text-emerald-950">
+                                Quais gastos sem categoria esse mês?
+                            </div>
+                            <div class="max-w-[92%] rounded-[1.2rem] rounded-tl-sm bg-white/10 px-4 py-2.5 text-emerald-50">
+                                Encontrei 2 gastos sem categoria. Total: R$ 179,00. Quer categorizar agora?
+                            </div>
+                        </div>
+                    </div>
 
-                        <p class="mt-4 max-w-3xl text-base leading-8 text-slate-300 lg:text-lg">
-                            O InovaFinance ajuda usuários a organizar a vida financeira por conversa e painel web. O usuário pode registrar transações, criar orçamentos, metas,
-                            recorrências, lembretes, notas e consultar relatórios diretamente pelo WhatsApp, com apoio de IA e respostas baseadas nos próprios dados.
+                    <div class="motion-piggy paper-card absolute right-8 top-[16.5rem] hidden w-28 overflow-hidden rounded-[1.4rem] border-4 border-white/70 p-0 shadow-2xl lg:block">
+                        <img src="{{ asset('landing/piggy-bank.png') }}" alt="Porquinho verde com moeda e padrão de cifrões" class="h-28 w-full object-cover">
+                    </div>
+
+                    <div class="motion-panel paper-card cutout absolute bottom-0 right-2 w-[80%] max-w-sm rounded-[2rem] p-5">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <div class="text-xs font-black uppercase tracking-[.24em] text-emerald-900/50">Painel web</div>
+                                <h2 class="display mt-3 text-3xl font-black leading-none text-emerald-950">clareza depois da conversa</h2>
+                            </div>
+                            <div class="rounded-2xl bg-emerald-950 px-3 py-3 text-right text-white">
+                                <div class="text-xs text-emerald-100/70">saldo</div>
+                                <div class="text-sm font-black">R$ 8.420</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 grid gap-3">
+                            <div class="flex items-center justify-between rounded-2xl bg-white/60 p-3">
+                                <span class="font-extrabold text-emerald-950">Casa</span>
+                                <span class="font-black text-emerald-900">37%</span>
+                            </div>
+                            <div class="flex items-center justify-between rounded-2xl bg-white/60 p-3">
+                                <span class="font-extrabold text-emerald-950">Marketing</span>
+                                <span class="font-black text-emerald-900">R$ 355</span>
+                            </div>
+                            <div class="flex items-center justify-between rounded-2xl bg-emerald-950 p-3 text-white">
+                                <span class="font-extrabold">Meta viagem</span>
+                                <span class="font-black text-[var(--lime)]">faltam R$ 300</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="overflow-hidden border-y border-white/10 bg-white/[.04] py-3" aria-label="Recursos em destaque">
+                <div class="ticker-track text-[10px] font-black uppercase tracking-[.18em] text-emerald-100/60 sm:text-xs">
+                    @for ($i = 0; $i < 2; $i++)
+                        <div class="ticker-group" aria-hidden="{{ $i === 1 ? 'true' : 'false' }}">
+                            <span class="px-3">gastos</span>
+                            <span class="text-[var(--green)] opacity-80">/</span>
+                            <span class="px-3">receitas</span>
+                            <span class="text-[var(--green)] opacity-80">/</span>
+                            <span class="px-3">orçamentos</span>
+                            <span class="text-[var(--green)] opacity-80">/</span>
+                            <span class="px-3">metas</span>
+                            <span class="text-[var(--green)] opacity-80">/</span>
+                            <span class="px-3">cartões</span>
+                            <span class="text-[var(--green)] opacity-80">/</span>
+                            <span class="px-3">lembretes</span>
+                            <span class="text-[var(--green)] opacity-80">/</span>
+                            <span class="px-3">notas</span>
+                            <span class="text-[var(--green)] opacity-80">/</span>
+                            <span class="px-3">Drive inteligente</span>
+                            <span class="text-[var(--green)] opacity-80">/</span>
+                        </div>
+                    @endfor
+                </div>
+            </section>
+
+            <section id="rotina" class="paper-section border-y border-emerald-950/10">
+                <div class="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10">
+                    <div class="grid gap-10 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
+                        <div>
+                            <div class="text-xs font-black uppercase tracking-[.28em] text-emerald-800/70">Rotina real</div>
+                            <h2 class="display mt-4 text-4xl font-black leading-tight text-emerald-950 sm:text-6xl">
+                                Feito para quem lembra do gasto no meio do dia.
+                            </h2>
+                        </div>
+                        <p class="max-w-2xl text-lg leading-8 text-emerald-950/65">
+                            A proposta não é virar mais uma tela esquecida. É reduzir atrito: WhatsApp para capturar, painel para revisar, alertas para não deixar passar.
                         </p>
-
-                        <p class="mt-4 max-w-3xl text-base leading-8 text-slate-300">
-                            Quando o usuário conecta o Google Drive, o InovaFinance também pode salvar arquivos enviados pelo WhatsApp em pastas do próprio Drive do usuário,
-                            para organização e busca posterior. Esta página é pública e não exige entrar.
-                        </p>
                     </div>
 
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
-                            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Canais</div>
-                            <div class="mt-3 text-lg font-bold text-white">WhatsApp + painel web</div>
-                            <p class="mt-2 text-sm leading-7 text-slate-400">Conversa natural para registrar e painel para acompanhar, editar e revisar.</p>
-                        </div>
-                        <div class="rounded-3xl border border-white/10 bg-white/5 p-5">
-                            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Integrações</div>
-                            <div class="mt-3 text-lg font-bold text-white">Google Drive e cobrança</div>
-                            <p class="mt-2 text-sm leading-7 text-slate-400">Arquivos podem ser salvos no Drive do usuário quando a permissão é concedida.</p>
-                        </div>
-                        <div class="rounded-3xl border border-white/10 bg-white/5 p-5 sm:col-span-2">
-                            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Documentos públicos</div>
-                            <div class="mt-3 flex flex-wrap gap-3">
-                                <a href="{{ route('privacy-policy') }}" class="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-                                    Política de privacidade
-                                </a>
-                                <a href="{{ route('terms-of-use') }}" class="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-                                    Termos de uso
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+                    <div class="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                        @php
+                            $features = [
+                                ['title' => 'Registrar sem parar a vida', 'text' => '“Gastei 42 no Uber” vira lançamento com data, valor e categoria sugerida.'],
+                                ['title' => 'Relatório que não esconde bagunça', 'text' => 'Gastos com e sem categoria entram no resumo. Se você pedir só uma categoria, ele filtra.'],
+                                ['title' => 'Metas com próximo passo', 'text' => 'Veja quanto falta, abra uma meta específica e calcule quanto guardar por mês.'],
+                                ['title' => 'Lembretes úteis', 'text' => 'Contas, aniversários e tarefas financeiras aparecem na hora certa.'],
+                                ['title' => 'Arquivos no Drive', 'text' => 'Envie PDF, foto ou áudio e salve em pastas para encontrar depois.'],
+                                ['title' => 'Tudo à vista no painel', 'text' => 'Revise seus lançamentos, acompanhe o saldo e encontre o que precisa em um só lugar.'],
+                            ];
+                        @endphp
 
-        <section id="recursos" class="relative z-10 py-16 px-6 max-w-7xl mx-auto">
-            <div class="text-center mb-12">
-                <h2 class="text-3xl lg:text-4xl font-bold mb-3">Recursos que deixam o dia a dia leve</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">Uma base confiável de dados + conversa natural. O sistema cuida do resto.</p>
-            </div>
-
-            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div class="glass p-7 rounded-3xl hover:border-primary/50 transition-all group">
-                    <div class="w-12 h-12 bg-primary/18 rounded-2xl flex items-center justify-center text-xl mb-5 group-hover:scale-110 transition-transform">💬</div>
-                    <h3 class="text-lg font-bold mb-2">WhatsApp de verdade</h3>
-                    <p class="text-slate-400 text-sm leading-relaxed">Crie, edite e apague lançamentos com contexto de conversa (esse, o último, ontem...).</p>
-                </div>
-                <div class="glass p-7 rounded-3xl hover:border-primary/50 transition-all group">
-                    <div class="w-12 h-12 bg-cyan-400/18 rounded-2xl flex items-center justify-center text-xl mb-5 group-hover:scale-110 transition-transform">🧠</div>
-                    <h3 class="text-lg font-bold mb-2">IA com limites</h3>
-                    <p class="text-slate-400 text-sm leading-relaxed">IA para ambiguidades. Fluxo principal determinístico para não quebrar dados.</p>
-                </div>
-                <div class="glass p-7 rounded-3xl hover:border-primary/50 transition-all group">
-                    <div class="w-12 h-12 bg-amber-500/18 rounded-2xl flex items-center justify-center text-xl mb-5 group-hover:scale-110 transition-transform">🚨</div>
-                    <h3 class="text-lg font-bold mb-2">Orçamentos e alertas</h3>
-                    <p class="text-slate-400 text-sm leading-relaxed">Limites por categoria com avisos naturais quando o consumo apertar.</p>
-                </div>
-                <div class="glass p-7 rounded-3xl hover:border-primary/50 transition-all group">
-                    <div class="w-12 h-12 bg-violet-400/18 rounded-2xl flex items-center justify-center text-xl mb-5 group-hover:scale-110 transition-transform">🏦</div>
-                    <h3 class="text-lg font-bold mb-2">Contas e cartões</h3>
-                    <p class="text-slate-400 text-sm leading-relaxed">Se falou "no cartão Nubank", vai pro cartão. Se não falou, vai pro saldo.</p>
-                </div>
-            </div>
-        </section>
-
-        <section id="como-funciona" class="relative z-10 py-20 bg-slate-900/30">
-            <div class="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
-                <div>
-                    <h2 class="text-3xl lg:text-4xl font-bold mb-5">Como funciona na prática</h2>
-                    <p class="text-slate-300 mb-8">Você conversa. O InovaFinance organiza e calcula. No final, você tem previsibilidade.</p>
-
-                    <div class="space-y-4">
-                        <div class="glass rounded-2xl p-5 flex gap-4">
-                            <div class="w-9 h-9 rounded-xl bg-primary/20 border border-primary/20 flex items-center justify-center font-bold shrink-0">1</div>
-                            <div>
-                                <div class="font-bold">Conecte o WhatsApp</div>
-                                <div class="text-sm text-slate-400">Ativação rápida e pronta para registrar no dia a dia.</div>
-                            </div>
-                        </div>
-                        <div class="glass rounded-2xl p-5 flex gap-4">
-                            <div class="w-9 h-9 rounded-xl bg-primary/20 border border-primary/20 flex items-center justify-center font-bold shrink-0">2</div>
-                            <div>
-                                <div class="font-bold">Registre e ajuste</div>
-                                <div class="text-sm text-slate-400">"gastei 20 no uber", "ajusta para 15", "apaga o último".</div>
-                            </div>
-                        </div>
-                        <div class="glass rounded-2xl p-5 flex gap-4">
-                            <div class="w-9 h-9 rounded-xl bg-primary/20 border border-primary/20 flex items-center justify-center font-bold shrink-0">3</div>
-                            <div>
-                                <div class="font-bold">Acompanhe no painel</div>
-                                <div class="text-sm text-slate-400">Relatórios, projeções, metas, recorrências, cartões e alertas.</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="glass p-4 rounded-[34px] shadow-2xl overflow-hidden">
-                    <div class="bg-slate-800/60 p-6 rounded-[26px]">
-                        <div class="flex items-center gap-3 mb-6">
-                            <div class="w-3 h-3 rounded-full bg-red-400"></div>
-                            <div class="w-3 h-3 rounded-full bg-amber-400"></div>
-                            <div class="w-3 h-3 rounded-full bg-green-400"></div>
-                        </div>
-                        <div class="space-y-4 text-sm">
-                            <div class="flex justify-end">
-                                <div class="bg-primary/15 border border-primary/25 p-3 rounded-2xl rounded-tr-none max-w-[85%]">
-                                    Gastei 32 no mercado no cartão Nubank
+                        @foreach ($features as $index => $feature)
+                            <article class="paper-feature rounded-[2rem] p-6 transition hover:-translate-y-1 hover:border-emerald-800/25 hover:shadow-[0_24px_65px_rgba(37,47,34,.14)]">
+                                <div class="mb-7 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-950 text-sm font-black text-[var(--lime)]">
+                                    {{ str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT) }}
                                 </div>
+                                <h3 class="text-xl font-black text-emerald-950">{{ $feature['title'] }}</h3>
+                                <p class="mt-3 leading-7 text-emerald-950/65">{{ $feature['text'] }}</p>
+                            </article>
+                        @endforeach
+                    </div>
+                </div>
+            </section>
+
+            <section class="mx-auto max-w-7xl px-5 pb-20 pt-12 sm:px-8 sm:pt-20 lg:px-10">
+                <div class="grid overflow-hidden rounded-[2.6rem] border border-white/10 bg-[var(--paper)] text-emerald-950 lg:grid-cols-[.95fr_1.05fr]">
+                    <div class="relative min-h-[420px] overflow-hidden bg-[#e8dfc6] p-8 sm:p-10">
+                        <div class="absolute inset-0 opacity-30 dollar-rain" aria-hidden="true"></div>
+                        <div class="relative z-10">
+                            <div class="text-xs font-black uppercase tracking-[.28em] text-emerald-900/50">Identidade</div>
+                            <h2 class="display mt-5 max-w-[21rem] text-5xl font-black leading-none sm:text-6xl">
+                                dinheiro com forma, rotina com sinal verde.
+                            </h2>
+                        </div>
+                        <img src="{{ asset('landing/financial-column-cutout.png') }}" alt="Coluna clássica formada por moedas, com elementos financeiros ao fundo" class="absolute bottom-0 right-0 w-56 max-w-[52%] translate-x-4 drop-shadow-2xl sm:w-72 lg:w-80">
+                    </div>
+
+                    <div class="bg-emerald-950 p-8 text-white sm:p-10 lg:p-12">
+                        <div class="grid gap-5">
+                            <div class="rounded-3xl border border-white/10 bg-white/[.07] p-5">
+                                <div class="font-black">Não depende de frase perfeita</div>
+                                <p class="mt-2 text-sm leading-7 text-emerald-50/60">O assistente entende variações comuns e pede o dado que faltar antes de registrar.</p>
                             </div>
-                            <div class="flex justify-start">
-                                <div class="glass p-3 rounded-2xl rounded-tl-none max-w-[85%]">
-                                    Registro feito no cartão Nubank. Quer débito (saldo) ou crédito (limite)?
-                                </div>
+                            <div class="rounded-3xl border border-white/10 bg-white/[.07] p-5">
+                                <div class="font-black">Não mistura tudo no mesmo contexto</div>
+                                <p class="mt-2 text-sm leading-7 text-emerald-50/60">Nota, meta, Drive e relatório seguem trilhas separadas para reduzir confusão.</p>
                             </div>
-                            <div class="flex justify-end">
-                                <div class="bg-primary/15 border border-primary/25 p-3 rounded-2xl rounded-tr-none max-w-[85%]">
-                                    Crédito
-                                </div>
-                            </div>
-                            <div class="flex justify-start">
-                                <div class="glass p-3 rounded-2xl rounded-tl-none max-w-[85%]">
-                                    Pronto. Atualizei o limite e o painel. Se quiser, eu comparo com o mês passado.
-                                </div>
+                            <div class="rounded-3xl border border-white/10 bg-white/[.07] p-5">
+                                <div class="font-black">Não trava se a IA falhar</div>
+                                <p class="mt-2 text-sm leading-7 text-emerald-50/60">Arquivos continuam sendo salvos, pagamentos continuam verificáveis e dados críticos seguem fluxo previsível.</p>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <section id="planos" class="relative z-10 py-20 px-6 max-w-7xl mx-auto">
-            <div class="text-center mb-10">
-                <div class="inline-flex items-center gap-2 rounded-full border border-yellow-300/40 bg-gradient-to-r from-emerald-400/15 via-yellow-300/15 to-blue-500/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.22em] text-yellow-100 shadow-[0_0_35px_rgba(34,197,94,0.18)]">
-                    Oferta única • 30% de desconto
-                </div>
-                <h2 class="mt-5 text-3xl lg:text-4xl font-bold mb-3">Uma condição especial para organizar sua vida financeira agora.</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">Oferta única: comece com 7 dias grátis ou pule o teste e assine agora o Pro Mensal por R$ 19,97/mês.</p>
-            </div>
+            <section id="planos" class="mx-auto max-w-7xl px-5 pb-20 sm:px-8 lg:px-10">
+                <div class="relative overflow-hidden rounded-[3rem] border border-emerald-300/20 bg-gradient-to-br from-[#102719] via-[#07110b] to-[#07100d] p-7 shadow-[0_36px_120px_rgba(0,0,0,.35)] sm:p-10 lg:p-14">
+                    <div class="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-[var(--green)]/20 blur-3xl" aria-hidden="true"></div>
+                    <div class="absolute -bottom-24 left-10 h-72 w-72 rounded-full bg-[var(--gold)]/15 blur-3xl" aria-hidden="true"></div>
 
-            <div class="mx-auto max-w-3xl">
-                <div class="glass relative overflow-hidden rounded-[2rem] border border-yellow-300/25 p-8 shadow-[0_0_65px_rgba(34,197,94,0.18)]">
-                    <div class="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-yellow-300/20 blur-3xl"></div>
-                    <div class="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl"></div>
-                    <div class="pointer-events-none absolute right-10 bottom-10 h-32 w-32 rounded-full bg-blue-500/10 blur-2xl"></div>
-
-                    <div class="relative mb-6 flex flex-wrap items-center gap-2 text-xs font-bold">
-                        <span class="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-emerald-100">Oferta única</span>
-                        <span class="rounded-full border border-yellow-300/30 bg-yellow-300/10 px-3 py-1 text-yellow-100">30% de desconto especial</span>
-                        <span class="rounded-full border border-blue-300/30 bg-blue-500/10 px-3 py-1 text-blue-100">Vagas promocionais limitadas</span>
-                    </div>
-
-                    <div class="grid gap-8 md:grid-cols-[1.1fr_0.9fr] md:items-center">
-                        <div class="relative">
-                            <div class="text-sm font-semibold text-yellow-100">Pro Mensal</div>
-                            <div class="mt-2 text-3xl font-extrabold">Acesso completo</div>
-                            <p class="mt-3 text-sm leading-7 text-slate-300">
-                                Organize gastos, metas, cartões, lembretes, Drive inteligente, relatórios e projeções pelo painel e pelo WhatsApp. Menos bagunça, mais clareza para decidir.
+                    <div class="relative grid gap-10 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
+                        <div>
+                            <div class="inline-flex rounded-full bg-[var(--lime)] px-4 py-2 text-xs font-black uppercase tracking-[.24em] text-emerald-950">
+                                Oferta única
+                            </div>
+                            <h2 class="display mt-6 max-w-2xl text-5xl font-black leading-none text-white sm:text-6xl">
+                                Acesso completo por menos que uma assinatura esquecida.
+                            </h2>
+                            <p class="mt-6 max-w-xl text-lg leading-8 text-emerald-50/70">
+                                Pro mensal com WhatsApp, painel, metas, orçamentos, relatórios, lembretes, notas e Drive inteligente.
                             </p>
                         </div>
-                        <div class="relative rounded-3xl border border-yellow-300/20 bg-slate-950/70 p-6 text-center">
-                            <div class="text-slate-500 text-sm line-through">De R$ 29,90</div>
-                            <div class="mt-1 text-slate-100 font-black text-5xl">R$ 19,97</div>
-                            <div class="mt-1 text-slate-400 text-sm">por mês</div>
-                            <div class="mt-4 rounded-full border border-yellow-300/40 bg-yellow-300/10 px-3 py-1 text-xs font-bold text-yellow-100">
-                                oferta única ativa
-                            </div>
-                        </div>
-                    </div>
 
-                    <div class="relative mt-8 grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
-                        <div>• WhatsApp + painel completo</div>
-                        <div>• Orçamentos, metas e recorrências</div>
-                        <div>• Cartões, contas e relatórios</div>
-                        <div>• Drive, notas, lembretes e projeções</div>
-                    </div>
-                    <div class="relative mt-8 grid gap-3 sm:grid-cols-2">
-                        <a href="{{ $trialCtaUrl }}" class="inline-flex justify-center rounded-2xl bg-white px-5 py-4 font-extrabold text-space-950 shadow-[0_18px_45px_rgba(255,255,255,0.12)] transition-all hover:bg-slate-200">
-                            Testar grátis por 7 dias
-                        </a>
-                        <a href="{{ $paidCtaUrl }}" class="inline-flex justify-center rounded-2xl bg-gradient-to-r from-emerald-400 via-yellow-300 to-blue-500 px-5 py-4 font-extrabold text-space-950 shadow-[0_18px_45px_rgba(34,197,94,0.22)] transition-all hover:brightness-110">
-                            Assinar agora
-                        </a>
-                    </div>
-                    <div class="relative mt-3 text-center text-xs text-slate-500">Se assinar agora, o plano pago substitui o teste grátis. Cancelamento quando quiser.</div>
-                </div>
-            </div>
-        </section>
-
-        <section id="faq" class="relative z-10 py-20 bg-slate-900/30">
-            <div class="max-w-5xl mx-auto px-6">
-                <div class="text-center mb-10">
-                    <h2 class="text-3xl lg:text-4xl font-bold mb-3">Perguntas frequentes</h2>
-                    <p class="text-slate-400">Respostas curtas e diretas.</p>
-                </div>
-
-                <div class="space-y-4">
-                    <details class="glass rounded-2xl p-5 group">
-                        <summary class="cursor-pointer font-bold list-none flex items-center justify-between">
-                            Posso usar só pelo WhatsApp?
-                            <span class="text-slate-500 group-open:rotate-45 transition-transform">+</span>
-                        </summary>
-                        <div class="pt-3 text-slate-300 text-sm">Sim. O painel existe para visão e ajustes finos, mas o fluxo principal funciona pelo chat.</div>
-                    </details>
-                    <details class="glass rounded-2xl p-5 group">
-                        <summary class="cursor-pointer font-bold list-none flex items-center justify-between">
-                            O que acontece se eu não falar a conta/cartão?
-                            <span class="text-slate-500 group-open:rotate-45 transition-transform">+</span>
-                        </summary>
-                        <div class="pt-3 text-slate-300 text-sm">Por padrão, o gasto vai para o saldo geral. Se você citar um cartão/conta, o sistema registra na fonte correta.</div>
-                    </details>
-                    <details class="glass rounded-2xl p-5 group">
-                        <summary class="cursor-pointer font-bold list-none flex items-center justify-between">
-                            Tem lembrete recorrente e lembrete único?
-                            <span class="text-slate-500 group-open:rotate-45 transition-transform">+</span>
-                        </summary>
-                        <div class="pt-3 text-slate-300 text-sm">Tem. Você pode criar lembretes diários, semanais, mensais, anuais, ou para uma data específica.</div>
-                    </details>
-                    <details class="glass rounded-2xl p-5 group">
-                        <summary class="cursor-pointer font-bold list-none flex items-center justify-between">
-                            Posso cancelar a assinatura?
-                            <span class="text-slate-500 group-open:rotate-45 transition-transform">+</span>
-                        </summary>
-                        <div class="pt-3 text-slate-300 text-sm">Sim. Você consegue cancelar pelo painel quando quiser.</div>
-                    </details>
-                </div>
-
-                <div class="mt-10 text-center">
-                    <a href="{{ $trialCtaUrl }}" class="inline-flex px-7 py-4 rounded-2xl bg-white text-space-950 font-extrabold hover:bg-slate-200 transition-all shadow-xl">
-                        Testar grátis por 7 dias
-                    </a>
-                </div>
-            </div>
-        </section>
-
-        @php
-            $sliderItems = [
-                [
-                    'title' => 'Registro no momento',
-                    'subtitle' => 'WhatsApp',
-                    'quote' => 'Eu mando uma frase simples e já fica tudo organizado no painel. Sem abrir planilha, sem perder tempo.',
-                    'badge' => 'Gasto/Receita',
-                    'accent' => 'emerald',
-                ],
-                [
-                    'title' => 'Orçamentos com alerta',
-                    'subtitle' => 'Controle',
-                    'quote' => 'Quando uma categoria aperta, eu recebo um aviso natural. Ajuda muito a manter consistência durante o mês.',
-                    'badge' => 'Orçamento',
-                    'accent' => 'amber',
-                ],
-                [
-                    'title' => 'Cartões e fontes',
-                    'subtitle' => 'Saldo x limite',
-                    'quote' => 'Se eu digo que foi no cartão, entra no cartão. Se não digo, vai pro saldo. Fica previsível e sem conflito.',
-                    'badge' => 'Cartões',
-                    'accent' => 'sky',
-                ],
-                [
-                    'title' => 'Lembretes que ajudam',
-                    'subtitle' => 'Rotina',
-                    'quote' => 'Eu crio lembretes para pagar algo ou dar parabéns. E chega no horário certo, sem ser invasivo.',
-                    'badge' => 'Lembretes',
-                    'accent' => 'violet',
-                ],
-            ];
-
-            $tutorialContactNumber = config('whatsapp.tutorial.contact_number');
-            $tutorialContactDigits = preg_replace('/\\D+/', '', (string) $tutorialContactNumber);
-            $tutorialPrefilledMessage = (string) config('whatsapp.tutorial.prefilled_message', 'Oi! Quero falar com o suporte do InovaFinance.');
-            $supportWhatsappUrl = $tutorialContactDigits
-                ? 'https://wa.me/'.$tutorialContactDigits.'?text='.urlencode($tutorialPrefilledMessage)
-                : null;
-            $supportWhatsappLabel = (string) config('whatsapp.tutorial.contact_label', 'WhatsApp oficial do InovaFinance');
-            $supportEmail = (string) (config('mail.from.address') ?: 'contato@inovaforce.com.br');
-        @endphp
-
-        <section id="depoimentos" class="relative z-10 py-24 px-6">
-            <div class="mx-auto max-w-7xl">
-                <div class="text-center">
-                    <span class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200">
-                        Em minutos
-                    </span>
-                    <h2 class="mt-6 text-3xl font-black tracking-tight text-white sm:text-4xl">
-                        Um assistente financeiro que
-                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyan-400">fala a sua língua</span>
-                    </h2>
-                    <p class="mt-4 text-slate-300">Um carrossel com cenários comuns de uso. Curto, direto e sem promessas vazias.</p>
-                </div>
-
-                <div id="if-slider" class="relative mt-14 overflow-hidden rounded-[2.5rem] border border-white/10 bg-slate-950/60 shadow-[0_32px_120px_rgba(2,6,23,0.70)] backdrop-blur">
-                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.16),_transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(56,189,248,0.14),_transparent_42%)]"></div>
-
-                    <div class="relative p-6 sm:p-10">
-                        <div class="flex flex-wrap items-center justify-center gap-3">
-                            @foreach($sliderItems as $index => $item)
-                                <button
-                                    type="button"
-                                    class="if-avatar group inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5 text-sm font-extrabold text-white shadow-[0_18px_50px_rgba(2,6,23,0.55)] transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/60"
-                                    data-index="{{ $index }}"
-                                    aria-label="Abrir item {{ $index + 1 }}"
-                                >
-                                    <span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/70">
-                                        {{ mb_substr($item['badge'], 0, 1) }}
-                                    </span>
-                                </button>
-                            @endforeach
-                        </div>
-
-                        <div class="mt-10">
-                            @foreach($sliderItems as $index => $item)
-                                <article class="if-slide {{ $index === 0 ? '' : 'hidden' }} text-center" data-index="{{ $index }}">
-                                    <div class="mx-auto max-w-3xl">
-                                        <div class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-200">
-                                            <span class="h-2 w-2 rounded-full bg-primary"></span>
-                                            {{ $item['badge'] }}
-                                        </div>
-
-                                        <h3 class="mt-7 text-3xl font-black tracking-tight text-white sm:text-4xl">
-                                            {{ $item['title'] }}
-                                        </h3>
-                                        <p class="mt-2 text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">{{ $item['subtitle'] }}</p>
-
-                                        <p class="mt-7 text-lg leading-9 text-slate-200 sm:text-xl">
-                                            "{{ $item['quote'] }}"
-                                        </p>
-
-                                        <div class="mt-8 flex items-center justify-center gap-2" aria-label="Avaliação 5 de 5">
-                                            @for($s = 0; $s < 5; $s++)
-                                                <svg class="h-6 w-6 text-amber-300" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.955a1 1 0 00.95.69h4.157c.969 0 1.371 1.24.588 1.81l-3.363 2.445a1 1 0 00-.364 1.118l1.287 3.955c.3.921-.755 1.688-1.54 1.118l-3.363-2.445a1 1 0 00-1.175 0l-3.363 2.445c-.784.57-1.838-.197-1.539-1.118l1.286-3.955a1 1 0 00-.364-1.118L2.07 9.382c-.783-.57-.38-1.81.588-1.81h4.157a1 1 0 00.95-.69l1.286-3.955z" />
-                                                </svg>
-                                            @endfor
-                                        </div>
+                        <div class="paper-card relative overflow-hidden rounded-[2.5rem] p-7 sm:p-8">
+                            <img src="{{ asset('landing/piggy-bank.png') }}" alt="" class="absolute -right-10 -top-10 h-40 w-40 rotate-6 rounded-[2rem] object-cover opacity-20" aria-hidden="true">
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <div class="text-sm font-black uppercase tracking-[.22em] text-emerald-900/50">Plano Pro</div>
+                                    <div class="mt-4 flex items-end gap-2">
+                                        <span class="display text-6xl font-black leading-none text-emerald-950">R$ 19,97</span>
+                                        <span class="pb-2 text-sm font-bold text-emerald-900/60">/mês</span>
                                     </div>
-                                </article>
-                            @endforeach
-                        </div>
-
-                        <div class="mt-10 flex items-center justify-center gap-4">
-                            <button type="button" class="if-prev inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/60" aria-label="Anterior">
-                                <span aria-hidden="true">‹</span>
-                            </button>
-                            <div class="if-dots flex items-center gap-2" aria-label="Paginação do carrossel">
-                                @foreach($sliderItems as $index => $item)
-                                    <button type="button" class="if-dot h-2.5 w-2.5 rounded-full bg-white/15 transition focus:outline-none focus:ring-2 focus:ring-primary/60" data-index="{{ $index }}" aria-label="Ir para {{ $index + 1 }}"></button>
-                                @endforeach
+                                </div>
+                                <span class="rounded-full bg-emerald-950 px-4 py-2 text-xs font-black text-[var(--lime)]">30% off</span>
                             </div>
-                            <button type="button" class="if-next inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/60" aria-label="Próximo">
-                                <span aria-hidden="true">›</span>
-                            </button>
+
+                            <ul class="mt-7 space-y-3 text-sm font-semibold text-emerald-950/102">
+                                <li class="flex gap-3"><span class="text-emerald-700">✓</span> 7 dias grátis para testar</li>
+                                <li class="flex gap-3"><span class="text-emerald-700">✓</span> Pode comprar direto sem esperar o teste</li>
+                                <li class="flex gap-3"><span class="text-emerald-700">✓</span> Pagamento recorrente no cartão</li>
+                                <li class="flex gap-3"><span class="text-emerald-700">✓</span> Cancele quando quiser pelo painel</li>
+                            </ul>
+
+                            <div class="mt-8 grid gap-3 sm:grid-cols-2">
+                                <a href="{{ $trialCtaUrl }}" class="inline-flex items-center justify-center rounded-2xl bg-emerald-950 px-5 py-4 font-black text-white transition hover:bg-emerald-900">
+                                    Começar grátis
+                                </a>
+                                <a href="{{ $paidCtaUrl }}" class="inline-flex items-center justify-center rounded-2xl border border-emerald-950/15 bg-white/70 px-5 py-4 font-black text-emerald-950 transition hover:bg-white">
+                                    Comprar agora
+                                </a>
+                            </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <section class="mx-auto max-w-7xl px-5 pb-20 sm:px-8 lg:px-10">
+                <div class="grid gap-5 lg:grid-cols-3">
+                    <article class="dark-card rounded-[2rem] p-7 lg:col-span-1">
+                        <div class="text-xs font-black uppercase tracking-[.26em] text-[var(--gold)]">Como começa</div>
+                        <h2 class="display mt-4 text-4xl font-black leading-tight text-white">3 passos, sem manual.</h2>
+                    </article>
+                    <article class="dark-card rounded-[2rem] p-7">
+                        <div class="text-3xl font-black text-[var(--green)]">01</div>
+                        <h3 class="mt-5 text-xl font-black text-white">Crie sua conta</h3>
+                        <p class="mt-3 leading-7 text-emerald-50/60">Entre no app, escolha testar grátis ou assinar direto.</p>
+                    </article>
+                    <article class="dark-card rounded-[2rem] p-7">
+                        <div class="text-3xl font-black text-[var(--green)]">02</div>
+                        <h3 class="mt-5 text-xl font-black text-white">Ative seu WhatsApp</h3>
+                        <p class="mt-3 leading-7 text-emerald-50/60">Valide seu número para o assistente saber que os dados são seus.</p>
+                    </article>
+                    <article class="dark-card rounded-[2rem] p-7 lg:col-start-2">
+                        <div class="text-3xl font-black text-[var(--green)]">03</div>
+                        <h3 class="mt-5 text-xl font-black text-white">Use frases naturais</h3>
+                        <p class="mt-3 leading-7 text-emerald-50/60">“Recebi 1200”, “quais gastos sem categoria?”, “salva esse PDF no Drive”.</p>
+                    </article>
+                    <article class="paper-card rounded-[2rem] p-7">
+                        <div class="text-xs font-black uppercase tracking-[.22em] text-emerald-900/50">Suporte</div>
+                        <h3 class="display mt-4 text-3xl font-black leading-tight text-emerald-950">Tem humano por perto.</h3>
+                        <p class="mt-3 leading-7 text-emerald-950/70">Se algo sair estranho, você fala com suporte e os casos reais viram melhoria no assistente.</p>
+                        <div class="mt-6 flex flex-wrap gap-3">
+                            <a href="{{ route('support') }}" class="rounded-2xl bg-emerald-950 px-5 py-3 text-sm font-black text-white">Abrir suporte</a>
+                            @if ($supportWhatsappUrl)
+                                <a href="{{ $supportWhatsappUrl }}" class="rounded-2xl border border-emerald-950/15 bg-white/70 px-5 py-3 text-sm font-black text-emerald-950">WhatsApp</a>
+                            @endif
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section id="faq" class="mx-auto max-w-4xl px-5 pb-24 sm:px-8 lg:px-10">
+                <div class="text-center">
+                    <div class="text-xs font-black uppercase tracking-[.28em] text-[var(--gold)]">Dúvidas comuns</div>
+                    <h2 class="display mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">Antes de entrar.</h2>
+                </div>
+
+                <div class="mt-10 space-y-4">
+                    <details class="dark-card group rounded-3xl p-6">
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-black text-white">
+                            O InovaFinance substitui meu banco?
+                            <span class="text-[var(--green)] transition group-open:rotate-45">+</span>
+                        </summary>
+                        <p class="mt-4 leading-7 text-emerald-50/60">Não. Ele organiza sua vida financeira e seus registros. Você continua usando banco, cartão e Drive normalmente.</p>
+                    </details>
+                    <details class="dark-card group rounded-3xl p-6">
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-black text-white">
+                            Preciso usar palavras exatas?
+                            <span class="text-[var(--green)] transition group-open:rotate-45">+</span>
+                        </summary>
+                        <p class="mt-4 leading-7 text-emerald-50/60">Não. Você pode escrever como falaria no WhatsApp. Quando faltar algo importante, o assistente pergunta antes de concluir.</p>
+                    </details>
+                    <details class="dark-card group rounded-3xl p-6">
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-black text-white">
+                            Posso ver tudo pelo site?
+                            <span class="text-[var(--green)] transition group-open:rotate-45">+</span>
+                        </summary>
+                        <p class="mt-4 leading-7 text-emerald-50/60">Sim. O WhatsApp agiliza o registro e o painel mostra dashboard, transações, metas, cartões, relatórios, notas, lembretes e arquivos.</p>
+                    </details>
+                    <details class="dark-card group rounded-3xl p-6">
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-black text-white">
+                            Posso cancelar quando quiser?
+                            <span class="text-[var(--green)] transition group-open:rotate-45">+</span>
+                        </summary>
+                        <p class="mt-4 leading-7 text-emerald-50/60">Sim. A assinatura pode ser cancelada pelo painel, sem precisar pedir manualmente ao suporte.</p>
+                    </details>
+                </div>
+            </section>
+        </main>
+
+        <footer class="border-t border-white/10 bg-black/20">
+            <div class="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[1.2fr_.8fr_.8fr_1fr] lg:px-10">
+                <div>
+                    <div class="flex items-center gap-3">
+                        <span class="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-400/10">
+                            <img src="{{ asset('logo.png') }}" alt="InovaFinance" class="h-7 w-7 object-contain">
+                        </span>
+                        <div>
+                            <div class="font-black text-white">InovaFinance</div>
+                            <div class="text-sm text-emerald-50/50">Controle financeiro por conversa.</div>
+                        </div>
+                    </div>
+                    <p class="mt-5 max-w-sm text-sm leading-7 text-emerald-50/50">
+                        Um produto da InovaForce IT para transformar registros financeiros soltos em rotina simples, clara e acompanhável.
+                    </p>
+                </div>
+
+                <div>
+                    <div class="text-sm font-black uppercase tracking-[.22em] text-emerald-50/40">Produto</div>
+                    <ul class="mt-4 space-y-3 text-sm font-semibold text-emerald-50/60">
+                        <li><a href="#produto" class="hover:text-white">Início</a></li>
+                        <li><a href="#rotina" class="hover:text-white">Rotina</a></li>
+                        <li><a href="#planos" class="hover:text-white">Oferta</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <div class="text-sm font-black uppercase tracking-[.22em] text-emerald-50/40">Conta</div>
+                    <ul class="mt-4 space-y-3 text-sm font-semibold text-emerald-50/60">
+                        <li><a href="{{ $loginUrl }}" class="hover:text-white">Entrar</a></li>
+                        <li><a href="{{ $trialCtaUrl }}" class="hover:text-white">Criar conta</a></li>
+                        <li><a href="{{ $paidCtaUrl }}" class="hover:text-white">Comprar acesso</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <div class="text-sm font-black uppercase tracking-[.22em] text-emerald-50/40">Legal e suporte</div>
+                    <ul class="mt-4 space-y-3 text-sm font-semibold text-emerald-50/60">
+                        <li><a href="{{ route('support') }}" class="hover:text-white">Suporte</a></li>
+                        <li><a href="mailto:{{ $supportEmail }}" class="hover:text-white">{{ $supportEmail }}</a></li>
+                        <li><a href="{{ route('privacy-policy') }}" class="hover:text-white">Política de privacidade</a></li>
+                        <li><a href="{{ route('terms-of-use') }}" class="hover:text-white">Termos de uso</a></li>
+                    </ul>
                 </div>
             </div>
-        </section>
 
-        <footer class="relative z-10 border-t border-white/10 bg-slate-950/70">
-            <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.14),_transparent_36%)]"></div>
-
-            <div class="relative mx-auto max-w-7xl px-6 py-16">
-                <div class="grid gap-12 lg:grid-cols-[1.15fr_1fr_1fr_1.1fr]">
-                    <div class="space-y-5">
-                        <div class="flex items-center gap-3">
-                            <div class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
-                                <img src="{{ asset('logo.png') }}" alt="InovaFinance" class="h-6 w-6 object-contain" />
-                            </div>
-                            <div>
-                                <div class="text-lg font-black text-white">InovaFinance</div>
-                                <div class="text-sm text-slate-400">Seu amigo financeiro no WhatsApp.</div>
-                            </div>
-                        </div>
-
-                        <p class="max-w-sm text-sm leading-7 text-slate-400">
-                            Registre gastos, receitas e lembretes por conversa. A IA ajuda quando precisa, e o resto fica determinístico e confiável.
-                        </p>
-
-                        <div class="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                            <span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
-                                <span class="h-2 w-2 rounded-full bg-primary"></span>
-                                IA no WhatsApp
-                            </span>
-                            <span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
-                                <span class="h-2 w-2 rounded-full bg-sky-300"></span>
-                                Cartões e contas
-                            </span>
-                            <span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
-                                <span class="h-2 w-2 rounded-full bg-amber-300"></span>
-                                Alertas
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="space-y-4">
-                        <div class="text-sm font-bold uppercase tracking-[0.22em] text-slate-300">Produto</div>
-                        <ul class="space-y-3 text-sm text-slate-400">
-                            <li><a class="hover:text-white" href="#produto">WhatsApp + Painel</a></li>
-                            <li><a class="hover:text-white" href="#recursos">Orçamentos, metas e alertas</a></li>
-                            <li><a class="hover:text-white" href="#como-funciona">Como funciona</a></li>
-                            <li><a class="hover:text-white" href="#planos">Planos</a></li>
-                        </ul>
-                    </div>
-
-                    <div class="space-y-4">
-                        <div class="text-sm font-bold uppercase tracking-[0.22em] text-slate-300">Conta</div>
-                        <ul class="space-y-3 text-sm text-slate-400">
-                            <li><a class="hover:text-white" href="{{ Route::has('login') ? route('login') : '#' }}">Entrar</a></li>
-                            <li><a class="hover:text-white" href="{{ $trialCtaUrl }}">Testar grátis</a></li>
-                            <li><a class="hover:text-white" href="{{ $paidCtaUrl }}">Assinar agora</a></li>
-                            <li><a class="hover:text-white" href="{{ route('terms-of-use') }}">Termos de uso</a></li>
-                            <li><a class="hover:text-white" href="{{ route('privacy-policy') }}">Política de privacidade</a></li>
-                        </ul>
-                    </div>
-
-                    <div class="rounded-3xl border border-white/10 bg-white/5 p-7 shadow-[0_24px_80px_rgba(2,6,23,0.55)]">
-                        <div class="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Suporte humano</div>
-                        <div class="mt-3 text-xl font-black text-white">Fale com a nossa equipe</div>
-                        <p class="mt-3 text-sm leading-7 text-slate-300">
-                            Precisa de ajuda para escolher um plano ou configurar o WhatsApp? A gente te atende por mensagem.
-                        </p>
-
-                        @if($supportWhatsappUrl)
-                            <a href="{{ $supportWhatsappUrl }}" class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 font-extrabold text-space-950 transition hover:brightness-110">
-                                <span aria-hidden="true">WhatsApp</span>
-                                <span class="text-sm font-black">Chamar no WhatsApp</span>
-                            </a>
-                            <div class="mt-3 text-xs text-slate-400">{{ $supportWhatsappLabel }}</div>
-                        @endif
-
-                        <div class="mt-4 text-sm text-slate-300">
-                            <span class="text-slate-500">E-mail:</span> <a class="font-semibold hover:text-white" href="mailto:{{ $supportEmail }}">{{ $supportEmail }}</a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-14 flex flex-col gap-4 border-t border-white/10 pt-8 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="text-sm text-slate-500">
-                        &copy; 2026 InovaForce IT. Todos os direitos reservados.
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <a href="#" class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label="Instagram">
-                            <span aria-hidden="true">IG</span>
-                        </a>
-                        <a href="#" class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label="Facebook">
-                            <span aria-hidden="true">FB</span>
-                        </a>
-                    </div>
-                </div>
+            <div class="mx-auto flex max-w-7xl flex-col gap-3 border-t border-white/10 px-5 py-6 text-sm text-emerald-50/40 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
+                <span>&copy; 2026 InovaForce IT. Todos os direitos reservados.</span>
+                <span>InovaFinance não é instituição financeira.</span>
             </div>
         </footer>
-
         <script>
-            (function () {
-                const root = document.getElementById('if-slider');
-                if (!root) return;
+            (() => {
+                const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+                if (reducedMotion.matches || !('IntersectionObserver' in window)) return;
 
-                const slides = Array.from(root.querySelectorAll('.if-slide'));
-                const avatars = Array.from(root.querySelectorAll('.if-avatar'));
-                const dots = Array.from(root.querySelectorAll('.if-dot'));
-                const prev = root.querySelector('.if-prev');
-                const next = root.querySelector('.if-next');
-                const max = slides.length;
-
-                let index = 0;
-                let timer = null;
-
-                function setActive(nextIndex) {
-                    index = (nextIndex + max) % max;
-
-                    slides.forEach((el) => {
-                        const isActive = Number(el.dataset.index) === index;
-                        el.classList.toggle('hidden', !isActive);
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(({ target, isIntersecting }) => {
+                        if (!isIntersecting) return;
+                        target.classList.add('is-visible');
+                        observer.unobserve(target);
                     });
+                }, { threshold: 0.08 });
 
-                    avatars.forEach((el) => {
-                        const isActive = Number(el.dataset.index) === index;
-                        el.classList.toggle('ring-2', isActive);
-                        el.classList.toggle('ring-primary/70', isActive);
-                    });
-
-                    dots.forEach((el) => {
-                        const isActive = Number(el.dataset.index) === index;
-                        el.classList.toggle('bg-white/15', !isActive);
-                        el.classList.toggle('bg-primary', isActive);
-                        el.classList.toggle('w-2.5', !isActive);
-                        el.classList.toggle('w-7', isActive);
-                    });
-                }
-
-                function stop() {
-                    if (timer) {
-                        window.clearInterval(timer);
-                        timer = null;
+                // Animate independent blocks without nesting hidden containers.
+                const blocks = document.querySelectorAll(
+                    'main section:not(#produto) article, main section:not(#produto) h2, '
+                    + '#faq details, #planos .paper-card'
+                );
+                blocks.forEach((block, index) => {
+                    if (block.closest('article')) {
+                        if (block.tagName !== 'ARTICLE') return;
                     }
-                }
+                    if (block.getBoundingClientRect().top < window.innerHeight) return;
+                    block.style.setProperty('--enter-delay', `${(index % 3) * 70}ms`);
+                    observer.observe(block);
+                    block.classList.add('scroll-enter');
+                });
 
-                function start() {
-                    stop();
-                    timer = window.setInterval(() => setActive(index + 1), 6500);
-                }
-
-                avatars.forEach((btn) => btn.addEventListener('click', () => setActive(Number(btn.dataset.index))));
-                dots.forEach((btn) => btn.addEventListener('click', () => setActive(Number(btn.dataset.index))));
-                if (prev) prev.addEventListener('click', () => setActive(index - 1));
-                if (next) next.addEventListener('click', () => setActive(index + 1));
-
-                root.addEventListener('mouseenter', stop);
-                root.addEventListener('mouseleave', start);
-                root.addEventListener('focusin', stop);
-                root.addEventListener('focusout', start);
-
-                setActive(0);
-                start();
+                reducedMotion.addEventListener('change', ({ matches }) => {
+                    if (!matches) return;
+                    observer.disconnect();
+                    blocks.forEach(block => block.classList.add('is-visible'));
+                });
             })();
         </script>
     </body>

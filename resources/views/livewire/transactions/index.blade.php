@@ -310,7 +310,7 @@ new class extends Component
                             <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                                 <span>{{ $transaction->date->format('d/m/Y') }}</span>
                                 @if($transaction->category)
-                                    <span>Â·</span>
+                                    <span>·</span>
                                     <span>
                                         @if($transaction->category->icon)
                                             {{ $transaction->category->icon }}
@@ -339,7 +339,7 @@ new class extends Component
                             />
                             <flux:button
                                 wire:click="delete({{ $transaction->id }})"
-                                wire:confirm="Tem certeza que deseja excluir esta transaÃ§Ã£o?"
+                                wire:confirm="Tem certeza que deseja excluir esta transação?"
                                 variant="ghost"
                                 size="sm"
                                 icon="trash"
@@ -350,7 +350,7 @@ new class extends Component
                 </article>
             @empty
                 <div class="px-6 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                    Nenhuma transaÃ§Ã£o encontrada.
+                    Nenhuma transação encontrada.
                 </div>
             @endforelse
         </div>
