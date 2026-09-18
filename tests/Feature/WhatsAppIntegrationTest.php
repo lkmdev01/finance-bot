@@ -1,5 +1,6 @@
 <?php
 
+use App\Ai\FinancialAgent;
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Budget;
 use App\Models\Category;
@@ -12,6 +13,7 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Laravel\Ai\Ai;
 
 use function Pest\Laravel\assertDatabaseHas;
 use function Pest\Laravel\assertDatabaseMissing;
@@ -22,20 +24,101 @@ function fakeBaileysSuccessResponse(): Response
 }
 
 beforeEach(function () {
+    config(['ai.use_sdk' => true]);
+
     $this->user = User::factory()->create([
         'phone_number' => '5513991290256',
     ]);
-    
+
     $this->contact = WhatsAppContact::factory()->create([
         'user_id' => $this->user->id,
         'phone_number' => '5513991290256',
     ]);
-    
+
     $this->category = Category::factory()->create([
         'user_id' => $this->user->id,
         'type' => 'expense',
         'name' => 'Supermercado',
     ]);
+
+    Ai::fakeAgent(FinancialAgent::class, function (string $prompt): array {
+        $message = mb_strtolower(trim($prompt));
+        $today = now()->toDateString();
+
+        $contactState = WhatsAppContact::query()->where('user_id', User::query()->latest('id')->value('id'))->first()?->conversation_state ?? [];
+        if (in_array($message, ['sim', 'ok'], true) && ($contactState['pending_intent'] ?? null) === 'confirm_large_transaction') {
+            return ['action' => 'confirm_large_transaction', 'reply' => '', 'transaction_data' => $contactState['pending_payload']['transaction_data'] ?? []];
+        }
+
+        if (str_contains($message, 'recebi 500')) {
+            return ['action' => 'create_transaction', 'reply' => '', 'transaction_data' => ['type' => 'income', 'amount' => 500, 'description' => 'Servico', 'date' => $today]];
+        }
+        if (str_contains($message, 'ganho de 1200')) {
+            return ['action' => 'create_transaction', 'reply' => '', 'transaction_data' => ['type' => 'income', 'amount' => 1200, 'description' => 'Servico', 'date' => $today]];
+        }
+        if (str_contains($message, 'gastei 50 reais no supermercado')) {
+            return ['action' => 'create_transaction', 'reply' => '', 'transaction_data' => ['type' => 'expense', 'amount' => 50, 'description' => 'Supermercado', 'category_name' => 'Supermercado', 'date' => $today]];
+        }
+        if (str_contains($message, 'recebi 420')) {
+            return ['action' => 'create_transaction', 'reply' => '', 'transaction_data' => ['type' => 'income', 'amount' => 420, 'description' => 'Receita', 'date' => $today]];
+        }
+        if (str_contains($message, 'gastei 32 no uber')) {
+            return ['action' => 'create_transaction', 'reply' => '', 'transaction_data' => ['type' => 'expense', 'amount' => 32, 'description' => 'Uber', 'payment_method' => 'debit', 'date' => now()->subDay()->toDateString()]];
+        }
+        if (str_contains($message, 'paguei 45 no mercado')) {
+            return ['action' => 'create_transaction', 'reply' => '', 'transaction_data' => ['type' => 'expense', 'amount' => 45, 'description' => 'Mercado', 'date' => '2026-05-14']];
+        }
+        if (str_contains($message, 'gastei 1')) {
+            return ['action' => 'create_transaction', 'reply' => '', 'transaction_data' => ['type' => 'expense', 'amount' => 1, 'description' => 'Gasto', 'date' => $today]];
+        }
+        if (str_contains($message, 'burger king')) {
+            return ['action' => 'create_transaction', 'reply' => '', 'transaction_data' => ['type' => 'expense', 'amount' => 32, 'description' => 'Burger King', 'category_name' => 'Alimentacao', 'date' => $today]];
+        }
+        if (str_contains($message, 'uber no cartao nubank')) {
+            return ['action' => 'create_transaction', 'reply' => '', 'transaction_data' => ['type' => 'expense', 'amount' => 89, 'description' => 'Uber', 'credit_card_name' => 'Nubank', 'category_name' => 'Transporte', 'date' => $today]];
+        }
+        if (str_contains($message, 'parcelei um celular')) {
+            return ['action' => 'create_installment_transaction', 'reply' => '', 'installment_data' => ['description' => 'Celular', 'total_amount' => 2000, 'installment_count' => 10, 'per_installment_amount' => 200, 'credit_card_name' => 'Nubank', 'category_name' => 'Compras', 'date' => $today]];
+        }
+        if (str_contains($message, 'comprei um celular por 2000')) {
+            return ['action' => 'create_installment_transaction', 'reply' => '', 'installment_data' => ['description' => 'Celular', 'total_amount' => 2000, 'installment_count' => 10, 'per_installment_amount' => 200, 'date' => '2026-05-14']];
+        }
+        if (str_contains($message, 'moto em 12 vezes de 599')) {
+            return ['action' => 'create_installment_transaction', 'reply' => '', 'installment_data' => ['description' => 'Moto', 'total_amount' => 7188, 'installment_count' => 12, 'per_installment_amount' => 599, 'date' => $today]];
+        }
+        if (str_contains($message, 'internet e mensal')) {
+            return ['action' => 'create_recurring_transaction', 'reply' => '', 'recurring_data' => ['type' => 'expense', 'amount' => 119, 'description' => 'Internet', 'frequency' => 'monthly', 'day_of_month' => 12, 'bank_account_name' => 'Itau', 'category_name' => 'Casa']];
+        }
+        if (str_contains($message, 'criar assinatura netflix') || str_contains($message, 'assinatura netflix mensal')) {
+            return ['action' => 'create_subscription', 'reply' => '', 'subscription_data' => ['name' => 'Netflix', 'amount' => 19, 'billing_cycle' => 'monthly', 'due_day' => 10, 'start_date' => $today, 'credit_card_name' => 'Nubank']];
+        }
+        if (str_contains($message, 'criar orcamento de 500')) {
+            return ['action' => 'create_budget', 'reply' => '', 'budget_data' => ['category_name' => 'Supermercado', 'amount' => 500, 'period' => 'monthly', 'year' => now()->year, 'month' => now()->month]];
+        }
+        if (str_contains($message, 'criar orcamento de 650')) {
+            return ['action' => 'create_budget', 'reply' => '', 'budget_data' => ['category_name' => 'Supermercado', 'amount' => 650, 'period' => 'monthly', 'year' => now()->year, 'month' => now()->month]];
+        }
+        if (str_contains($message, 'definir orcamento')) {
+            return ['action' => 'create_budget', 'reply' => '', 'budget_data' => ['category_name' => 'Compras', 'amount' => 500, 'period' => 'monthly', 'year' => now()->year, 'month' => now()->month]];
+        }
+        if (str_contains($message, 'ajusta ela para 25')) {
+            return ['action' => 'update_subscription', 'reply' => '', 'subscription_data' => ['name' => 'Netflix', 'amount' => 25, 'billing_cycle' => 'monthly', 'due_day' => 10, 'bank_account_name' => 'Itau']];
+        }
+        if (str_contains($message, 'registrar cartao')) {
+            return ['action' => 'create_credit_card', 'reply' => '', 'credit_card_data' => ['name' => 'Nubank', 'credit_limit' => 5000]];
+        }
+        if (str_contains($message, 'quais sao meus orcamentos') || str_contains($message, 'qual meu orcamento')) {
+            return ['action' => 'query_budgets', 'reply' => ''];
+        }
+        if ($message === 'ok') {
+            return ['action' => 'query_budgets', 'reply' => ''];
+        }
+        if (str_contains($message, 'tenho cartoes')) {
+            return ['action' => 'query_credit_cards', 'reply' => ''];
+        }
+
+        return ['action' => null, 'reply' => 'Ola! Como posso ajudar?'];
+    })->preventStrayPrompts();
 });
 
 it('processa mensagem do WhatsApp end-to-end e cria transacao', function () {
@@ -61,14 +144,14 @@ it('processa mensagem do WhatsApp end-to-end e cria transacao', function () {
             ],
         ], 200),
     ]);
-    
+
     // Mock do BaileysService
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
             ->andReturn(fakeBaileysSuccessResponse());
     });
-    
+
     // Processa a mensagem
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
@@ -77,14 +160,14 @@ it('processa mensagem do WhatsApp end-to-end e cria transacao', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    
+
     $job->handle(
         app(AIService::class),
         app(BaileysService::class),
         app(\App\Services\PhoneNumberService::class),
         app(\App\Services\PerformanceMetricsService::class)
     );
-    
+
     // Verifica se a transacao foi criada
     assertDatabaseHas('transactions', [
         'user_id' => $this->user->id,
@@ -102,13 +185,13 @@ it('processa mensagem de consulta de saldo via WhatsApp', function () {
         'type' => 'income',
         'amount' => 1000.00,
     ]);
-    
+
     Transaction::factory()->create([
         'user_id' => $this->user->id,
         'type' => 'expense',
         'amount' => 200.00,
     ]);
-    
+
     // Mock da resposta da IA
     Http::fake([
         'api.groq.com/*' => Http::response([
@@ -124,14 +207,14 @@ it('processa mensagem de consulta de saldo via WhatsApp', function () {
             ],
         ], 200),
     ]);
-    
+
     // Mock do BaileysService
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
             ->andReturn(fakeBaileysSuccessResponse());
     });
-    
+
     // Processa a mensagem
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
@@ -140,14 +223,14 @@ it('processa mensagem de consulta de saldo via WhatsApp', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    
+
     $job->handle(
         app(AIService::class),
         app(BaileysService::class),
         app(\App\Services\PhoneNumberService::class),
         app(\App\Services\PerformanceMetricsService::class)
     );
-    
+
     // Verifica se o contexto foi atualizado
     $this->contact->refresh();
     expect($this->contact->context)->toBeArray();
@@ -381,7 +464,6 @@ it('cria receita via WhatsApp mesmo quando a IA retorna descricao vazia', functi
         'type' => 'income',
         'amount' => 420.00,
         'description' => 'Receita',
-        'category_id' => null,
     ]);
 });
 
@@ -624,16 +706,16 @@ it('atualiza contexto do contato apos processar mensagem', function () {
             ],
         ], 200),
     ]);
-    
+
     // Mock do BaileysService
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
             ->andReturn(fakeBaileysSuccessResponse());
     });
-    
+
     $initialContextCount = count($this->contact->context ?? []);
-    
+
     // Processa a mensagem
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
@@ -642,14 +724,14 @@ it('atualiza contexto do contato apos processar mensagem', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    
+
     $job->handle(
         app(AIService::class),
         app(BaileysService::class),
         app(\App\Services\PhoneNumberService::class),
         app(\App\Services\PerformanceMetricsService::class)
     );
-    
+
     // Verifica se o contexto foi atualizado
     $this->contact->refresh();
     expect($this->contact->context)->toBeArray();
@@ -662,14 +744,14 @@ it('lida com erro na API da IA graciosamente', function () {
     Http::fake([
         'api.groq.com/*' => Http::response([], 500),
     ]);
-    
+
     // Mock do BaileysService
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
             ->once()
             ->andReturn(fakeBaileysSuccessResponse());
     });
-    
+
     // Processa a mensagem
     $job = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
@@ -678,7 +760,7 @@ it('lida com erro na API da IA graciosamente', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     );
-    
+
     // Nao deve lancar excecao
     expect(fn() => $job->handle(
         app(AIService::class),

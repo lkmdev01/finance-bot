@@ -2,8 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Assistant\DTO\IncomingMessageDTO;
-use App\Assistant\Orchestrators\FinancialAssistantOrchestrator;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
@@ -119,7 +117,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $this->finalReply = null;
             $user = User::findOrFail($this->userId);
             $telemetry = app(ConversationTelemetryService::class);
-            $assistant = app(FinancialAssistantOrchestrator::class);
 
             $contact = WhatsAppContact::firstOrCreate(
                 [
@@ -147,87 +144,19 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 ]);
             }
 
-            $assistantResponse = $assistant->handle(
-                $user,
-                $contact,
-                new IncomingMessageDTO(
-                    rawMessage: $this->message,
-                    phoneNumber: $this->phoneNumber,
-                    pushName: $this->pushName,
-                    remoteJid: $this->remoteJid,
-                    imageUrl: $this->imageUrl,
-                    incomingMediaId: $this->incomingMediaId,
-                ),
-            );
-
-            $normalizedMessage = $assistantResponse->normalizedMessage;
+            // Inicia o processamento com IA
+            $startTime = microtime(true);
+            $normalizedMessage = (new \App\Services\WhatsApp\IncomingMessageNormalizer())->clean($this->message);
             $this->setNormalizedMessage($normalizedMessage);
-            $preflight = $assistantResponse->preflight;
 
-            Log::info('WhatsApp preflight processado', [
-                'user_id' => $user->id,
-                'message' => mb_substr($normalizedMessage, 0, 160),
-                'handled' => $preflight['handled'] ?? false,
-                'action' => $preflight['action'] ?? ($preflight['result']['action'] ?? null),
-                'classification' => $assistantResponse->intent->legacyKind,
-            ]);
+            // O processador agora decide tudo via IA (Laravel AI SDK se habilitado)
+            $result = $processor->process($normalizedMessage, $user, $contact);
 
-            if (($preflight['handled'] ?? false) === true) {
-                $reply = $preflight['reply'] ?? '';
-                $this->rememberFinalReply($reply);
-                $this->sendResponse($baileysService, $phoneNumberService, $reply, $user);
-                $stateService->applyHandledResult($contact, $normalizedMessage, $preflight['action'] ?? null, $reply, $preflight['metadata'] ?? []);
-                $proactiveTrigger->dispatch($user, $contact, $preflight['action'] ?? null, $preflight, $this);
-                $telemetry->record($user, $contact, $this->message, [
-                    'classification' => $preflight['classification'] ?? null,
-                    'assistant_intent' => $assistantResponse->intent->intent->value,
-                    'action' => $preflight['action'] ?? null,
-                    'handler' => 'preflight',
-                    'used_ai' => $assistantResponse->usedAI,
-                    'status' => 'handled_preflight',
-                    'reply' => $reply,
-                    'metadata' => [
-                        'preflight_handled' => true,
-                        'domain' => $preflight['domain'] ?? null,
-                        'assistant_intent' => $assistantResponse->intent->intent->value,
-                        'assistant_confidence' => $assistantResponse->intent->confidence,
-                        'assistant_missing_fields' => $assistantResponse->intent->missingFields,
-                        'assistant_domain' => $assistantResponse->intent->domain,
-                        'assistant_used_ai' => $assistantResponse->usedAI,
-                    ],
-                ]);
-
-                return;
-            }
-
-            if ($assistantResponse->result !== []) {
-                $result = $assistantResponse->result;
-            } else {
-                $startTime = microtime(true);
-                $result = $processor->process($normalizedMessage, $user, $contact);
-                $processingTime = round((microtime(true) - $startTime) * 1000, 2);
-                $metricsService->recordAITime($processingTime, $result['action'] ?? null);
-
-                Log::info('WhatsApp resposta da IA recebida', [
-                    'user_id' => $user->id,
-                    'action' => $result['action'] ?? null,
-                    'has_transaction_data' => ! empty($result['transaction_data'] ?? []),
-                    'has_goal_data' => ! empty($result['goal_data'] ?? []),
-                    'has_subscription_data' => ! empty($result['subscription_data'] ?? []),
-                ]);
-            }
+            $processingTime = round((microtime(true) - $startTime) * 1000, 2);
+            $metricsService->recordAITime($processingTime, $result['action'] ?? null);
 
             $action = $result['action'] ?? null;
 
-            if ($action === null && $this->looksLikeBudgetCreateIntent()) {
-                $inferredBudgetData = $this->inferBudgetDataFromMessage();
-
-                if ($inferredBudgetData !== null) {
-                    $action = 'create_budget';
-                    $result['action'] = 'create_budget';
-                    $result['budget_data'] = array_merge($result['budget_data'] ?? [], $inferredBudgetData);
-                }
-            }
 
             [$result, $contractMeta] = app(\App\Services\WhatsApp\ActionResultSanitizer::class)->sanitize($result);
             $result['_contract_meta'] = $contractMeta;
@@ -236,10 +165,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $handled = $handlerFactory->process($action, $result, $user, $contact, $this);
             // Handlers may refine/override the action after clarification/confirmation.
             $effectiveAction = $result['action'] ?? $action;
-            $assistantIntentValue = $assistantResponse->intent->intent->value;
-            $telemetryIntent = ($assistantIntentValue === 'unknown' && is_string($effectiveAction) && $effectiveAction !== '')
-                ? $effectiveAction
-                : $assistantIntentValue;
+            $telemetryIntent = $effectiveAction ?? 'unknown';
 
             Log::info('WhatsApp pos-handler', [
                 'user_id' => $user->id,
@@ -272,26 +198,22 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 }
 
                 $telemetry->record($user, $contact, $this->message, [
-                    'classification' => $preflight['classification'] ?? null,
+                    'classification' => null,
                     'assistant_intent' => $telemetryIntent,
                     'action' => $effectiveAction,
                     'handler' => $result['_selected_handler'] ?? null,
-                    'used_ai' => $assistantResponse->usedAI,
+                    'used_ai' => true,
                     'status' => 'handled',
                     'reply' => $reply,
                     'metadata' => [
                         'preflight_handled' => false,
-                        'domain' => $preflight['domain'] ?? null,
                         'reply_kind' => $result['_conversation_metadata']['reply_kind'] ?? null,
                         'contract' => $result['_contract_meta'] ?? null,
                         'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
                         'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                         'entities' => $result['_conversation_metadata']['entities'] ?? null,
                         'assistant_intent' => $telemetryIntent,
-                        'assistant_confidence' => $assistantResponse->intent->confidence,
-                        'assistant_missing_fields' => $assistantResponse->intent->missingFields,
-                        'assistant_domain' => $assistantResponse->intent->domain,
-                        'assistant_used_ai' => $assistantResponse->usedAI,
+                        'assistant_used_ai' => true,
                     ],
                 ]);
 
@@ -306,25 +228,21 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $stateService->applyHandledResult($contact, $normalizedMessage, $effectiveAction, $formattedReply, $metadata);
             $proactiveTrigger->dispatch($user, $contact, $effectiveAction, $result, $this);
             $telemetry->record($user, $contact, $this->message, [
-                'classification' => $preflight['classification'] ?? null,
+                'classification' => null,
                 'assistant_intent' => $telemetryIntent,
                 'action' => $effectiveAction,
                 'handler' => $result['_selected_handler'] ?? null,
-                'used_ai' => $assistantResponse->usedAI,
+                'used_ai' => true,
                 'status' => 'fallback_reply',
                 'reply' => $formattedReply,
                 'metadata' => [
                     'preflight_handled' => false,
-                    'domain' => $preflight['domain'] ?? null,
                     'contract' => $result['_contract_meta'] ?? null,
                     'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
                     'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                     'entities' => $result['_conversation_metadata']['entities'] ?? null,
                     'assistant_intent' => $telemetryIntent,
-                    'assistant_confidence' => $assistantResponse->intent->confidence,
-                    'assistant_missing_fields' => $assistantResponse->intent->missingFields,
-                    'assistant_domain' => $assistantResponse->intent->domain,
-                    'assistant_used_ai' => $assistantResponse->usedAI,
+                    'assistant_used_ai' => true,
                 ],
             ]);
         } catch (\Exception $e) {
@@ -347,19 +265,19 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $this->sendErrorMessage($baileysService, $phoneNumberService, $errorMessage);
 
             if ($contact) {
-                app(ConversationStateService::class)->applyHandledResult($contact, $this->message, null, $errorMessage, [
+                app(\App\Services\WhatsApp\ConversationStateService::class)->applyHandledResult($contact, $this->message, null, $errorMessage, [
                     'clear_pending' => false,
                     'reply_kind' => 'error',
                 ]);
             }
 
-            if (isset($user) && $telemetry instanceof ConversationTelemetryService) {
+            if (isset($user) && $telemetry instanceof \App\Services\WhatsApp\ConversationTelemetryService) {
                 $telemetry->record($user, $contact, $this->message, [
-                    'classification' => $preflight['classification'] ?? null,
-                    'assistant_intent' => $assistantResponse->intent->intent->value ?? null,
+                    'classification' => null,
+                    'assistant_intent' => $action ?? null,
                     'action' => $action ?? null,
                     'handler' => $result['_selected_handler'] ?? null,
-                    'used_ai' => $assistantResponse->usedAI ?? (isset($result) && ! isset($preflight['result'])),
+                    'used_ai' => true,
                     'status' => 'error',
                     'reply' => $errorMessage,
                     'error_type' => get_class($e),
@@ -367,13 +285,9 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'metadata' => [
                         'line' => $e->getLine(),
                         'file' => $e->getFile(),
-                        'domain' => $preflight['domain'] ?? null,
                         'contract' => $result['_contract_meta'] ?? null,
-                        'assistant_intent' => $assistantResponse->intent->intent->value ?? null,
-                        'assistant_confidence' => $assistantResponse->intent->confidence ?? null,
-                        'assistant_missing_fields' => $assistantResponse->intent->missingFields ?? [],
-                        'assistant_domain' => $assistantResponse->intent->domain ?? null,
-                        'assistant_used_ai' => $assistantResponse->usedAI ?? null,
+                        'assistant_intent' => $action ?? null,
+                        'assistant_used_ai' => true,
                     ],
                 ]);
             }

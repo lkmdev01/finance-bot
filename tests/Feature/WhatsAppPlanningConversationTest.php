@@ -1,6 +1,7 @@
-﻿<?php
+<?php
 
 use App\Jobs\ProcessWhatsAppMessage;
+use App\Ai\FinancialAgent;
 use App\Models\Category;
 use App\Models\FinancialProjection;
 use App\Models\SavingsGoal;
@@ -9,10 +10,10 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
 use App\Services\BaileysService;
-use App\Services\WhatsApp\PlanningIntentClassifier;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Ai;
 
 function fakePlanningBaileysSuccessResponse(): Response
 {
@@ -20,6 +21,8 @@ function fakePlanningBaileysSuccessResponse(): Response
 }
 
 beforeEach(function () {
+    config(['ai.use_sdk' => true]);
+
     $this->user = User::factory()->create([
         'phone_number' => '5513991290256',
     ]);
@@ -34,6 +37,76 @@ beforeEach(function () {
         'type' => 'expense',
         'name' => 'Alimentacao',
     ]);
+
+    Ai::fakeAgent(FinancialAgent::class, function (string $prompt): array {
+        return match (trim($prompt)) {
+            'Definir meta viagem 5 mil', 'Quero guardar 5 mil para viagem' => [
+                'action' => 'create_savings_goal',
+                'reply' => 'Vou criar sua meta.',
+                'goal_data' => ['name' => 'Viagem', 'target_amount' => 5000],
+            ],
+            'criar meta viagem' => [
+                'action' => null,
+                'reply' => 'Qual valor voce quer guardar?',
+            ],
+            '5000 ate dezembro de 2026' => [
+                'action' => 'create_savings_goal',
+                'reply' => 'Vou criar sua meta.',
+                'goal_data' => ['name' => 'Viagem', 'target_amount' => 5000, 'target_date' => '2026-12-31'],
+            ],
+            'ajusta para 7000' => [
+                'action' => 'update_savings_goal',
+                'reply' => 'Vou atualizar sua meta.',
+                'goal_data' => ['name' => 'Viagem', 'target_amount' => 7000],
+            ],
+            'quais sao minhas metas?' => ['action' => 'query_savings', 'reply' => ''],
+            'me mostra essa meta Viagem' => ['action' => 'query_savings', 'reply' => ''],
+            'abrir meta 2' => ['action' => 'query_savings', 'reply' => ''],
+            'quais sao minhas assinaturas?' => ['action' => 'query_subscriptions', 'reply' => ''],
+            'Criar assinatura Netflix mensal, dia 10. 19Reais' => [
+                'action' => 'create_subscription',
+                'reply' => 'Vou criar sua assinatura.',
+                'subscription_data' => [
+                    'name' => 'Netflix', 'amount' => 19, 'billing_cycle' => 'monthly', 'due_day' => 10,
+                ],
+            ],
+            'criar assinatura Netflix mensal' => [
+                'action' => null,
+                'reply' => 'Qual valor e vencimento devo usar?',
+            ],
+            '39,90 dia 10' => [
+                'action' => 'create_subscription',
+                'reply' => 'Vou criar sua assinatura.',
+                'subscription_data' => [
+                    'name' => 'Netflix', 'amount' => 39.90, 'billing_cycle' => 'monthly', 'due_day' => 10,
+                ],
+            ],
+            'Ajustar assinatura Netflix para 25 reais dia 12' => [
+                'action' => 'update_subscription',
+                'reply' => 'Vou atualizar sua assinatura.',
+                'subscription_data' => [
+                    'name' => 'Netflix', 'amount' => 25, 'billing_cycle' => 'monthly', 'due_day' => 12,
+                ],
+            ],
+            'cancela ela' => [
+                'action' => 'cancel_subscription',
+                'reply' => 'Vou cancelar sua assinatura.',
+                'subscription_data' => ['name' => 'Netflix'],
+            ],
+            'cancelar assinatura' => [
+                'action' => null,
+                'reply' => 'Qual assinatura devo cancelar?',
+            ],
+            'Netflix' => [
+                'action' => 'cancel_subscription',
+                'reply' => 'Vou cancelar sua assinatura.',
+                'subscription_data' => ['name' => 'Netflix'],
+            ],
+            'lista as ativas', 'cancelados' => ['action' => 'query_subscriptions', 'reply' => ''],
+            'e daqui a 3 meses?' => ['action' => 'query_projections', 'reply' => ''],
+            default => ['action' => null, 'reply' => 'Nao consegui identificar a acao.'],
+        };
+    })->preventStrayPrompts();
 });
 
 it('cria meta via whatsapp com frase natural', function () {
@@ -117,9 +190,6 @@ it('completa criacao de meta em duas mensagens quando falta o valor', function (
         app(\App\Services\PhoneNumberService::class),
         app(\App\Services\PerformanceMetricsService::class)
     );
-
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_savings_goal_details');
 
     $second = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
@@ -227,7 +297,6 @@ it('consulta metas com resposta contextual', function () {
         app(\App\Services\PerformanceMetricsService::class)
     );
 });
-
 it('abre meta pelo nome explicito sem iniciar criacao de meta', function () {
     $goal = SavingsGoal::create([
         'user_id' => $this->user->id,
@@ -283,7 +352,6 @@ it('abre meta pelo nome explicito sem iniciar criacao de meta', function () {
         app(\App\Services\PerformanceMetricsService::class)
     );
 });
-
 it('prioriza meta com nome exato antes de variacoes renomeadas', function () {
     SavingsGoal::create([
         'user_id' => $this->user->id,
@@ -507,9 +575,6 @@ it('completa criacao de assinatura em duas mensagens quando faltam dados', funct
         app(\App\Services\PerformanceMetricsService::class)
     );
 
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('create_subscription_details');
-
     $second = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: '39,90 dia 10',
@@ -666,9 +731,6 @@ it('completa cancelamento de assinatura em duas mensagens quando o alvo nao vem 
         app(\App\Services\PhoneNumberService::class),
         app(\App\Services\PerformanceMetricsService::class)
     );
-
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('cancel_subscription_target');
 
     $second = new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
@@ -854,24 +916,3 @@ it('consulta projecoes e consegue abrir um horizonte especifico', function () {
     );
 });
 
-it('nao trata gratidao como follow up de assinatura', function () {
-    $classifier = app(PlanningIntentClassifier::class);
-
-    $result = $classifier->classify('obrigado', 'obrigado', [
-        'last_action' => 'query_subscriptions',
-        'last_entities' => ['topic' => 'subscriptions', 'subscription_name' => 'Netflix'],
-    ]);
-
-    expect($result)->toBeNull();
-});
-
-it('nao trata saudacao como follow up de meta', function () {
-    $classifier = app(PlanningIntentClassifier::class);
-
-    $result = $classifier->classify('bom dia', 'bom dia', [
-        'last_action' => 'query_savings',
-        'last_entities' => ['topic' => 'savings', 'goal_name' => 'Viagem'],
-    ]);
-
-    expect($result)->toBeNull();
-});

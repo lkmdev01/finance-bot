@@ -131,7 +131,7 @@ class AIService
                 ],
             ],
             'generationConfig' => [
-                'temperature' => 0.8,
+                'temperature' => 0.1,
                 'maxOutputTokens' => 2048,
             ],
         ]);
@@ -159,7 +159,7 @@ class AIService
             'prompt' => $prompt,
             'stream' => false,
             'options' => [
-                'temperature' => 0.8,
+                'temperature' => 0.1,
                 'num_predict' => 2048,
             ],
         ]);
@@ -191,11 +191,15 @@ class AIService
                 'model' => $model,
                 'messages' => [
                     [
+                        'role' => 'system',
+                        'content' => $this->extractSystemPrompt($prompt),
+                    ],
+                    [
                         'role' => 'user',
-                        'content' => $prompt,
+                        'content' => $this->extractUserMessage($prompt),
                     ],
                 ],
-                'temperature' => 0.8,
+                'temperature' => 0.1,
                 'max_tokens' => 2048,
             ]);
 
@@ -250,11 +254,15 @@ class AIService
             'model' => $model,
             'messages' => [
                 [
+                    'role' => 'system',
+                    'content' => $this->extractSystemPrompt($prompt),
+                ],
+                [
                     'role' => 'user',
-                    'content' => $prompt,
+                    'content' => $this->extractUserMessage($prompt),
                 ],
             ],
-            'temperature' => 0.8,
+            'temperature' => 0.1,
             'max_tokens' => 2048,
         ]);
 
@@ -265,5 +273,38 @@ class AIService
         }
 
         throw new \RuntimeException('Erro ao chamar OpenAI API: '.$response->body());
+    }
+
+    /**
+     * Extrai a parte do system prompt do prompt combinado.
+     * O AIPromptBuilder insere SYSTEM_END como separador.
+     */
+    private function extractSystemPrompt(string $prompt): string
+    {
+        $separator = "\n\n---CONTEXT---\n\n";
+        $pos = strpos($prompt, $separator);
+
+        if ($pos !== false) {
+            return substr($prompt, 0, $pos);
+        }
+
+        // Fallback: retorna o prompt inteiro como system (comportamento anterior seguro)
+        return $prompt;
+    }
+
+    /**
+     * Extrai a parte da mensagem do usuário do prompt combinado.
+     */
+    private function extractUserMessage(string $prompt): string
+    {
+        $separator = "\n\n---CONTEXT---\n\n";
+        $pos = strpos($prompt, $separator);
+
+        if ($pos !== false) {
+            return substr($prompt, $pos + strlen($separator));
+        }
+
+        // Fallback: usa o prompt inteiro como mensagem (comportamento anterior)
+        return $prompt;
     }
 }

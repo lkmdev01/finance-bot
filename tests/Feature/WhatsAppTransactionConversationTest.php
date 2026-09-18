@@ -1,5 +1,6 @@
 <?php
 
+use App\Ai\FinancialAgent;
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Category;
 use App\Models\Transaction;
@@ -10,6 +11,7 @@ use App\Services\BaileysService;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Ai;
 
 function fakeTransactionBaileysSuccessResponse(): Response
 {
@@ -17,6 +19,7 @@ function fakeTransactionBaileysSuccessResponse(): Response
 }
 
 beforeEach(function () {
+    config(['ai.use_sdk' => true]);
     $this->user = User::factory()->create([
         'phone_number' => '5513991290256',
     ]);
@@ -37,6 +40,26 @@ beforeEach(function () {
         'type' => 'expense',
         'name' => 'Compras',
     ]);
+
+    Ai::fakeAgent(FinancialAgent::class, function (string $prompt): array {
+        $message = mb_strtolower(trim($prompt));
+        if (str_contains($message, 'gastos sem categoria')) {
+            return ['action' => 'query_transactions', 'reply' => ''];
+        }
+        if (str_contains($message, 'gastos com categoria')) {
+            return ['action' => 'query_transactions', 'reply' => ''];
+        }
+        if (str_contains($message, 'gastos do dia 16')) {
+            return ['action' => 'query_transactions', 'reply' => ''];
+        }
+        if (str_contains($message, 'compare')) {
+            return ['action' => 'query_category', 'reply' => ''];
+        }
+        if (str_contains($message, 'gastos')) {
+            return ['action' => 'query_transactions', 'reply' => ''];
+        }
+        return ['action' => 'query_category', 'reply' => ''];
+    })->preventStrayPrompts();
 });
 
 it('faz follow-up temporal de gastos por categoria', function () {

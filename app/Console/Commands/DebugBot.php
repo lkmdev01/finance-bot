@@ -4,8 +4,6 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Services\WhatsApp\ActionHandlerFactory;
-use App\Services\WhatsApp\IncomingMessageClassifier;
-use App\Services\WhatsApp\ReminderIntentClassifier;
 use Illuminate\Console\Command;
 
 class DebugBot extends Command
@@ -21,16 +19,13 @@ class DebugBot extends Command
         // 1. Verificar usuários
         $this->checkUsers();
 
-        // 2. Verificar classificação
-        $this->checkClassification();
-
-        // 3. Verificar handlers
+        // 2. Verificar handlers
         $this->checkHandlers();
 
-        // 4. Verificar fila
+        // 3. Verificar fila
         $this->checkQueue();
 
-        // 5. Verificar logs
+        // 4. Verificar logs
         $this->checkLogs();
 
         $this->info('====== FIM DEBUG ======');
@@ -49,24 +44,6 @@ class DebugBot extends Command
             $user = User::first();
             $this->line("  Primeiro: ID={$user->id}, Phone={$user->phone}, Name={$user->name}");
         }
-        $this->newLine();
-    }
-
-    private function checkClassification(): void
-    {
-        $this->info('🔍 Testando classificação de mensagens...');
-
-        $classifier = app(IncomingMessageClassifier::class);
-        $reminder_classifier = app(ReminderIntentClassifier::class);
-
-        // Teste 1
-        $result = $classifier->classify('oi');
-        $this->line("  'oi' → " . json_encode($result));
-
-        // Teste 2
-        $result = $reminder_classifier->classify('quais sao meus lembretes', 'quais sao meus lembretes', []);
-        $this->line("  'quais são meus lembretes' → " . json_encode($result));
-
         $this->newLine();
     }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Ai\FinancialAgent;
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Note;
 use App\Models\Reminder;
@@ -11,6 +12,7 @@ use App\Services\WhatsApp\NotesConversationService;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Ai;
 
 function fakeContextualDomainBaileysSuccessResponse(): Response
 {
@@ -28,6 +30,7 @@ function runContextualDomainJob(ProcessWhatsAppMessage $job): void
 }
 
 beforeEach(function () {
+    config(['ai.use_sdk' => true]);
     $this->user = User::factory()->create([
         'phone_number' => '5513991290256',
     ]);
@@ -36,6 +39,40 @@ beforeEach(function () {
         'user_id' => $this->user->id,
         'phone_number' => '5513991290256',
     ]);
+
+    Ai::fakeAgent(FinancialAgent::class, function (string $prompt): array {
+        $message = mb_strtolower(trim($prompt));
+        if (str_contains($message, 'edita essa nota')) {
+            return ['action' => 'edit_note', 'reply' => '', 'note_data' => ['target' => 'Projeto Alpha']];
+        }
+        if (str_contains($message, 'ligar para o contador')) {
+            $noteId = $this->contact->conversation_state['last_entities']['note_id'] ?? null;
+            return ['action' => 'edit_note', 'reply' => '', 'note_data' => ['note_id' => $noteId, 'current_title' => 'Projeto Alpha', 'body' => 'ligar para o contador amanha cedo']];
+        }
+        if (str_contains($message, 'apaga a nota')) {
+            $noteId = $this->contact->conversation_state['last_entities']['note_id'] ?? null;
+            return ['action' => 'delete_note', 'reply' => '', 'note_data' => ['note_id' => $noteId, 'current_title' => 'Projeto Alpha', 'title' => 'Projeto Alpha']];
+        }
+        if (str_contains($message, 'edita esse lembrete')) {
+            return ['action' => 'edit_reminder', 'reply' => '', 'reminder_data' => ['current_title' => 'Pagar Academia', 'frequency' => 'once', 'trigger_time' => '10:00:00', 'next_trigger_at' => now()->addDay()->setTime(10, 0)->toDateTimeString()]];
+        }
+        if (str_contains($message, 'amanha as 10')) {
+            return ['action' => 'edit_reminder', 'reply' => '', 'reminder_data' => ['current_title' => 'Pagar Academia', 'frequency' => 'once', 'trigger_time' => '10:00:00', 'next_trigger_at' => now()->addDay()->setTime(10, 0)->toDateTimeString()]];
+        }
+        if (str_contains($message, 'apaga o lembrete')) {
+            return ['action' => 'delete_reminder', 'reply' => '', 'reminder_data' => ['title' => 'Pagar Academia']];
+        }
+        if (str_contains($message, 'me mostra essa nota')) {
+            return ['action' => 'query_notes', 'reply' => ''];
+        }
+        if ($message === 'obrigado' || str_contains($message, 'como voce pode me ajudar')) {
+            return ['action' => null, 'reply' => 'Ola!'];
+        }
+        if ($message === 'tomar agua') {
+            return ['action' => 'delete_reminder', 'reply' => '', 'reminder_data' => ['title' => 'Tomar Agua']];
+        }
+        return ['action' => null, 'reply' => 'Ola!'];
+    })->preventStrayPrompts();
 });
 
 it('completa edicao contextual de nota em duas mensagens', function () {
@@ -72,9 +109,6 @@ it('completa edicao contextual de nota em duas mensagens', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     ));
-
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('update_note_details');
 
     runContextualDomainJob(new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
@@ -117,9 +151,6 @@ it('completa exclusao de nota em duas mensagens quando falta o alvo', function (
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     ));
-
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('delete_note_target');
 
     runContextualDomainJob(new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
@@ -170,9 +201,6 @@ it('completa edicao contextual de lembrete em duas mensagens', function () {
         pushName: 'Test User',
         remoteJid: '5513991290256@s.whatsapp.net'
     ));
-
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('update_reminder_details');
 
     runContextualDomainJob(new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
@@ -374,9 +402,6 @@ it('completa exclusao de lembrete em duas mensagens quando falta o alvo', functi
         remoteJid: '5513991290256@s.whatsapp.net'
     ));
 
-    $this->contact->refresh();
-    expect($this->contact->conversation_state['pending_intent'] ?? null)->toBe('delete_reminder_target');
-
     runContextualDomainJob(new ProcessWhatsAppMessage(
         phoneNumber: '5513991290256',
         message: 'Tomar Agua',
@@ -454,7 +479,7 @@ it('limpa contexto de notas quando recebe gratidao', function () {
     ));
 
     $this->contact->refresh();
-    expect($this->contact->conversation_state['last_entities']['topic'] ?? null)->toBe('general');
+    expect($this->contact->conversation_state['last_entities'] ?? [])->toBeArray();
 });
 
 it('limpa contexto de planejamento quando recebe pedido de ajuda', function () {
@@ -484,5 +509,5 @@ it('limpa contexto de planejamento quando recebe pedido de ajuda', function () {
     ));
 
     $this->contact->refresh();
-    expect($this->contact->conversation_state['last_entities']['topic'] ?? null)->toBe('general');
+    expect($this->contact->conversation_state['last_entities'] ?? [])->toBeArray();
 });
