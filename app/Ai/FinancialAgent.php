@@ -5,13 +5,16 @@ namespace App\Ai;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Ai\Attributes\Provider;
+use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasStructuredOutput;
-use Laravel\Ai\Concerns\RemembersConversations;
+use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Promptable;
 use Stringable;
 
+#[Provider(Lab::Groq)]
 class FinancialAgent implements Agent, Conversational, HasStructuredOutput
 {
     use Promptable, RemembersConversations;
