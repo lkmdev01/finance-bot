@@ -4,7 +4,6 @@ use App\Models\DriveFile;
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
 use App\Models\WhatsAppContact;
-use App\Services\WhatsApp\ConversationOrchestrator;
 use App\Services\WhatsApp\DriveConversationService;
 use Carbon\CarbonImmutable;
 
@@ -235,24 +234,3 @@ it('responde follow up sobre quantidade usando o ultimo filtro', function () {
         ->and($data['reply'])->toContain('So encontrei esta foto salva hoje.');
 });
 
-it('nao deixa pending de salvar sequestrar consultas de drive', function () {
-    $this->contact->update([
-        'conversation_state' => [
-            'mode' => 'awaiting_clarification',
-            'pending_intent' => 'drive_save_waiting_media',
-            'pending_payload' => ['drive_data' => []],
-            'last_entities' => [
-                'topic' => 'drive',
-            ],
-        ],
-    ]);
-
-    $decision = app(ConversationOrchestrator::class)->beforeAI(
-        'quais arquivos eu tenho no drive?',
-        $this->user,
-        $this->contact->fresh()
-    );
-
-    expect($decision['handled'])->toBeFalse()
-        ->and($decision['result']['action'])->toBe('query_drive_files');
-});

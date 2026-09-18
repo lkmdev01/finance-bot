@@ -16,6 +16,10 @@ abstract class TestCase extends BaseTestCase
 
     public Category $compras;
 
+    public Category $category;
+
+    public Category $categoria;
+
     /**
      * @param  class-string  $abstract
      */

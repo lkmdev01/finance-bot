@@ -13,8 +13,10 @@ class AIPromptBuilder
         $formattedContext = $this->formatContextForAI($context);
         $userName = $context['user_name'] ?? 'Usuário';
 
+        // O separador ---CONTEXT--- permite que o AIService divida em role:system / role:user
+        // para providers que suportam (Groq, OpenAI). Ver AIService::extractSystemPrompt().
         return $this->buildSystemPrompt($userName)
-            . "\n\n"
+            . "\n\n---CONTEXT---\n\n"
             . $formattedContext
             . "\n\n"
             . $this->buildUserMessage($message);
@@ -110,8 +112,8 @@ class AIPromptBuilder
 
         $conversation = $context['contact_context'] ?? [];
         if (! empty($conversation)) {
-            $out[] = 'HISTÓRICO RECENTE (2 mensagens)';
-            foreach (array_slice($conversation, -2) as $msg) {
+            $out[] = 'HISTÓRICO RECENTE (últimas 8 mensagens)';
+            foreach (array_slice($conversation, -8) as $msg) {
                 $out[] = 'U: "' . ($msg['message'] ?? '') . '" | V: "' . ($msg['reply'] ?? '') . '"';
             }
         }
