@@ -81,11 +81,14 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(AIService::class, function ($app) {
             // Para Ollama, a API key nao e necessaria.
-            $apiKey = config('ai.provider') === 'ollama' ? '' : (string) config('ai.api_key');
+            $provider = (string) config('ai.provider');
+            $apiKey = $provider === 'ollama'
+                ? ''
+                : (string) config("ai.providers.{$provider}.key", config('ai.api_key'));
 
             return new AIService(
                 apiKey: $apiKey,
-                provider: (string) config('ai.provider'),
+                provider: $provider,
                 contextBuilder: $app->make(AIContextBuilder::class),
                 promptBuilder: $app->make(AIPromptBuilder::class),
                 responseParser: $app->make(AIResponseParser::class),
