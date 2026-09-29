@@ -4,10 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\User;
+use App\Models\WhatsAppMessageReceipt;
 use App\Services\AudioTranscriptionService;
-use App\Services\BaileysService;
 use App\Services\OCRService;
 use App\Services\PhoneNumberService;
+use App\Services\WhatsApp\WhatsAppReplyDelivery;
 use App\Services\WhatsAppActivationService;
 use App\Services\WhatsAppDocumentService;
 use App\Services\WhatsAppIncomingMediaService;
@@ -24,23 +25,22 @@ class WhatsAppWebhookController extends Controller
         private readonly AudioTranscriptionService $audioTranscriptionService,
         private readonly WhatsAppDocumentService $whatsAppDocumentService,
         private readonly WhatsAppIncomingMediaService $whatsAppIncomingMediaService,
-        private readonly BaileysService $baileysService
+        private readonly WhatsAppReplyDelivery $replyDelivery
     ) {}
 
     public function handle(Request $request): JsonResponse
     {
+        $claimedEventKey = null;
+        $jobDispatched = false;
+
         try {
             $data = $request->all();
 
             $expectedSecret = config('whatsapp.baileys.webhook_secret');
             $receivedSecret = $data['secret'] ?? null;
 
-            if ($receivedSecret !== $expectedSecret) {
-                Log::warning('Webhook recebido com secret invalido', [
-                    'expected' => $expectedSecret,
-                    'received' => $receivedSecret,
-                    'match' => $receivedSecret === $expectedSecret,
-                ]);
+            if (! is_string($expectedSecret) || $expectedSecret === '' || ! is_string($receivedSecret) || ! hash_equals($expectedSecret, $receivedSecret)) {
+                Log::warning('Webhook recebido com secret invalido');
 
                 return response()->json(['status' => 'unauthorized'], 401);
             }
@@ -49,17 +49,14 @@ class WhatsAppWebhookController extends Controller
                 $payload = json_encode($data['data'] ?? []).$data['timestamp'];
                 $expectedSignature = hash_hmac('sha256', $payload, $expectedSecret);
 
-                if (! hash_equals($expectedSignature, $data['signature'])) {
-                    Log::warning('Webhook recebido com assinatura HMAC invalida', [
-                        'expected' => $expectedSignature,
-                        'received' => $data['signature'],
-                    ]);
+                if (! is_string($data['signature']) || ! hash_equals($expectedSignature, $data['signature'])) {
+                    Log::warning('Webhook recebido com assinatura HMAC invalida');
 
                     return response()->json(['status' => 'invalid_signature'], 401);
                 }
             }
 
-            Log::info('Webhook recebido do Baileys', $data);
+            Log::info('Webhook recebido do Baileys', ['event' => $data['event'] ?? null]);
 
             if (($data['event'] ?? null) !== 'messages.upsert') {
                 return response()->json(['status' => 'ignored']);
@@ -80,28 +77,38 @@ class WhatsAppWebhookController extends Controller
             }
 
             if (($key['fromMe'] ?? false) === true) {
-                Log::debug('Mensagem ignorada: enviada pelo bot', [
-                    'remoteJid' => $key['remoteJid'] ?? null,
-                ]);
+                Log::debug('Mensagem ignorada: enviada pelo bot');
 
                 return response()->json(['status' => 'bot_message_ignored']);
+            }
+
+            $providerMessageId = $key['id'] ?? null;
+            $remoteJid = $key['remoteJid'] ?? null;
+            if (is_string($providerMessageId) && $providerMessageId !== '' && is_string($remoteJid) && $remoteJid !== '') {
+                $participant = is_string($key['participant'] ?? null) ? $key['participant'] : '';
+                $claimedEventKey = hash('sha256', $remoteJid."\0".$participant."\0".$providerMessageId);
+                $inserted = WhatsAppMessageReceipt::query()->insertOrIgnore([
+                    'event_key' => $claimedEventKey,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                if ($inserted === 0) {
+                    return response()->json(['status' => 'duplicate']);
+                }
             }
 
             $phoneNumber = $messageData['key']['phoneNumber'] ?? $key['remoteJid'] ?? null;
 
             if (! $phoneNumber) {
-                Log::warning('Mensagem sem remoteJid', ['key' => $key]);
+                Log::warning('Mensagem sem remoteJid');
+                $this->markReceipt($claimedEventKey, WhatsAppMessageReceipt::NEEDS_REVIEW, 'missing_remote_jid');
 
                 return response()->json(['status' => 'no_phone']);
             }
 
             $phoneNumber = $this->phoneNumberService->removeWhatsAppSuffixes($phoneNumber);
             $phoneNumber = $this->phoneNumberService->clean($phoneNumber);
-
-            Log::debug('Numero processado do WhatsApp', [
-                'remoteJid_original' => $key['remoteJid'] ?? null,
-                'phoneNumber_processado' => $phoneNumber,
-            ]);
 
             $text = $this->extractTextFromMessage($message);
 
@@ -114,9 +121,8 @@ class WhatsAppWebhookController extends Controller
 
                 Log::info('Codigo de ativacao do WhatsApp validado', [
                     'activation_id' => $activation->id,
-                    'phone_number' => $phoneNumber,
-                    'client_key' => $activation->client_key,
                 ]);
+                $this->markReceipt($claimedEventKey);
 
                 return response()->json(['status' => 'activation_verified']);
             }
@@ -128,14 +134,16 @@ class WhatsAppWebhookController extends Controller
 
                 if ($user) {
                     Log::info('Usuario identificado por pushName (fallback)', [
-                        'pushName' => $pushName,
                         'user_id' => $user->id,
                     ]);
                 }
             }
 
             if (! $user) {
-                return $this->respondNoUser($key, $phoneNumber, $pushName);
+                $response = $this->respondNoUser($key, $phoneNumber, $pushName);
+                $this->markReceipt($claimedEventKey);
+
+                return $response;
             }
 
             if (! $user->whatsapp_verified_at) {
@@ -144,10 +152,17 @@ class WhatsAppWebhookController extends Controller
                     $phoneNumber,
                     $this->buildActivationPendingMessage()
                 );
+                $this->markReceipt($claimedEventKey);
 
                 return response()->json([
                     'status' => 'activation_pending',
                 ]);
+            }
+
+            if ($claimedEventKey !== null) {
+                WhatsAppMessageReceipt::query()
+                    ->where('event_key', $claimedEventKey)
+                    ->update(['user_id' => $user->id, 'updated_at' => now()]);
             }
 
             $imageUrl = null;
@@ -206,6 +221,7 @@ class WhatsAppWebhookController extends Controller
 
                 if (trim($transcription) === '') {
                     $this->sendReply($key, $phoneNumber, 'Nao consegui transcrever sua mensagem de voz. Pode me enviar em texto?');
+                    $this->markReceipt($claimedEventKey);
 
                     return response()->json(['status' => 'audio_transcription_failed']);
                 }
@@ -249,41 +265,47 @@ class WhatsAppWebhookController extends Controller
                         $documentFileName
                     );
 
-                if (($documentResult['status'] ?? null) === 'imported') {
-                    $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Documento importado com sucesso.');
+                    if (($documentResult['status'] ?? null) === 'imported') {
+                        $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Documento importado com sucesso.');
+                        $this->markReceipt($claimedEventKey);
 
-                    return response()->json([
-                        'status' => 'document_imported',
-                        'imported' => $documentResult['result']['imported'] ?? 0,
-                    ]);
-                }
+                        return response()->json([
+                            'status' => 'document_imported',
+                            'imported' => $documentResult['result']['imported'] ?? 0,
+                        ]);
+                    }
 
-                if (($documentResult['status'] ?? null) === 'requires_subscription') {
-                    $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Seu teste gratuito terminou. Assine um plano para voltar a registrar novas informações.');
+                    if (($documentResult['status'] ?? null) === 'requires_subscription') {
+                        $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Seu teste gratuito terminou. Assine um plano para voltar a registrar novas informações.');
+                        $this->markReceipt($claimedEventKey);
 
-                    return response()->json([
-                        'status' => 'requires_subscription',
-                    ]);
-                }
+                        return response()->json([
+                            'status' => 'requires_subscription',
+                        ]);
+                    }
 
-                if (($documentResult['status'] ?? null) === 'text_extracted') {
-                    $text = $documentResult['text'] ?? '';
-                } else {
-                    $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Nao consegui processar o documento enviado.');
+                    if (($documentResult['status'] ?? null) === 'text_extracted') {
+                        $text = $documentResult['text'] ?? '';
+                    } else {
+                        $this->sendReply($key, $phoneNumber, $documentResult['message'] ?? 'Nao consegui processar o documento enviado.');
+                        $this->markReceipt($claimedEventKey);
 
-                    return response()->json([
-                        'status' => $documentResult['status'] ?? 'document_processing_error',
-                    ]);
-                }
+                        return response()->json([
+                            'status' => $documentResult['status'] ?? 'document_processing_error',
+                        ]);
+                    }
                 }
             }
 
             if (empty($text) && empty($imageUrl) && $incomingMediaId === null) {
                 if ($messageType === 'audioMessage') {
                     $this->sendReply($key, $phoneNumber, 'Nao consegui transcrever sua mensagem de voz. Pode me enviar em texto?');
+                    $this->markReceipt($claimedEventKey);
 
                     return response()->json(['status' => 'audio_transcription_failed']);
                 }
+
+                $this->markReceipt($claimedEventKey);
 
                 return response()->json(['status' => 'empty_message']);
             }
@@ -296,18 +318,12 @@ class WhatsAppWebhookController extends Controller
             if (! $realPhoneNumber) {
                 $realPhoneNumber = $phoneNumber;
 
-                Log::warning('Usuario sem numero cadastrado, usando JID como fallback', [
-                    'user_id' => $user->id,
-                    'jid_processado' => $phoneNumber,
-                ]);
+                Log::warning('Usuario sem numero cadastrado, usando JID como fallback', ['user_id' => $user->id]);
             }
 
             Log::info('Mensagem recebida de usuario identificado', [
                 'user_id' => $user->id,
-                'user_name' => $user->name,
-                'phone_number_jid' => $phoneNumber,
-                'phone_number_real' => $realPhoneNumber,
-                'message_preview' => substr($text, 0, 50),
+                'message_type' => $messageType,
             ]);
 
             ProcessWhatsAppMessage::dispatch(
@@ -317,26 +333,29 @@ class WhatsAppWebhookController extends Controller
                 $pushName,
                 $key['remoteJid'] ?? null,
                 $imageUrl,
-                $incomingMediaId
+                $incomingMediaId,
+                $claimedEventKey
             );
+            $jobDispatched = true;
 
             return response()->json(['status' => 'queued']);
         } catch (\Exception $e) {
+            if ($claimedEventKey !== null && ! $jobDispatched) {
+                WhatsAppMessageReceipt::query()->where('event_key', $claimedEventKey)->delete();
+            }
+
             Log::error('Erro ao processar webhook', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'error_type' => $e::class,
             ]);
 
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+            return response()->json(['status' => 'error'], 500);
         }
     }
 
     private function respondNoUser(array $key, string $phoneNumber, ?string $pushName): JsonResponse
     {
         Log::warning('Nenhum usuario encontrado para processar mensagem do WhatsApp', [
-            'phone_number' => $phoneNumber,
-            'remoteJid_original' => $key['remoteJid'] ?? null,
-            'pushName' => $pushName,
+            'message_id_present' => isset($key['id']),
         ]);
 
         $message = $this->buildNoUserMessage();
@@ -351,15 +370,24 @@ class WhatsAppWebhookController extends Controller
 
     private function sendReply(array $key, string $phoneNumber, string $message): void
     {
-        try {
-            $recipientJid = $key['remoteJid'] ?? $this->phoneNumberService->toWhatsAppJid($phoneNumber);
-            $this->baileysService->sendTextMessage($recipientJid, $message);
-        } catch (\Exception $e) {
-            Log::error('Erro ao enviar mensagem via Baileys', [
-                'error' => $e->getMessage(),
-                'remoteJid' => $key['remoteJid'] ?? null,
-            ]);
+        $recipientJid = $key['remoteJid'] ?? $this->phoneNumberService->toWhatsAppJid($phoneNumber);
+        $this->replyDelivery->send($recipientJid, $message);
+    }
+
+    private function markReceipt(?string $eventKey, string $status = WhatsAppMessageReceipt::COMPLETED, ?string $reason = null): void
+    {
+        if ($eventKey === null) {
+            return;
         }
+
+        WhatsAppMessageReceipt::query()
+            ->where('event_key', $eventKey)
+            ->update([
+                'status' => $status,
+                'review_reason' => $reason,
+                'completed_at' => $status === WhatsAppMessageReceipt::COMPLETED ? now() : null,
+                'updated_at' => now(),
+            ]);
     }
 
     private function looksLikeDriveSaveText(string $text): bool
@@ -428,8 +456,6 @@ class WhatsAppWebhookController extends Controller
             $user = User::where('phone_number', $variation)->first();
             if ($user) {
                 Log::info('Usuario encontrado por variacao do numero', [
-                    'original' => $phoneNumber,
-                    'variation' => $variation,
                     'user_id' => $user->id,
                 ]);
 
@@ -438,9 +464,7 @@ class WhatsAppWebhookController extends Controller
         }
 
         Log::warning('Usuario nao encontrado por numero de telefone', [
-            'phone_number' => $phoneNumber,
-            'normalized' => $normalized,
-            'variations_tried' => $variations,
+            'variations_tried_count' => count($variations),
         ]);
 
         return null;
@@ -469,7 +493,7 @@ class WhatsAppWebhookController extends Controller
             ."Assim que terminar, eu posso:\n"
             ."- registrar gastos e receitas\n"
             ."- consultar saldo\n"
-            ."- salvar notas, lembretes e arquivos no Drive";
+            .'- salvar notas, lembretes e arquivos no Drive';
     }
 
     private function buildActivationPendingMessage(): string
@@ -483,6 +507,6 @@ class WhatsAppWebhookController extends Controller
             ."1. Entre em {$loginUrl}\n"
             ."2. Abra {$activationUrl}\n"
             ."3. Envie no WhatsApp o codigo que aparece na tela\n\n"
-            ."Depois disso, eu ja consigo responder e registrar suas informacoes normalmente.";
+            .'Depois disso, eu ja consigo responder e registrar suas informacoes normalmente.';
     }
 }

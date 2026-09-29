@@ -10,14 +10,13 @@ class BaileysService
     public function __construct(
         private readonly string $baseUrl,
         private readonly string $webhookSecret,
-    ) {
-    }
+    ) {}
 
     /**
      * Envia uma mensagem de texto via WhatsApp
-     * 
-     * @param string $phoneNumber Pode ser um número (ex: 5513991290256) ou JID completo (ex: 50749417476309@lid)
-     * @param string $message Mensagem a ser enviada
+     *
+     * @param  string  $phoneNumber  Pode ser um número (ex: 5513991290256) ou JID completo (ex: 50749417476309@lid)
+     * @param  string  $message  Mensagem a ser enviada
      */
     public function sendTextMessage(string $phoneNumber, string $message): Response
     {
@@ -37,15 +36,6 @@ class BaileysService
             'message' => $message,
             'secret' => $this->webhookSecret,
         ]);
-
-        // Log se houver erro
-        if ($response->failed()) {
-            \Illuminate\Support\Facades\Log::error('Erro ao enviar mensagem via Baileys', [
-                'status' => $response->status(),
-                'response' => $response->body(),
-                'jid' => $jid,
-            ]);
-        }
 
         return $response;
     }

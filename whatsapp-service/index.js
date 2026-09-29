@@ -21,13 +21,10 @@ app.use(express.json({ limit: '25mb' }));
 
 const PORT = process.env.WHATSAPP_SERVICE_PORT || 3001;
 const LARAVEL_URL = process.env.LARAVEL_URL || 'http://financi-app.test';
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'your-secret-key';
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 
-// Debug: verifica se o secret foi carregado (mostra apenas primeiros e últimos caracteres)
-if (WEBHOOK_SECRET && WEBHOOK_SECRET !== 'your-secret-key') {
-    console.log(`🔐 Secret carregado: ${WEBHOOK_SECRET.substring(0, 8)}...${WEBHOOK_SECRET.substring(WEBHOOK_SECRET.length - 8)}`);
-} else {
-    console.warn('⚠️ Secret não carregado do .env! Usando valor padrão.');
+if (!WEBHOOK_SECRET || WEBHOOK_SECRET === 'your-secret-key') {
+    throw new Error('WEBHOOK_SECRET precisa ser configurado com um valor seguro.');
 }
 
 let sock = null;
@@ -148,7 +145,7 @@ async function startWhatsApp() {
                         setTimeout(() => startWhatsApp(), 3000);
                     })
                     .catch((err) => {
-                        console.error('⚠️ Erro ao limpar conteúdo de auth_info:', err.message);
+                        console.error(`⚠️ Erro ao limpar auth_info (${err?.name || 'Error'}).`);
                         // Tenta reconectar mesmo se falhar a limpeza
                         setTimeout(() => startWhatsApp(), 3000);
                     });
@@ -167,15 +164,11 @@ async function startWhatsApp() {
         }
     });
 
-    // Baileys 7.0.0: Listener para atualizações de mapeamento LID/PN
+    // Baileys mantém este mapeamento internamente. Não registramos LID ou
+    // telefone para evitar expor identificadores pessoais nos logs.
     sock.ev.on('lid-mapping.update', (update) => {
         if (update.lid && update.pn) {
-            console.log(`\n🔄 Novo mapeamento LID/PN descoberto:`);
-            console.log(`   LID: ${update.lid}`);
-            console.log(`   PN: ${update.pn}\n`);
-            
-            // O Baileys já armazena automaticamente no lidMapping store
-            // Este listener é apenas para logging e possíveis ações customizadas
+            console.log('🔄 Mapeamento LID/PN atualizado.');
         }
     });
 
@@ -200,12 +193,7 @@ async function startWhatsApp() {
         }
         
         // Log detalhado apenas para mensagens recebidas de usuários
-        const remoteJid = message.key.remoteJid;
-        const pushName = message.pushName || 'sem nome';
-        
-        console.log(`\n📨 Mensagem recebida:`);
-        console.log(`   De: ${pushName} (${remoteJid})`);
-        console.log(`   Tipo: ${messageType || 'desconhecido'}`);
+        console.log(`📨 Mensagem recebida. Tipo: ${messageType || 'desconhecido'}`);
         
         // Extrai informações da mensagem (apenas mensagens recebidas de usuários)
         // Baileys 7.0.0: Usa remoteJidAlt/participantAlt e lidMapping store para LIDs
@@ -225,18 +213,18 @@ async function startWhatsApp() {
                     
                     if (pn && isPnUser(pn)) {
                         phoneNumber = pn;
-                        console.log(`   ✅ Número obtido do lidMapping: ${phoneNumber.replace('@s.whatsapp.net', '')}`);
+                        console.log('✅ Destinatário resolvido pelo mapeamento LID.');
                     } else {
                         // Tenta usar remoteJidAlt se disponível
                         if (message.key.remoteJidAlt && isPnUser(message.key.remoteJidAlt)) {
                             phoneNumber = message.key.remoteJidAlt;
-                            console.log(`   ✅ Número obtido do remoteJidAlt: ${phoneNumber.replace('@s.whatsapp.net', '')}`);
+                            console.log('✅ Destinatário resolvido pelo JID alternativo.');
                         } else {
                             // Tenta participantAlt para grupos
                             const participantAlt = message.key.participantAlt;
                             if (participantAlt && isPnUser(participantAlt)) {
                                 phoneNumber = participantAlt;
-                                console.log(`   ✅ Número obtido do participantAlt: ${phoneNumber.replace('@s.whatsapp.net', '')}`);
+                                console.log('✅ Destinatário resolvido pelo participante alternativo.');
                             } else {
                                 console.log(`   ⚠️  LID não mapeado - usando LID como fallback`);
                             }
@@ -305,7 +293,7 @@ async function startWhatsApp() {
                     console.log(`   🎙️ Áudio baixado para transcrição (${audioBuffer.length} bytes)`);
                 }
             } catch (mediaError) {
-                console.log(`   ⚠️  Não foi possível baixar o áudio: ${mediaError.message}`);
+                console.log(`   ⚠️  Não foi possível baixar o áudio (${mediaError?.name || 'Error'}).`);
             }
         }
 
@@ -331,7 +319,7 @@ async function startWhatsApp() {
                     console.log(`   🖼️ Imagem baixada para processamento (${imageBuffer.length} bytes)`);
                 }
             } catch (mediaError) {
-                console.log(`   ⚠️  Não foi possível baixar a imagem: ${mediaError.message}`);
+                console.log(`   ⚠️  Não foi possível baixar a imagem (${mediaError?.name || 'Error'}).`);
             }
         }
 
@@ -357,7 +345,7 @@ async function startWhatsApp() {
                     console.log(`   📄 Documento baixado para processamento (${documentBuffer.length} bytes)`);
                 }
             } catch (mediaError) {
-                console.log(`   ⚠️  Não foi possível baixar o documento: ${mediaError.message}`);
+                console.log(`   ⚠️  Não foi possível baixar o documento (${mediaError?.name || 'Error'}).`);
             }
         }
         
@@ -377,9 +365,7 @@ async function startWhatsApp() {
             }
         }
 
-        // Remove sufixos para exibição
-        const displayPhone = phoneNumber.replace('@s.whatsapp.net', '').replace('@lid', '');
-        console.log(`   💬 Texto: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`);
+        console.log(`   Conteúdo preparado (${text.length} caracteres).`);
 
         // Envia webhook para Laravel
         try {
@@ -390,7 +376,9 @@ async function startWhatsApp() {
                 event: 'messages.upsert',
                 data: {
                     key: {
+                        id: message.key.id,
                         remoteJid: message.key.remoteJid,
+                        participant: message.key.participant || null,
                         fromMe: message.key.fromMe,
                         // Envia também o número processado para facilitar identificação
                         phoneNumber: phoneNumber,
@@ -432,13 +420,12 @@ async function startWhatsApp() {
             
             console.log(`   ✅ Processado com sucesso (Status: ${response.status})\n`);
         } catch (error) {
-            console.log(`   ❌ Erro ao processar: ${error.message}`);
             if (error.response) {
-                console.log(`   Status: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+                console.log(`   ❌ Laravel recusou o webhook (status ${error.response.status}).`);
             } else if (error.request) {
                 console.log(`   ⚠️  Laravel não respondeu (verifique se está rodando)\n`);
             } else {
-                console.log(`   ⚠️  ${error.message}\n`);
+                console.log('   ⚠️  Não foi possível preparar o webhook.\n');
             }
         }
     });
@@ -492,9 +479,7 @@ app.post('/send-message', async (req, res) => {
             console.log(`\n📤 Enviando mensagem:`);
         }
         
-        const displayPhone = jid.replace('@s.whatsapp.net', '').replace('@lid', '');
-        console.log(`   Para: ${displayPhone}`);
-        console.log(`   Texto: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+        console.log(`   Conteúdo preparado (${message.length} caracteres).`);
 
         // Baileys 7.0.0: Envia mensagem (não envia ACKs automaticamente - isso é feito pelo WhatsApp)
         // Segundo a documentação, sendMessage retorna uma Promise com o resultado
@@ -502,7 +487,7 @@ app.post('/send-message', async (req, res) => {
         
         // Verifica se a mensagem foi enviada com sucesso
         if (result?.key?.id) {
-            console.log(`   ✅ Mensagem enviada (ID: ${result.key.id})\n`);
+            console.log('   ✅ Mensagem aceita pelo WhatsApp.\n');
         } else {
             console.log(`   ✅ Mensagem enviada com sucesso\n`);
         }
@@ -510,9 +495,8 @@ app.post('/send-message', async (req, res) => {
         res.json({ success: true, message: 'Mensagem enviada', messageId: result?.key?.id });
     } catch (error) {
         console.error(`\n❌ Erro ao enviar mensagem:`);
-        console.error(`   Para: ${req.body.phone || jid || 'desconhecido'}`);
-        console.error(`   Erro: ${error.message}\n`);
-        res.status(500).json({ error: error.message });
+        console.error(`   Tipo: ${error?.name || 'Error'}\n`);
+        res.status(500).json({ error: 'Falha ao enviar mensagem' });
     }
 });
 

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use App\Models\WhatsAppMessageReceipt;
 use App\Services\AIService;
 use App\Services\BaileysService;
 use App\Services\PerformanceMetricsService;
@@ -13,6 +14,7 @@ use App\Services\WhatsApp\ConversationOrchestrator;
 use App\Services\WhatsApp\ConversationStateService;
 use App\Services\WhatsApp\ConversationTelemetryService;
 use App\Services\WhatsApp\ProactiveConversationTrigger;
+use App\Services\WhatsApp\WhatsAppReplyDelivery;
 use App\Services\WhatsAppFormatter;
 use App\Services\WhatsAppMessageProcessor;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -36,6 +38,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
         public readonly ?string $remoteJid = null,
         public readonly ?string $imageUrl = null,
         public readonly ?int $incomingMediaId = null,
+        public readonly ?string $inboundEventKey = null,
     ) {}
 
     public function middleware(): array
@@ -72,31 +75,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
         $recipientJid = $this->getRecipientJid($phoneNumberService);
         $message = $this->sanitizeUtf8($message);
 
-        try {
-            $response = $baileysService->sendTextMessage($recipientJid, $message);
-
-            if ($response->failed()) {
-                Log::error('Falha ao enviar mensagem via WhatsApp', [
-                    'status' => $response->status(),
-                    'response' => $response->body(),
-                    'recipient' => $recipientJid,
-                    'user_id' => $user->id,
-                ]);
-            } else {
-                Log::info('Mensagem enviada com sucesso via WhatsApp', [
-                    'user_id' => $user->id,
-                    'recipient' => $recipientJid,
-                    'message_length' => mb_strlen($message),
-                    'message_preview' => substr($message, 0, 100),
-                ]);
-            }
-        } catch (\Exception $sendError) {
-            Log::error('Excecao ao enviar mensagem via WhatsApp', [
-                'error' => $sendError->getMessage(),
-                'recipient' => $recipientJid,
-                'user_id' => $user->id,
-            ]);
-        }
+        app(WhatsAppReplyDelivery::class)->send($recipientJid, $message, $user->id);
     }
 
     public function handle(
@@ -109,6 +88,21 @@ class ProcessWhatsAppMessage implements ShouldQueue
     ): void {
         $processor ??= app(WhatsAppMessageProcessor::class);
         $handlerFactory ??= app(ActionHandlerFactory::class);
+
+        if ($this->inboundEventKey !== null) {
+            $claimed = WhatsAppMessageReceipt::query()
+                ->where('event_key', $this->inboundEventKey)
+                ->where('status', WhatsAppMessageReceipt::RECEIVED)
+                ->update([
+                    'status' => WhatsAppMessageReceipt::PROCESSING,
+                    'processing_started_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            if ($claimed === 0) {
+                return;
+            }
+        }
 
         $contact = null;
         $telemetry = null;
@@ -146,7 +140,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
             // Inicia o processamento com IA
             $startTime = microtime(true);
-            $normalizedMessage = (new \App\Services\WhatsApp\IncomingMessageNormalizer())->clean($this->message);
+            $normalizedMessage = (new \App\Services\WhatsApp\IncomingMessageNormalizer)->clean($this->message);
             $this->setNormalizedMessage($normalizedMessage);
 
             // O processador agora decide tudo via IA (Laravel AI SDK se habilitado)
@@ -156,7 +150,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $metricsService->recordAITime($processingTime, $result['action'] ?? null);
 
             $action = $result['action'] ?? null;
-
 
             [$result, $contractMeta] = app(\App\Services\WhatsApp\ActionResultSanitizer::class)->sanitize($result);
             $result['_contract_meta'] = $contractMeta;
@@ -174,7 +167,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
                 'handler' => $result['_selected_handler'] ?? null,
                 'payload_key' => $result['_contract_meta']['payload_key'] ?? null,
                 'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
-                'reply_preview' => mb_substr((string) ($this->getFinalReply() ?? $result['reply'] ?? ''), 0, 120),
             ]);
 
             if ($handled) {
@@ -217,6 +209,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     ],
                 ]);
 
+                $this->markInboundCompleted();
+
                 return;
             }
 
@@ -245,19 +239,16 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'assistant_used_ai' => true,
                 ],
             ]);
+            $this->markInboundCompleted();
         } catch (\Exception $e) {
-            $metricsService->recordError('exception', $e->getMessage());
+            $metricsService->recordError('exception');
 
             Log::error('Erro ao processar mensagem do WhatsApp', [
                 'user_id' => $this->userId,
-                'phone' => $this->phoneNumber,
-                'message' => substr($this->message, 0, 200),
                 'message_length' => strlen($this->message),
-                'error' => $e->getMessage(),
                 'error_type' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => substr($e->getTraceAsString(), 0, 500),
             ]);
 
             $errorMessage = $this->getErrorMessage($e);
@@ -281,7 +272,6 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'status' => 'error',
                     'reply' => $errorMessage,
                     'error_type' => get_class($e),
-                    'error_message' => $e->getMessage(),
                     'metadata' => [
                         'line' => $e->getLine(),
                         'file' => $e->getFile(),
@@ -291,6 +281,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     ],
                 ]);
             }
+
+            $this->markInboundCompleted(WhatsAppMessageReceipt::NEEDS_REVIEW, 'processing_exception');
         }
     }
 
@@ -502,14 +494,21 @@ class ProcessWhatsAppMessage implements ShouldQueue
         PhoneNumberService $phoneNumberService,
         string $message
     ): void {
-        try {
-            $recipientJid = $this->getRecipientJid($phoneNumberService);
-            $baileysService->sendTextMessage($recipientJid, $this->sanitizeUtf8($message));
-        } catch (\Exception $sendError) {
-            Log::error('Erro ao enviar mensagem de erro', [
-                'error' => $sendError->getMessage(),
-                'original_error' => $message,
-            ]);
+        $recipientJid = $this->getRecipientJid($phoneNumberService);
+        app(WhatsAppReplyDelivery::class)->send($recipientJid, $this->sanitizeUtf8($message), $this->userId);
+    }
+
+    private function markInboundCompleted(string $status = WhatsAppMessageReceipt::COMPLETED, ?string $reviewReason = null): void
+    {
+        if ($this->inboundEventKey !== null) {
+            WhatsAppMessageReceipt::query()
+                ->where('event_key', $this->inboundEventKey)
+                ->update([
+                    'status' => $status,
+                    'review_reason' => $reviewReason,
+                    'completed_at' => now(),
+                    'updated_at' => now(),
+                ]);
         }
     }
 

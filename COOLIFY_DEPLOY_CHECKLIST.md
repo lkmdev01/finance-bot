@@ -136,6 +136,7 @@ No terminal do container, rode:
 ```bash
 php artisan billing:smoke
 php artisan schedule:list
+php artisan whatsapp:reliability
 tail -n 80 storage/logs/scheduler.log
 tail -n 80 storage/logs/worker-1.log
 ```
@@ -144,6 +145,8 @@ O esperado e ver:
 
 - `billing:smoke` passando.
 - `billing:send-expiring-emails --days=3 --max-per-cycle=2` listado no scheduler.
+- `whatsapp:reliability --mark-stale` listado no scheduler.
+- nenhuma entrada ou saida inesperada marcada para revisao.
 - logs do scheduler sem erro.
 - logs do worker sem erro.
 
@@ -161,6 +164,9 @@ Valide tambem:
 
 - mensagem chega mas nao processa
   O worker iniciado pelo `start-all.sh` nao subiu corretamente. Confira `storage/logs/worker-1.log`.
+
+- mensagem ou resposta ficou pendente
+  Rode `php artisan whatsapp:reliability` e siga o runbook em `docs/WHATSAPP_RELIABILITY.md`. Nunca reprocesse manualmente uma entrada financeira sem conferir se a acao ja ocorreu.
 
 - aviso de vencimento nao envia
   O scheduler nao esta rodando corretamente. Confira `storage/logs/scheduler.log` e `php artisan schedule:list`.
