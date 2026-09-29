@@ -160,6 +160,13 @@ class WhatsAppActivationService
             'whatsapp_verified_at' => $activation->verified_at ?? now(),
             'onboarding_tutorial_seen_at' => now(),
         ])->save();
+
+        app(ProductEventService::class)->recordOnce(
+            $user,
+            ProductEventService::WHATSAPP_ACTIVATED,
+            'whatsapp_activation',
+            occurredAt: $user->whatsapp_verified_at,
+        );
     }
 
     public function buildWhatsAppUrl(string $code): string

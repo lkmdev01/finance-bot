@@ -91,7 +91,11 @@ class PreflightMessageResolver
                 'handled' => true,
                 'reply' => $this->composer->composeNeutralAcknowledgement($state['last_action'] ?? null, $state['last_entities'] ?? []),
                 'action' => null,
-                'metadata' => ['clear_pending' => false, 'reply_kind' => 'message'],
+                'metadata' => [
+                    'clear_pending' => false,
+                    'reply_kind' => 'message',
+                    'preserve_last_action' => true,
+                ],
             ],
             'cancellation' => $this->resolveCancellation($state),
             default => null,

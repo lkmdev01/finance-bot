@@ -1,6 +1,9 @@
 <?php
 
 use App\Services\WhatsApp\SimulationSuiteService;
+use Tests\Support\SimulationSuiteAgentFake;
+
+beforeEach(fn () => SimulationSuiteAgentFake::install());
 
 it('executes curated whatsapp simulation suites without manual messaging', function () {
     $report = app(SimulationSuiteService::class)->runAll(persistData: true);

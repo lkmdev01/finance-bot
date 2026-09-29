@@ -159,11 +159,11 @@ return [
         'entries' => [
             [
                 'message' => 'gastei 50 no mercado',
-                'expected_intent' => 'create_expense',
+                'expected_intent' => 'create_transaction',
             ],
             [
                 'message' => 'recebi 500 do cliente Joao',
-                'expected_intent' => 'create_income',
+                'expected_intent' => 'create_transaction',
             ],
             [
                 'message' => 'qual e meu saldo?',
@@ -172,7 +172,7 @@ return [
             ],
             [
                 'message' => 'quanto gastei esse mes?',
-                'expected_intent' => 'query_month_report',
+                'expected_intent' => 'query_expenses',
             ],
         ],
     ],
@@ -414,7 +414,7 @@ return [
                         'category_name' => 'Compras',
                     ],
                 ],
-                'expected_intent' => 'update_transaction',
+                'expected_intent' => 'edit_transaction',
             ],
             [
                 'message' => 'ajusta esse no cartao Nubank',
@@ -429,7 +429,7 @@ return [
                         'transaction_type' => 'expense',
                     ],
                 ],
-                'expected_intent' => 'update_transaction',
+                'expected_intent' => 'edit_transaction',
             ],
             [
                 'message' => 'cancela esse orcamento',

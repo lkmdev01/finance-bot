@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AbacatePaySubscription;
 use App\Services\AbacatePayService;
 use App\Services\BillingPlanService;
+use App\Services\ProductEventService;
 use App\Support\BrazilTaxId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -286,6 +287,13 @@ class BillingPlanController extends Controller
                 'customer_tax_id' => BrazilTaxId::format($user->tax_id),
                 'payload' => $data,
             ]
+        );
+
+        app(ProductEventService::class)->recordOnce(
+            $user,
+            ProductEventService::CHECKOUT_STARTED,
+            'abacatepay',
+            ['plan_code' => $planCode],
         );
 
         if ($request->expectsJson()) {

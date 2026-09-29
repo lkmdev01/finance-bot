@@ -1,9 +1,25 @@
 <?php
 
+use App\Ai\FinancialAgent;
 use App\Models\Reminder;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use Illuminate\Support\Facades\File;
+use Laravel\Ai\Ai;
+
+beforeEach(function () {
+    config(['ai.use_sdk' => true]);
+
+    Ai::fakeAgent(FinancialAgent::class, function (string $prompt): array {
+        $message = mb_strtolower(trim($prompt));
+
+        if (str_contains($message, 'lembrete')) {
+            return ['action' => 'query_reminders', 'reply' => ''];
+        }
+
+        return ['action' => null, 'reply' => 'Ola!'];
+    })->preventStrayPrompts();
+});
 
 it('simula uma conversa de whatsapp em lote sem enviar ao provedor real', function () {
     $user = User::factory()->create([

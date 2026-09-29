@@ -9,6 +9,7 @@ use App\Services\AIService;
 use App\Services\BaileysService;
 use App\Services\PerformanceMetricsService;
 use App\Services\PhoneNumberService;
+use App\Services\ProductEventService;
 use App\Services\WhatsApp\ActionHandlerFactory;
 use App\Services\WhatsApp\ConversationOrchestrator;
 use App\Services\WhatsApp\ConversationStateService;
@@ -110,6 +111,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
         try {
             $this->finalReply = null;
             $user = User::findOrFail($this->userId);
+            app(ProductEventService::class)->recordWhatsAppActivity($user);
             $telemetry = app(ConversationTelemetryService::class);
 
             $contact = WhatsAppContact::firstOrCreate(
@@ -143,6 +145,39 @@ class ProcessWhatsAppMessage implements ShouldQueue
             $normalizedMessage = (new \App\Services\WhatsApp\IncomingMessageNormalizer)->clean($this->message);
             $this->setNormalizedMessage($normalizedMessage);
 
+            $preflight = $orchestrator->beforeAI($normalizedMessage, $user, $contact);
+            if (($preflight['handled'] ?? false) === true) {
+                $reply = WhatsAppFormatter::format((string) ($preflight['reply'] ?? ''));
+                $this->rememberFinalReply($reply);
+                $this->sendResponse($baileysService, $phoneNumberService, $reply, $user);
+                $stateService->applyHandledResult(
+                    $contact,
+                    $normalizedMessage,
+                    $preflight['action'] ?? null,
+                    $reply,
+                    $preflight['metadata'] ?? [],
+                );
+                $telemetry->record($user, $contact, $this->message, [
+                    'classification' => $preflight['classification'] ?? null,
+                    'assistant_intent' => $preflight['classification'] ?? null,
+                    'action' => $preflight['action'] ?? null,
+                    'handler' => 'preflight',
+                    'used_ai' => false,
+                    'status' => 'handled_preflight',
+                    'reply' => $reply,
+                    'metadata' => [
+                        'preflight_handled' => true,
+                        'assistant_intent' => $preflight['classification'] ?? null,
+                        'assistant_domain' => $preflight['domain'] ?? 'general',
+                        'assistant_missing_fields' => [],
+                        'assistant_used_ai' => false,
+                    ],
+                ]);
+                $this->markInboundCompleted();
+
+                return;
+            }
+
             // O processador agora decide tudo via IA (Laravel AI SDK se habilitado)
             $result = $processor->process($normalizedMessage, $user, $contact);
 
@@ -153,6 +188,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
             [$result, $contractMeta] = app(\App\Services\WhatsApp\ActionResultSanitizer::class)->sanitize($result);
             $result['_contract_meta'] = $contractMeta;
+            $assistantDomain = $this->inferAssistantDomain($action);
+            $assistantMissingFields = $this->inferMissingFields($action, $result);
 
             // Handlers read $job->message for raw context; pass normalized text to state/history for predictability.
             $handled = $handlerFactory->process($action, $result, $user, $contact, $this);
@@ -205,6 +242,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                         'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                         'entities' => $result['_conversation_metadata']['entities'] ?? null,
                         'assistant_intent' => $telemetryIntent,
+                        'assistant_domain' => $assistantDomain,
+                        'assistant_missing_fields' => $assistantMissingFields,
                         'assistant_used_ai' => true,
                     ],
                 ]);
@@ -236,6 +275,8 @@ class ProcessWhatsAppMessage implements ShouldQueue
                     'dropped_payload_keys' => $result['_contract_meta']['dropped_payload_keys'] ?? [],
                     'entities' => $result['_conversation_metadata']['entities'] ?? null,
                     'assistant_intent' => $telemetryIntent,
+                    'assistant_domain' => $assistantDomain,
+                    'assistant_missing_fields' => $assistantMissingFields,
                     'assistant_used_ai' => true,
                 ],
             ]);
@@ -301,6 +342,59 @@ class ProcessWhatsAppMessage implements ShouldQueue
         }
 
         return false;
+    }
+
+    private function inferAssistantDomain(?string $action): ?string
+    {
+        if ($action === null || $action === '') {
+            return null;
+        }
+
+        return match (true) {
+            str_contains($action, 'budget') => 'budget',
+            str_contains($action, 'saving'), str_contains($action, 'projection') => 'planning',
+            str_contains($action, 'subscription') => 'subscriptions',
+            str_contains($action, 'recurring') => 'recurring_transactions',
+            str_contains($action, 'reminder') => 'reminders',
+            str_contains($action, 'note') => 'notes',
+            str_contains($action, 'drive') => 'drive',
+            str_contains($action, 'credit_card') => 'credit_cards',
+            str_contains($action, 'transaction'), in_array($action, ['query_balance', 'query_expenses', 'query_income', 'query_category', 'query_categories', 'query_report', 'query_report_pdf', 'query_report_csv', 'query_report_excel'], true) => 'transaction',
+            default => 'general',
+        };
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function inferMissingFields(?string $action, array $result): array
+    {
+        $requirements = [
+            'create_transaction' => ['transaction_data' => ['amount', 'description']],
+            'create_installment_transaction' => ['installment_data' => ['description', 'total_amount', 'installment_count']],
+            'create_budget' => ['budget_data' => ['amount', 'category_name']],
+            'create_savings_goal' => ['goal_data' => ['name', 'target_amount']],
+            'create_subscription' => ['subscription_data' => ['name', 'amount']],
+            'create_recurring_transaction' => ['recurring_data' => ['amount', 'description', 'frequency']],
+            'create_reminder' => ['reminder_data' => ['title', 'next_trigger_at']],
+            'create_note' => ['note_data' => ['body']],
+            'create_drive_file' => ['drive_data' => ['incoming_media_id']],
+            'create_credit_card' => ['credit_card_data' => ['name', 'credit_limit']],
+        ];
+
+        $requirement = $requirements[$action ?? ''] ?? null;
+        if ($requirement === null) {
+            return [];
+        }
+
+        $payloadKey = array_key_first($requirement);
+        $payload = is_array($result[$payloadKey] ?? null) ? $result[$payloadKey] : [];
+
+        return collect($requirement[$payloadKey])
+            ->filter(fn (string $field) => ! isset($payload[$field]) || $payload[$field] === '')
+            ->map(fn (string $field) => $action === 'create_note' && $field === 'body' ? 'content' : $field)
+            ->values()
+            ->all();
     }
 
     private function inferBudgetDataFromMessage(): ?array

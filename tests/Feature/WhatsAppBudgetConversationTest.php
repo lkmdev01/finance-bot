@@ -1,5 +1,6 @@
 <?php
 
+use App\Ai\FinancialAgent;
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Budget;
 use App\Models\Category;
@@ -11,6 +12,7 @@ use App\Services\BaileysService;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Ai;
 
 function fakeBudgetBaileysSuccessResponse(): Response
 {
@@ -18,6 +20,7 @@ function fakeBudgetBaileysSuccessResponse(): Response
 }
 
 beforeEach(function () {
+    config(['ai.use_sdk' => true]);
     $this->user = User::factory()->create([
         'phone_number' => '5513991290256',
     ]);
@@ -40,6 +43,20 @@ beforeEach(function () {
         'color' => '#E67E22',
         'icon' => 'cart',
     ]);
+
+    Ai::fakeAgent(FinancialAgent::class, [[
+        'action' => 'query_budgets',
+        'reply' => '',
+    ], [
+        'action' => 'query_budgets',
+        'reply' => '',
+    ], [
+        'action' => 'query_budgets',
+        'reply' => '',
+    ], [
+        'action' => 'query_budgets',
+        'reply' => '',
+    ]])->preventStrayPrompts();
 });
 
 it('entende follow up temporal de orçamento com base na categoria anterior', function () {

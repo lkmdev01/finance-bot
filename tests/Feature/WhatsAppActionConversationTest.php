@@ -3,8 +3,8 @@
 /** @noinspection PhpUndefinedFieldInspection */
 /** @noinspection PhpUndefinedMethodInspection */
 
-use App\Jobs\ProcessWhatsAppMessage;
 use App\Ai\FinancialAgent;
+use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\BankAccount;
 use App\Models\Budget;
 use App\Models\Category;
@@ -910,8 +910,8 @@ it('registra log estruturado da conversa', function () {
     assertDatabaseHas('whats_app_conversation_logs', [
         'user_id' => currentTestCase()->user->id,
         'message' => 'oi',
-        'classification' => null,
-        'status' => 'fallback_reply',
+        'classification' => 'greeting',
+        'status' => 'handled_preflight',
     ]);
 
     expect(WhatsAppConversationLog::query()->latest()->first())->not->toBeNull();

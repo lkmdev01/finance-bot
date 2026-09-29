@@ -1,10 +1,22 @@
 <?php
 
+use App\Ai\FinancialAgent;
 use App\Models\User;
 use App\Models\WhatsAppConversationLog;
 use Illuminate\Support\Facades\File;
+use Laravel\Ai\Ai;
 
 it('replays assistant observability backlog against a local user and writes a transcript', function () {
+    config(['ai.use_sdk' => true]);
+    Ai::fakeAgent(FinancialAgent::class, [[
+        'action' => 'create_note',
+        'reply' => '',
+        'note_data' => [
+            'title' => null,
+            'body' => null,
+        ],
+    ]])->preventStrayPrompts();
+
     $user = User::factory()->create([
         'phone_number' => '5513991290256',
     ]);

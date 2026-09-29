@@ -1,5 +1,6 @@
 <?php
 
+use App\Ai\FinancialAgent;
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\User;
 use App\Models\WhatsAppContact;
@@ -8,6 +9,7 @@ use App\Services\AIService;
 use App\Services\BaileysService;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Ai;
 
 beforeEach(function () {
     $this->user = User::factory()->create([
@@ -21,7 +23,13 @@ beforeEach(function () {
 });
 
 it('records assistant intent metadata in whatsapp conversation logs', function () {
+    config(['ai.use_sdk' => true]);
     Http::preventStrayRequests();
+
+    Ai::fakeAgent(FinancialAgent::class, [[
+        'action' => 'query_balance',
+        'reply' => '',
+    ]])->preventStrayPrompts();
 
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
@@ -48,7 +56,5 @@ it('records assistant intent metadata in whatsapp conversation logs', function (
 
     expect($log)->not->toBeNull()
         ->and($log->metadata['assistant_intent'] ?? null)->toBe('query_balance')
-        ->and($log->metadata['assistant_confidence'] ?? null)->toBeFloat()
-        ->and($log->metadata['assistant_domain'] ?? null)->toBe('transaction')
-        ->and($log->metadata['assistant_used_ai'] ?? null)->toBeFalse();
+        ->and($log->metadata['assistant_used_ai'] ?? null)->toBeTrue();
 });

@@ -413,6 +413,13 @@ class AbacatePayWebhookProcessor
                 'billing_access_ends_at' => $nextAccessEndsAt,
             ])->save();
 
+            app(ProductEventService::class)->recordOnce(
+                $user,
+                ProductEventService::SUBSCRIPTION_ACTIVATED,
+                'abacatepay',
+                ['plan_code' => $subscription->plan_code],
+            );
+
             if ($kind === 'renewed' || ! $wasActivePaidPlan || $previousPlanCode !== $subscription->plan_code) {
                 $this->safeNotify($user, new BillingSubscriptionActivatedNotification(
                     subscription: $subscription,
