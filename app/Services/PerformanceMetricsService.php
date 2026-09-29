@@ -12,15 +12,15 @@ class PerformanceMetricsService
     /**
      * Registra métrica de tempo de resposta da IA
      */
-    public function recordAITime(float $timeMs, string $action = null): void
+    public function recordAITime(float $timeMs, ?string $action = null): void
     {
         $key = 'metrics:ai:response_time';
         $this->incrementMetric($key, $timeMs);
-        
+
         // Incrementa contador de requisições
         Cache::increment('metrics:ai:total_requests', 1);
         Cache::put('metrics:ai:total_requests', Cache::get('metrics:ai:total_requests', 0), now()->addDay());
-        
+
         if ($action) {
             $actionKey = "metrics:ai:response_time:{$action}";
             $this->incrementMetric($actionKey, $timeMs);
@@ -32,9 +32,9 @@ class PerformanceMetricsService
      */
     public function recordTransactionSuccess(bool $success, string $source = 'whatsapp'): void
     {
-        $key = "metrics:transactions:{$source}:" . ($success ? 'success' : 'failure');
+        $key = "metrics:transactions:{$source}:".($success ? 'success' : 'failure');
         Cache::increment($key, 1);
-        
+
         // Expira após 24 horas
         Cache::put($key, Cache::get($key, 0), now()->addDay());
     }
@@ -42,11 +42,11 @@ class PerformanceMetricsService
     /**
      * Registra métrica de erro
      */
-    public function recordError(string $type, string $message = null): void
+    public function recordError(string $type, ?string $message = null): void
     {
         $key = "metrics:errors:{$type}";
         Cache::increment($key, 1);
-        
+
         if ($message) {
             Log::warning('Erro registrado nas métricas', [
                 'type' => $type,
@@ -90,7 +90,7 @@ class PerformanceMetricsService
     {
         $current = Cache::get($key, 0);
         $count = Cache::get("{$key}:count", 0);
-        
+
         Cache::put($key, $current + $value, now()->addDay());
         Cache::put("{$key}:count", $count + 1, now()->addDay());
     }
@@ -102,7 +102,7 @@ class PerformanceMetricsService
     {
         $total = Cache::get($key, 0);
         $count = Cache::get("{$key}:count", 1);
-        
+
         return $count > 0 ? round($total / $count, 2) : 0;
     }
 
@@ -114,7 +114,7 @@ class PerformanceMetricsService
         $success = Cache::get("metrics:transactions:{$source}:success", 0);
         $failure = Cache::get("metrics:transactions:{$source}:failure", 0);
         $total = $success + $failure;
-        
+
         return $total > 0 ? round(($success / $total) * 100, 2) : 0;
     }
 
@@ -130,8 +130,8 @@ class PerformanceMetricsService
             'metrics:errors:ai',
             'metrics:errors:whatsapp',
         ];
-        
-        return array_sum(array_map(fn($key) => Cache::get($key, 0), $keys));
+
+        return array_sum(array_map(fn ($key) => Cache::get($key, 0), $keys));
     }
 
     /**
@@ -155,6 +155,7 @@ class PerformanceMetricsService
         $start = microtime(true);
         try {
             DB::connection()->getPdo();
+
             return round((microtime(true) - $start) * 1000, 2);
         } catch (\Exception $e) {
             return -1; // Indica erro
@@ -168,7 +169,7 @@ class PerformanceMetricsService
     {
         $totalErrors = $this->getTotalErrors();
         $totalRequests = $this->getTotalRequests();
-        
+
         return $totalRequests > 0 ? $totalErrors / $totalRequests : 0;
     }
 

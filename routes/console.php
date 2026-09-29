@@ -46,3 +46,7 @@ Schedule::command('assistant:send-weekly-summary')
 Schedule::command('billing:send-expiring-emails --days=3 --max-per-cycle=2')
     ->dailyAt('10:00')
     ->withoutOverlapping();
+
+Schedule::command('whatsapp:reliability --mark-stale')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();

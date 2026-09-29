@@ -40,8 +40,8 @@ class AIService
         // Fallback se o parser falhar
         if (! isset($parsedResponse['reply'])) {
             Log::warning('AI response parser failed to extract reply', [
-                'raw_response' => substr($response, 0, 500),
-                'parsed' => $parsedResponse,
+                'response_length' => strlen($response),
+                'parsed_keys' => array_keys($parsedResponse),
             ]);
 
             return [
@@ -142,7 +142,7 @@ class AIService
             return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
         }
 
-        throw new \RuntimeException('Erro ao chamar Gemini API: '.$response->body());
+        throw new \RuntimeException('Erro ao chamar Gemini API (HTTP '.$response->status().').');
     }
 
     /**
@@ -170,7 +170,7 @@ class AIService
             return $data['response'] ?? '';
         }
 
-        throw new \RuntimeException('Erro ao chamar Ollama API: '.$response->body());
+        throw new \RuntimeException('Erro ao chamar Ollama API (HTTP '.$response->status().').');
     }
 
     /**
@@ -220,11 +220,10 @@ class AIService
 
             Log::error('Erro ao chamar Groq API', [
                 'status' => $response->status(),
-                'body' => $response->body(),
                 'attempt' => $i + 1,
             ]);
 
-            throw new \RuntimeException('Erro ao chamar Groq API: '.$response->body());
+            throw new \RuntimeException('Erro ao chamar Groq API (HTTP '.$response->status().').');
         }
 
         throw new \RuntimeException('Erro ao chamar Groq API após '.$maxRetries.' tentativas');
@@ -272,7 +271,7 @@ class AIService
             return $data['choices'][0]['message']['content'] ?? '';
         }
 
-        throw new \RuntimeException('Erro ao chamar OpenAI API: '.$response->body());
+        throw new \RuntimeException('Erro ao chamar OpenAI API (HTTP '.$response->status().').');
     }
 
     /**
