@@ -100,6 +100,13 @@ class Transaction extends Model
         parent::boot();
 
         static::created(function (Transaction $transaction) {
+            app(\App\Services\ProductEventService::class)->recordOnce(
+                $transaction->user_id,
+                \App\Services\ProductEventService::FIRST_TRANSACTION,
+                $transaction->whatsapp_contact_id ? 'whatsapp' : 'app',
+                occurredAt: $transaction->created_at,
+            );
+
             // Detectar duplicatas automaticamente
             if ($transaction->user) {
                 app(\App\Services\TransactionDuplicateDetectionService::class)

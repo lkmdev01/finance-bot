@@ -39,6 +39,15 @@ class User extends Authenticatable
                 $user->trial_ends_at = $trialStartedAt->copy()->addDays((int) config('billing.trial_days', 7));
             }
         });
+
+        static::created(function (User $user) {
+            app(\App\Services\ProductEventService::class)->recordOnce(
+                $user,
+                \App\Services\ProductEventService::REGISTERED,
+                'app',
+                occurredAt: $user->created_at,
+            );
+        });
     }
 
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -153,6 +162,11 @@ class User extends Authenticatable
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function productEvents(): HasMany
+    {
+        return $this->hasMany(ProductEvent::class);
     }
 
     public function bankAccounts(): HasMany

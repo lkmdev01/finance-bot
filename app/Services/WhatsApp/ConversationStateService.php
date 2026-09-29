@@ -8,7 +8,9 @@ use Illuminate\Support\Carbon;
 class ConversationStateService
 {
     private const MAX_CONTEXT_ITEMS = 20;
+
     private const MAX_RECENT_CONTEXTS = 16;
+
     private const MAX_UNDO_STACK = 8;
 
     public function getState(?WhatsAppContact $contact): array
@@ -167,7 +169,10 @@ class ConversationStateService
             $this->clearPending($contact);
         }
 
-        $this->rememberLastAction($contact, $action, $entities, $replyKind);
+        if (($metadata['preserve_last_action'] ?? false) !== true) {
+            $this->rememberLastAction($contact, $action, $entities, $replyKind);
+        }
+
         $this->rememberInteraction($contact, $message, $reply, $action, [
             'reply_kind' => $replyKind,
             'entities' => $entities,
@@ -224,6 +229,7 @@ class ConversationStateService
         foreach ($incoming as $key => $value) {
             if (is_array($value) && is_array($existing[$key] ?? null)) {
                 $existing[$key] = $this->mergePreferences($existing[$key], $value);
+
                 continue;
             }
 

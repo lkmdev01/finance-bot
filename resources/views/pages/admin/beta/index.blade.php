@@ -81,6 +81,28 @@
             </div>
         </div>
 
+        <section class="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
+            <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <p class="text-sm font-bold uppercase tracking-[0.16em] text-cyan-300">Funil do produto</p>
+                    <h2 class="mt-1 text-xl font-black text-white">Da conta criada à assinatura</h2>
+                </div>
+                <p class="text-xs text-slate-500">Conversão em relação à etapa anterior</p>
+            </div>
+
+            <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+                @foreach ($funnel as $stage)
+                    <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                        <p class="min-h-10 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{{ $stage['label'] }}</p>
+                        <p class="mt-2 text-2xl font-black text-white">{{ $stage['count'] }}</p>
+                        <p class="mt-1 text-xs {{ $stage['conversion'] !== null && $stage['conversion'] < 50 ? 'text-amber-300' : 'text-emerald-300' }}">
+                            {{ $stage['conversion'] === null ? 'Base do funil' : number_format($stage['conversion'], 1, ',', '.').'%' }}
+                        </p>
+                    </div>
+                @endforeach
+            </div>
+        </section>
+
         <form method="GET" action="{{ route('admin.beta.index') }}" class="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
             <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
                 <input

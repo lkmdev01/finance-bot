@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AbacatePaySubscription;
 use App\Models\User;
 use App\Models\WhatsAppConversationLog;
+use App\Services\ProductFunnelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -28,7 +29,7 @@ class BetaDashboardController extends Controller
         ];
     }
 
-    public function index(Request $request): View
+    public function index(Request $request, ProductFunnelService $productFunnel): View
     {
         $search = trim((string) $request->query('q', ''));
         $filter = (string) $request->query('filter', 'all');
@@ -69,6 +70,7 @@ class BetaDashboardController extends Controller
             'filter' => $filter,
             'search' => $search,
             'summary' => $this->summary(),
+            'funnel' => $productFunnel->summary(),
             'latestLogs' => $this->latestLogsFor($userIds),
             'recentErrorCounts' => $this->recentErrorCountsFor($userIds),
             'latestSubscriptions' => $this->latestSubscriptionsFor($userIds),

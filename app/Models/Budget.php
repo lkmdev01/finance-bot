@@ -69,6 +69,19 @@ class Budget extends Model
         if ($this->amount == 0) {
             return 0;
         }
+
         return min(100, ($this->spent / $this->amount) * 100);
+    }
+
+    protected static function booted(): void
+    {
+        static::created(function (Budget $budget) {
+            app(\App\Services\ProductEventService::class)->recordOnce(
+                $budget->user_id,
+                \App\Services\ProductEventService::FIRST_BUDGET,
+                'app',
+                occurredAt: $budget->created_at,
+            );
+        });
     }
 }

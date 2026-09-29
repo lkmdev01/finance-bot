@@ -1,6 +1,9 @@
 <?php
 
 use Illuminate\Support\Facades\File;
+use Tests\Support\SimulationSuiteAgentFake;
+
+beforeEach(fn () => SimulationSuiteAgentFake::install());
 
 it('runs the whatsapp suite command and exports transcripts per journey', function () {
     $outputDirectory = storage_path('app/testing/whatsapp-test-suite-command');

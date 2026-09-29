@@ -1,5 +1,6 @@
 <?php
 
+use App\Ai\FinancialAgent;
 use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Transaction;
 use App\Models\User;
@@ -8,6 +9,7 @@ use App\Services\AIService;
 use App\Services\BaileysService;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Ai;
 
 use function Pest\Laravel\assertDatabaseMissing;
 
@@ -23,6 +25,7 @@ beforeEach(function () {
 });
 
 it('deleta transacao via whatsapp com confirmacao quando a IA retorna transaction_id', function () {
+    config(['ai.use_sdk' => true]);
     $transaction = Transaction::factory()->create([
         'user_id' => $this->user->id,
         'whatsapp_contact_id' => $this->contact->id,
@@ -32,23 +35,16 @@ it('deleta transacao via whatsapp com confirmacao quando a IA retorna transactio
         'date' => now()->toDateString(),
     ]);
 
-    Http::fake([
-        'api.groq.com/*' => Http::response([
-            'choices' => [
-                [
-                    'message' => [
-                        'content' => json_encode([
-                            'reply' => 'Ok.',
-                            'action' => 'delete_transaction',
-                            'transaction_data' => [
-                                'transaction_id' => $transaction->id,
-                            ],
-                        ]),
-                    ],
-                ],
+    Ai::fakeAgent(FinancialAgent::class, function (string $prompt) use ($transaction): array {
+        return [
+            'reply' => $prompt === 'sim' ? 'Confirmado.' : 'Ok.',
+            'action' => 'delete_transaction',
+            'transaction_data' => [
+                'transaction_id' => $transaction->id,
+                'confirmed' => $prompt === 'sim',
             ],
-        ], 200),
-    ]);
+        ];
+    })->preventStrayPrompts();
 
     $this->mock(BaileysService::class, function ($mock) {
         $mock->shouldReceive('sendTextMessage')
