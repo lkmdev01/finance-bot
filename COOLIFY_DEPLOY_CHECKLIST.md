@@ -67,6 +67,30 @@ GROQ_API_KEY=SUA_CHAVE_IA
 GROQ_MODEL=openai/gpt-oss-20b
 ```
 
+## 4.1. Acesso ao pacote privado InovaForce
+
+O build instala `inovaforce/telemetry` a partir de um repositorio privado. Crie
+um token fine-grained do GitHub limitado ao repositorio
+`lkmdev01/inovaforce-telemetry`, com `Contents: Read-only`.
+
+No Coolify, abra `Configuration > Environment Variables` e adicione a variavel
+em modo Normal:
+
+- chave: `COMPOSER_AUTH`
+- valor: `{"github-oauth":{"github.com":"github_pat_SEU_TOKEN"}}`
+- `Build Variable`: ligado
+- `Runtime Variable`: desligado
+- `Literal`: ligado
+
+Em `Configuration > Advanced`, habilite `Use Docker Build Secrets` quando essa
+opcao estiver disponivel. Nunca coloque o token no Git, em `.env.example` ou em
+comandos registrados nos logs. Depois de alterar o segredo, execute um novo
+deploy; se houver camada antiga em cache, use `Force deploy (without cache)`.
+
+O repositorio do modulo usa o driver Git com URL HTTPS. O Composer clona a
+versao fixada no `composer.lock` usando o token, sem depender de SSH dentro da
+imagem.
+
 ## 5. Variaveis para voz e transcricao
 
 Se quiser usar mensagens de voz com transcricao, adicione tambem:
