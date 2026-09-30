@@ -186,6 +186,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
             ->name('admin.whatsapp-broadcasts.store');
     });
     Route::middleware('can:viewBetaDashboard')->group(function () {
+        Route::get('admin', \App\Http\Controllers\Admin\DashboardController::class)->name('admin.dashboard');
         Route::get('admin/beta', [\App\Http\Controllers\Admin\BetaDashboardController::class, 'index'])
             ->name('admin.beta.index');
         Route::patch('admin/beta/users/{user}', [\App\Http\Controllers\Admin\BetaDashboardController::class, 'update'])
