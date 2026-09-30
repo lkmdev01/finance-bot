@@ -37,8 +37,14 @@ test('authenticated users can visit the dashboard', function () {
         ],
     ], 'weekly_review');
 
-    $response = $this->get(route('dashboard'));
+    $this->get(route('dashboard'))
+        ->assertOk()
+        ->assertDontSee('Tendencia semanal do assistente')
+        ->assertDontSee('Observabilidade IA ligada no fluxo');
+
+    $response = $this->get(route('admin.dashboard'));
     $response->assertStatus(200);
+    $response->assertSee('Painel InovaFinance');
     $response->assertSee('Observabilidade IA ligada no fluxo');
     $response->assertSee('Tendencia semanal do assistente');
     $response->assertSee('Aprovacoes');
@@ -69,4 +75,10 @@ test('dashboard layout does not use unsupported flux sidebar toggle expression',
 
     $response->assertOk();
     $response->assertDontSee('$flux.sidebar.toggle()', false);
+});
+
+test('administration is restricted to administrators', function () {
+    $this->get(route('admin.dashboard'))->assertRedirect(route('login'));
+    $this->actingAs(User::factory()->create())
+        ->get(route('admin.dashboard'))->assertForbidden();
 });

@@ -20,9 +20,13 @@
             </flux:sidebar.header>
 
             <flux:sidebar.nav data-app-sidebar-nav class="gap-1 px-2">
+                @php
+                    $adminArea = request()->routeIs('admin.*', 'assistant.observability*', 'assistant.operations.settings', 'monitoring.index');
+                @endphp
                 <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                    Dashboard
+                    {{ $adminArea ? 'Voltar às minhas finanças' : 'Dashboard' }}
                 </flux:sidebar.item>
+                @unless($adminArea)
                 <flux:sidebar.item icon="sparkles" :href="route(config('mascot.route_name', 'mascot.index'))" :current="request()->routeIs(config('mascot.route_name', 'mascot.index'))" wire:navigate>
                     {{ config('mascot.name', 'Orbita') }}
                 </flux:sidebar.item>
@@ -103,7 +107,15 @@
                     </div>
                 </div>
 
-                @if(auth()->user()?->isAdmin())
+                @endunless
+
+                @can('viewBetaDashboard')
+                    <flux:sidebar.item icon="shield-check" :href="route('admin.dashboard')" :current="request()->routeIs('admin.dashboard')" wire:navigate>
+                        Administração InovaFinance
+                    </flux:sidebar.item>
+                @endcan
+
+                @if($adminArea && auth()->user()?->isAdmin())
                     <div x-data="{ open: {{ request()->routeIs('assistant.observability', 'admin.whatsapp-broadcasts.*', 'admin.beta.*', 'admin.email-logs.*', 'admin.email-broadcasts.*', 'admin.commercial-readiness') ? 'true' : 'false' }} }" class="space-y-1">
                         <button type="button" data-sidebar-group-toggle @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300/80 transition hover:bg-emerald-400/10 hover:text-emerald-200">
                             <span>Admin</span>
