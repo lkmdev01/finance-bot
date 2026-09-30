@@ -103,9 +103,11 @@
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
-    "repositories": [{
-        "name": "inovaforce-telemetry",
-        "type": "vcs",
-        "url": "https://github.com/lkmdev01/inovaforce-telemetry.git"
-    }]
+    "repositories": [
+        {
+            "name": "inovaforce-telemetry",
+            "type": "git",
+            "url": "https://github.com/lkmdev01/inovaforce-telemetry.git"
+        }
+    ]
 }

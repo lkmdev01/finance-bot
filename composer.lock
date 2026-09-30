@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "aca596a19dab041fd668e79d9685888f",
+    "content-hash": "99d9863bea62494b401a4de6619df593",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -1826,14 +1826,8 @@
             "version": "v0.3.1",
             "source": {
                 "type": "git",
-                "url": "git@github.com:lkmdev01/inovaforce-telemetry.git",
+                "url": "https://github.com/lkmdev01/inovaforce-telemetry.git",
                 "reference": "3b0c8df8557ff97aa32ea66121d8570056cb8d21"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/lkmdev01/inovaforce-telemetry/zipball/3b0c8df8557ff97aa32ea66121d8570056cb8d21",
-                "reference": "3b0c8df8557ff97aa32ea66121d8570056cb8d21",
-                "shasum": ""
             },
             "require": {
                 "illuminate/cache": "^12.0|^13.0",
@@ -1872,10 +1866,6 @@
                 "proprietary"
             ],
             "description": "Privacy-first operational telemetry for InovaForce managed Laravel applications.",
-            "support": {
-                "source": "https://github.com/lkmdev01/inovaforce-telemetry/tree/v0.3.1",
-                "issues": "https://github.com/lkmdev01/inovaforce-telemetry/issues"
-            },
             "time": "2026-09-26T21:56:36+00:00"
         },
         {
