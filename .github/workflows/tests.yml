@@ -1,6 +1,7 @@
 name: tests
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - develop
@@ -18,13 +19,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: 8.4
           tools: composer:v2
-          coverage: xdebug
+          coverage: none
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -33,7 +36,9 @@ jobs:
           cache: 'npm'
 
       - name: Install Node Dependencies
-        run: npm i
+        run: |
+          npm ci
+          npm ci --prefix whatsapp-service
 
       - name: Add Flux Credentials Loaded From ENV
         run: composer config http-basic.composer.fluxui.dev "${{ secrets.FLUX_USERNAME }}" "${{ secrets.FLUX_LICENSE_KEY }}"
@@ -49,6 +54,29 @@ jobs:
 
       - name: Build Assets
         run: npm run build
+
+      - name: Validate Composer Metadata
+        run: composer validate --no-check-publish
+
+      - name: Validate Shell Entrypoints
+        run: |
+          bash -n start-all.sh
+          sh -n docker/entrypoint.sh
+
+      - name: Check Code Style
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_BRANCH: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            PINT_BASE="origin/$BASE_BRANCH"
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            PINT_BASE="$BEFORE_SHA"
+          else
+            PINT_BASE="HEAD^"
+          fi
+          ./vendor/bin/pint --test --diff="$PINT_BASE"
 
       - name: Run Tests
         run: ./vendor/bin/pest

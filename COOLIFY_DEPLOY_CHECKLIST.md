@@ -129,6 +129,14 @@ Depois de salvar as variaveis:
 3. Confirme que as etapas `Preparando Ambiente`, `Validando configuracao comercial/billing`, `Iniciando Workers e Scheduler`, `Iniciando WhatsApp Service` e `Iniciando Servidor Web Principal` apareceram sem erro.
 4. No primeiro deploy, escaneie o QR Code do WhatsApp nos logs.
 
+Configure o health check de ciclo de vida do Coolify para `GET /up`. O endpoint
+`GET /health` verifica dependencias reais e retorna `503` quando fila ou WhatsApp
+estao degradados; use-o em monitoramento/alerta, nao para reiniciar o container.
+
+Antes de liberar dados reais, configure e teste o procedimento descrito em
+`docs/BACKUP_AND_RESTORE.md`. Registre a data do ultimo teste em
+`BACKUP_LAST_RESTORE_TEST_AT`.
+
 ## 9. Como validar
 
 No terminal do container, rode:
@@ -137,6 +145,7 @@ No terminal do container, rode:
 php artisan billing:smoke
 php artisan schedule:list
 php artisan whatsapp:reliability
+ps -ef | grep '[q]ueue:work'
 tail -n 80 storage/logs/scheduler.log
 tail -n 80 storage/logs/worker-1.log
 ```
@@ -147,8 +156,17 @@ O esperado e ver:
 - `billing:send-expiring-emails --days=3 --max-per-cycle=2` listado no scheduler.
 - `whatsapp:reliability --mark-stale` listado no scheduler.
 - nenhuma entrada ou saida inesperada marcada para revisao.
+- a quantidade de processos `queue:work` corresponde a `QUEUE_WORKERS`.
 - logs do scheduler sem erro.
 - logs do worker sem erro.
+
+Confirme tambem que os workers voltam automaticamente depois do sinal de restart:
+
+```bash
+php artisan queue:restart
+sleep 5
+ps -ef | grep '[q]ueue:work'
+```
 
 Valide tambem:
 

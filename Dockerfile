@@ -9,8 +9,6 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     zip \
     unzip \
-    supervisor \
-    nginx \
     nodejs \
     npm
 
@@ -40,11 +38,8 @@ RUN npm ci
 WORKDIR /var/www/html
 
 # Instalar e buildar dependências do Frontend (Vite)
-RUN npm install
+RUN npm ci
 RUN npm run build
-
-# Configurações do Supervisor
-COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Script de entrada
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh

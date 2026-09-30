@@ -6,12 +6,15 @@ use App\Models\AuditLog;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
+use Throwable;
 
 class AlertService
 {
     public function __construct(
         private readonly PerformanceMetricsService $metrics,
-        private readonly BaileysService $baileysService
+        private readonly BaileysService $baileysService,
+        private readonly QueueHeartbeatService $queueHeartbeat,
     ) {}
 
     public function checkAlerts(): void
@@ -20,14 +23,24 @@ class AlertService
         $this->checkHighErrorRate();
         $this->checkAIResponseTime();
         $this->checkQueueSize();
+        $this->checkQueueHeartbeat();
     }
 
     private function checkWhatsAppConnection(): void
     {
-        $recentMessages = \App\Models\WhatsAppContact::where('updated_at', '>=', now()->subMinutes(5))->count();
+        try {
+            $response = $this->baileysService->checkConnection();
 
-        if ($recentMessages === 0) {
-            Log::warning('WhatsApp: Nenhuma mensagem processada nos ultimos 5 minutos');
+            if (! $response->successful() || $response->json('connected') !== true) {
+                $this->sendAlert('whatsapp_disconnected', [
+                    'message' => 'O servico do WhatsApp respondeu, mas a sessao nao esta conectada.',
+                ]);
+            }
+        } catch (Throwable $exception) {
+            $this->sendAlert('whatsapp_unavailable', [
+                'message' => 'O servico do WhatsApp nao respondeu ao health check.',
+                'exception' => $exception::class,
+            ]);
         }
     }
 
@@ -61,20 +74,66 @@ class AlertService
 
     private function checkQueueSize(): void
     {
-        $queueSize = \Illuminate\Support\Facades\DB::table('jobs')->count();
-        $threshold = 100;
+        try {
+            $connection = $this->queueHeartbeat->connection();
+            $queue = $this->queueHeartbeat->queue();
+            $queueSize = Queue::connection($connection)->size($queue);
+            $threshold = 100;
 
-        if ($queueSize > $threshold) {
-            $this->sendAlert('high_queue_size', [
-                'queue_size' => $queueSize,
-                'threshold' => $threshold,
-                'message' => "Fila de jobs grande: {$queueSize} jobs (threshold: {$threshold})",
+            if ($queueSize > $threshold) {
+                $this->sendAlert('high_queue_size', [
+                    'queue_size' => $queueSize,
+                    'connection' => $connection,
+                    'queue' => $queue,
+                    'threshold' => $threshold,
+                    'message' => "Fila de jobs grande: {$queueSize} jobs (threshold: {$threshold})",
+                ]);
+            }
+        } catch (Throwable $exception) {
+            $this->sendAlert('queue_unavailable', [
+                'message' => 'Nao foi possivel consultar a fila configurada.',
+                'exception' => $exception::class,
+            ]);
+        }
+    }
+
+    private function checkQueueHeartbeat(): void
+    {
+        try {
+            $heartbeat = $this->queueHeartbeat->snapshot();
+        } catch (Throwable $exception) {
+            $this->sendAlert('queue_heartbeat_unavailable', [
+                'message' => 'Nao foi possivel consultar o heartbeat do worker.',
+                'exception' => $exception::class,
+            ]);
+
+            return;
+        }
+
+        if (! $heartbeat['healthy']) {
+            $this->sendAlert('queue_worker_unhealthy', [
+                'connection' => $heartbeat['connection'],
+                'queue' => $heartbeat['queue'],
+                'state' => $heartbeat['state'],
+                'pending_age_seconds' => $heartbeat['pending_age_seconds'],
+                'processed_age_seconds' => $heartbeat['processed_age_seconds'],
+                'message' => "Worker da fila {$heartbeat['connection']}:{$heartbeat['queue']} sem heartbeat valido.",
             ]);
         }
     }
 
     private function sendAlert(string $type, array $data): void
     {
+        $cooldownMinutes = max(1, (int) config('queue_health.alert_cooldown_minutes', 30));
+        $shouldSend = rescue(
+            fn () => Cache::add("operational-alert:{$type}", true, now()->addMinutes($cooldownMinutes)),
+            true,
+            false,
+        );
+        if (! $shouldSend) {
+            return;
+        }
+
         Log::warning("Alert: {$type}", $data);
 
         AuditLog::create([
