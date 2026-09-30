@@ -2,6 +2,7 @@
 
 use App\Models\SavingsGoal;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -17,6 +18,7 @@ new class extends Component {
         if (!$goal) {
             $goal = Auth::user()->savingsGoals()->findOrFail(request()->route('savings-goal'));
         }
+        Gate::authorize('manageOwnedRecord', $goal);
         $this->goal = $goal;
         $this->name = $goal->name ?? '';
         $this->description = $goal->description;
@@ -26,6 +28,7 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->goal);
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],

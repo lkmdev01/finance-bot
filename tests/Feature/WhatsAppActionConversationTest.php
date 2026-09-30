@@ -907,12 +907,15 @@ it('registra log estruturado da conversa', function () {
         remoteJid: '5513991290256@s.whatsapp.net'
     );
     runWhatsAppJob($job);
-    assertDatabaseHas('whats_app_conversation_logs', [
-        'user_id' => currentTestCase()->user->id,
-        'message' => 'oi',
-        'classification' => 'greeting',
-        'status' => 'handled_preflight',
-    ]);
+    $log = WhatsAppConversationLog::query()
+        ->where('user_id', currentTestCase()->user->id)
+        ->where('classification', 'greeting')
+        ->where('status', 'handled_preflight')
+        ->latest('id')
+        ->first();
+
+    expect($log)->not->toBeNull()
+        ->and($log->message)->toBe('oi');
 
     expect(WhatsAppConversationLog::query()->latest()->first())->not->toBeNull();
 });

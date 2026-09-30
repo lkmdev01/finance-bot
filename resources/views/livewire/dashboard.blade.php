@@ -999,15 +999,15 @@ new class extends Component
 	            $onboardingChecklist = app(\App\Services\Onboarding\OnboardingChecklistService::class)->checklist(auth()->user());
                 $nextOnboardingStep = $onboardingChecklist['next_step'] ?? null;
 	        @endphp
-	        @if(($onboardingChecklist['completed'] ?? 0) < ($onboardingChecklist['total'] ?? 3))
+	        @if(($onboardingChecklist['completed'] ?? 0) < ($onboardingChecklist['total'] ?? 2))
 	            <section class="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5 text-emerald-950 shadow-sm dark:border-emerald-400/15 dark:bg-emerald-400/5 dark:text-emerald-50">
 	                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 	                    <div>
 	                        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-200">
-	                            Checklist inicial ({{ $onboardingChecklist['completed'] ?? 0 }}/{{ $onboardingChecklist['total'] ?? 3 }})
+	                            Ativação rápida ({{ $onboardingChecklist['completed'] ?? 0 }}/{{ $onboardingChecklist['total'] ?? 2 }})
 	                        </p>
 	                        <p class="mt-2 text-base font-semibold text-emerald-950 dark:text-emerald-50">
-	                            Complete esses 3 passos para o painel ficar bem mais util.
+	                            Ative o WhatsApp e registre a primeira movimentação para enxergar valor já no primeiro dia.
 	                        </p>
 	                    </div>
 	                    @if(! empty($tutorialWhatsappUrl))
@@ -1051,7 +1051,7 @@ new class extends Component
                         </div>
                     @endif
 
-	                <div class="mt-4 grid gap-3 sm:grid-cols-3">
+	                <div class="mt-4 grid gap-3 sm:grid-cols-2">
 	                    @foreach(($onboardingChecklist['steps'] ?? []) as $step)
 	                        <div class="rounded-2xl border border-emerald-500/10 bg-white/60 p-4 text-sm dark:border-white/10 dark:bg-slate-950/30">
 	                            <p class="font-semibold text-emerald-950 dark:text-emerald-50">

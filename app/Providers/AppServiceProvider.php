@@ -44,6 +44,7 @@ use App\Services\WhatsApp\Handlers\UpdateSubscriptionHandler;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Event;
@@ -144,6 +145,12 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define('viewBetaDashboard', function (User $user): bool {
             return $user->isAdmin();
+        });
+
+        Gate::define('manageOwnedRecord', function (User $user, Model $record): bool {
+            $ownerId = $record->getAttribute('user_id');
+
+            return $ownerId !== null && (int) $ownerId === (int) $user->id;
         });
 
         VerifyEmail::toMailUsing(function (User $notifiable, string $url): MailMessage {

@@ -30,7 +30,11 @@ class WhatsAppConversationLog extends Model
     {
         return [
             'used_ai' => 'boolean',
-            'metadata' => 'array',
+            'phone_number' => 'encrypted',
+            'message' => 'encrypted',
+            'reply' => 'encrypted',
+            'error_message' => 'encrypted',
+            'metadata' => 'encrypted:array',
         ];
     }
 

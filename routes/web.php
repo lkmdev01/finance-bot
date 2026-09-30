@@ -4,6 +4,10 @@ use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 use Livewire\Volt\Volt;
 
+Route::model('expensePlan', App\Models\ExpensePlan::class);
+Route::model('savingsGoal', App\Models\SavingsGoal::class);
+Route::model('webhook', App\Models\Webhook::class);
+
 Route::get('/', function () {
     return view('welcome');
 })->name('home');
@@ -124,7 +128,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
 
     Route::get('transactions/{transaction}/edit', function (App\Models\Transaction $transaction) {
         return view('pages.transactions.edit', ['transaction' => $transaction]);
-    })->name('transactions.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,transaction'])->name('transactions.edit');
 
     Route::get('transactions/import', function () {
         return view('pages.transactions.import');
@@ -145,7 +149,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
 
     Route::get('categories/{category}/edit', function (App\Models\Category $category) {
         return view('pages.categories.edit', ['category' => $category]);
-    })->name('categories.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,category'])->name('categories.edit');
 
     // Orcamentos
     Route::get('budgets', function () {
@@ -158,7 +162,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
 
     Route::get('budgets/{budget}/edit', function (App\Models\Budget $budget) {
         return view('pages.budgets.edit', ['budget' => $budget]);
-    })->name('budgets.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,budget'])->name('budgets.edit');
 
     // Relatorios
     Route::get('reports', function () {
@@ -233,11 +237,11 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
 
     Route::get('savings-goals/{savingsGoal}/edit', function (App\Models\SavingsGoal $savingsGoal) {
         return view('pages.savings-goals.edit', ['savingsGoal' => $savingsGoal]);
-    })->name('savings-goals.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,savingsGoal'])->name('savings-goals.edit');
 
     Route::get('savings-goals/{savingsGoal}/deposit', function (App\Models\SavingsGoal $savingsGoal) {
         return view('pages.savings-goals.deposit', ['savingsGoal' => $savingsGoal]);
-    })->middleware('billing.writable')->name('savings-goals.deposit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,savingsGoal'])->name('savings-goals.deposit');
 
     // Transacoes
     Route::get('recurring-transactions', function () {
@@ -250,7 +254,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
 
     Route::get('recurring-transactions/{recurringTransaction}/edit', function (App\Models\RecurringTransaction $recurringTransaction) {
         return view('pages.recurring-transactions.edit', ['recurringTransaction' => $recurringTransaction]);
-    })->name('recurring-transactions.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,recurringTransaction'])->name('recurring-transactions.edit');
 
     // Contas bancarias
     Route::get('bank-accounts', function () {
@@ -261,7 +265,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     })->middleware('billing.writable')->name('bank-accounts.create');
     Route::get('bank-accounts/{bankAccount}/edit', function (App\Models\BankAccount $bankAccount) {
         return view('pages.bank-accounts.edit', ['bankAccount' => $bankAccount]);
-    })->name('bank-accounts.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,bankAccount'])->name('bank-accounts.edit');
 
     // Cartoes de credito
     Route::get('credit-cards', function () {
@@ -272,7 +276,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     })->middleware('billing.writable')->name('credit-cards.create');
     Route::get('credit-cards/{creditCard}/edit', function (App\Models\CreditCard $creditCard) {
         return view('pages.credit-cards.edit', ['creditCard' => $creditCard]);
-    })->name('credit-cards.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,creditCard'])->name('credit-cards.edit');
 
     // Lembretes
     Route::get('reminders', function () {
@@ -283,7 +287,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     })->middleware('billing.writable')->name('reminders.create');
     Route::get('reminders/{reminder}/edit', function (App\Models\Reminder $reminder) {
         return view('pages.reminders.edit', ['reminder' => $reminder]);
-    })->middleware('billing.writable')->name('reminders.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,reminder'])->name('reminders.edit');
 
     // Notas
     Route::get('notes', function () {
@@ -294,7 +298,7 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     })->middleware('billing.writable')->name('notes.create');
     Route::get('notes/{note}/edit', function (App\Models\Note $note) {
         return view('pages.notes.edit', ['note' => $note]);
-    })->middleware('billing.writable')->name('notes.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,note'])->name('notes.edit');
 
     // Assinaturas e contas recorrentes
     Route::get('subscriptions', function () {
@@ -305,23 +309,25 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     })->middleware('billing.writable')->name('subscriptions.create');
     Route::get('subscriptions/{subscription}/edit', function (App\Models\Subscription $subscription) {
         return view('pages.subscriptions.edit', ['subscription' => $subscription]);
-    })->name('subscriptions.edit');
+    })->middleware(['billing.writable', 'can:manageOwnedRecord,subscription'])->name('subscriptions.edit');
 
     // Planejamento de Gastos
     Volt::route('expense-plans', 'expense-plans.index')->name('expense-plans.index');
     Volt::route('expense-plans/create', 'expense-plans.create')->middleware('billing.writable')->name('expense-plans.create');
-    Volt::route('expense-plans/{expensePlan}/edit', 'expense-plans.edit')->name('expense-plans.edit');
+    Volt::route('expense-plans/{expensePlan}/edit', 'expense-plans.edit')->middleware(['billing.writable', 'owned.record:expensePlan,'.App\Models\ExpensePlan::class])->name('expense-plans.edit');
 
     // Alertas de Metas
-    Volt::route('savings-goals/{savingsGoal}/alerts', 'savings-goals.alerts')->middleware('billing.writable')->name('savings-goals.alerts');
+    Volt::route('savings-goals/{savingsGoal}/alerts', 'savings-goals.alerts')->middleware(['billing.writable', 'owned.record:savingsGoal,'.App\Models\SavingsGoal::class])->name('savings-goals.alerts');
 
     // Webhooks
     Volt::route('webhooks', 'webhooks.index')->name('webhooks.index');
     Volt::route('webhooks/create', 'webhooks.create')->middleware('billing.writable')->name('webhooks.create');
-    Volt::route('webhooks/{webhook}/edit', 'webhooks.edit')->name('webhooks.edit');
+    Volt::route('webhooks/{webhook}/edit', 'webhooks.edit')->middleware(['billing.writable', 'owned.record:webhook,'.App\Models\Webhook::class])->name('webhooks.edit');
 
     // Monitoramento
-    Route::get('monitoring', [App\Http\Controllers\MonitoringController::class, 'index'])->name('monitoring.index');
+    Route::get('monitoring', [App\Http\Controllers\MonitoringController::class, 'index'])
+        ->middleware('can:viewAssistantObservability')
+        ->name('monitoring.index');
 
     // Gerenciamento WhatsApp
     Route::get('whatsapp', function () {

@@ -26,6 +26,7 @@ class Webhook extends Model
     {
         return [
             'events' => 'array',
+            'secret' => 'encrypted',
             'is_active' => 'boolean',
             'success_count' => 'integer',
             'failure_count' => 'integer',

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class CreateTransactionFromAIRequest extends FormRequest
 {
@@ -23,7 +24,7 @@ class CreateTransactionFromAIRequest extends FormRequest
             'amount' => ['required', 'numeric', 'min:0.01', 'max:999999.99'],
             'description' => ['nullable', 'string', 'max:255'],
             'type' => ['required', 'in:income,expense'],
-            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'category_id' => ['nullable', 'integer', Rule::exists('categories', 'id')->where('user_id', $this->user()->id)],
             'date' => ['required', 'date', 'before_or_equal:today'],
         ];
     }

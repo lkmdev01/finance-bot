@@ -1,5 +1,6 @@
 ﻿<?php
 
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -42,7 +43,7 @@ new class extends Component {
         $this->válidateSource();
 
         $rules = [
-            'category_id' => ['nullable', 'integer'],
+            'category_id' => ['nullable', Rule::exists('categories', 'id')->where('user_id', auth()->id())],
             'bank_account_id' => ['nullable', 'integer'],
             'credit_card_id' => ['nullable', 'integer'],
             'type' => ['required', 'string', 'in:income,expense'],

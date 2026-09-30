@@ -2,6 +2,7 @@
 
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -17,6 +18,7 @@ new class extends Component {
         if (!$category) {
             $category = Category::findOrFail(request()->route('category'));
         }
+        Gate::authorize('manageOwnedRecord', $category);
         $this->category = $category;
         $this->name = $category->name;
         $this->type = $category->type;
@@ -26,6 +28,7 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->category);
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'string', 'in:income,expense'],

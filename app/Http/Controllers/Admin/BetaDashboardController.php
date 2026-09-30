@@ -9,6 +9,7 @@ use App\Models\WhatsAppConversationLog;
 use App\Services\ProductFunnelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
@@ -31,8 +32,19 @@ class BetaDashboardController extends Controller
 
     public function index(Request $request, ProductFunnelService $productFunnel): View
     {
+        $request->validate([
+            'funnel_from' => ['nullable', 'date_format:Y-m-d'],
+            'funnel_to' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
         $search = trim((string) $request->query('q', ''));
         $filter = (string) $request->query('filter', 'all');
+        $funnelFrom = Carbon::parse((string) $request->query('funnel_from', now()->subDays(29)->toDateString()))->startOfDay();
+        $funnelTo = Carbon::parse((string) $request->query('funnel_to', now()->toDateString()))->endOfDay();
+
+        if ($funnelFrom->gt($funnelTo)) {
+            [$funnelFrom, $funnelTo] = [$funnelTo->copy()->startOfDay(), $funnelFrom->copy()->endOfDay()];
+        }
 
         $users = User::query()
             ->withCount(['transactions', 'driveFiles', 'notes'])
@@ -70,7 +82,10 @@ class BetaDashboardController extends Controller
             'filter' => $filter,
             'search' => $search,
             'summary' => $this->summary(),
-            'funnel' => $productFunnel->summary(),
+            'funnel' => $productFunnel->summary($funnelFrom, $funnelTo),
+            'weeklyActiveUsers' => $productFunnel->weeklyActiveUsers($funnelTo),
+            'funnelFrom' => $funnelFrom,
+            'funnelTo' => $funnelTo,
             'latestLogs' => $this->latestLogsFor($userIds),
             'recentErrorCounts' => $this->recentErrorCountsFor($userIds),
             'latestSubscriptions' => $this->latestSubscriptionsFor($userIds),

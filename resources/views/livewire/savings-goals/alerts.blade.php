@@ -3,6 +3,7 @@
 use App\Models\SavingsGoal;
 use App\Models\SavingsGoalAlert;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -12,16 +13,15 @@ new class extends Component
     public ?string $thresholdPercentage = null;
     public ?string $daysBeforeDeadline = null;
 
-    public function mount(?SavingsGoal $goal = null): void
+    public function mount(SavingsGoal $savingsGoal): void
     {
-        if (! $goal) {
-            $goal = Auth::user()->savingsGoals()->findOrFail(request()->route('savingsGoal'));
-        }
-        $this->goal = $goal;
+        Gate::authorize('manageOwnedRecord', $savingsGoal);
+        $this->goal = $savingsGoal;
     }
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->goal);
         $validated = $this->validate([
             'type' => ['required', 'string', 'in:milestone,deadline,low_progress'],
             'thresholdPercentage' => ['required_if:type,milestone', 'nullable', 'numeric', 'min:1', 'max:100'],
@@ -50,6 +50,7 @@ new class extends Component
 
     public function delete(int $alertId): void
     {
+        Gate::authorize('manageOwnedRecord', $this->goal);
         $alert = Auth::user()->savingsGoalAlerts()->findOrFail($alertId);
         $alert->delete();
         session()->flash('message', 'Alerta excluído com sucesso!');
@@ -57,6 +58,7 @@ new class extends Component
 
     public function toggleActive(int $alertId): void
     {
+        Gate::authorize('manageOwnedRecord', $this->goal);
         $alert = Auth::user()->savingsGoalAlerts()->findOrFail($alertId);
         $alert->update(['is_active' => ! $alert->is_active]);
         session()->flash('message', 'Status do alerta atualizado!');

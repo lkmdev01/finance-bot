@@ -2,6 +2,8 @@
 
 use App\Models\RecurringTransaction;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -25,6 +27,8 @@ new class extends Component {
         if (! $recurring) {
             $recurring = Auth::user()->recurringTransactions()->findOrFail(request()->route('recurring-transaction'));
         }
+
+        Gate::authorize('manageOwnedRecord', $recurring);
 
         $this->recurring = $recurring;
         $this->category_id = $recurring->category_id;
@@ -56,11 +60,12 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->recurring);
         $this->normalizeSource();
         $this->válidateSource();
 
         $rules = [
-            'category_id' => ['nullable', 'integer'],
+            'category_id' => ['nullable', Rule::exists('categories', 'id')->where('user_id', Auth::id())],
             'bank_account_id' => ['nullable', 'integer'],
             'credit_card_id' => ['nullable', 'integer'],
             'type' => ['required', 'string', 'in:income,expense'],

@@ -2,6 +2,8 @@
 
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -22,6 +24,8 @@ new class extends Component {
             $transaction = Transaction::findOrFail(request()->route('transaction'));
         }
 
+        Gate::authorize('manageOwnedRecord', $transaction);
+
         $this->transaction = $transaction;
         $this->type = $transaction->type;
         $this->amount = (string) $transaction->amount;
@@ -35,6 +39,7 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->transaction);
         $this->válidateSource();
 
         $válidated = $this->válidate([
@@ -42,11 +47,11 @@ new class extends Component {
             'amount' => ['required', 'numeric', 'min:0.01'],
             'description' => ['nullable', 'string', 'max:255'],
             'date' => ['required', 'date'],
-            'category_id' => ['nullable', 'exists:categories,id'],
+            'category_id' => ['nullable', Rule::exists('categories', 'id')->where('user_id', Auth::id())],
             'bank_account_id' => ['nullable', 'integer'],
             'credit_card_id' => ['nullable', 'integer'],
             'selectedTags' => ['nullable', 'array'],
-            'selectedTags.*' => ['exists:tags,id'],
+            'selectedTags.*' => [Rule::exists('tags', 'id')->where('user_id', Auth::id())],
         ], [
             'type.required' => 'O tipo da transação e obrigatório.',
             'type.in' => 'O tipo deve ser receita ou despesa.',

@@ -17,34 +17,24 @@ class OnboardingChecklistService
     public function checklist(User $user): array
     {
         $hasTransaction = $user->transactions()->exists();
-        $hasBudget = $user->budgets()->exists();
-        $hasSource = $user->bankAccounts()->where('is_active', true)->exists()
-            || $user->creditCards()->where('is_active', true)->exists();
+        $hasWhatsApp = $user->whatsapp_verified_at !== null;
 
         $steps = [
             [
+                'key' => 'whatsapp',
+                'title' => 'Ativar seu WhatsApp',
+                'done' => $hasWhatsApp,
+                'hint' => 'Esse é o canal mais rápido para registrar e consultar suas finanças.',
+                'example' => null,
+                'url' => route('whatsapp.settings'),
+            ],
+            [
                 'key' => 'transaction',
-                'title' => 'Registrar sua primeira transacao',
+                'title' => 'Registrar sua primeira transação',
                 'done' => $hasTransaction,
-                'hint' => 'Isso destrava saldo, graficos e comparacoes.',
+                'hint' => 'Envie uma frase simples e veja saldo, gráficos e histórico ganharem contexto.',
                 'example' => 'gastei 20 no uber',
                 'url' => rtrim((string) config('app.url'), '/').'/transactions/create',
-            ],
-            [
-                'key' => 'budget',
-                'title' => 'Criar seu primeiro orcamento',
-                'done' => $hasBudget,
-                'hint' => 'Voce recebe alertas e sabe o que esta mais apertado.',
-                'example' => 'criar orcamento de 500 para compras',
-                'url' => rtrim((string) config('app.url'), '/').'/budgets/create',
-            ],
-            [
-                'key' => 'source',
-                'title' => 'Adicionar uma conta ou cartao',
-                'done' => $hasSource,
-                'hint' => 'Ajuda a separar saldo da conta e limite do cartao.',
-                'example' => 'registrar cartao de credito Nubank limite de 5000',
-                'url' => rtrim((string) config('app.url'), '/').'/credit-cards',
             ],
         ];
 

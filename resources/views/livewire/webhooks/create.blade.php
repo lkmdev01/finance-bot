@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\Webhook;
+use App\Services\Security\OutboundUrlGuard;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -36,6 +38,12 @@ new class extends Component
             'selectedEvents.required' => 'Selecione pelo menos um evento.',
             'selectedEvents.min' => 'Selecione pelo menos um evento.',
         ]);
+
+        try {
+            app(OutboundUrlGuard::class)->assertAllowed($this->url);
+        } catch (\InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['url' => $exception->getMessage()]);
+        }
 
         Auth::user()->webhooks()->create([
             'name' => $this->name,

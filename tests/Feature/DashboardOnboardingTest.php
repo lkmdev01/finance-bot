@@ -11,9 +11,9 @@ it('renders the regular dashboard for new users without showing onboarding tutor
         ->get(route('dashboard'))
         ->assertOk()
         ->assertSee('Saldo em Contas')
-        ->assertSee('Checklist inicial')
+        ->assertSee('Ativação rápida')
         ->assertSee('Proximo passo recomendado')
-        ->assertSee('Registrar sua primeira transacao')
+        ->assertSee('Registrar sua primeira transação')
         ->assertDontSee('Bem-vindo ao seu cockpit financeiro')
         ->assertDontSee('Configure uma vez.');
 });
@@ -26,7 +26,7 @@ it('does not surface onboarding tutorial copy for users who already completed on
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertOk()
-        ->assertSee('Checklist inicial')
+        ->assertSee('Ativação rápida')
         ->assertDontSee('Bem-vindo ao seu cockpit financeiro')
         ->assertDontSee('Configure uma vez.');
 });

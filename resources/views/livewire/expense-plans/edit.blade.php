@@ -3,6 +3,8 @@
 use App\Models\Category;
 use App\Models\ExpensePlan;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -15,22 +17,21 @@ new class extends Component
     public string $endDate;
     public array $selectedCategories = [];
 
-    public function mount(?ExpensePlan $plan = null): void
+    public function mount(ExpensePlan $expensePlan): void
     {
-        if (! $plan) {
-            $plan = Auth::user()->expensePlans()->findOrFail(request()->route('expensePlan'));
-        }
-        $this->plan = $plan;
-        $this->name = $plan->name ?? '';
-        $this->description = $plan->description;
-        $this->plannedAmount = (string) $plan->planned_amount;
-        $this->startDate = $plan->start_date->format('Y-m-d');
-        $this->endDate = $plan->end_date->format('Y-m-d');
-        $this->selectedCategories = $plan->categories ?? [];
+        Gate::authorize('manageOwnedRecord', $expensePlan);
+        $this->plan = $expensePlan;
+        $this->name = $expensePlan->name ?? '';
+        $this->description = $expensePlan->description;
+        $this->plannedAmount = (string) $expensePlan->planned_amount;
+        $this->startDate = $expensePlan->start_date->format('Y-m-d');
+        $this->endDate = $expensePlan->end_date->format('Y-m-d');
+        $this->selectedCategories = $expensePlan->categories ?? [];
     }
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->plan);
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -38,6 +39,7 @@ new class extends Component
             'startDate' => ['required', 'date'],
             'endDate' => ['required', 'date', 'after:startDate'],
             'selectedCategories' => ['nullable', 'array'],
+            'selectedCategories.*' => [Rule::exists('categories', 'id')->where('user_id', Auth::id())],
         ], [
             'name.required' => 'O nome do plano é obrigatório.',
             'plannedAmount.required' => 'O valor planejado é obrigatório.',

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ProductActivityDay;
 use App\Models\ProductEvent;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -72,6 +73,15 @@ class ProductEventService
 
     public function recordWhatsAppActivity(User $user): void
     {
+        if (Schema::hasTable('product_activity_days')) {
+            $activity = ProductActivityDay::query()->firstOrCreate([
+                'user_id' => $user->id,
+                'activity_date' => today()->startOfDay(),
+                'source' => 'whatsapp',
+            ]);
+            $activity->increment('interaction_count');
+        }
+
         $this->recordOnce($user, self::FIRST_WHATSAPP_MESSAGE, 'whatsapp');
 
         if ($user->created_at?->lte(now()->subDay())) {

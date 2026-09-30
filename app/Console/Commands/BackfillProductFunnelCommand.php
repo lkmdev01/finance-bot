@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\AbacatePaySubscription;
 use App\Models\Budget;
+use App\Models\ProductActivityDay;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppConversationLog;
@@ -40,6 +41,22 @@ class BackfillProductFunnelCommand extends Command
 
                     $this->recordRetentionEvent($events, $user, ProductEventService::RETAINED_D1, 1);
                     $this->recordRetentionEvent($events, $user, ProductEventService::RETAINED_D7, 7);
+
+                    WhatsAppConversationLog::query()
+                        ->where('user_id', $user->id)
+                        ->selectRaw('DATE(created_at) as activity_date, count(*) as interactions')
+                        ->groupByRaw('DATE(created_at)')
+                        ->get()
+                        ->each(function ($activity) use ($user) {
+                            ProductActivityDay::query()->updateOrCreate(
+                                [
+                                    'user_id' => $user->id,
+                                    'activity_date' => Carbon::parse($activity->activity_date)->startOfDay(),
+                                    'source' => 'whatsapp',
+                                ],
+                                ['interaction_count' => (int) $activity->interactions],
+                            );
+                        });
                 }
 
                 $this->recordFirstModelEvent($events, $user, Transaction::class, ProductEventService::FIRST_TRANSACTION);

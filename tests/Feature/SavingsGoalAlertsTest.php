@@ -6,13 +6,15 @@ use App\Models\SavingsGoal;
 use App\Models\SavingsGoalAlert;
 use App\Models\SavingsGoalDeposit;
 use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\get;
 
 it('can access savings goal alerts page', function () {
     $user = User::factory()->create();
     $goal = SavingsGoal::factory()->create(['user_id' => $user->id]);
+
+    expect(Gate::forUser($user)->allows('manageOwnedRecord', $goal))->toBeTrue();
 
     actingAs($user)
         ->get(route('savings-goals.alerts', $goal))

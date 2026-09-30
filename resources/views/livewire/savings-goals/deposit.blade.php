@@ -2,6 +2,7 @@
 
 use App\Models\SavingsGoal;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -16,6 +17,7 @@ new class extends Component {
         if (!$goal) {
             $goal = Auth::user()->savingsGoals()->findOrFail(request()->route('savings-goal'));
         }
+        Gate::authorize('manageOwnedRecord', $goal);
         $this->goal = $goal;
         $this->deposit_date = now()->format('Y-m-d');
     }
@@ -49,6 +51,7 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->goal);
         $validated = $this->validate([
             'amount' => ['required', 'numeric', 'min:0.01'],
             'description' => ['nullable', 'string', 'max:500'],

@@ -2,6 +2,7 @@
 
 use App\Http\Requests\StoreBudgetRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -20,7 +21,7 @@ new class extends Component {
     public function save(): void
     {
         $validated = $this->validate([
-            'category_id' => ['required', 'exists:categories,id'],
+            'category_id' => ['required', Rule::exists('categories', 'id')->where('user_id', Auth::id())],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'period' => ['required', 'string', 'in:monthly,yearly'],
             'year' => ['required', 'integer', 'min:2020', 'max:2100'],
