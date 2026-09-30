@@ -1,7 +1,10 @@
 <?php
 
 use App\Models\Webhook;
+use App\Services\Security\OutboundUrlGuard;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -28,6 +31,7 @@ new class extends Component
         if (! $webhook) {
             $webhook = Auth::user()->webhooks()->findOrFail(request()->route('webhook'));
         }
+        Gate::authorize('manageOwnedRecord', $webhook);
         $this->webhook = $webhook;
         $this->name = $webhook->name ?? '';
         $this->url = $webhook->url ?? '';
@@ -37,6 +41,7 @@ new class extends Component
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->webhook);
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'url' => ['required', 'url'],
@@ -49,6 +54,12 @@ new class extends Component
             'selectedEvents.required' => 'Selecione pelo menos um evento.',
             'selectedEvents.min' => 'Selecione pelo menos um evento.',
         ]);
+
+        try {
+            app(OutboundUrlGuard::class)->assertAllowed($this->url);
+        } catch (\InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['url' => $exception->getMessage()]);
+        }
 
         $this->webhook->update([
             'name' => $this->name,

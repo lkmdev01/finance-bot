@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Note;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -19,6 +20,7 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->note);
         $validated = $this->validate([
             'title' => ['required', 'string', 'min:3', 'max:160'],
             'body' => ['required', 'string', 'min:3'],
@@ -52,4 +54,3 @@ new class extends Component {
         </form>
     </div>
 </div>
-

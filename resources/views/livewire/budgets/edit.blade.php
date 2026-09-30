@@ -3,6 +3,8 @@
 use App\Http\Requests\UpdateBudgetRequest;
 use App\Models\Budget;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -19,6 +21,7 @@ new class extends Component {
         if (!$budget) {
             $budget = Auth::user()->budgets()->findOrFail(request()->route('budget'));
         }
+        Gate::authorize('manageOwnedRecord', $budget);
         $this->budget = $budget;
         $this->category_id = $budget->category_id;
         $this->amount = (string) $budget->amount;
@@ -29,8 +32,9 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->budget);
         $validated = $this->validate([
-            'category_id' => ['required', 'exists:categories,id'],
+            'category_id' => ['required', Rule::exists('categories', 'id')->where('user_id', Auth::id())],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'period' => ['required', 'string', 'in:monthly,yearly'],
             'year' => ['required', 'integer', 'min:2020', 'max:2100'],

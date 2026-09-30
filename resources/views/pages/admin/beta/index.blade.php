@@ -58,7 +58,7 @@
             </div>
         @endif
 
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
             <div class="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
                 <p class="text-sm text-slate-400">Usuarios</p>
                 <p class="mt-2 text-3xl font-black text-white">{{ $summary['total_users'] }}</p>
@@ -79,6 +79,10 @@
                 <p class="text-sm text-rose-100/80">Erros 7 dias</p>
                 <p class="mt-2 text-3xl font-black text-white">{{ $summary['errors_7d'] }}</p>
             </div>
+            <div class="rounded-3xl border border-cyan-300/20 bg-cyan-400/10 p-5">
+                <p class="text-sm text-cyan-100/80">Ativos em 7 dias</p>
+                <p class="mt-2 text-3xl font-black text-white">{{ $weeklyActiveUsers }}</p>
+            </div>
         </div>
 
         <section class="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
@@ -87,7 +91,17 @@
                     <p class="text-sm font-bold uppercase tracking-[0.16em] text-cyan-300">Funil do produto</p>
                     <h2 class="mt-1 text-xl font-black text-white">Da conta criada à assinatura</h2>
                 </div>
-                <p class="text-xs text-slate-500">Conversão em relação à etapa anterior</p>
+                <form method="GET" action="{{ route('admin.beta.index') }}" class="flex flex-wrap items-end gap-2 text-xs">
+                    <input type="hidden" name="q" value="{{ $search }}">
+                    <input type="hidden" name="filter" value="{{ $filter }}">
+                    <label class="text-slate-400">Coorte desde
+                        <input type="date" name="funnel_from" value="{{ $funnelFrom->toDateString() }}" class="mt-1 block rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-white">
+                    </label>
+                    <label class="text-slate-400">até
+                        <input type="date" name="funnel_to" value="{{ $funnelTo->toDateString() }}" class="mt-1 block rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-white">
+                    </label>
+                    <button class="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 font-bold text-cyan-100">Aplicar</button>
+                </form>
             </div>
 
             <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
@@ -96,7 +110,7 @@
                         <p class="min-h-10 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{{ $stage['label'] }}</p>
                         <p class="mt-2 text-2xl font-black text-white">{{ $stage['count'] }}</p>
                         <p class="mt-1 text-xs {{ $stage['conversion'] !== null && $stage['conversion'] < 50 ? 'text-amber-300' : 'text-emerald-300' }}">
-                            {{ $stage['conversion'] === null ? 'Base do funil' : number_format($stage['conversion'], 1, ',', '.').'%' }}
+                            {{ $stage['conversion'] === null ? $stage['basis'] : number_format($stage['conversion'], 1, ',', '.').'% '.$stage['basis'] }}
                         </p>
                     </div>
                 @endforeach

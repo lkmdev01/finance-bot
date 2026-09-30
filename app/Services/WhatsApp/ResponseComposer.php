@@ -15,7 +15,7 @@ class ResponseComposer
         $base = "Ola{$namePart}! Eu sou o InovaFinance. Posso registrar gastos e receitas, consultar seu saldo, listar suas ultimas transacoes e gerar relatorios.";
 
         $checklist = app(OnboardingChecklistService::class)->checklist($user);
-        if (($checklist['completed'] ?? 0) >= ($checklist['total'] ?? 3)) {
+        if (($checklist['completed'] ?? 0) >= ($checklist['total'] ?? 2)) {
             return $base;
         }
 
@@ -34,7 +34,7 @@ class ResponseComposer
             return $base;
         }
 
-        $progress = sprintf('%d/%d', (int) ($checklist['completed'] ?? 0), (int) ($checklist['total'] ?? 3));
+        $progress = sprintf('%d/%d', (int) ($checklist['completed'] ?? 0), (int) ($checklist['total'] ?? 2));
 
         return $base
             ."\n\nChecklist rapida ({$progress}):\n"
@@ -84,7 +84,7 @@ class ResponseComposer
 
         $checklist = app(OnboardingChecklistService::class)->checklist($user);
 
-        if (($checklist['completed'] ?? 0) < ($checklist['total'] ?? 3)) {
+        if (($checklist['completed'] ?? 0) < ($checklist['total'] ?? 2)) {
             $message .= $this->composeNextStepHint($checklist, 'Para destravar melhor o painel');
         }
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\BankAccount;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -30,6 +31,7 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->bankAccount);
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'institution' => ['nullable', 'string', 'max:255'],

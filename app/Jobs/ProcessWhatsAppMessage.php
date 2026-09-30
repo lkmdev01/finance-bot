@@ -44,7 +44,7 @@ class ProcessWhatsAppMessage implements ShouldQueue
 
     public function middleware(): array
     {
-        return [(new WithoutOverlapping($this->userId))->releaseAfter(30)];
+        return [(new WithoutOverlapping($this->userId))->releaseAfter(30)->expireAfter(180)];
     }
 
     public function rememberFinalReply(string $reply): void

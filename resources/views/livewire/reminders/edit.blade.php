@@ -3,6 +3,7 @@
 use App\Models\Reminder;
 use App\Services\WhatsApp\ReminderMessageTemplateFactory;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Volt\Component;
 
@@ -42,6 +43,7 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->reminder);
         $validated = $this->validate([
             'title' => ['required', 'string', 'min:2', 'max:120'],
             'message' => ['nullable', 'string', 'max:2000'],

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreBudgetRequest extends FormRequest
 {
@@ -22,7 +23,7 @@ class StoreBudgetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'category_id' => ['required', 'exists:categories,id'],
+            'category_id' => ['required', Rule::exists('categories', 'id')->where('user_id', $this->user()->id)],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'period' => ['required', 'string', 'in:monthly,yearly'],
             'year' => ['required', 'integer', 'min:2020', 'max:2100'],

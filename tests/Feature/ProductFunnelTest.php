@@ -7,6 +7,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WhatsAppConversationLog;
 use App\Services\ProductEventService;
+use App\Services\ProductFunnelService;
 
 it('records product milestones only once per user', function () {
     $user = User::factory()->create();
@@ -61,7 +62,7 @@ it('shows product funnel metrics on the beta dashboard', function () {
         ->get(route('admin.beta.index'))
         ->assertOk()
         ->assertSee('Funil do produto')
-        ->assertSee('Primeira conversa')
+        ->assertSee('1º registro em 24h')
         ->assertSee('Assinatura ativa');
 });
 
@@ -89,4 +90,20 @@ it('backfills historical activation and retention milestones idempotently', func
         ->where('user_id', $user->id)
         ->where('event_name', ProductEventService::RETAINED_D7)
         ->count())->toBe(1);
+});
+
+it('uses only eligible cohort members as the d7 retention denominator', function () {
+    $eligible = User::factory()->create(['created_at' => now()->subDays(10)]);
+    $tooRecent = User::factory()->create(['created_at' => now()->subDays(2)]);
+    $events = app(ProductEventService::class);
+
+    $events->recordOnce($eligible, ProductEventService::RETAINED_D7, 'test');
+    $events->recordOnce($tooRecent, ProductEventService::RETAINED_D7, 'test');
+
+    $retention = collect(app(ProductFunnelService::class)->summary())
+        ->firstWhere('event', 'retained_d7');
+
+    expect($retention['denominator'])->toBe(1)
+        ->and($retention['count'])->toBe(1)
+        ->and($retention['conversion'])->toBe(100.0);
 });

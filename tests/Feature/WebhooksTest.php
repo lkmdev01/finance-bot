@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Jobs\DeliverWebhook;
+use App\Models\Category;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Webhook;
+use Illuminate\Support\Facades\Queue;
 
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\get;
 
 it('can access webhooks index page', function () {
     $user = User::factory()->create();
@@ -55,4 +58,23 @@ it('records success and failure counts', function () {
 
     $webhook->recordFailure();
     expect($webhook->fresh()->failure_count)->toBe(1);
+});
+
+it('queues webhook delivery after a financial event', function () {
+    Queue::fake();
+    $user = User::factory()->create();
+    $category = Category::factory()->create(['user_id' => $user->id]);
+    $webhook = Webhook::factory()->create([
+        'user_id' => $user->id,
+        'events' => ['transaction.created'],
+        'is_active' => true,
+    ]);
+
+    Transaction::factory()->create([
+        'user_id' => $user->id,
+        'category_id' => $category->id,
+    ]);
+
+    Queue::assertPushed(DeliverWebhook::class, fn (DeliverWebhook $job) => $job->webhookId === $webhook->id
+        && $job->event === 'transaction.created');
 });

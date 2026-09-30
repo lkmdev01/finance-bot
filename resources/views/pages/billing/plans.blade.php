@@ -154,6 +154,12 @@
 
                     <p class="mt-4 text-sm leading-7 text-slate-300">{{ $plan['description'] }}</p>
 
+                    @if (! empty($plan['access_notice']))
+                        <div class="mt-4 rounded-2xl border {{ $plan['price_cents'] === 0 ? 'border-amber-300/20 bg-amber-400/10 text-amber-100' : 'border-emerald-300/20 bg-emerald-400/10 text-emerald-100' }} px-4 py-3 text-sm leading-6">
+                            {{ $plan['access_notice'] }}
+                        </div>
+                    @endif
+
                     @if ($plan['highlight'])
                         <div class="mt-4 rounded-2xl border border-yellow-300/20 bg-slate-950/45 px-4 py-3 text-sm text-yellow-50">
                             <p class="font-semibold">Oferta única ativa</p>
@@ -186,7 +192,7 @@
                     <div class="mt-8">
                         @if ($plan['price_cents'] === 0)
                             <flux:button variant="ghost" class="w-full" disabled>
-                                Sempre disponível
+                                Histórico sempre disponível
                             </flux:button>
                         @elseif ($isCurrent)
                             <flux:button variant="ghost" class="w-full" disabled>

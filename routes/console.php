@@ -50,3 +50,7 @@ Schedule::command('billing:send-expiring-emails --days=3 --max-per-cycle=2')
 Schedule::command('whatsapp:reliability --mark-stale')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+Schedule::command('privacy:prune-conversation-logs')
+    ->dailyAt('02:30')
+    ->withoutOverlapping();

@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -32,9 +33,9 @@ new class extends Component {
             'billing_cycle' => ['required', 'string', 'in:monthly,yearly'],
             'due_day' => ['nullable', 'integer', 'min:1', 'max:31'],
             'start_date' => ['required', 'date'],
-            'category_id' => ['nullable', 'integer'],
-            'bank_account_id' => ['nullable', 'integer'],
-            'credit_card_id' => ['nullable', 'integer'],
+            'category_id' => ['nullable', Rule::exists('categories', 'id')->where('user_id', auth()->id())],
+            'bank_account_id' => ['nullable', Rule::exists('bank_accounts', 'id')->where('user_id', auth()->id())],
+            'credit_card_id' => ['nullable', Rule::exists('credit_cards', 'id')->where('user_id', auth()->id())],
             'auto_record' => ['boolean'],
             'is_active' => ['boolean'],
         ]);

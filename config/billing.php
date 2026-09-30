@@ -23,10 +23,11 @@ return [
         'starter' => [
             'code' => 'starter',
             'name' => 'Inicial',
-            'description' => 'Base para consultar histórico, painel e continuar acompanhando suas finanças.',
+            'description' => 'Após os 7 dias de teste, seu histórico e painel continuam disponíveis em modo somente leitura.',
             'price_cents' => 0,
             'frequency' => 'NONE',
             'badge' => 'Teste + leitura',
+            'access_notice' => 'Inclui 7 dias para registrar pelo app e WhatsApp. Depois, mantém consultas e histórico; novos registros exigem o Pro.',
             'highlight' => false,
             'product_id' => null,
             'features' => [
@@ -44,10 +45,11 @@ return [
         'pro_monthly' => [
             'code' => 'pro_monthly',
             'name' => 'Pro Mensal',
-            'description' => 'Oferta única: 30% de desconto especial com acesso completo e renovação mensal no cartão.',
+            'description' => 'Registros contínuos pelo app e WhatsApp, relatórios, projeções e automações com renovação mensal no cartão.',
             'price_cents' => 1997,
             'frequency' => 'MONTHLY',
             'badge' => 'Oferta única',
+            'access_notice' => 'Acesso completo enquanto a assinatura estiver ativa, incluindo novos registros sem limite de período.',
             'highlight' => true,
             'product_id' => env('ABACATEPAY_PLAN_PRO_MONTHLY_PRODUCT_ID'),
             'visible' => true,

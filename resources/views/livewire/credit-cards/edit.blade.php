@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\CreditCard;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -32,6 +33,7 @@ new class extends Component {
 
     public function save(): void
     {
+        Gate::authorize('manageOwnedRecord', $this->creditCard);
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'issuer' => ['nullable', 'string', 'max:255'],
