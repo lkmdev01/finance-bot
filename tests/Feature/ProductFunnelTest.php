@@ -35,9 +35,17 @@ it('captures the first transaction and budget milestones', function () {
         'category_id' => $category->id,
     ]);
 
-    Budget::factory()->count(2)->create([
+    Budget::factory()->create([
         'user_id' => $user->id,
         'category_id' => $category->id,
+        'period' => 'monthly',
+        'month' => now()->month,
+    ]);
+    Budget::factory()->create([
+        'user_id' => $user->id,
+        'category_id' => $category->id,
+        'period' => 'yearly',
+        'month' => null,
     ]);
 
     expect(ProductEvent::query()

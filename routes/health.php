@@ -1,58 +1,53 @@
 <?php
 
 use App\Services\BaileysService;
-use App\Services\PerformanceMetricsService;
+use App\Services\QueueHeartbeatService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/health', function (BaileysService $baileysService, PerformanceMetricsService $metricsService) {
-    $status = [
-        'status' => 'ok',
-        'timestamp' => now()->toIso8601String(),
-        'services' => [
-            'database' => false,
-            'whatsapp' => false,
-            'queue' => false,
-        ],
-        'metrics' => $metricsService->getMetrics(),
+Route::get('/health', function (BaileysService $baileysService, QueueHeartbeatService $heartbeat) {
+    $services = [
+        'database' => false,
+        'whatsapp' => false,
+        'queue' => false,
     ];
+    $details = [];
 
-    // Verifica conexão com banco de dados
     try {
-        DB::connection()->getPdo();
-        $status['services']['database'] = true;
-    } catch (\Exception $e) {
-        $status['status'] = 'degraded';
-        $status['errors']['database'] = $e->getMessage();
+        DB::select('select 1');
+        $services['database'] = true;
+    } catch (Throwable $exception) {
+        Log::warning('Health check do banco falhou.', ['exception' => $exception::class]);
     }
 
-    // Verifica status do WhatsApp
     try {
-        // Tenta verificar se o serviço está respondendo
-        // Nota: BaileysService pode não ter método isConnected, então verificamos de forma segura
-        $status['services']['whatsapp'] = true; // Assumimos que está ok se não houver exceção
-    } catch (\Exception $e) {
-        $status['status'] = 'degraded';
-        $status['errors']['whatsapp'] = $e->getMessage();
+        $response = $baileysService->checkConnection();
+        $services['whatsapp'] = $response->successful() && $response->json('connected') === true;
+    } catch (Throwable $exception) {
+        Log::warning('Health check do WhatsApp falhou.', ['exception' => $exception::class]);
     }
 
-    // Verifica tamanho da fila
     try {
-        $queueSize = Queue::size();
-        $status['services']['queue'] = $queueSize < 1000;
-        $status['queue_size'] = $queueSize;
-        
-        if ($queueSize >= 1000) {
-            $status['status'] = 'degraded';
-            $status['warnings']['queue'] = "Fila muito grande: {$queueSize} jobs";
-        }
-    } catch (\Exception $e) {
-        $status['status'] = 'degraded';
-        $status['errors']['queue'] = $e->getMessage();
+        $queueHeartbeat = $heartbeat->snapshot();
+        $services['queue'] = $queueHeartbeat['healthy'];
+        $details['queue'] = [
+            'state' => $queueHeartbeat['state'],
+            'size' => Queue::connection($queueHeartbeat['connection'])->size($queueHeartbeat['queue']),
+            'pending_age_seconds' => $queueHeartbeat['pending_age_seconds'],
+            'processed_age_seconds' => $queueHeartbeat['processed_age_seconds'],
+        ];
+    } catch (Throwable $exception) {
+        Log::warning('Health check da fila falhou.', ['exception' => $exception::class]);
     }
 
-    $httpStatus = $status['status'] === 'ok' ? 200 : 503;
+    $healthy = ! in_array(false, $services, true);
 
-    return response()->json($status, $httpStatus);
+    return response()->json([
+        'status' => $healthy ? 'ok' : 'degraded',
+        'timestamp' => now()->toIso8601String(),
+        'services' => $services,
+        'details' => $details,
+    ], $healthy ? 200 : 503);
 })->name('health');

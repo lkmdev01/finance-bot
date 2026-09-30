@@ -1,2 +1,5 @@
+[phases.build]
+cmds = ["npm run build", "npm ci --omit=dev --prefix whatsapp-service"]
+
 [start]
 cmd = "bash start-all.sh"

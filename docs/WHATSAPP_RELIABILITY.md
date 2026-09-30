@@ -72,7 +72,23 @@ O `start-all.sh` executa as migrations, inicia os workers e inicia `schedule:wor
 php artisan migrate:status
 php artisan schedule:list
 php artisan whatsapp:reliability
+ps -ef | grep '[q]ueue:work'
 ```
+
+O `start-all.sh` supervisiona os workers e os recria quando eles encerram, inclusive
+depois de `php artisan queue:restart`. Para validar o ciclo de vida no ambiente de
+producao, execute o restart, aguarde alguns segundos e confirme que a quantidade
+configurada em `QUEUE_WORKERS` voltou a aparecer:
+
+```bash
+php artisan queue:restart
+sleep 5
+ps -ef | grep '[q]ueue:work'
+```
+
+Use `/up` como liveness do container e `/health` como readiness operacional. O
+segundo endpoint consulta banco, sessao do Baileys e heartbeat processado pela fila,
+portanto pode retornar `503` sem que reiniciar todo o container seja a acao correta.
 
 Faça testes com uma mensagem comum, uma criacao de despesa, uma repeticao do mesmo webhook e o Baileys desconectado. Confirme que a repeticao retorna `duplicate` e que nenhuma despesa adicional e criada.
 
