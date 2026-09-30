@@ -11,6 +11,7 @@
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
+        "inovaforce/telemetry": "^0.3",
         "laravel/ai": "^0.7.2",
         "laravel/fortify": "^1.30",
         "laravel/framework": "^12.0",
@@ -101,5 +102,10 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "repositories": [{
+        "name": "inovaforce-telemetry",
+        "type": "vcs",
+        "url": "https://github.com/lkmdev01/inovaforce-telemetry.git"
+    }]
 }

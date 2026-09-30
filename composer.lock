@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8ff72e9d8d2f2fbbc88bcb57d0f20b23",
+    "content-hash": "aca596a19dab041fd668e79d9685888f",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -1820,6 +1820,63 @@
                 }
             ],
             "time": "2025-08-22T14:27:06+00:00"
+        },
+        {
+            "name": "inovaforce/telemetry",
+            "version": "v0.3.1",
+            "source": {
+                "type": "git",
+                "url": "git@github.com:lkmdev01/inovaforce-telemetry.git",
+                "reference": "3b0c8df8557ff97aa32ea66121d8570056cb8d21"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/lkmdev01/inovaforce-telemetry/zipball/3b0c8df8557ff97aa32ea66121d8570056cb8d21",
+                "reference": "3b0c8df8557ff97aa32ea66121d8570056cb8d21",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/cache": "^12.0|^13.0",
+                "illuminate/console": "^12.0|^13.0",
+                "illuminate/contracts": "^12.0|^13.0",
+                "illuminate/http": "^12.0|^13.0",
+                "illuminate/queue": "^12.0|^13.0",
+                "illuminate/routing": "^12.0|^13.0",
+                "illuminate/support": "^12.0|^13.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.27",
+                "orchestra/testbench": "^10.0|^11.0",
+                "phpunit/phpunit": "^11.5|^12.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "InovaForce\\Telemetry\\TelemetryServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "InovaForce\\Telemetry\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "InovaForce\\Telemetry\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "proprietary"
+            ],
+            "description": "Privacy-first operational telemetry for InovaForce managed Laravel applications.",
+            "support": {
+                "source": "https://github.com/lkmdev01/inovaforce-telemetry/tree/v0.3.1",
+                "issues": "https://github.com/lkmdev01/inovaforce-telemetry/issues"
+            },
+            "time": "2026-09-26T21:56:36+00:00"
         },
         {
             "name": "laravel/ai",
