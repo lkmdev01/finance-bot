@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhook/whatsapp',
             'webhook/abacatepay',
+            'webhook/vexa',
         ]);
 
         $middleware->trustProxies(at: '*');
