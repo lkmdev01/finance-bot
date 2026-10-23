@@ -32,7 +32,7 @@ class MeetingCommandService
             return $this->start(html_entity_decode(trim($match[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8'), $user, $contact);
         }
         if (preg_match('/^(?:reuniao|iniciar reuniao)(?:\s|$)/u', $plain)) {
-            return 'Para iniciar: *reunião https://link-da-reuniao participantes avisados e autorizo*. Confirme somente depois de avisar todos os participantes de que o bot entrará e a reunião será transcrita.';
+            return 'Para iniciar: *reunião https://link-da-reuniao participantes avisados e autorizo*. Confirme somente depois de avisar todos os participantes de que o bot entrará, gravará a reunião e o áudio será transcrito posteriormente.';
         }
         return null;
     }
@@ -58,14 +58,14 @@ class MeetingCommandService
             $meeting = Cache::lock('meeting-link:'.$lookupHash, 15)->block(5, function () use ($user, $contact, $parsed, $url, $lookupHash) {
                 $active = Meeting::query()->where('platform', $parsed['platform'])
                     ->where('native_meeting_id_hash', $lookupHash)
-                    ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'analyzing'])
+                    ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing'])
                     ->first();
                 if ($active && (int) $active->user_id !== (int) $user->id) {
                     return null;
                 }
                 $existing = Meeting::query()->where('user_id', $user->id)
                 ->where('platform', $parsed['platform'])->where('native_meeting_id_hash', $lookupHash)
-                ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'analyzing'])
+                ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing', 'reported', 'needs_review'])
                 ->lockForUpdate()->first();
                 if ($existing) return $existing;
                 return DB::transaction(fn () => Meeting::create([
@@ -86,9 +86,10 @@ class MeetingCommandService
         if ($meeting === null) return 'Esse link já está registrado para uma solicitação de reunião em andamento.';
         if ($meeting->wasRecentlyCreated) {
             RequestMeetingBot::dispatch($meeting->id);
-            return 'Solicitei a entrada do bot do Vexa. Vou acompanhar a reunião e enviar o resumo quando a transcrição estiver pronta.';
+            return 'Solicitei a entrada do bot do Vexa. A reunião será gravada e transcrita posteriormente; enviarei o resumo quando estiver pronto.';
         }
         if ($meeting->status === 'reported') return 'Essa reunião já foi processada. Envie *resumo da reunião* para receber o relatório novamente.';
+        if ($meeting->status === 'needs_review') return 'Essa reunião precisa de revisão porque a transcrição não trouxe conteúdo suficiente para um relatório confiável.';
         return 'Essa reunião já está registrada e em andamento. Envie *status da reunião* para consultar o estado.';
     }
 
@@ -96,23 +97,45 @@ class MeetingCommandService
     {
         $meeting = Meeting::query()->where('user_id', $user->id)->latest()->first();
         if (! $meeting) return 'Não encontrei reuniões registradas para sua conta.';
-        if ($poll && ! in_array($meeting->status, ['reported', 'failed', 'needs_review'], true)) {
+        if ($meeting->status === 'expired') return 'O histórico desta reunião expirou conforme a política de retenção.';
+        $effectiveStatus = $this->effectiveStatus($meeting);
+        if ($poll && in_array($meeting->status, ['queued', 'requesting', 'requested', 'joining', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed'], true)) {
             PollMeetingStatus::dispatch($meeting->id);
         }
-        return 'Status da reunião mais recente: *'.$this->statusLabel($meeting->status).'*.'.($meeting->failure_code ? ' Precisa de verificação operacional.' : '');
+        if ($effectiveStatus === 'needs_review') {
+            return 'A transcrição ficou vazia ou não trouxe conteúdo suficiente para um relatório confiável. A reunião precisa de revisão.';
+        }
+        return 'Status da reunião mais recente: *'.$this->statusLabel($effectiveStatus).'*.'.($meeting->failure_code ? ' Precisa de verificação operacional.' : '');
     }
 
     private function report(User $user): string
     {
         $meeting = Meeting::query()->where('user_id', $user->id)->latest()->first();
         if (! $meeting) return 'Não encontrei reuniões registradas para sua conta.';
+        if ($meeting->status === 'expired') return 'O histórico desta reunião expirou conforme a política de retenção.';
+        $status = $this->effectiveStatus($meeting);
+        if ($status === 'needs_review') return 'Não foi possível confirmar conteúdo suficiente na transcrição para preparar um relatório confiável. A reunião precisa de revisão.';
         if (filled($meeting->summary)) return $meeting->summary;
-        if ($meeting->status === 'completed') {
+        if ($status === 'completed') {
             PollMeetingStatus::dispatch($meeting->id);
-            return 'A reunião terminou; estou buscando a transcrição e preparando o resumo. Enviarei aqui quando estiver pronto.';
+            return 'A reunião terminou e está aguardando a transcrição local. Enviarei o resumo quando estiver pronto.';
         }
-        PollMeetingStatus::dispatch($meeting->id);
-        return 'Ainda não há resumo disponível. O status atual é *'.$this->statusLabel($meeting->status).'*. Enviarei o relatório quando a reunião terminar e a transcrição estiver pronta.';
+        if (in_array($status, ['awaiting_transcription', 'transcribing'], true)) {
+            return match ($status) {
+                'awaiting_transcription' => 'A reunião está aguardando a transcrição local. Enviarei o resumo quando estiver pronto.',
+                default => 'A reunião está sendo transcrita localmente. Enviarei o resumo quando estiver pronto.',
+            };
+        }
+        return 'Ainda não há resumo disponível. O status atual é *'.$this->statusLabel($status).'*. Enviarei o relatório quando a reunião terminar e a transcrição estiver pronta.';
+    }
+
+    private function effectiveStatus(Meeting $meeting): string
+    {
+        $task = $meeting->transcriptionTask;
+        if ($task?->status === 'processing' && $task->lease_expires_at?->isPast()) {
+            return $task->attempts >= $task->max_attempts ? 'needs_review' : 'awaiting_transcription';
+        }
+        return $meeting->status;
     }
 
     private function statusLabel(string $status): string
@@ -122,8 +145,10 @@ class MeetingCommandService
             'requested' => 'bot solicitado', 'joining' => 'entrando',
             'awaiting_admission' => 'aguardando admissão do anfitrião',
             'needs_help' => 'precisa de ajuda para entrar', 'active' => 'em andamento',
-            'stopping' => 'encerrando', 'completed' => 'concluída', 'analyzing' => 'gerando resumo',
+            'stopping' => 'encerrando', 'completed' => 'aguardando transcrição',
+            'awaiting_transcription' => 'aguardando transcrição', 'transcribing' => 'transcrevendo', 'analyzing' => 'gerando resumo',
             'reported' => 'concluída e resumida', 'failed' => 'falhou', 'needs_review' => 'precisa de revisão',
+            'expired' => 'histórico expirado',
             default => $status,
         };
     }

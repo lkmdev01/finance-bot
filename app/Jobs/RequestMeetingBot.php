@@ -51,8 +51,10 @@ class RequestMeetingBot implements ShouldQueue
 
     public function failed(Throwable $exception): void
     {
+        $retentionDays = min(3650, max(1, (int) config('vexa.retention_days', 90)));
         Meeting::whereKey($this->meetingId)->whereNotIn('status', ['completed', 'reported'])->update([
             'status' => 'failed', 'failure_code' => 'vexa_bot_request_failed',
+            'expires_at' => now()->addDays($retentionDays),
         ]);
         Log::warning('Solicitação de bot ao Vexa falhou', ['meeting_id' => $this->meetingId, 'exception' => $exception::class]);
     }

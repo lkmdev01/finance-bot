@@ -58,3 +58,7 @@ Schedule::command('whatsapp:reliability --mark-stale')
 Schedule::command('privacy:prune-conversation-logs')
     ->dailyAt('02:30')
     ->withoutOverlapping();
+
+Schedule::command('meetings:purge-expired-data')
+    ->dailyAt('02:45')
+    ->withoutOverlapping();

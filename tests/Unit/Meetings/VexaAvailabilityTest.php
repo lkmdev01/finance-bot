@@ -55,7 +55,7 @@ it('does not queue a new meeting when Vexa is unavailable', function () {
         && $request->hasHeader('X-API-Key', 'test-key'));
 });
 
-it('rejects a key that does not provide both bot and transcript scopes', function () {
+it('requires the scopes used for bot requests and meeting status reads', function () {
     config([
         'vexa.enabled' => true,
         'vexa.base_url' => 'http://100.64.0.10:18056',
@@ -63,12 +63,16 @@ it('rejects a key that does not provide both bot and transcript scopes', functio
     ]);
     Http::fake(['*/auth/me' => Http::response(['scopes' => ['bot']], 200)]);
 
-    $service = new MeetingCommandService(new MeetingUrlParser(), new VexaApiClient());
-    $reply = $service->handle(
-        'reunião https://meet.google.com/abc-defg-hij participantes avisados e autorizo',
-        new User(['id' => 1]),
-        new WhatsAppContact(['id' => 1, 'user_id' => 1]),
-    );
+    expect((new VexaApiClient())->isAvailable())->toBeFalse();
+});
 
-    expect($reply)->toContain('temporariamente indisponível');
+it('requests recording without realtime transcription from Vexa', function () {
+    config(['vexa.base_url' => 'https://vexa.test', 'vexa.api_key' => 'test-key']);
+    Http::fake(['https://vexa.test/bots' => Http::response(['id' => 42, 'status' => 'requested'], 201)]);
+
+    (new VexaApiClient())->sendBot('https://meet.google.com/abc-defg-hij');
+
+    Http::assertSent(fn ($request) => $request->url() === 'https://vexa.test/bots'
+        && $request['recording_enabled'] === true
+        && $request['transcribe_enabled'] === false);
 });
