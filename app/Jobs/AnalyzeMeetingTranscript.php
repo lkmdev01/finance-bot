@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Models\Meeting;
 use App\Services\Meetings\MeetingAnalysisService;
-use App\Services\Meetings\VexaApiClient;
 use App\Services\WhatsApp\WhatsAppReplyDelivery;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,27 +24,31 @@ class AnalyzeMeetingTranscript implements ShouldQueue
     public function backoff(): array { return [60, 180]; }
     public function middleware(): array { return [(new WithoutOverlapping('meeting-analysis-'.$this->meetingId))->releaseAfter(30)->expireAfter(240)]; }
 
-    public function handle(VexaApiClient $vexa, MeetingAnalysisService $analysis, WhatsAppReplyDelivery $delivery): void
+    public function handle(MeetingAnalysisService $analysis, WhatsAppReplyDelivery $delivery): void
     {
         $meeting = Meeting::find($this->meetingId);
         if (! $meeting || $meeting->reported_at) return;
         $meeting->update(['status' => 'analyzing']);
-        $payload = $vexa->transcript($meeting->platform, $meeting->native_meeting_id);
-        $summary = $analysis->analyze($meeting, is_array($payload['segments'] ?? null) ? $payload['segments'] : []);
+        $segments = $meeting->transcript_segments;
+        if (! is_array($segments) || $segments === []) {
+            throw new \RuntimeException('Transcrição posterior ausente ou inválida.');
+        }
+        $summary = $analysis->analyze($meeting, $segments);
         $recipient = $meeting->user->phone_number ?: $meeting->contact?->phone_number;
         if (blank($recipient)) {
             throw new \RuntimeException('Não há destinatário WhatsApp vinculado à reunião.');
         }
-        $meeting->update(['summary' => $summary, 'status' => 'analyzing', 'completed_at' => now()]);
+        $meeting->update(['summary' => $summary, 'status' => 'analyzing']);
         $delivery->send((string) $recipient, $summary, $meeting->user_id);
         $meeting->update(['status' => 'reported', 'reported_at' => now()]);
     }
 
     public function failed(Throwable $exception): void
     {
-        Meeting::whereKey($this->meetingId)->whereNotIn('status', ['reported'])->update([
+        $changed = Meeting::whereKey($this->meetingId)->whereNotIn('status', ['reported', 'needs_review'])->update([
             'status' => 'needs_review', 'failure_code' => 'transcript_analysis_failed',
         ]);
+        if ($changed) SendMeetingReviewNotice::dispatch($this->meetingId);
         Log::warning('Análise de transcrição Vexa falhou', ['meeting_id' => $this->meetingId, 'exception' => $exception::class]);
     }
 }

@@ -1,0 +1,28 @@
+[Unit]
+Description=InovaFinance local Vexa meeting transcription worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=inovafinance
+Group=inovafinance
+WorkingDirectory=/opt/inovafinance/worker/fedora
+EnvironmentFile=/etc/inovafinance/meeting-transcriber.env
+Environment=HF_HOME=/var/lib/inovafinance-vexa/hf
+ExecStart=/usr/bin/python3 /opt/inovafinance/worker/fedora/meeting_transcription_worker.py
+Restart=on-failure
+RestartSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+StateDirectory=inovafinance-vexa
+ReadWritePaths=/var/lib/inovafinance-vexa /run/lock
+MemoryMax=4G
+CPUQuota=400%
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

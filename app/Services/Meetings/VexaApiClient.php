@@ -39,6 +39,8 @@ class VexaApiClient
         $response = $this->request()->post('/bots', [
             'meeting_url' => $meetingUrl,
             'bot_name' => (string) config('vexa.bot_name', 'InovaFinance'),
+            'recording_enabled' => true,
+            'transcribe_enabled' => false,
             ... (filled(config('vexa.language')) ? ['language' => config('vexa.language')] : []),
         ]);
 
@@ -65,9 +67,9 @@ class VexaApiClient
         return $response->json() ?? [];
     }
 
-    public function meeting(string $platform, string $nativeMeetingId): array
+    public function meeting(string $vexaMeetingId): array
     {
-        $response = $this->request()->get('/transcripts/'.rawurlencode($platform).'/'.rawurlencode($nativeMeetingId));
+        $response = $this->request()->get('/meetings/'.rawurlencode($vexaMeetingId));
         if (! $response->successful()) {
             throw new \RuntimeException('Não foi possível consultar o estado da reunião (HTTP '.$response->status().').');
         }

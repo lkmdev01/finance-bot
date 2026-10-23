@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->trustProxies(at: '*');
         $middleware->alias([
+            'meeting.worker' => \App\Http\Middleware\AuthenticateMeetingWorker::class,
             'billing.writable' => \App\Http\Middleware\EnsureWritableFinancialAccess::class,
             'owned.record' => \App\Http\Middleware\EnsureOwnedRecord::class,
             'whatsapp.activated' => \App\Http\Middleware\EnsureGoogleWhatsAppActivated::class,

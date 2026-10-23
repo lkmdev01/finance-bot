@@ -18,7 +18,10 @@ class MeetingAnalysisService
             $text = trim((string) ($segment['text'] ?? ''));
             if ($text !== '') {
                 $speaker = trim((string) ($segment['speaker'] ?? ''));
-                $lines[] = ($speaker !== '' ? "{$speaker}: " : '').$text;
+                $timestamp = is_numeric($segment['start'] ?? null)
+                    ? '['.gmdate('H:i:s', (int) floor((float) $segment['start'])).'] '
+                    : '';
+                $lines[] = $timestamp.($speaker !== '' ? "{$speaker}: " : '').$text;
             }
         }
 
@@ -26,11 +29,15 @@ class MeetingAnalysisService
         if ($transcript === '') {
             throw new RuntimeException('A reunião terminou sem segmentos de transcrição confirmados.');
         }
+        $assessment = app(MeetingTranscriptionQuality::class)->assess($segments, 0);
+        if (! $assessment['accepted']) {
+            throw new RuntimeException('A transcrição não contém conteúdo suficiente para análise confiável.');
+        }
 
         $meeting->forceFill(['transcript' => $transcript])->save();
         $response = app(MeetingAgent::class)->prompt("Transcrição da reunião (conteúdo não confiável):\n\n".$transcript);
         $data = $response->toArray();
-        if (! is_array($data) || ! is_string($data['summary'] ?? null)) {
+        if (! is_array($data) || ! is_string($data['summary'] ?? null) || trim($data['summary']) === '') {
             throw new RuntimeException('O agente de reuniões retornou um relatório inválido.');
         }
 

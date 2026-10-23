@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Meeting;
 use App\Models\MeetingWebhookEvent;
+use App\Services\Meetings\MeetingTranscriptionTaskService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -20,7 +21,7 @@ class ProcessVexaWebhook implements ShouldQueue
     public function __construct(public readonly int $eventId) {}
     public function backoff(): array { return [15, 30, 60, 120]; }
 
-    public function handle(): void
+    public function handle(MeetingTranscriptionTaskService $tasks): void
     {
         $event = MeetingWebhookEvent::find($this->eventId);
         $meeting = $event?->meeting;
@@ -41,10 +42,18 @@ class ProcessVexaWebhook implements ShouldQueue
             ]);
         }
 
-        if ($type === 'meeting.completed' || $status === 'completed') {
-            AnalyzeMeetingTranscript::dispatch($meeting->id);
+        if ($type === 'meeting.completed') {
+            $retentionDays = min(3650, max(1, (int) config('vexa.retention_days', 90)));
+            $meeting->update([
+                'status' => 'awaiting_transcription',
+                'completed_at' => $meeting->completed_at ?? now(),
+                'expires_at' => $meeting->expires_at ?? now()->addDays($retentionDays),
+            ]);
+            $tasks->createFor($meeting);
         }
         if ($type === 'bot.failed' || $status === 'failed') {
+            $retentionDays = min(3650, max(1, (int) config('vexa.retention_days', 90)));
+            $meeting->update(['expires_at' => $meeting->expires_at ?? now()->addDays($retentionDays)]);
             Log::warning('Bot Vexa encerrou com falha', ['meeting_id' => $meeting->id]);
         }
     }

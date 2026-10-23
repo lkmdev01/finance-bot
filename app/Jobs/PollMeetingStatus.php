@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Meeting;
 use App\Services\Meetings\VexaApiClient;
+use App\Services\Meetings\MeetingTranscriptionTaskService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,24 +23,43 @@ class PollMeetingStatus implements ShouldQueue
     public function __construct(public readonly int $meetingId, public readonly int $pollCount = 0) {}
     public function backoff(): array { return [30, 60, 120]; }
 
-    public function handle(VexaApiClient $vexa): void
+    public function handle(VexaApiClient $vexa, MeetingTranscriptionTaskService $tasks): void
     {
         $meeting = Meeting::find($this->meetingId);
-        if (! $meeting || in_array($meeting->status, ['completed', 'reported', 'failed'], true)) return;
+        if (! $meeting || in_array($meeting->status, ['reported', 'failed', 'needs_review', 'awaiting_transcription', 'transcribing', 'analyzing'], true)) return;
         if ($this->pollCount >= 240) {
-            $meeting->update(['status' => 'needs_review', 'failure_code' => 'poll_timeout']);
+            $retentionDays = min(3650, max(1, (int) config('vexa.retention_days', 90)));
+            $meeting->update([
+                'status' => 'needs_review', 'failure_code' => 'poll_timeout',
+                'expires_at' => $meeting->expires_at ?? now()->addDays($retentionDays),
+            ]);
             return;
         }
-        $payload = $vexa->meeting($meeting->platform, $meeting->native_meeting_id);
+        if (blank($meeting->vexa_meeting_id)) {
+            self::dispatch($meeting->id, $this->pollCount + 1)
+                ->delay(now()->addSeconds(max(15, (int) config('vexa.poll_seconds', 60))));
+            return;
+        }
+        $payload = $vexa->meeting($meeting->vexa_meeting_id);
         $remoteStatus = (string) (data_get($payload, 'status') ?: data_get($payload, 'meeting.status') ?: $meeting->status);
         $meeting->update(['status' => $remoteStatus]);
 
         if ($remoteStatus === 'completed') {
-            AnalyzeMeetingTranscript::dispatch($meeting->id);
+            $retentionDays = min(3650, max(1, (int) config('vexa.retention_days', 90)));
+            $meeting->update([
+                'status' => 'awaiting_transcription',
+                'completed_at' => $meeting->completed_at ?? now(),
+                'expires_at' => $meeting->expires_at ?? now()->addDays($retentionDays),
+            ]);
+            $tasks->createFor($meeting);
             return;
         }
         if ($remoteStatus === 'failed') {
-            $meeting->update(['failure_code' => 'vexa_meeting_failed']);
+            $retentionDays = min(3650, max(1, (int) config('vexa.retention_days', 90)));
+            $meeting->update([
+                'failure_code' => 'vexa_meeting_failed',
+                'expires_at' => $meeting->expires_at ?? now()->addDays($retentionDays),
+            ]);
             return;
         }
 
