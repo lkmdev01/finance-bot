@@ -5,6 +5,7 @@ namespace App\Services\WhatsApp;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\WhatsApp\Resolvers\PreflightMessageResolver;
+use App\Services\Meetings\MeetingCommandService;
 use Illuminate\Support\Str;
 
 class ConversationOrchestrator
@@ -12,6 +13,7 @@ class ConversationOrchestrator
     public function __construct(
         private readonly ConversationStateService $stateService,
         private readonly PreflightMessageResolver $preflightMessageResolver,
+        private readonly MeetingCommandService $meetingCommandService,
     ) {}
 
     /**
@@ -22,6 +24,18 @@ class ConversationOrchestrator
      */
     public function beforeAI(string $message, User $user, WhatsAppContact $contact): ?array
     {
+        $meetingReply = $this->meetingCommandService->handle($message, $user, $contact);
+        if ($meetingReply !== null) {
+            return [
+                'handled' => true,
+                'reply' => $meetingReply,
+                'action' => null,
+                'classification' => 'meeting_command',
+                'domain' => 'meetings',
+                'metadata' => ['clear_pending' => true, 'reply_kind' => 'message'],
+            ];
+        }
+
         $state = $this->stateService->getState($contact);
         $normalized = Str::of($message)
             ->ascii()

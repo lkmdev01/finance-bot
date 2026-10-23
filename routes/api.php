@@ -13,6 +13,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 // API Versionada
 Route::prefix('v1')->group(function () {
+    Route::post('/webhook/vexa', [App\Http\Controllers\VexaWebhookController::class, 'handle'])
+        ->middleware('throttle:120,1')
+        ->name('api.v1.webhook.vexa');
     // Webhook WhatsApp (versão 1)
     Route::post('/webhook/whatsapp', [App\Http\Controllers\WhatsAppWebhookController::class, 'handle'])
         ->middleware('throttle:60,1')

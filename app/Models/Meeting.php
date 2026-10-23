@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Meeting extends Model
+{
+    protected $fillable = [
+        'user_id', 'whats_app_contact_id', 'platform', 'native_meeting_id_hash',
+        'native_meeting_id', 'meeting_url', 'vexa_meeting_id', 'status',
+        'vexa_meeting_id_hash', 'participant_notice_attested', 'participant_notice_attested_at',
+        'transcript', 'summary', 'failure_code', 'started_at', 'completed_at',
+        'reported_at', 'expires_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'native_meeting_id' => 'encrypted',
+            'meeting_url' => 'encrypted',
+            'vexa_meeting_id' => 'encrypted',
+            'transcript' => 'encrypted',
+            'summary' => 'encrypted',
+            'started_at' => 'datetime',
+            'completed_at' => 'datetime',
+            'reported_at' => 'datetime',
+            'participant_notice_attested' => 'boolean',
+            'participant_notice_attested_at' => 'datetime',
+        ];
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(WhatsAppContact::class, 'whats_app_contact_id');
+    }
+}
