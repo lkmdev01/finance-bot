@@ -23,6 +23,7 @@ from pathlib import Path
 
 LOG = logging.getLogger("meeting-transcription-worker")
 STOP = threading.Event()
+USER_AGENT = "InovaFinance-MeetingWorker/1.0"
 
 
 class SameOriginRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -81,6 +82,7 @@ class LaravelClient:
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": USER_AGENT,
             "X-Worker-Timestamp": timestamp,
             "X-Worker-Nonce": nonce,
             "X-Worker-Signature": signature,
@@ -117,7 +119,11 @@ class VexaClient:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != "https" or parsed.netloc != base.netloc:
             raise RuntimeError("vexa_url_origin_mismatch")
-        request = urllib.request.Request(url, headers={"X-API-Key": self.api_key, "Accept": "application/json"})
+        request = urllib.request.Request(url, headers={
+            "X-API-Key": self.api_key,
+            "Accept": "application/json",
+            "User-Agent": USER_AGENT,
+        })
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
                 if dest is None:
@@ -190,10 +196,15 @@ def transcribe(audio_path: Path, model_name: str,
     model = WhisperModel(model_name, device="cpu", compute_type=os.environ.get("WHISPER_COMPUTE_TYPE", "int8"))
     before_cpu = resource.getrusage(resource.RUSAGE_SELF).ru_utime + resource.getrusage(resource.RUSAGE_SELF).ru_stime
     started = time.monotonic()
-    iterator, info = model.transcribe(
-        str(audio_path), language="pt", vad_filter=False,
-        beam_size=int(os.environ.get("WHISPER_BEAM_SIZE", "5")),
-    )
+    transcribe_options = {
+        "language": "pt",
+        "vad_filter": False,
+        "beam_size": int(os.environ.get("WHISPER_BEAM_SIZE", "5")),
+    }
+    initial_prompt = os.environ.get("WHISPER_INITIAL_PROMPT", "").strip()
+    if initial_prompt:
+        transcribe_options["initial_prompt"] = initial_prompt
+    iterator, info = model.transcribe(str(audio_path), **transcribe_options)
     segments = []
     for item in iterator:
         if STOP.is_set() or (cancelled is not None and cancelled.is_set()):

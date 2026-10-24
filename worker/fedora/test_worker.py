@@ -46,6 +46,7 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(body["status"], "empty")
         self.assertEqual(req.get_method(), "POST")
         self.assertEqual(req.get_header("X-worker-signature").__len__(), 64)
+        self.assertEqual(req.get_header("User-agent"), "InovaFinance-MeetingWorker/1.0")
         self.assertEqual(captured["timeout"], 10)
 
     def test_rejects_non_https_service_urls(self):
@@ -74,12 +75,15 @@ class WorkerTests(unittest.TestCase):
                 return iter([Segment()]), Info()
 
         fake_module = types.SimpleNamespace(WhisperModel=Model)
-        with patch.dict(sys.modules, {"faster_whisper": fake_module}):
+        with patch.dict(sys.modules, {"faster_whisper": fake_module}), patch.dict(
+            os.environ, {"WHISPER_INITIAL_PROMPT": "termos técnicos: API, SLA, conciliação"}
+        ):
             segments, duration, _elapsed, _rss, _cpu = worker.transcribe(Path("/tmp/full-audio"), "Systran/faster-whisper-small")
 
         self.assertEqual(calls["model"], "Systran/faster-whisper-small")
         self.assertEqual(calls["transcribe"]["language"], "pt")
         self.assertFalse(calls["transcribe"]["vad_filter"])
+        self.assertEqual(calls["transcribe"]["initial_prompt"], "termos técnicos: API, SLA, conciliação")
         self.assertEqual(calls["path"], "/tmp/full-audio")
         self.assertEqual(duration, 22.0)
         self.assertEqual(segments[0]["start"], 1.125)
@@ -146,6 +150,7 @@ class WorkerTests(unittest.TestCase):
         self.assertTrue(requests[1].full_url.endswith("/recordings/17/master?type=audio"))
         self.assertTrue(requests[2].full_url.endswith("/recordings/17/media/29/raw?type=audio"))
         self.assertTrue(all(request.get_header("X-api-key") == "key-not-logged" for request in requests))
+        self.assertTrue(all(request.get_header("User-agent") == "InovaFinance-MeetingWorker/1.0" for request in requests))
 
     def test_startup_cleanup_removes_only_stale_private_temp_directories(self):
         with tempfile.TemporaryDirectory() as directory:
