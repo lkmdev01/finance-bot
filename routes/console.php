@@ -62,3 +62,7 @@ Schedule::command('privacy:prune-conversation-logs')
 Schedule::command('meetings:purge-expired-data')
     ->dailyAt('02:45')
     ->withoutOverlapping();
+
+Schedule::command('meetings:reconcile-vexa')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10);

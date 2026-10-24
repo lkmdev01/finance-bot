@@ -18,4 +18,7 @@ return [
     'transcription_min_words' => (int) env('VEXA_TRANSCRIPTION_MIN_WORDS', 40),
     'transcription_min_speech_seconds' => (int) env('VEXA_TRANSCRIPTION_MIN_SPEECH_SECONDS', 30),
     'retention_days' => (int) env('VEXA_RETENTION_DAYS', 90),
+    'max_meeting_duration_minutes' => min(720, max(30, (int) env('VEXA_MAX_MEETING_DURATION_MINUTES', 240))),
+    'max_meeting_duration_warning_minutes' => min(60, max(1, (int) env('VEXA_MAX_MEETING_DURATION_WARNING_MINUTES', 15))),
+    'stop_retry_seconds' => min(900, max(60, (int) env('VEXA_STOP_RETRY_SECONDS', 180))),
 ];

@@ -14,6 +14,7 @@ class Meeting extends Model
         'vexa_meeting_id_hash', 'participant_notice_attested', 'participant_notice_attested_at',
         'transcript', 'summary', 'failure_code', 'started_at', 'completed_at',
         'reported_at', 'expires_at', 'transcript_segments', 'transcript_expires_at',
+        'active_since', 'max_duration_warning_sent_at', 'stop_requested_at', 'stop_reason',
     ];
 
     protected function casts(): array
@@ -26,6 +27,9 @@ class Meeting extends Model
             'transcript_segments' => 'encrypted:array',
             'summary' => 'encrypted',
             'started_at' => 'datetime',
+            'active_since' => 'datetime',
+            'max_duration_warning_sent_at' => 'datetime',
+            'stop_requested_at' => 'datetime',
             'completed_at' => 'datetime',
             'reported_at' => 'datetime',
             'expires_at' => 'datetime',
