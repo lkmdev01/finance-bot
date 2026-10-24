@@ -76,6 +76,20 @@ class VexaApiClient
         return $response->json() ?? [];
     }
 
+    public function stopBot(string $platform, string $nativeMeetingId): array
+    {
+        if (! in_array($platform, ['google_meet', 'teams', 'zoom'], true) || $nativeMeetingId === '') {
+            throw new RuntimeException('Identificador de reunião inválido para encerrar o bot.');
+        }
+
+        $response = $this->request()->delete('/bots/'.rawurlencode($platform).'/'.rawurlencode($nativeMeetingId));
+        if (! $response->successful()) {
+            throw new RuntimeException('Vexa não aceitou a solicitação de parada (HTTP '.$response->status().').');
+        }
+
+        return $response->json() ?? [];
+    }
+
     public function configureWebhook(string $url, string $secret): void
     {
         $response = $this->request()->put('/user/webhook', [

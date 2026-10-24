@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Meeting;
 use App\Models\MeetingWebhookEvent;
 use App\Services\Meetings\MeetingTranscriptionTaskService;
+use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -36,10 +37,19 @@ class ProcessVexaWebhook implements ShouldQueue
         if ($type === 'meeting.completed') $status = 'completed';
         if ($type === 'bot.failed') $status = 'failed';
         if (is_string($status) && $status !== '') {
-            $meeting->update([
+            $attributes = [
                 'status' => $status,
                 'failure_code' => $status === 'failed' ? 'vexa_bot_failed' : null,
-            ]);
+            ];
+            if ($status === 'active' && ! $meeting->active_since) {
+                $startTime = data_get($eventData, 'data.meeting.start_time') ?? data_get($eventData, 'data.start_time');
+                try {
+                    $attributes['active_since'] = is_string($startTime) ? CarbonImmutable::parse($startTime) : now();
+                } catch (\Throwable) {
+                    $attributes['active_since'] = now();
+                }
+            }
+            $meeting->update($attributes);
         }
 
         if ($type === 'meeting.completed') {

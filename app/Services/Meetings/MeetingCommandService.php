@@ -4,11 +4,13 @@ namespace App\Services\Meetings;
 
 use App\Jobs\PollMeetingStatus;
 use App\Jobs\RequestMeetingBot;
+use App\Jobs\StopMeetingBot;
 use App\Models\Meeting;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -27,6 +29,12 @@ class MeetingCommandService
         }
         if (preg_match('/^(?:resumo|relatorio) (?:da )?reuniao$/u', $plain)) {
             return $this->report($user);
+        }
+        if (preg_match('/^(?:encerrar|finalizar|parar) (?:a )?reuniao$/u', $plain)) {
+            return $this->stopOwnActiveMeeting($user);
+        }
+        if (preg_match('/^(?:encerrar|finalizar|parar) reuniao(?:\s|$)/u', $plain)) {
+            return 'Para encerrar a reunião, envie somente *encerrar reunião*. Por segurança, nenhuma reunião foi alterada.';
         }
         if (preg_match('/^(?:reuni[aã]o|iniciar reuni[aã]o)\s+(https:\/\/\S+)\s+participantes\s+avisados\s+e\s+autorizo$/iu', trim($message), $match)) {
             return $this->start(html_entity_decode(trim($match[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8'), $user, $contact);
@@ -58,14 +66,14 @@ class MeetingCommandService
             $meeting = Cache::lock('meeting-link:'.$lookupHash, 15)->block(5, function () use ($user, $contact, $parsed, $url, $lookupHash) {
                 $active = Meeting::query()->where('platform', $parsed['platform'])
                     ->where('native_meeting_id_hash', $lookupHash)
-                    ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing'])
+                    ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'connecting', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing'])
                     ->first();
                 if ($active && (int) $active->user_id !== (int) $user->id) {
                     return null;
                 }
                 $existing = Meeting::query()->where('user_id', $user->id)
                 ->where('platform', $parsed['platform'])->where('native_meeting_id_hash', $lookupHash)
-                ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing', 'reported', 'needs_review'])
+                ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'connecting', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing', 'reported', 'needs_review'])
                 ->lockForUpdate()->first();
                 if ($existing) return $existing;
                 return DB::transaction(fn () => Meeting::create([
@@ -93,13 +101,67 @@ class MeetingCommandService
         return 'Essa reunião já está registrada e em andamento. Envie *status da reunião* para consultar o estado.';
     }
 
+    private function stopOwnActiveMeeting(User $user): string
+    {
+        if (! config('vexa.enabled', false)) {
+            return 'O agente de reuniões está indisponível no momento. Não enviei nenhum comando ao Vexa.';
+        }
+        if (blank(config('vexa.base_url')) || blank(config('vexa.api_key'))) {
+            return 'A integração de reuniões não está configurada no momento. Não alterei o estado da reunião.';
+        }
+
+        $active = Meeting::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->latest('id')
+            ->limit(2)
+            ->get();
+
+        if ($active->isEmpty()) {
+            $stopping = Meeting::query()->where('user_id', $user->id)->where('status', 'stopping')->exists();
+
+            return $stopping
+                ? 'A reunião já está sendo encerrada. A transcrição só começará depois que o Vexa confirmar a finalização da gravação.'
+                : 'Não encontrei uma reunião ativa sua para encerrar. Nenhum bot foi parado.';
+        }
+
+        if ($active->count() > 1) {
+            return 'Há mais de uma reunião ativa na sua conta. Por segurança, não encerrei nenhuma; peça suporte para identificar a reunião correta.';
+        }
+
+        $meeting = $active->first();
+        $changed = DB::transaction(function () use ($meeting, $user): bool {
+            $locked = Meeting::query()->where('user_id', $user->id)->lockForUpdate()->find($meeting->id);
+            if (! $locked || $locked->status !== 'active') {
+                return false;
+            }
+
+            $locked->forceFill([
+                'status' => 'stopping',
+                'stop_requested_at' => now(),
+                'stop_reason' => 'user',
+            ])->save();
+
+            return true;
+        });
+
+        if (! $changed) {
+            return 'O estado da reunião mudou enquanto eu processava o pedido. Consulte *status da reunião* antes de tentar novamente.';
+        }
+
+        StopMeetingBot::dispatch($meeting->id);
+        Log::info('Usuário solicitou encerramento de reunião pelo WhatsApp', ['meeting_id' => $meeting->id]);
+
+        return 'Solicitei ao Vexa o encerramento da sua reunião. Vou aguardar a gravação ser finalizada antes de iniciar a transcrição e enviar o resumo.';
+    }
+
     private function status(User $user, bool $poll): string
     {
         $meeting = Meeting::query()->where('user_id', $user->id)->latest()->first();
         if (! $meeting) return 'Não encontrei reuniões registradas para sua conta.';
         if ($meeting->status === 'expired') return 'O histórico desta reunião expirou conforme a política de retenção.';
         $effectiveStatus = $this->effectiveStatus($meeting);
-        if ($poll && in_array($meeting->status, ['queued', 'requesting', 'requested', 'joining', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed'], true)) {
+        if ($poll && in_array($meeting->status, ['queued', 'requesting', 'requested', 'joining', 'connecting', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed'], true)) {
             PollMeetingStatus::dispatch($meeting->id);
         }
         if ($effectiveStatus === 'needs_review') {
@@ -142,7 +204,7 @@ class MeetingCommandService
     {
         return match ($status) {
             'queued' => 'na fila', 'requesting' => 'solicitando entrada do bot',
-            'requested' => 'bot solicitado', 'joining' => 'entrando',
+            'requested' => 'bot solicitado', 'joining' => 'entrando', 'connecting' => 'conectando',
             'awaiting_admission' => 'aguardando admissão do anfitrião',
             'needs_help' => 'precisa de ajuda para entrar', 'active' => 'em andamento',
             'stopping' => 'encerrando', 'completed' => 'aguardando transcrição',
