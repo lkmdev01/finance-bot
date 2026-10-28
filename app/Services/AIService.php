@@ -32,7 +32,7 @@ class AIService
         $prompt = $this->promptBuilder->build($normalizedMessage, $context);
 
         // Chama IA
-        $response = $this->callAI($prompt);
+        $response = app(AiUserTokenBudget::class)->runEstimated($user, $prompt, fn () => $this->callAI($prompt));
 
         // Parseia resposta usando AIResponseParser
         $parsedResponse = $this->responseParser->parse($response);

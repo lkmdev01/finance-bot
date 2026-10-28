@@ -19,6 +19,12 @@ return [
     'openai' => [
         'model' => env('OPENAI_MODEL', 'gpt-3.5-turbo'),
     ],
+    'specialized_fallback' => [
+        'enabled' => env('AI_SPECIALIZED_FALLBACK_ENABLED', true),
+        'provider' => env('AI_SPECIALIZED_FALLBACK_PROVIDER', 'groq'),
+        'model' => env('AI_SPECIALIZED_FALLBACK_MODEL', env('GROQ_MODEL_SMARTEST', 'openai/gpt-oss-120b')),
+    ],
+    'user_monthly_token_limit' => (int) env('AI_USER_MONTHLY_TOKEN_LIMIT', 20000),
     'drive_metadata' => [
         'provider' => env('DRIVE_AI_PROVIDER', 'none'),
         'api_key' => env('DRIVE_AI_API_KEY', env('AI_API_KEY')),

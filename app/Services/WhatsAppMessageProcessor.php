@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use App\Exceptions\AiUserTokenLimitExceeded;
 
 class WhatsAppMessageProcessor
 {
@@ -16,11 +17,18 @@ class WhatsAppMessageProcessor
      */
     public function process(string $message, User $user, WhatsAppContact $contact): array
     {
-        if (config('ai.use_sdk', false)) {
-            return $this->processWithSdk($message, $user, $contact);
-        }
+        try {
+            if (config('ai.use_sdk', false)) {
+                return $this->processWithSdk($message, $user, $contact);
+            }
 
-        $result = $this->aiService->processMessage($message, $user, $contact);
+            $result = $this->aiService->processMessage($message, $user, $contact);
+        } catch (AiUserTokenLimitExceeded $exception) {
+            return [
+                'action' => null,
+                'reply' => $this->tokenLimitMessage($exception),
+            ];
+        }
 
         if (($result['action'] ?? null) === 'create_budget'
             && ! isset($result['budget_data'])
@@ -39,9 +47,9 @@ class WhatsAppMessageProcessor
             'contact' => $contact,
         ]);
 
-        $response = $agent
+        $response = app(AiUserTokenBudget::class)->run($user, fn () => $agent
             ->forUser($contact)
-            ->prompt($message);
+            ->prompt($message));
 
         /** @var \Laravel\Ai\Responses\StructuredAgentResponse $response */
         $result = $response->toArray();
@@ -63,5 +71,10 @@ class WhatsAppMessageProcessor
         }
 
         return $result;
+    }
+
+    private function tokenLimitMessage(AiUserTokenLimitExceeded $exception): string
+    {
+        return 'Você atingiu o limite mensal de '.number_format($exception->limit, 0, ',', '.').' tokens de IA. Ele será renovado no próximo mês.';
     }
 }

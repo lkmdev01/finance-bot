@@ -5,6 +5,7 @@ namespace App\Services\Meetings;
 use App\Jobs\PollMeetingStatus;
 use App\Jobs\RequestMeetingBot;
 use App\Jobs\StopMeetingBot;
+use App\Jobs\AnalyzeMeetingTranscript;
 use App\Models\Meeting;
 use App\Models\User;
 use App\Models\WhatsAppContact;
@@ -66,14 +67,14 @@ class MeetingCommandService
             $meeting = Cache::lock('meeting-link:'.$lookupHash, 15)->block(5, function () use ($user, $contact, $parsed, $url, $lookupHash) {
                 $active = Meeting::query()->where('platform', $parsed['platform'])
                     ->where('native_meeting_id_hash', $lookupHash)
-                    ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'connecting', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing'])
+                    ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'connecting', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing', 'awaiting_ai_quota'])
                     ->first();
                 if ($active && (int) $active->user_id !== (int) $user->id) {
                     return null;
                 }
                 $existing = Meeting::query()->where('user_id', $user->id)
                 ->where('platform', $parsed['platform'])->where('native_meeting_id_hash', $lookupHash)
-                ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'connecting', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing', 'reported', 'needs_review'])
+                ->whereIn('status', ['queued', 'requesting', 'requested', 'joining', 'connecting', 'awaiting_admission', 'needs_help', 'active', 'stopping', 'completed', 'awaiting_transcription', 'transcribing', 'analyzing', 'awaiting_ai_quota', 'reported', 'needs_review'])
                 ->lockForUpdate()->first();
                 if ($existing) return $existing;
                 return DB::transaction(fn () => Meeting::create([
@@ -176,6 +177,15 @@ class MeetingCommandService
         if (! $meeting) return 'Não encontrei reuniões registradas para sua conta.';
         if ($meeting->status === 'expired') return 'O histórico desta reunião expirou conforme a política de retenção.';
         $status = $this->effectiveStatus($meeting);
+        if ($status === 'awaiting_ai_quota') {
+            $limit = (int) config('ai.user_monthly_token_limit', 20000);
+            if (app(\App\Services\AiUserTokenBudget::class)->currentUsage($user) >= $limit) {
+                return 'O resumo desta reunião está aguardando a renovação da sua cota mensal de tokens de IA.';
+            }
+            AnalyzeMeetingTranscript::dispatch($meeting->id);
+
+            return 'Sua cota foi renovada. Coloquei o resumo desta reunião na fila de processamento.';
+        }
         if ($status === 'needs_review') return 'Não foi possível confirmar conteúdo suficiente na transcrição para preparar um relatório confiável. A reunião precisa de revisão.';
         if (filled($meeting->summary)) return $meeting->summary;
         if ($status === 'completed') {
@@ -210,6 +220,7 @@ class MeetingCommandService
             'stopping' => 'encerrando', 'completed' => 'aguardando transcrição',
             'awaiting_transcription' => 'aguardando transcrição', 'transcribing' => 'transcrevendo', 'analyzing' => 'gerando resumo',
             'reported' => 'concluída e resumida', 'failed' => 'falhou', 'needs_review' => 'precisa de revisão',
+            'awaiting_ai_quota' => 'aguardando renovação da cota de IA',
             'expired' => 'histórico expirado',
             default => $status,
         };

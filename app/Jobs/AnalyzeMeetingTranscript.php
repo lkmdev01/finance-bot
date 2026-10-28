@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\AiUserTokenLimitExceeded;
 use App\Models\Meeting;
 use App\Services\Meetings\MeetingAnalysisService;
 use App\Services\WhatsApp\WhatsAppReplyDelivery;
@@ -33,7 +34,19 @@ class AnalyzeMeetingTranscript implements ShouldQueue
         if (! is_array($segments) || $segments === []) {
             throw new \RuntimeException('Transcrição posterior ausente ou inválida.');
         }
-        $summary = $analysis->analyze($meeting, $segments);
+        try {
+            $summary = $analysis->analyze($meeting, $segments);
+        } catch (AiUserTokenLimitExceeded $exception) {
+            $meeting->update(['status' => 'awaiting_ai_quota', 'failure_code' => 'ai_monthly_token_limit']);
+            $recipient = $meeting->user->phone_number ?: $meeting->contact?->phone_number;
+            if (filled($recipient)) {
+                $delivery->send((string) $recipient,
+                    'O áudio foi transcrito, mas o resumo da reunião está aguardando a renovação da sua cota mensal de tokens de IA. Depois da renovação, envie *resumo da reunião* para tentar novamente.',
+                    $meeting->user_id);
+            }
+
+            return;
+        }
         $recipient = $meeting->user->phone_number ?: $meeting->contact?->phone_number;
         if (blank($recipient)) {
             throw new \RuntimeException('Não há destinatário WhatsApp vinculado à reunião.');

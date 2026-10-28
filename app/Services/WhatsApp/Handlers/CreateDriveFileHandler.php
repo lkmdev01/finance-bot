@@ -122,7 +122,8 @@ class CreateDriveFileHandler extends BaseHandler
                 $fileName,
                 $folderName,
                 $extractedText,
-                $tags
+                $tags,
+                $user,
             );
             $metadataStatus = (string) ($aiMetadata['status'] ?? 'unavailable');
             $metadataError = isset($aiMetadata['error']) && is_string($aiMetadata['error'])

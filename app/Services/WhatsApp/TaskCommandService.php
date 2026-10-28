@@ -2,6 +2,7 @@
 
 namespace App\Services\WhatsApp;
 
+use App\Exceptions\AiUserTokenLimitExceeded;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\GoogleTasksService;
@@ -78,8 +79,12 @@ class TaskCommandService
             ? trim((string) data_get($state, 'pending_payload.original_message').' '.$message)
             : $message;
         try {
-            $intent = $this->parser->parse($original, CarbonImmutable::now(), (string) config('app.timezone', 'America/Sao_Paulo'));
+            $intent = $this->parser->parse($original, CarbonImmutable::now(), (string) config('app.timezone', 'America/Sao_Paulo'), $user);
         } catch (Throwable $exception) {
+            if ($exception instanceof AiUserTokenLimitExceeded) {
+                return 'Você atingiu o limite mensal de '.number_format($exception->limit, 0, ',', '.').' tokens de IA. Ele será renovado no próximo mês.';
+            }
+
             Log::warning('Falha ao interpretar pedido de tarefa', [
                 'user_id' => $user->id,
                 'exception' => $exception::class,

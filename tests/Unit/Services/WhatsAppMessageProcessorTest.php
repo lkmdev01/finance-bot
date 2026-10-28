@@ -6,6 +6,7 @@ use App\Ai\FinancialAgent;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
+use App\Services\AiUserTokenBudget;
 use App\Services\WhatsAppMessageProcessor;
 use Laravel\Ai\Responses\AgentResponse;
 
@@ -30,6 +31,13 @@ it('processes structured responses through the FinancialAgent when the SDK is en
     $agent->shouldReceive('prompt')->once()->with('Gastei 25 no Uber')->andReturn($response);
 
     app()->bind(FinancialAgent::class, fn () => $agent);
+
+    $budget = Mockery::mock(AiUserTokenBudget::class);
+    $budget->shouldReceive('run')
+        ->once()
+        ->with($user, Mockery::type(Closure::class))
+        ->andReturnUsing(fn (User $user, Closure $operation) => $operation());
+    app()->instance(AiUserTokenBudget::class, $budget);
 
     $processor = new WhatsAppMessageProcessor(Mockery::mock(AIService::class));
     $result = $processor->process('Gastei 25 no Uber', $user, $contact);
