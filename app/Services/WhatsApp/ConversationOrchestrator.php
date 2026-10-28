@@ -16,8 +16,8 @@ class ConversationOrchestrator
         private readonly ConversationStateService $stateService,
         private readonly PreflightMessageResolver $preflightMessageResolver,
         private readonly MeetingCommandService $meetingCommandService,
-        private readonly ?AgendaCommandService $agendaCommandService = null,
-        private readonly ?TaskCommandService $taskCommandService = null,
+        private readonly AgendaCommandService $agendaCommandService,
+        private readonly TaskCommandService $taskCommandService,
     ) {}
 
     /**
@@ -40,7 +40,7 @@ class ConversationOrchestrator
             ];
         }
 
-        $taskReply = $this->taskCommandService?->handle($message, $user, $contact);
+        $taskReply = $this->taskCommandService->handle($message, $user, $contact);
         if ($taskReply !== null) {
             return [
                 'handled' => true,
@@ -52,7 +52,7 @@ class ConversationOrchestrator
             ];
         }
 
-        $agendaReply = $this->agendaCommandService?->handle($message, $user, $contact);
+        $agendaReply = $this->agendaCommandService->handle($message, $user, $contact);
         if ($agendaReply !== null) {
             return [
                 'handled' => true,
