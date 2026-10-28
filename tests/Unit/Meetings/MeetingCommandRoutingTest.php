@@ -9,6 +9,8 @@ use App\Services\Meetings\MeetingUrlParser;
 use App\Services\Meetings\VexaApiClient;
 use App\Services\WhatsApp\ConversationOrchestrator;
 use App\Services\WhatsApp\ConversationStateService;
+use App\Services\WhatsApp\AgendaCommandService;
+use App\Services\WhatsApp\TaskCommandService;
 use App\Services\WhatsApp\Resolvers\PreflightMessageResolver;
 use Illuminate\Support\Facades\Http;
 
@@ -18,6 +20,8 @@ function meetingOrchestrator(MeetingCommandService $commands): ConversationOrche
         Mockery::mock(ConversationStateService::class),
         Mockery::mock(PreflightMessageResolver::class),
         $commands,
+        Mockery::mock(AgendaCommandService::class),
+        Mockery::mock(TaskCommandService::class),
     );
 }
 
@@ -84,7 +88,11 @@ it('leaves ordinary financial messages for the existing preflight and agent flow
     $state->shouldReceive('getState')->once()->with($contact)->andReturn(['mode' => 'idle']);
     $resolver = Mockery::mock(PreflightMessageResolver::class);
     $resolver->shouldNotReceive('resolve');
+    $agenda = Mockery::mock(AgendaCommandService::class);
+    $agenda->shouldReceive('handle')->once()->with('quanto gastei com mercado?', $user, $contact)->andReturnNull();
+    $tasks = Mockery::mock(TaskCommandService::class);
+    $tasks->shouldReceive('handle')->once()->with('quanto gastei com mercado?', $user, $contact)->andReturnNull();
 
-    expect((new ConversationOrchestrator($state, $resolver, $commands))
+    expect((new ConversationOrchestrator($state, $resolver, $commands, $agenda, $tasks))
         ->beforeAI('quanto gastei com mercado?', $user, $contact))->toBeNull();
 });
