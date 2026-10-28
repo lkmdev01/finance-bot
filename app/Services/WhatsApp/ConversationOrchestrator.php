@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\WhatsApp\Resolvers\PreflightMessageResolver;
 use App\Services\Meetings\MeetingCommandService;
+use App\Services\WhatsApp\AgendaCommandService;
+use App\Services\WhatsApp\TaskCommandService;
 use Illuminate\Support\Str;
 
 class ConversationOrchestrator
@@ -14,6 +16,8 @@ class ConversationOrchestrator
         private readonly ConversationStateService $stateService,
         private readonly PreflightMessageResolver $preflightMessageResolver,
         private readonly MeetingCommandService $meetingCommandService,
+        private readonly ?AgendaCommandService $agendaCommandService = null,
+        private readonly ?TaskCommandService $taskCommandService = null,
     ) {}
 
     /**
@@ -33,6 +37,30 @@ class ConversationOrchestrator
                 'classification' => 'meeting_command',
                 'domain' => 'meetings',
                 'metadata' => ['clear_pending' => true, 'reply_kind' => 'message'],
+            ];
+        }
+
+        $taskReply = $this->taskCommandService?->handle($message, $user, $contact);
+        if ($taskReply !== null) {
+            return [
+                'handled' => true,
+                'reply' => $taskReply,
+                'action' => null,
+                'classification' => 'task_command',
+                'domain' => 'tasks',
+                'metadata' => ['clear_pending' => false, 'reply_kind' => 'message'],
+            ];
+        }
+
+        $agendaReply = $this->agendaCommandService?->handle($message, $user, $contact);
+        if ($agendaReply !== null) {
+            return [
+                'handled' => true,
+                'reply' => $agendaReply,
+                'action' => null,
+                'classification' => 'agenda_command',
+                'domain' => 'agenda',
+                'metadata' => ['clear_pending' => false, 'reply_kind' => 'message'],
             ];
         }
 

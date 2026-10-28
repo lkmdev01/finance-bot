@@ -66,3 +66,7 @@ Schedule::command('meetings:purge-expired-data')
 Schedule::command('meetings:reconcile-vexa')
     ->everyFiveMinutes()
     ->withoutOverlapping(10);
+
+Schedule::command('agenda:send-daily-digests')
+    ->everyMinute()
+    ->withoutOverlapping(5);

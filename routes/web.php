@@ -88,6 +88,11 @@ Route::middleware('auth')->group(function () {
         ->name('google-drive.redirect');
     Route::get('/auth/google-drive/callback', [App\Http\Controllers\Auth\GoogleDriveAuthController::class, 'callback'])
         ->name('google-drive.callback');
+
+    Route::get('/auth/google-calendar/redirect', [App\Http\Controllers\Auth\GoogleCalendarAuthController::class, 'redirect'])
+        ->name('google-calendar.redirect');
+    Route::get('/auth/google-calendar/callback', [App\Http\Controllers\Auth\GoogleCalendarAuthController::class, 'callback'])
+        ->name('google-calendar.callback');
 });
 
 Route::view('dashboard', 'pages.dashboard')
@@ -95,6 +100,10 @@ Route::view('dashboard', 'pages.dashboard')
     ->name('dashboard');
 
 Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
+    Route::get('integrations/google-calendar', [App\Http\Controllers\Integrations\GoogleCalendarController::class, 'index'])
+        ->name('integrations.google-calendar');
+    Route::post('integrations/google-calendar/disconnect', [App\Http\Controllers\Integrations\GoogleCalendarController::class, 'disconnect'])
+        ->name('integrations.google-calendar.disconnect');
     Route::get('integrations/google-drive', [App\Http\Controllers\Integrations\GoogleDriveController::class, 'index'])
         ->name('integrations.google-drive');
     Route::post('integrations/google-drive/disconnect', [App\Http\Controllers\Integrations\GoogleDriveController::class, 'disconnect'])

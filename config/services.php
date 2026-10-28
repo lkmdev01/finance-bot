@@ -55,6 +55,23 @@ return [
         ],
     ],
 
+    'google_calendar' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_CALENDAR_REDIRECT_URI', '/auth/google-calendar/callback'),
+        'scopes' => [
+            // Write events on owned calendars and read availability without event details.
+            'https://www.googleapis.com/auth/calendar.events.owned',
+            'https://www.googleapis.com/auth/calendar.events.freebusy',
+        ],
+    ],
+
+    'google_tasks' => [
+        'scopes' => [
+            'https://www.googleapis.com/auth/tasks',
+        ],
+    ],
+
     'transcription' => [
         'provider' => env('TRANSCRIPTION_PROVIDER', env('AI_PROVIDER', 'groq')),
         'api_key' => env('TRANSCRIPTION_API_KEY', env('AI_API_KEY')),

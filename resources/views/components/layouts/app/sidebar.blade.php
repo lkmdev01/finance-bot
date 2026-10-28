@@ -74,7 +74,7 @@
                     </div>
                 </div>
 
-                <div x-data="{ open: {{ request()->routeIs('reminders.*', 'notes.*', 'drive.*') ? 'true' : 'false' }} }" class="space-y-1">
+                <div x-data="{ open: {{ request()->routeIs('reminders.*', 'notes.*', 'drive.*', 'integrations.google-calendar*') ? 'true' : 'false' }} }" class="space-y-1">
                     <button type="button" data-sidebar-group-toggle @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
                         <span>Organizacao</span>
                         <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">&rsaquo;</span>
@@ -88,6 +88,9 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="folder" :href="route('drive.index')" :current="request()->routeIs('drive.*')" wire:navigate>
                             Drive Inteligente
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="calendar-days" :href="route('integrations.google-calendar')" :current="request()->routeIs('integrations.google-calendar*')" wire:navigate>
+                            Google Calendar
                         </flux:sidebar.item>
                     </div>
                 </div>

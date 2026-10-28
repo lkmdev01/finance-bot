@@ -204,6 +204,16 @@ class User extends Authenticatable
         return $this->hasOne(GoogleDriveConnection::class);
     }
 
+    public function googleCalendarConnection(): HasOne
+    {
+        return $this->hasOne(GoogleCalendarConnection::class);
+    }
+
+    public function agendaDigestPreference(): HasOne
+    {
+        return $this->hasOne(AgendaDigestPreference::class);
+    }
+
     public function openFinanceConnections(): HasMany
     {
         return $this->hasMany(OpenFinanceConnection::class);
