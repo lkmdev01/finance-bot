@@ -19,10 +19,7 @@ class GoogleCalendarAuthController extends Controller
     public function redirect(): RedirectResponse
     {
         $connection = Auth::user()?->googleCalendarConnection;
-        $scopes = array_values(array_unique(array_merge(
-            (array) config('services.google_calendar.scopes', []),
-            (array) config('services.google_tasks.scopes', []),
-        )));
+        $scopes = $this->requestedScopes();
         $parameters = [
             'access_type' => 'offline',
             'include_granted_scopes' => 'true',
@@ -72,7 +69,7 @@ class GoogleCalendarAuthController extends Controller
 
         $attributes = [
             'google_email' => $googleUser->getEmail() ?: $existing?->google_email,
-            'scopes' => $scopes,
+            'scopes' => $this->requestedScopes(),
             'calendar_id' => $existing?->calendar_id ?: 'primary',
             'connected_at' => now(),
             'revoked_at' => null,
@@ -87,5 +84,13 @@ class GoogleCalendarAuthController extends Controller
 
         return redirect()->route('integrations.google-calendar')
             ->with('message', 'Google Calendar conectado com sucesso.');
+    }
+
+    private function requestedScopes(): array
+    {
+        return array_values(array_unique(array_merge(
+            (array) config('services.google_calendar.scopes', []),
+            (array) config('services.google_tasks.scopes', []),
+        )));
     }
 }
