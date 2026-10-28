@@ -2,6 +2,8 @@
 
 namespace App\Services\WhatsApp;
 
+use App\Models\User;
+use App\Services\AiUserTokenBudget;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -20,6 +22,7 @@ class DriveAIMetadataService
         ?string $folderName,
         ?string $extractedText,
         array $labels = [],
+        ?User $user = null,
     ): array {
         if (! $this->isAvailable()) {
             return $this->empty('unavailable');
@@ -27,9 +30,9 @@ class DriveAIMetadataService
 
         try {
             return match ($kind) {
-                'image' => $this->analyzeImage($localPath, $mimeType, $fileName, $folderName, $extractedText, $labels),
-                'audio' => $this->analyzeText('audio', $fileName, $folderName, $extractedText, $labels),
-                default => $this->analyzeText('documento', $fileName, $folderName, $extractedText, $labels),
+                'image' => $this->analyzeImage($localPath, $mimeType, $fileName, $folderName, $extractedText, $labels, $user),
+                'audio' => $this->analyzeText('audio', $fileName, $folderName, $extractedText, $labels, $user),
+                default => $this->analyzeText('documento', $fileName, $folderName, $extractedText, $labels, $user),
             };
         } catch (\Throwable $throwable) {
             Log::warning('Drive AI metadata indisponivel.', [
@@ -46,7 +49,7 @@ class DriveAIMetadataService
      * @param  array<int, string>  $labels
      * @return array{description: string|null, tags: array<int, string>, source: string|null, status: string, error: string|null}
      */
-    private function analyzeImage(?string $localPath, ?string $mimeType, string $fileName, ?string $folderName, ?string $extractedText, array $labels): array
+    private function analyzeImage(?string $localPath, ?string $mimeType, string $fileName, ?string $folderName, ?string $extractedText, array $labels, ?User $user): array
     {
         if (! $localPath || ! is_file($localPath)) {
             return $this->empty('unavailable');
@@ -81,7 +84,7 @@ class DriveAIMetadataService
                     ],
                 ],
             ],
-        ]);
+        ], $user);
 
         return $this->parseResponse($response, $this->sourceName('vision'));
     }
@@ -90,7 +93,7 @@ class DriveAIMetadataService
      * @param  array<int, string>  $labels
      * @return array{description: string|null, tags: array<int, string>, source: string|null, status: string, error: string|null}
      */
-    private function analyzeText(string $kindLabel, string $fileName, ?string $folderName, ?string $extractedText, array $labels): array
+    private function analyzeText(string $kindLabel, string $fileName, ?string $folderName, ?string $extractedText, array $labels, ?User $user): array
     {
         $text = trim((string) $extractedText);
         if ($text === '' && $labels === []) {
@@ -106,7 +109,7 @@ class DriveAIMetadataService
                 'role' => 'user',
                 'content' => $this->contextPrompt($kindLabel, $fileName, $folderName, $text, $labels),
             ],
-        ]);
+        ], $user);
 
         return $this->parseResponse($response, $this->sourceName('text'));
     }
@@ -114,7 +117,7 @@ class DriveAIMetadataService
     /**
      * @param  array<int, array<string, mixed>>  $messages
      */
-    private function postChatCompletion(string $model, array $messages): array
+    private function postChatCompletion(string $model, array $messages, ?User $user = null): array
     {
         $provider = (string) config('ai.drive_metadata.provider');
         $url = match ($provider) {
@@ -123,25 +126,7 @@ class DriveAIMetadataService
             default => throw new \RuntimeException("Drive AI provider '{$provider}' nao suportado."),
         };
 
-        $response = Http::withToken($this->apiKey())
-            ->acceptJson()
-            ->timeout(30)
-            ->post($url, [
-                'model' => $model,
-                'messages' => $messages,
-                'temperature' => 0.2,
-                'max_tokens' => 350,
-                'response_format' => ['type' => 'json_object'],
-            ]);
-
-        if ($this->shouldRetryWithoutJsonMode($response->status(), $response->body())) {
-            Log::warning('Drive AI metadata retry sem JSON mode.', [
-                'provider' => $provider,
-                'model' => $model,
-                'status' => $response->status(),
-                'error' => Str::limit($response->body(), 500, ''),
-            ]);
-
+        $execute = function () use ($url, $provider, $model, $messages): array {
             $response = Http::withToken($this->apiKey())
                 ->acceptJson()
                 ->timeout(30)
@@ -150,14 +135,49 @@ class DriveAIMetadataService
                     'messages' => $messages,
                     'temperature' => 0.2,
                     'max_tokens' => 350,
+                    'response_format' => ['type' => 'json_object'],
                 ]);
-        }
 
-        if (! $response->successful()) {
-            throw new \RuntimeException("{$provider} metadata error: ".$response->body());
-        }
+            if ($this->shouldRetryWithoutJsonMode($response->status(), $response->body())) {
+                Log::warning('Drive AI metadata retry sem JSON mode.', [
+                    'provider' => $provider,
+                    'model' => $model,
+                    'status' => $response->status(),
+                    'error' => Str::limit($response->body(), 500, ''),
+                ]);
 
-        return $response->json();
+                $response = Http::withToken($this->apiKey())
+                    ->acceptJson()
+                    ->timeout(30)
+                    ->post($url, [
+                        'model' => $model,
+                        'messages' => $messages,
+                        'temperature' => 0.2,
+                        'max_tokens' => 350,
+                    ]);
+            }
+
+            if (! $response->successful()) {
+                throw new \RuntimeException("{$provider} metadata error: ".$response->body());
+            }
+
+            $data = (array) $response->json();
+            $usage = (array) ($data['usage'] ?? []);
+
+            return [
+                'data' => $data,
+                'usage' => (object) [
+                    'promptTokens' => (int) ($usage['prompt_tokens'] ?? 0),
+                    'completionTokens' => (int) ($usage['completion_tokens'] ?? 0),
+                ],
+            ];
+        };
+
+        $result = $user
+            ? app(AiUserTokenBudget::class)->run($user, fn () => (object) $execute())
+            : $execute();
+
+        return (array) data_get($result, 'data', $result);
     }
 
     private function systemPrompt(): string

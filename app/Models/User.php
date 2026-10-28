@@ -209,6 +209,11 @@ class User extends Authenticatable
         return $this->hasOne(GoogleCalendarConnection::class);
     }
 
+    public function aiTokenUsages(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(AiUserTokenUsage::class);
+    }
+
     public function agendaDigestPreference(): HasOne
     {
         return $this->hasOne(AgendaDigestPreference::class);

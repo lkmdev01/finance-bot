@@ -2,6 +2,7 @@
 
 namespace App\Services\WhatsApp;
 
+use App\Exceptions\AiUserTokenLimitExceeded;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AgendaIntentParser;
@@ -90,8 +91,12 @@ class AgendaCommandService
         try {
             $intent = $this->isDailySummaryRequest($normalized)
                 ? ['intent' => 'daily_summary']
-                : $this->parser->parse($original, CarbonImmutable::now(), (string) config('app.timezone', 'UTC'));
+                : $this->parser->parse($original, CarbonImmutable::now(), (string) config('app.timezone', 'UTC'), $user);
         } catch (Throwable $exception) {
+            if ($exception instanceof AiUserTokenLimitExceeded) {
+                return 'Você atingiu o limite mensal de '.number_format($exception->limit, 0, ',', '.').' tokens de IA. Ele será renovado no próximo mês.';
+            }
+
             Log::warning('Falha ao interpretar pedido de agenda', [
                 'user_id' => $user->id,
                 'exception' => $exception::class,

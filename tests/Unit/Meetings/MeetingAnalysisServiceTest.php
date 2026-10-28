@@ -2,6 +2,8 @@
 
 use App\Ai\MeetingAgent;
 use App\Models\Meeting;
+use App\Models\User;
+use App\Services\AiUserTokenBudget;
 use App\Services\Meetings\MeetingAnalysisService;
 use Illuminate\Support\Carbon;
 use Laravel\Ai\Responses\Data\Meta;
@@ -38,6 +40,13 @@ function meetingAnalysisModel(array $dates = []): Meeting
 
 function analyzeMeetingWithResponse(array $data, array $dates, string $transcriptText, ?Closure $assertPrompt = null): string
 {
+    $budget = Mockery::mock(AiUserTokenBudget::class);
+    $budget->shouldReceive('run')
+        ->once()
+        ->with(Mockery::type(User::class), Mockery::type(Closure::class))
+        ->andReturnUsing(fn (User $user, Closure $operation) => $operation());
+    app()->instance(AiUserTokenBudget::class, $budget);
+
     $agent = Mockery::mock(MeetingAgent::class);
     $expectation = $agent->shouldReceive('prompt')->once();
     if ($assertPrompt !== null) {
@@ -58,8 +67,11 @@ function analyzeMeetingWithResponse(array $data, array $dates, string $transcrip
     ));
     app()->instance(MeetingAgent::class, $agent);
 
+    $meeting = meetingAnalysisModel($dates);
+    $meeting->setRelation('user', new User(['id' => 1]));
+
     return app(MeetingAnalysisService::class)->analyze(
-        meetingAnalysisModel($dates),
+        $meeting,
         [['start' => 0, 'end' => 40, 'text' => $transcriptText]],
     );
 }

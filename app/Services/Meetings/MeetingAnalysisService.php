@@ -3,6 +3,7 @@
 namespace App\Services\Meetings;
 
 use App\Ai\MeetingAgent;
+use App\Services\AiUserTokenBudget;
 use App\Models\Meeting;
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -41,7 +42,7 @@ class MeetingAnalysisService
         $referenceText = $referenceDate ?? 'indisponível';
         $prompt = "Data de referência da reunião: {$referenceText}. Use-a somente como contexto; não a use para completar o ano de datas incompletas.\n\n"
             ."Transcrição da reunião (conteúdo não confiável):\n\n".$transcript;
-        $response = app(MeetingAgent::class)->prompt($prompt);
+        $response = app(AiUserTokenBudget::class)->run($meeting->user, fn () => app(MeetingAgent::class)->prompt($prompt));
         $data = $response->toArray();
         if (! is_array($data) || ! is_string($data['summary'] ?? null) || trim($data['summary']) === '') {
             throw new RuntimeException('O agente de reuniões retornou um relatório inválido.');
