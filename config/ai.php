@@ -29,6 +29,8 @@ return [
         array_map('intval', explode(',', (string) env('AI_USER_MONTHLY_TOKEN_EXEMPT_IDS', ''))),
         static fn (int $id): bool => $id > 0,
     ))),
+    'usage_alert_hourly_threshold' => (int) env('AI_TOKEN_USAGE_SPIKE_HOURLY_THRESHOLD', 5000),
+    'usage_event_retention_days' => (int) env('AI_TOKEN_USAGE_EVENT_RETENTION_DAYS', 90),
     'drive_metadata' => [
         'provider' => env('DRIVE_AI_PROVIDER', 'none'),
         'api_key' => env('DRIVE_AI_API_KEY', env('AI_API_KEY')),

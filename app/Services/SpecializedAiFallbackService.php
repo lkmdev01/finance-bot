@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Exceptions\RateLimitedException;
-use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class SpecializedAiFallbackService
@@ -56,7 +56,7 @@ class SpecializedAiFallbackService
                     throw $fallbackException;
                 }
             }
-        });
+        }, $agentName);
 
         return $response->toArray();
     }

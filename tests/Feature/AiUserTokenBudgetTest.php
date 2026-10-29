@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\AiUserTokenLimitExceeded;
+use App\Models\AiTokenUsageEvent;
 use App\Models\AiUserTokenUsage;
 use App\Models\User;
 use App\Services\AiUserTokenBudget;
@@ -8,15 +9,17 @@ use Carbon\CarbonImmutable;
 
 it('records provider reported token use for each user and month', function () {
     CarbonImmutable::setTestNow('2026-10-28 12:00:00');
-    config(['ai.user_monthly_token_limit' => 20000]);
+    config(['ai.user_monthly_token_limit' => 20000, 'ai.usage_alert_hourly_threshold' => 0]);
     $user = User::factory()->create();
 
     app(AiUserTokenBudget::class)->run($user, fn () => (object) [
         'usage' => (object) ['promptTokens' => 120, 'completionTokens' => 30],
-    ]);
+    ], 'agenda');
 
     expect(app(AiUserTokenBudget::class)->currentUsage($user))->toBe(150)
-        ->and(AiUserTokenUsage::query()->where('user_id', $user->id)->value('period'))->toBe('2026-10');
+        ->and(AiUserTokenUsage::query()->where('user_id', $user->id)->value('period'))->toBe('2026-10')
+        ->and(AiTokenUsageEvent::query()->where('user_id', $user->id)->first()?->only(['agent_key', 'input_tokens', 'output_tokens', 'total_tokens', 'measurement']))
+        ->toBe(['agent_key' => 'agenda', 'input_tokens' => 120, 'output_tokens' => 30, 'total_tokens' => 150, 'measurement' => 'reported']);
 
     CarbonImmutable::setTestNow();
 });

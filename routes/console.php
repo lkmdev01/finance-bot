@@ -70,3 +70,7 @@ Schedule::command('meetings:reconcile-vexa')
 Schedule::command('agenda:send-daily-digests')
     ->everyMinute()
     ->withoutOverlapping(5);
+
+Schedule::command('ai:prune-token-usage-events')
+    ->dailyAt('03:10')
+    ->withoutOverlapping();

@@ -43,8 +43,8 @@ function analyzeMeetingWithResponse(array $data, array $dates, string $transcrip
     $budget = Mockery::mock(AiUserTokenBudget::class);
     $budget->shouldReceive('run')
         ->once()
-        ->with(Mockery::type(User::class), Mockery::type(Closure::class))
-        ->andReturnUsing(fn (User $user, Closure $operation) => $operation());
+        ->with(Mockery::type(User::class), Mockery::type(Closure::class), 'meetings')
+        ->andReturnUsing(fn (User $user, Closure $operation, string $agent) => $operation());
     app()->instance(AiUserTokenBudget::class, $budget);
 
     $agent = Mockery::mock(MeetingAgent::class);
