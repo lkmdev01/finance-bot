@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Exceptions\AiUserTokenLimitExceeded;
 use App\Models\User;
 use App\Models\WhatsAppContact;
-use App\Exceptions\AiUserTokenLimitExceeded;
 
 class WhatsAppMessageProcessor
 {
@@ -49,13 +49,13 @@ class WhatsAppMessageProcessor
 
         $response = app(AiUserTokenBudget::class)->run($user, fn () => $agent
             ->forUser($contact)
-            ->prompt($message));
+            ->prompt($message), 'financial');
 
         /** @var \Laravel\Ai\Responses\StructuredAgentResponse $response */
         $result = $response->toArray();
 
         // Garantir compatibilidade com o formato array retornado anteriormente
-        if (!is_array($result)) {
+        if (! is_array($result)) {
             $result = (array) $result;
         }
 

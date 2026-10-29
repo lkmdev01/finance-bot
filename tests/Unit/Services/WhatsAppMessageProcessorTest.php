@@ -35,8 +35,8 @@ it('processes structured responses through the FinancialAgent when the SDK is en
     $budget = Mockery::mock(AiUserTokenBudget::class);
     $budget->shouldReceive('run')
         ->once()
-        ->with($user, Mockery::type(Closure::class))
-        ->andReturnUsing(fn (User $user, Closure $operation) => $operation());
+        ->with($user, Mockery::type(Closure::class), 'financial')
+        ->andReturnUsing(fn (User $user, Closure $operation, string $agent) => $operation());
     app()->instance(AiUserTokenBudget::class, $budget);
 
     $processor = new WhatsAppMessageProcessor(Mockery::mock(AIService::class));

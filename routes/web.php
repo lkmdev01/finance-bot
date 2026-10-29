@@ -100,6 +100,9 @@ Route::view('dashboard', 'pages.dashboard')
     ->name('dashboard');
 
 Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
+    Route::get('ai-usage', \App\Http\Controllers\AiTokenUsageController::class)
+        ->name('ai-usage.index');
+
     Route::get('integrations/google-calendar', [App\Http\Controllers\Integrations\GoogleCalendarController::class, 'index'])
         ->name('integrations.google-calendar');
     Route::post('integrations/google-calendar/disconnect', [App\Http\Controllers\Integrations\GoogleCalendarController::class, 'disconnect'])

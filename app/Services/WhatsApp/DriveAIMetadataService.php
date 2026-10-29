@@ -174,7 +174,7 @@ class DriveAIMetadataService
         };
 
         $result = $user
-            ? app(AiUserTokenBudget::class)->run($user, fn () => (object) $execute())
+            ? app(AiUserTokenBudget::class)->run($user, fn () => (object) $execute(), 'drive_metadata')
             : $execute();
 
         return (array) data_get($result, 'data', $result);
