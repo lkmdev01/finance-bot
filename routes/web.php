@@ -362,6 +362,8 @@ Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
     Volt::route('settings/assistant-operations', 'settings.assistant-operations')
         ->middleware('can:viewAssistantObservability')
         ->name('assistant.operations.settings');
+    Volt::route('settings/assistant-personality', 'settings.assistant-personality')
+        ->name('assistant.personality.settings');
 
     Volt::route('settings/two-factor', 'settings.two-factor')
         ->middleware(

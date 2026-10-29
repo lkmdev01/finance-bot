@@ -16,6 +16,8 @@ class AIPromptBuilder
         // O separador ---CONTEXT--- permite que o AIService divida em role:system / role:user
         // para providers que suportam (Groq, OpenAI). Ver AIService::extractSystemPrompt().
         return $this->buildSystemPrompt($userName)
+            . "\n\nPREFERÊNCIA DE TOM DO USUÁRIO\n"
+            . ($context['assistant_tone_instruction'] ?? 'Use um tom amigável, natural e prestativo.')
             . "\n\n---CONTEXT---\n\n"
             . $formattedContext
             . "\n\n"

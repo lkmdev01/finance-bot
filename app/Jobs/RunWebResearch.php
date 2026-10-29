@@ -76,7 +76,7 @@ class RunWebResearch implements ShouldBeUnique, ShouldQueue
             foreach ($sources as $index => $source) {
                 $prompt .= sprintf("\n[%d] %s (%s)\n%s\n", $index + 1, $source['title'], $source['url'], $source['snippet']);
             }
-            $response = $ai->prompt($research->user, app(ResearchAnswerAgent::class), $prompt, 'research');
+            $response = $ai->prompt($research->user, app(ResearchAnswerAgent::class)->forUser($research->user), $prompt, 'research');
             $answer = trim((string) data_get($response, 'answer', ''));
             if ($answer === '') {
                 throw new \RuntimeException('research_empty_answer');

@@ -80,6 +80,7 @@ class User extends Authenticatable
         'trial_started_at',
         'trial_ends_at',
         'onboarding_tutorial_seen_at',
+        'assistant_tone',
     ];
 
     /**
@@ -112,6 +113,7 @@ class User extends Authenticatable
             'trial_ends_at' => 'datetime',
             'onboarding_tutorial_seen_at' => 'datetime',
             'whatsapp_verified_at' => 'datetime',
+            'assistant_tone' => 'string',
         ];
     }
 

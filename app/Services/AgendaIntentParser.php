@@ -19,6 +19,6 @@ class AgendaIntentParser
             $message,
         );
 
-        return $this->fallback->prompt($user, app(AgendaAgent::class), $prompt, 'agenda');
+        return $this->fallback->prompt($user, app(AgendaAgent::class)->forUser($user), $prompt, 'agenda');
     }
 }
