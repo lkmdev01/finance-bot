@@ -178,8 +178,7 @@ class MeetingCommandService
         if ($meeting->status === 'expired') return 'O histórico desta reunião expirou conforme a política de retenção.';
         $status = $this->effectiveStatus($meeting);
         if ($status === 'awaiting_ai_quota') {
-            $limit = (int) config('ai.user_monthly_token_limit', 20000);
-            if (app(\App\Services\AiUserTokenBudget::class)->currentUsage($user) >= $limit) {
+            if (app(\App\Services\AiUserTokenBudget::class)->hasReachedLimit($user)) {
                 return 'O resumo desta reunião está aguardando a renovação da sua cota mensal de tokens de IA.';
             }
             AnalyzeMeetingTranscript::dispatch($meeting->id);
