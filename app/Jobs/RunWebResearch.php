@@ -4,20 +4,20 @@ namespace App\Jobs;
 
 use App\Ai\ResearchAnswerAgent;
 use App\Models\ResearchQuery;
-use App\Services\AiUserTokenBudget;
 use App\Services\PhoneNumberService;
 use App\Services\Research\WebResearchService;
+use App\Services\SpecializedAiFallbackService;
 use App\Services\WhatsApp\WhatsAppReplyDelivery;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class RunWebResearch implements ShouldQueue, ShouldBeUnique
+class RunWebResearch implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -42,7 +42,7 @@ class RunWebResearch implements ShouldQueue, ShouldBeUnique
         return 'research-query:'.$this->researchQueryId;
     }
 
-    public function handle(WebResearchService $search, AiUserTokenBudget $budget, WhatsAppReplyDelivery $delivery, PhoneNumberService $phones): void
+    public function handle(WebResearchService $search, SpecializedAiFallbackService $ai, WhatsAppReplyDelivery $delivery, PhoneNumberService $phones): void
     {
         $now = now();
         $claimed = ResearchQuery::query()
@@ -76,9 +76,8 @@ class RunWebResearch implements ShouldQueue, ShouldBeUnique
             foreach ($sources as $index => $source) {
                 $prompt .= sprintf("\n[%d] %s (%s)\n%s\n", $index + 1, $source['title'], $source['url'], $source['snippet']);
             }
-            $response = $budget->run($research->user, fn () => app(ResearchAnswerAgent::class)
-                ->prompt($prompt), 'research');
-            $answer = trim((string) data_get($response->toArray(), 'answer', ''));
+            $response = $ai->prompt($research->user, app(ResearchAnswerAgent::class), $prompt, 'research');
+            $answer = trim((string) data_get($response, 'answer', ''));
             if ($answer === '') {
                 throw new \RuntimeException('research_empty_answer');
             }
@@ -125,6 +124,10 @@ class RunWebResearch implements ShouldQueue, ShouldBeUnique
 
     private function failureCode(Throwable $exception): string
     {
+        if ($exception instanceof \Laravel\Ai\Exceptions\RateLimitedException) {
+            return 'rate_limited';
+        }
+
         return match ($exception->getMessage()) {
             'research_provider_not_configured' => 'provider_not_configured',
             'research_provider_unavailable' => 'provider_unavailable',

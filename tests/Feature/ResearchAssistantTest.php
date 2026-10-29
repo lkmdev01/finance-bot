@@ -131,24 +131,19 @@ it('summarizes grounded sources once and sends the report through WhatsApp deliv
         'lease_expires_at' => now()->subSecond(),
     ]);
 
-    $response = Mockery::mock(\Laravel\Ai\Responses\AgentResponse::class);
-    $response->shouldReceive('toArray')->once()->andReturn(['answer' => 'A fonte consultada informa R$ 5,00 [1].']);
-    $agent = Mockery::mock(\App\Ai\ResearchAnswerAgent::class);
-    $agent->shouldReceive('prompt')->once()->andReturn($response);
-    app()->instance(\App\Ai\ResearchAnswerAgent::class, $agent);
-
-    $budget = Mockery::mock(\App\Services\AiUserTokenBudget::class);
-    $budget->shouldReceive('run')->once()->with(Mockery::on(fn (User $candidate) => $candidate->id === $user->id), Mockery::type(Closure::class), 'research')
-        ->andReturnUsing(fn (User $user, Closure $operation) => $operation());
-    app()->instance(\App\Services\AiUserTokenBudget::class, $budget);
+    $ai = Mockery::mock(\App\Services\SpecializedAiFallbackService::class);
+    $ai->shouldReceive('prompt')->once()
+        ->with(Mockery::on(fn (User $candidate) => $candidate->id === $user->id), Mockery::type(\App\Ai\ResearchAnswerAgent::class), Mockery::type('string'), 'research')
+        ->andReturn(['answer' => 'A fonte consultada informa R$ 5,00 [1].']);
+    app()->instance(\App\Services\SpecializedAiFallbackService::class, $ai);
 
     $delivery = Mockery::mock(\App\Services\WhatsApp\WhatsAppReplyDelivery::class);
     $delivery->shouldReceive('send')->once()->with('5511999000000@s.whatsapp.net', Mockery::on(fn (string $body) => str_contains($body, 'example.test/cotacao')), $user->id);
     app()->instance(\App\Services\WhatsApp\WhatsAppReplyDelivery::class, $delivery);
 
     $job = new \App\Jobs\RunWebResearch($research->id);
-    $job->handle(app(WebResearchService::class), app(\App\Services\AiUserTokenBudget::class), $delivery, app(\App\Services\PhoneNumberService::class));
-    $job->handle(app(WebResearchService::class), app(\App\Services\AiUserTokenBudget::class), $delivery, app(\App\Services\PhoneNumberService::class));
+    $job->handle(app(WebResearchService::class), $ai, $delivery, app(\App\Services\PhoneNumberService::class));
+    $job->handle(app(WebResearchService::class), $ai, $delivery, app(\App\Services\PhoneNumberService::class));
 
     expect($research->fresh()->status)->toBe('delivered')
         ->and($research->fresh()->answer)->toContain('[1]')
