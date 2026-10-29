@@ -1,0 +1,55 @@
+services:
+  core:
+    image: docker.io/searxng/searxng:${SEARXNG_VERSION:?Set a pinned SearXNG version in Coolify}
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?Set SEARXNG_SECRET as a Coolify secret}
+      SEARXNG_VALKEY_URL: valkey://valkey:6379/0
+      SEARXNG_LIMITER: 'false'
+    volumes:
+      - type: bind
+        source: ./core-config/settings.yml
+        target: /etc/searxng/settings.yml
+        content: |
+          use_default_settings: true
+
+          search:
+            safe_search: 1
+            formats:
+              - html
+              - json
+
+          server:
+            # The container's SEARXNG_SECRET environment variable overrides this value.
+            secret_key: "overridden-by-SEARXNG_SECRET"
+            limiter: false
+            public_instance: false
+
+          valkey:
+            url: valkey://valkey:6379/0
+      - core-data:/var/cache/searxng/
+    networks:
+      default: {}
+      coolify:
+        aliases:
+          - inovafinance-searxng
+    depends_on:
+      - valkey
+
+  valkey:
+    image: docker.io/valkey/valkey:9-alpine
+    command: valkey-server --save 300 1 --save 60 1000 --loglevel warning
+    restart: unless-stopped
+    volumes:
+      - valkey-data:/data/
+    networks:
+      - default
+
+volumes:
+  core-data:
+  valkey-data:
+
+networks:
+  default: {}
+  coolify:
+    external: true

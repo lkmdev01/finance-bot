@@ -12,13 +12,18 @@ use Illuminate\Support\Str;
 
 class ConversationOrchestrator
 {
+    private readonly ResearchCommandService $researchCommandService;
+
     public function __construct(
         private readonly ConversationStateService $stateService,
         private readonly PreflightMessageResolver $preflightMessageResolver,
         private readonly MeetingCommandService $meetingCommandService,
         private readonly AgendaCommandService $agendaCommandService,
         private readonly TaskCommandService $taskCommandService,
-    ) {}
+        ?ResearchCommandService $researchCommandService = null,
+    ) {
+        $this->researchCommandService = $researchCommandService ?? app(ResearchCommandService::class);
+    }
 
     /**
      * Resolve mensagens sociais e de navegação sem depender do provedor de IA.
@@ -28,6 +33,18 @@ class ConversationOrchestrator
      */
     public function beforeAI(string $message, User $user, WhatsAppContact $contact): ?array
     {
+        $researchReply = $this->researchCommandService->handle($message, $user, $contact);
+        if ($researchReply !== null) {
+            return [
+                'handled' => true,
+                'reply' => $researchReply,
+                'action' => null,
+                'classification' => 'research_command',
+                'domain' => 'research',
+                'metadata' => ['clear_pending' => false, 'reply_kind' => 'message'],
+            ];
+        }
+
         $meetingReply = $this->meetingCommandService->handle($message, $user, $contact);
         if ($meetingReply !== null) {
             return [
