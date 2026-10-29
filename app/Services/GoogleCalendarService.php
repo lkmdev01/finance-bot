@@ -2,12 +2,13 @@
 
 namespace App\Services;
 
+use App\Exceptions\GoogleCalendarApiException;
 use App\Models\User;
-use Carbon\CarbonInterface;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Validator;
 use RuntimeException;
 
 class GoogleCalendarService
@@ -28,7 +29,7 @@ class GoogleCalendarService
             'maxResults' => 250,
         ]);
 
-        $this->throwIfFailed($response->status(), $response->successful());
+        $this->throwIfFailed($response->status(), $response->successful(), $response->json('error.errors.0.reason'));
 
         return (array) $response->json('items', []);
     }
@@ -58,22 +59,72 @@ class GoogleCalendarService
             });
         }
 
-        $response = $this->request($user)->post('https://www.googleapis.com/calendar/v3/freeBusy', [
-            'timeMin' => $start->toIso8601String(),
-            'timeMax' => $end->toIso8601String(),
-            'timeZone' => $timezone,
-            'items' => [['id' => (string) ($user->googleCalendarConnection?->calendar_id ?: 'primary')]],
-        ]);
+        return $this->freeBusyIntervals($user, $start, $end, $timezone) !== [];
+    }
 
-        $this->throwIfFailed($response->status(), $response->successful());
-        $calendarId = (string) ($user->googleCalendarConnection?->calendar_id ?: 'primary');
-        $calendar = (array) $response->json('calendars', []);
-        $calendar = $calendar[$calendarId] ?? null;
-        if (! is_array($calendar) || ! empty($calendar['errors'])) {
-            throw new RuntimeException('O Google Calendar não confirmou a disponibilidade do horário.');
+    /**
+     * Find up to three nearby alternatives on the same local day with one FreeBusy request.
+     * Candidate starts are spaced 30 minutes apart and limited to four hours after the request.
+     *
+     * @return array<int, array{start: CarbonImmutable, end: CarbonImmutable}>
+     */
+    public function suggestAvailableSlots(
+        User $user,
+        CarbonImmutable $requestedStart,
+        CarbonImmutable $requestedEnd,
+        string $timezone,
+        int $limit = 3,
+        ?string $workdayStart = null,
+        ?string $workdayEnd = null,
+    ): array {
+        $duration = $requestedStart->diffInSeconds($requestedEnd);
+        if ($duration <= 0 || ! in_array($timezone, \DateTimeZone::listIdentifiers(), true)) {
+            throw new RuntimeException('Intervalo inválido para sugerir horários.');
         }
 
-        return ! empty($calendar['busy']);
+        $requestedStart = $requestedStart->setTimezone($timezone);
+        $requestedEnd = $requestedEnd->setTimezone($timezone);
+        $dayEnd = $requestedStart->endOfDay();
+        $searchLimit = $requestedStart->addHours(4);
+        $firstStart = $requestedStart->addMinutes(30);
+        if ($workdayStart !== null && preg_match('/^([01]\d|2[0-3]):[0-5]\d$/D', $workdayStart) === 1) {
+            [$hour, $minute] = array_map('intval', explode(':', $workdayStart));
+            $workStart = $requestedStart->startOfDay()->setTime($hour, $minute);
+            if ($firstStart->lessThan($workStart)) {
+                $firstStart = $workStart;
+            }
+        }
+        $workEnd = null;
+        if ($workdayEnd !== null && preg_match('/^([01]\d|2[0-3]):[0-5]\d$/D', $workdayEnd) === 1) {
+            [$hour, $minute] = array_map('intval', explode(':', $workdayEnd));
+            $workEnd = $requestedStart->startOfDay()->setTime($hour, $minute);
+        }
+        $candidates = [];
+        for ($start = $firstStart; $start->lessThanOrEqualTo($searchLimit); $start = $start->addMinutes(30)) {
+            $end = $start->addSeconds($duration);
+            if ($end->greaterThan($dayEnd) || ($workEnd !== null && $end->greaterThan($workEnd))) {
+                break;
+            }
+            $candidates[] = ['start' => $start, 'end' => $end];
+        }
+
+        if ($candidates === []) {
+            return [];
+        }
+
+        $busy = $this->freeBusyIntervals(
+            $user,
+            $candidates[0]['start'],
+            $candidates[array_key_last($candidates)]['end'],
+            $timezone,
+        );
+
+        return collect($candidates)
+            ->reject(fn (array $candidate): bool => collect($busy)->contains(fn (array $interval): bool => CarbonImmutable::parse($interval['start'])->lessThan($candidate['end'])
+                && CarbonImmutable::parse($interval['end'])->greaterThan($candidate['start'])))
+            ->take(max(1, min($limit, 3)))
+            ->values()
+            ->all();
     }
 
     public function createEvent(User $user, array $event, string $idempotencyKey, bool $createMeetLink = false): array
@@ -106,7 +157,7 @@ class GoogleCalendarService
             }
         }
 
-        $this->throwIfFailed($response->status(), $response->successful());
+        $this->throwIfFailed($response->status(), $response->successful(), $response->json('error.errors.0.reason'));
 
         return (array) $response->json();
     }
@@ -126,6 +177,15 @@ class GoogleCalendarService
             ],
             'attendees' => array_map(static fn (string $email): array => ['email' => $email], $event['attendees'] ?? []),
         ];
+        if (($event['recurrence'] ?? []) !== []) {
+            $payload['recurrence'] = $event['recurrence'];
+        }
+        if (isset($event['reminder_minutes'])) {
+            $payload['reminders'] = [
+                'useDefault' => false,
+                'overrides' => [['method' => 'popup', 'minutes' => $event['reminder_minutes']]],
+            ];
+        }
 
         return $this->validatedEvent($payload, true);
     }
@@ -138,7 +198,7 @@ class GoogleCalendarService
             'conferenceDataVersion' => 1,
         ])->patch($this->calendarUrl($user).'/'.rawurlencode($eventId), $changes);
 
-        $this->throwIfFailed($response->status(), $response->successful());
+        $this->throwIfFailed($response->status(), $response->successful(), $response->json('error.errors.0.reason'));
 
         return (array) $response->json();
     }
@@ -149,7 +209,7 @@ class GoogleCalendarService
         if ($response->status() === 404) {
             return [];
         }
-        $this->throwIfFailed($response->status(), $response->successful());
+        $this->throwIfFailed($response->status(), $response->successful(), $response->json('error.errors.0.reason'));
 
         return (array) $response->json();
     }
@@ -161,7 +221,7 @@ class GoogleCalendarService
         ])->delete($this->calendarUrl($user).'/'.rawurlencode($eventId));
 
         if ($response->status() !== 404) {
-            $this->throwIfFailed($response->status(), $response->successful());
+            $this->throwIfFailed($response->status(), $response->successful(), $response->json('error.errors.0.reason'));
         }
     }
 
@@ -170,6 +230,27 @@ class GoogleCalendarService
         return Http::acceptJson()
             ->withToken($this->oauth->getAccessToken($user))
             ->timeout(20);
+    }
+
+    /** @return array<int, array{start: string, end: string}> */
+    private function freeBusyIntervals(User $user, CarbonInterface $from, CarbonInterface $to, string $timezone): array
+    {
+        $response = $this->request($user)->post('https://www.googleapis.com/calendar/v3/freeBusy', [
+            'timeMin' => $from->toIso8601String(),
+            'timeMax' => $to->toIso8601String(),
+            'timeZone' => $timezone,
+            'items' => [['id' => (string) ($user->googleCalendarConnection?->calendar_id ?: 'primary')]],
+        ]);
+
+        $this->throwIfFailed($response->status(), $response->successful(), $response->json('error.errors.0.reason'));
+        $calendarId = (string) ($user->googleCalendarConnection?->calendar_id ?: 'primary');
+        $calendar = (array) $response->json('calendars', []);
+        $calendar = $calendar[$calendarId] ?? null;
+        if (! is_array($calendar) || ! empty($calendar['errors'])) {
+            throw new RuntimeException('O Google Calendar não confirmou a disponibilidade do horário.');
+        }
+
+        return array_values(array_filter((array) ($calendar['busy'] ?? []), static fn (mixed $interval): bool => is_array($interval) && is_string($interval['start'] ?? null) && is_string($interval['end'] ?? null)));
     }
 
     private function calendarUrl(User $user): string
@@ -198,8 +279,12 @@ class GoogleCalendarService
             'attendees' => ['sometimes', 'array', 'max:50'],
             'attendees.*.email' => ['required', 'email', 'max:254'],
             'recurrence' => ['sometimes', 'array', 'max:10'],
-            'recurrence.*' => ['string', 'max:255'],
+            'recurrence.*' => ['string', 'max:255', 'regex:/^RRULE:FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;INTERVAL=[1-9][0-9]?)?(;BYDAY=(MO|TU|WE|TH|FR|SA|SU)(,(MO|TU|WE|TH|FR|SA|SU))*)?(;(COUNT=[1-9][0-9]{0,3}|UNTIL=\d{8}T\d{6}Z))?$/D'],
             'reminders' => ['sometimes', 'array'],
+            'reminders.useDefault' => ['sometimes', 'boolean'],
+            'reminders.overrides' => ['sometimes', 'array', 'max:5'],
+            'reminders.overrides.*.method' => ['required', 'in:email,popup'],
+            'reminders.overrides.*.minutes' => ['required', 'integer', 'between:0,40320'],
         ];
 
         $validated = Validator::make($event, $rules)->validate();
@@ -220,10 +305,10 @@ class GoogleCalendarService
         return $validated;
     }
 
-    private function throwIfFailed(int $status, bool $successful): void
+    private function throwIfFailed(int $status, bool $successful, mixed $reason = null): void
     {
         if (! $successful) {
-            throw new RuntimeException('A solicitacao ao Google Calendar falhou (HTTP '.$status.').');
+            throw new GoogleCalendarApiException($status, is_string($reason) ? $reason : null);
         }
     }
 }

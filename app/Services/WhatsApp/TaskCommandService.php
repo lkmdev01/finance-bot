@@ -17,11 +17,17 @@ use Throwable;
 class TaskCommandService
 {
     private const PENDING_CREATE = 'google_task_create';
+
     private const PENDING_UPDATE = 'google_task_update';
+
     private const PENDING_COMPLETE = 'google_task_complete';
+
     private const PENDING_DELETE = 'google_task_delete';
+
     private const PENDING_MOVE = 'google_task_move';
+
     private const PENDING_PROJECT = 'google_project_create';
+
     private const PENDING_PROJECT_RENAME = 'google_project_rename';
 
     public function __construct(
@@ -54,6 +60,11 @@ class TaskCommandService
 
         if (! $pending && ! empty($state['pending_intent'])) {
             if (str_starts_with((string) $state['pending_intent'], 'google_task_')) {
+                $this->stateService->clearPending($contact);
+            } elseif (str_starts_with((string) $state['pending_intent'], 'agenda_')
+                && ($state['mode'] ?? '') === 'awaiting_clarification') {
+                // A new task request supersedes an unanswered agenda question,
+                // but never discards an agenda action awaiting confirmation.
                 $this->stateService->clearPending($contact);
             } else {
                 return 'Você tem outra confirmação em andamento. Conclua ou cancele essa ação antes de iniciar uma tarefa.';
@@ -111,7 +122,10 @@ class TaskCommandService
     private function looksLikeTaskRequest(string $message): bool
     {
         return preg_match('/\b(tarefa|tarefas|pendencia|pendencias|task|todo list)\b/u', $message) === 1
-            || preg_match('/\b(projeto|projetos)\b/u', $message) === 1
+            // Mentioning a project is common in Drive searches ("audio sobre o projeto").
+            // Only route to Tasks when the message asks for a project/list operation.
+            || (preg_match('/\b(projeto|projetos)\b/u', $message) === 1
+                && preg_match('/\b(criar|crie|cria|novo|renomear|renomeie|renomeia|listar|liste|mostre|meus|minhas|quais|tenho|resumir|resuma|resumo|tarefas|mover|mova)\b/u', $message) === 1)
             || (preg_match('/\b(concluir|finalizar|terminei|feito|feita|atualizar|alterar|mudar|adiar)\b/u', $message) === 1
                 && preg_match('/\b(tarefa|tarefas|pendencia|pendencias|task)\b/u', $message) === 1)
             || preg_match('/\b(anota|registre|registrar|criar|crie|adicionar|adicione)\b.{0,50}\b(fazer|ligar|enviar|pagar|comprar|entregar|revisar|concluir)\b/u', $message) === 1;
@@ -329,7 +343,7 @@ class TaskCommandService
             return null;
         }
 
-        return array_values(array_map(function (array $task) use ($query, $taskListId, $taskListTitle): array {
+        return array_values(array_map(function (array $task) use ($taskListId, $taskListTitle): array {
             $task['_task_list_id'] = $taskListId;
             $task['_task_list_title'] = $taskListTitle;
 

@@ -4,6 +4,7 @@ use App\Models\GoogleCalendarConnection;
 use App\Models\User;
 use App\Services\GoogleCalendarOAuthService;
 use App\Services\GoogleCalendarService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -93,6 +94,65 @@ it('checks freebusy availability using only the configured primary calendar', fu
         && data_get($request->data(), 'timeZone') === 'America/Sao_Paulo');
 });
 
+it('finds nearby same-day free slots with one bounded FreeBusy request', function (): void {
+    $user = connectedCalendarUser();
+    Http::fake([
+        'oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-token-test', 'expires_in' => 3600]),
+        'www.googleapis.com/calendar/v3/freeBusy' => Http::response([
+            'calendars' => ['primary' => ['busy' => [
+                ['start' => '2026-11-10T15:00:00-03:00', 'end' => '2026-11-10T16:00:00-03:00'],
+            ]]],
+        ]),
+    ]);
+
+    $slots = app(GoogleCalendarService::class)->suggestAvailableSlots(
+        $user,
+        Carbon\CarbonImmutable::parse('2026-11-10T15:00:00-03:00'),
+        Carbon\CarbonImmutable::parse('2026-11-10T15:30:00-03:00'),
+        'America/Sao_Paulo',
+    );
+
+    expect($slots)->toHaveCount(3)
+        ->and($slots[0]['start']->format('H:i'))->toBe('16:00')
+        ->and($slots[0]['end']->format('H:i'))->toBe('16:30');
+    Http::assertSentCount(2); // one OAuth token request and one bounded FreeBusy request
+});
+
+it('limits suggested slots to the user configured work window', function (): void {
+    $user = connectedCalendarUser();
+    Http::fake([
+        'oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-token-test', 'expires_in' => 3600]),
+        'www.googleapis.com/calendar/v3/freeBusy' => Http::response([
+            'calendars' => ['primary' => ['busy' => []]],
+        ]),
+    ]);
+
+    $slots = app(GoogleCalendarService::class)->suggestAvailableSlots(
+        $user,
+        CarbonImmutable::parse('2026-11-10 08:00:00', 'America/Sao_Paulo'),
+        CarbonImmutable::parse('2026-11-10 08:30:00', 'America/Sao_Paulo'),
+        'America/Sao_Paulo',
+        3,
+        '09:00',
+        '10:00',
+    );
+
+    expect($slots)->toHaveCount(2)
+        ->and($slots[0]['start']->format('H:i'))->toBe('09:00')
+        ->and($slots[1]['end']->format('H:i'))->toBe('10:00');
+});
+
+it('preserves the HTTP status in a safe typed Google Calendar exception', function (): void {
+    $user = connectedCalendarUser();
+    Http::fake([
+        'oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-token-test', 'expires_in' => 3600]),
+        'www.googleapis.com/calendar/v3/calendars/primary/events*' => Http::response([], 403),
+    ]);
+
+    expect(fn () => app(GoogleCalendarService::class)->listEvents($user, now(), now()->addHour()))
+        ->toThrow(App\Exceptions\GoogleCalendarApiException::class);
+});
+
 it('creates Meet conferences only when explicitly requested and uses a stable idempotent event id', function (): void {
     $user = connectedCalendarUser();
     $created = [];
@@ -150,6 +210,41 @@ it('does not create a Meet link for ordinary calendar events', function (): void
     Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
         && ! isset($request['conferenceData'])
         && str_contains($request->url(), 'conferenceDataVersion=0'));
+});
+
+it('sends explicit attendees, recurrence, and reminder overrides to Google Calendar', function (): void {
+    $user = connectedCalendarUser();
+    Http::fake(function (Request $request) {
+        if (str_contains($request->url(), 'oauth2.googleapis.com/token')) {
+            return Http::response(['access_token' => 'access-token-test', 'expires_in' => 3600]);
+        }
+
+        return Http::response(['id' => 'recurring-event'], 200);
+    });
+
+    app(GoogleCalendarService::class)->createEvent($user, [
+        'summary' => 'Revisão semanal',
+        'start' => ['dateTime' => now()->addDay()->toIso8601String(), 'timeZone' => 'America/Sao_Paulo'],
+        'end' => ['dateTime' => now()->addDay()->addMinutes(30)->toIso8601String(), 'timeZone' => 'America/Sao_Paulo'],
+        'attendees' => [['email' => 'ana@example.test']],
+        'recurrence' => ['RRULE:FREQ=WEEKLY;COUNT=4'],
+        'reminders' => ['useDefault' => false, 'overrides' => [['method' => 'popup', 'minutes' => 10]]],
+    ], 'recurring-event-key');
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && data_get($request->data(), 'attendees.0.email') === 'ana@example.test'
+        && data_get($request->data(), 'recurrence.0') === 'RRULE:FREQ=WEEKLY;COUNT=4'
+        && data_get($request->data(), 'reminders.overrides.0.minutes') === 10);
+});
+
+it('rejects unsupported recurrence rules before calling Google Calendar', function (): void {
+    $user = connectedCalendarUser();
+    expect(fn () => app(GoogleCalendarService::class)->validateEventForConfirmation([
+        'summary' => 'Evento',
+        'start_at' => now()->addDay()->toIso8601String(),
+        'end_at' => now()->addDay()->addHour()->toIso8601String(),
+        'recurrence' => ['RRULE:FREQ=HOURLY'],
+    ]))->toThrow(Illuminate\Validation\ValidationException::class);
 });
 
 it('marks a connection revoked after Google rejects its refresh token', function (): void {
