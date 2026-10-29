@@ -25,6 +25,10 @@ return [
         'model' => env('AI_SPECIALIZED_FALLBACK_MODEL', env('GROQ_MODEL_SMARTEST', 'openai/gpt-oss-120b')),
     ],
     'user_monthly_token_limit' => (int) env('AI_USER_MONTHLY_TOKEN_LIMIT', 20000),
+    'user_monthly_token_exempt_ids' => array_values(array_unique(array_filter(
+        array_map('intval', explode(',', (string) env('AI_USER_MONTHLY_TOKEN_EXEMPT_IDS', ''))),
+        static fn (int $id): bool => $id > 0,
+    ))),
     'drive_metadata' => [
         'provider' => env('DRIVE_AI_PROVIDER', 'none'),
         'api_key' => env('DRIVE_AI_API_KEY', env('AI_API_KEY')),

@@ -35,7 +35,7 @@ class AiUserTokenBudget
 
         return $lock->block(90, function () use ($user, $operation, $tokenCounter, $limit, $period): mixed {
             $usage = $this->usageRecord($user, $period);
-            if ($limit > 0 && $usage->tokens_used >= $limit) {
+            if (! $this->isExempt($user) && $limit > 0 && $usage->tokens_used >= $limit) {
                 throw new AiUserTokenLimitExceeded($limit, $usage->tokens_used);
             }
 
@@ -47,6 +47,22 @@ class AiUserTokenBudget
 
             return $response;
         });
+    }
+
+    public function isExempt(User $user): bool
+    {
+        $exemptIds = array_map('intval', (array) config('ai.user_monthly_token_exempt_ids', []));
+
+        return in_array((int) $user->getKey(), $exemptIds, true);
+    }
+
+    public function hasReachedLimit(User $user): bool
+    {
+        $limit = max(0, (int) config('ai.user_monthly_token_limit', 20000));
+
+        return ! $this->isExempt($user)
+            && $limit > 0
+            && $this->currentUsage($user) >= $limit;
     }
 
     public function currentUsage(User $user): int

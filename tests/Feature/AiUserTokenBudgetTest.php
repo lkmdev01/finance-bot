@@ -5,6 +5,7 @@ use App\Models\AiUserTokenUsage;
 use App\Models\User;
 use App\Services\AiUserTokenBudget;
 use Carbon\CarbonImmutable;
+
 it('records provider reported token use for each user and month', function () {
     CarbonImmutable::setTestNow('2026-10-28 12:00:00');
     config(['ai.user_monthly_token_limit' => 20000]);
@@ -34,6 +35,28 @@ it('blocks further agent calls after a user reaches their monthly token limit', 
     }))->toThrow(AiUserTokenLimitExceeded::class);
 
     expect($called)->toBeFalse();
+    CarbonImmutable::setTestNow();
+});
+
+it('allows only explicitly exempt users to exceed the monthly limit and continues accounting', function () {
+    CarbonImmutable::setTestNow('2026-10-28 12:00:00');
+    config(['ai.user_monthly_token_limit' => 20000]);
+    $exemptUser = User::factory()->create();
+    $regularUser = User::factory()->create();
+    config(['ai.user_monthly_token_exempt_ids' => [(int) $exemptUser->id]]);
+    AiUserTokenUsage::create(['user_id' => $exemptUser->id, 'period' => '2026-10', 'tokens_used' => 25000]);
+    AiUserTokenUsage::create(['user_id' => $regularUser->id, 'period' => '2026-10', 'tokens_used' => 20000]);
+
+    $result = app(AiUserTokenBudget::class)->run($exemptUser, fn () => (object) [
+        'usage' => (object) ['promptTokens' => 7, 'completionTokens' => 3],
+    ]);
+
+    expect(app(AiUserTokenBudget::class)->currentUsage($exemptUser))->toBe(25010)
+        ->and(app(AiUserTokenBudget::class)->hasReachedLimit($exemptUser))->toBeFalse()
+        ->and(app(AiUserTokenBudget::class)->isExempt($regularUser))->toBeFalse()
+        ->and(app(AiUserTokenBudget::class)->hasReachedLimit($regularUser))->toBeTrue()
+        ->and($result->usage->promptTokens)->toBe(7);
+
     CarbonImmutable::setTestNow();
 });
 
