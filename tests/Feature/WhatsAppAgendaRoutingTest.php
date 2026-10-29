@@ -75,6 +75,123 @@ it('asks for calendar connection rather than passing agenda intent to the financ
     expect($reply)->toContain('conecte o Google Calendar');
 });
 
+it('recognizes common Portuguese agenda phrases across lookup, availability, and creation', function (string $message): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn([
+        'intent' => 'list_events',
+        'period_start' => now('America/Sao_Paulo')->startOfDay()->toIso8601String(),
+        'period_end' => now('America/Sao_Paulo')->addWeek()->endOfDay()->toIso8601String(),
+    ]);
+    app()->instance(AgendaIntentParser::class, $parser);
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('listEvents')->once()->andReturn([]);
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    expect(app(AgendaCommandService::class)->handle($message, $user, $contact))->toBe('Não encontrei compromissos nesse período.');
+})->with([
+    'o que tenho na quarta?',
+    'estou livre amanhã das 10 às 11?',
+    'quais são meus compromissos esta semana?',
+    'marque consulta com Ana amanhã',
+]);
+
+it('saves per-user agenda preferences and reports them back', function (): void {
+    $user = User::factory()->create();
+    $preferences = app(App\Services\AgendaUserPreferenceService::class);
+
+    expect($preferences->handle('duração padrão 30 minutos', $user))->toContain('30 minutos')
+        ->and($preferences->handle('lembrete padrão 10 minutos antes', $user))->toContain('10 minutos antes')
+        ->and($preferences->handle('horário de trabalho das 9 às 17', $user))->toContain('09:00:00–17:00:00')
+        ->and($preferences->handle('preferências da agenda', $user))->toContain('Duração padrão: 30 min')
+        ->and($preferences->handle('preferências da agenda', $user))->toContain('Janela preferida: 09:00–17:00')
+        ->and($preferences->handle('desative o lembrete padrão', $user))->toContain('Removi essa preferência')
+        ->and($preferences->handle('preferências da agenda', $user))->toContain('Lembrete padrão: não definido');
+});
+
+it('honors a one-time no-reminder request over the users configured default', function (): void {
+    $user = agendaUserWithCalendar();
+    App\Models\AgendaUserPreference::query()->create([
+        'user_id' => $user->id,
+        'default_reminder_minutes' => 15,
+    ]);
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn([
+        'intent' => 'create_event',
+        'title' => 'Consulta',
+        'start_at' => '2026-11-10T10:00:00-03:00',
+        'end_at' => '2026-11-10T10:30:00-03:00',
+        'time_zone' => 'America/Sao_Paulo',
+        'attendees' => [],
+        'recurrence' => [],
+        'reminder_minutes' => null,
+        'disable_reminder' => true,
+    ]);
+    app()->instance(AgendaIntentParser::class, $parser);
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('validateEventForConfirmation')->once()->withArgs(fn (array $event): bool => $event['reminder_minutes'] === null)->andReturn([
+        'summary' => 'Consulta',
+        'start' => ['dateTime' => '2026-11-10T10:00:00-03:00', 'timeZone' => 'America/Sao_Paulo'],
+        'end' => ['dateTime' => '2026-11-10T10:30:00-03:00', 'timeZone' => 'America/Sao_Paulo'],
+        'attendees' => [],
+    ]);
+    $calendar->shouldReceive('hasConflict')->once()->andReturnFalse();
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    $reply = app(AgendaCommandService::class)->handle('marque consulta amanhã às 10, sem lembrete', $user, $contact);
+
+    expect(str_contains($reply, 'Lembrete: nenhum'))->toBeTrue()
+        ->and(str_contains($reply, '15 min antes'))->toBeFalse();
+});
+
+it('applies a configured default duration and makes recurrence, guests, and reminder explicit in confirmation', function (): void {
+    $user = agendaUserWithCalendar();
+    App\Models\AgendaUserPreference::query()->create([
+        'user_id' => $user->id,
+        'default_event_duration_minutes' => 30,
+        'default_reminder_minutes' => 10,
+    ]);
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn([
+        'intent' => 'create_event',
+        'title' => 'Revisão semanal',
+        'start_at' => '2026-11-10T10:00:00-03:00',
+        'end_at' => null,
+        'time_zone' => 'America/Sao_Paulo',
+        'attendees' => ['ana@example.test'],
+        'recurrence' => ['RRULE:FREQ=WEEKLY;COUNT=4'],
+        'reminder_minutes' => null,
+    ]);
+    app()->instance(AgendaIntentParser::class, $parser);
+
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('validateEventForConfirmation')->once()->withArgs(function (array $event): bool {
+        return $event['end_at'] === '2026-11-10T10:30:00-03:00'
+            && $event['attendees'] === ['ana@example.test']
+            && $event['recurrence'] === ['RRULE:FREQ=WEEKLY;COUNT=4']
+            && $event['reminder_minutes'] === 10;
+    })->andReturn([
+        'summary' => 'Revisão semanal',
+        'start' => ['dateTime' => '2026-11-10T10:00:00-03:00', 'timeZone' => 'America/Sao_Paulo'],
+        'end' => ['dateTime' => '2026-11-10T10:30:00-03:00', 'timeZone' => 'America/Sao_Paulo'],
+        'attendees' => [['email' => 'ana@example.test']],
+        'recurrence' => ['RRULE:FREQ=WEEKLY;COUNT=4'],
+        'reminders' => ['useDefault' => false, 'overrides' => [['method' => 'popup', 'minutes' => 10]]],
+    ]);
+    $calendar->shouldReceive('hasConflict')->once()->andReturnFalse();
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    $reply = app(AgendaCommandService::class)->handle('marque evento revisão semanal terça às 10', $user, $contact);
+
+    expect(str_contains($reply, 'Duração padrão aplicada: 30 min'))->toBeTrue()
+        ->and(str_contains($reply, 'ana@example.test'))->toBeTrue()
+        ->and(str_contains($reply, 'Repetição: FREQ=WEEKLY;COUNT=4'))->toBeTrue()
+        ->and(str_contains($reply, 'Lembrete: 10 min antes'))->toBeTrue();
+});
+
 it('builds a daily agenda summary with events and due tasks without including future tasks', function (): void {
     $user = agendaUserWithCalendar();
     $user->googleCalendarConnection->forceFill([
@@ -234,6 +351,43 @@ it('deletes an event only after user confirmation and verifies its identity agai
     expect(data_get($contact->fresh()->conversation_state, 'pending_intent'))->toBeNull();
 });
 
+it('keeps numbered event selection working and confirms the selected event before deletion', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $first = [
+        'id' => 'dentista-1',
+        'summary' => 'Dentista Centro',
+        'start' => ['dateTime' => '2026-11-10T10:00:00-03:00'],
+        'end' => ['dateTime' => '2026-11-10T11:00:00-03:00'],
+    ];
+    $second = [
+        'id' => 'dentista-2',
+        'summary' => 'Dentista Unidade Sul',
+        'start' => ['dateTime' => '2026-11-10T14:00:00-03:00'],
+        'end' => ['dateTime' => '2026-11-10T15:00:00-03:00'],
+    ];
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn([
+        'intent' => 'delete_event',
+        'target_title' => 'dentista',
+        'target_start_at' => '2026-11-10T00:00:00-03:00',
+        'target_end_at' => '2026-11-11T00:00:00-03:00',
+    ]);
+    app()->instance(AgendaIntentParser::class, $parser);
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('listEvents')->once()->andReturn([$first, $second]);
+    $calendar->shouldReceive('getEvent')->once()->with($user, 'dentista-2')->andReturn($second);
+    $calendar->shouldReceive('deleteEvent')->once()->with($user, 'dentista-2');
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    $service = app(AgendaCommandService::class);
+    expect($service->handle('exclua dentista amanhã', $user, $contact))->toContain('1. Dentista Centro')
+        ->and(data_get($contact->fresh()->conversation_state, 'pending_intent'))->toBe('agenda_event_selection');
+    expect($service->handle('2', $user, $contact))->toContain('Confirma excluir *Dentista Unidade Sul*')
+        ->and(data_get($contact->fresh()->conversation_state, 'mode'))->toBe('awaiting_confirmation');
+    expect($service->handle('sim', $user, $contact))->toContain('Compromisso excluído');
+});
+
 it('does not ask for confirmation when the requested time conflicts with an existing event', function (): void {
     $user = agendaUserWithCalendar();
     $contact = agendaContact($user);
@@ -256,6 +410,7 @@ it('does not ask for confirmation when the requested time conflicts with an exis
         'attendees' => [],
     ]);
     $calendar->shouldReceive('hasConflict')->once()->andReturnTrue();
+    $calendar->shouldReceive('suggestAvailableSlots')->once()->andReturn([]);
     $calendar->shouldNotReceive('createEvent');
     app()->instance(GoogleCalendarService::class, $calendar);
 
@@ -263,4 +418,245 @@ it('does not ask for confirmation when the requested time conflicts with an exis
 
     expect($reply)->toContain('parece ocupado')
         ->and(data_get($contact->fresh()->conversation_state, 'mode'))->toBe('awaiting_clarification');
+});
+
+it('uses a complete new event request instead of appending stale clarification text', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user, [
+        'mode' => 'awaiting_clarification',
+        'pending_intent' => 'agenda_create_event',
+        'pending_payload' => ['original_message' => 'marque consulta para 30/10/2026'],
+    ]);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->withArgs(function (string $message): bool {
+        return $message === 'marque consulta TESTE InovaFinance para 30/10/2026 das 05:30 às 05:40';
+    })->andReturn(['intent' => 'other']);
+    app()->instance(AgendaIntentParser::class, $parser);
+
+    $reply = app(AgendaCommandService::class)->handle(
+        'marque consulta TESTE InovaFinance para 30/10/2026 das 05:30 às 05:40',
+        $user,
+        $contact,
+    );
+
+    expect($reply)->toContain('Posso consultar sua agenda')
+        ->and(data_get($contact->fresh()->conversation_state, 'pending_intent'))->toBeNull();
+});
+
+it('preserves prior agenda context for a short qualified-time follow-up', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user, [
+        'mode' => 'awaiting_clarification',
+        'pending_intent' => 'agenda_create_event',
+        'pending_payload' => ['original_message' => 'marque consulta TESTE para 30/10/2026'],
+    ]);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->withArgs(function (string $message): bool {
+        return $message === 'marque consulta TESTE para 30/10/2026 às 5:30 da manhã';
+    })->andReturn(['intent' => 'other']);
+    app()->instance(AgendaIntentParser::class, $parser);
+
+    app(AgendaCommandService::class)->handle('às 5:30 da manhã', $user, $contact);
+
+    expect(data_get($contact->fresh()->conversation_state, 'pending_intent'))->toBe('agenda_create_event');
+});
+
+it('documents unambiguous Portuguese morning and afternoon time interpretation', function (): void {
+    $instructions = app(\App\Ai\AgendaAgent::class)->instructions();
+
+    expect((string) $instructions)->toContain('"5:30 da manhã" significa 05:30')
+        ->and((string) $instructions)->toContain('não escolha AM/PM')
+        ->and((string) $instructions)->toContain('check_availability');
+});
+
+it('recognizes natural-language agenda lookups for a weekday and the current week', function (string $message): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->withArgs(fn (string $parsed): bool => $parsed === $message)
+        ->andReturn(['intent' => 'list_events', 'period_start' => '2026-10-29T00:00:00-03:00', 'period_end' => '2026-10-30T00:00:00-03:00']);
+    app()->instance(AgendaIntentParser::class, $parser);
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('listEvents')->once()->andReturn([]);
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    expect(app(AgendaCommandService::class)->handle($message, $user, $contact))
+        ->toBe('Não encontrei compromissos nesse período.');
+})->with([
+    'o que tenho na quinta?',
+    'quais são meus compromissos esta semana?',
+]);
+
+it('sorts agenda results chronologically and labels all-day events clearly', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn(['intent' => 'list_events']);
+    app()->instance(AgendaIntentParser::class, $parser);
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('listEvents')->once()->andReturn([
+        ['id' => 'late', 'summary' => 'Revisão', 'start' => ['dateTime' => '2026-10-29T15:00:00-03:00'], 'end' => ['dateTime' => '2026-10-29T16:00:00-03:00']],
+        ['id' => 'all-day', 'summary' => 'Feriado', 'start' => ['date' => '2026-10-29'], 'end' => ['date' => '2026-10-30']],
+        ['id' => 'early', 'summary' => 'Dentista', 'start' => ['dateTime' => '2026-10-29T09:30:00-03:00'], 'end' => ['dateTime' => '2026-10-29T10:00:00-03:00']],
+    ]);
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    $reply = app(AgendaCommandService::class)->handle('o que tenho na quinta?', $user, $contact);
+
+    expect(str_contains($reply, 'Dia todo — 29/10 — Feriado'))->toBeTrue()
+        ->and(strpos($reply, 'Dentista'))->toBeLessThan(strpos($reply, 'Revisão'))
+        ->and(str_contains($reply, '09:30–10:00'))->toBeTrue();
+});
+
+it('checks an exact availability interval without creating an event', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn([
+        'intent' => 'check_availability',
+        'start_at' => '2026-10-30T05:30:00-03:00',
+        'end_at' => '2026-10-30T05:40:00-03:00',
+        'time_zone' => 'America/Sao_Paulo',
+    ]);
+    app()->instance(AgendaIntentParser::class, $parser);
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('hasConflict')->once()->withArgs(function (User $actual, $start, $end, string $timezone) use ($user): bool {
+        return $actual->is($user) && $start->format('H:i') === '05:30' && $end->format('H:i') === '05:40'
+            && $timezone === 'America/Sao_Paulo';
+    })->andReturnFalse();
+    $calendar->shouldNotReceive('createEvent');
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    $reply = app(AgendaCommandService::class)->handle('estou livre dia 30/10/2026 das 5:30 da manhã às 5:40?', $user, $contact);
+
+    expect($reply)->toContain('está livre')->toContain('Ainda não criei nenhum evento.');
+});
+
+it('asks for duration instead of guessing when availability has no precise interval', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldNotReceive('parse');
+    app()->instance(AgendaIntentParser::class, $parser);
+
+    $reply = app(AgendaCommandService::class)->handle('estou livre amanhã de manhã?', $user, $contact);
+
+    expect($reply)->toContain('quanto tempo o compromisso deve durar')
+        ->and($reply)->toContain('Não vou presumir');
+});
+
+it('suggests bounded same-day alternatives when an exact interval is busy', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn([
+        'intent' => 'check_availability',
+        'start_at' => '2026-10-30T15:00:00-03:00',
+        'end_at' => '2026-10-30T15:30:00-03:00',
+        'time_zone' => 'America/Sao_Paulo',
+    ]);
+    app()->instance(AgendaIntentParser::class, $parser);
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('hasConflict')->twice()->andReturn(true, false);
+    $calendar->shouldReceive('suggestAvailableSlots')->once()->withArgs(fn (User $actual, $start, $end, string $timezone): bool => $actual->is($user) && $start->format('H:i') === '15:00' && $end->format('H:i') === '15:30' && $timezone === 'America/Sao_Paulo')
+        ->andReturn([
+            ['start' => Carbon\CarbonImmutable::parse('2026-10-30T16:00:00-03:00'), 'end' => Carbon\CarbonImmutable::parse('2026-10-30T16:30:00-03:00')],
+        ]);
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    $reply = app(AgendaCommandService::class)->handle('estou livre dia 30/10/2026 das 15:00 às 15:30?', $user, $contact);
+
+    expect($reply)->toBeString()
+        ->and(str_contains($reply, 'tem conflito'))->toBeTrue()
+        ->and(str_contains($reply, '16:00–16:30'))->toBeTrue()
+        ->and(str_contains($reply, 'Responda com o número'))->toBeTrue();
+
+    $selected = app(AgendaCommandService::class)->handle('1', $user, $contact);
+    expect(str_contains($selected, 'Esse horário está livre: 30/10/2026 16:00–16:30'))->toBeTrue()
+        ->and(str_contains($selected, 'Ainda não criei nenhum evento.'))->toBeTrue()
+        ->and(data_get($contact->fresh()->conversation_state, 'pending_intent'))->toBeNull();
+});
+
+it('requires confirmation after selecting an alternative for a new event', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn([
+        'intent' => 'create_event',
+        'title' => 'Consulta de teste',
+        'start_at' => '2026-10-30T15:00:00-03:00',
+        'end_at' => '2026-10-30T15:30:00-03:00',
+        'time_zone' => 'America/Sao_Paulo',
+        'attendees' => [],
+    ]);
+    app()->instance(AgendaIntentParser::class, $parser);
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('hasConflict')->times(3)->andReturn(true, false, false);
+    $calendar->shouldReceive('suggestAvailableSlots')->once()->andReturn([
+        ['start' => Carbon\CarbonImmutable::parse('2026-10-30T16:00:00-03:00'), 'end' => Carbon\CarbonImmutable::parse('2026-10-30T16:30:00-03:00')],
+    ]);
+    $calendar->shouldReceive('validateEventForConfirmation')->twice()->andReturn(
+        [
+            'summary' => 'Consulta de teste',
+            'start' => ['dateTime' => '2026-10-30T15:00:00-03:00', 'timeZone' => 'America/Sao_Paulo'],
+            'end' => ['dateTime' => '2026-10-30T15:30:00-03:00', 'timeZone' => 'America/Sao_Paulo'],
+            'attendees' => [],
+        ],
+        [
+            'summary' => 'Consulta de teste',
+            'start' => ['dateTime' => '2026-10-30T16:00:00-03:00', 'timeZone' => 'America/Sao_Paulo'],
+            'end' => ['dateTime' => '2026-10-30T16:30:00-03:00', 'timeZone' => 'America/Sao_Paulo'],
+            'attendees' => [],
+        ],
+    );
+    $calendar->shouldReceive('createEvent')->once()->andReturn(['htmlLink' => 'https://calendar.google.test/event']);
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    $service = app(AgendaCommandService::class);
+    expect($service->handle('marque consulta de teste para 30/10/2026 das 15:00 às 15:30', $user, $contact))
+        ->toContain('Responda com o número');
+    expect($service->handle('1', $user, $contact))->toContain('Confirma criar este evento')
+        ->and(data_get($contact->fresh()->conversation_state, 'mode'))->toBe('awaiting_confirmation');
+    expect($service->handle('sim', $user, $contact))->toContain('Compromisso criado');
+});
+
+it('explains Google permission failures without exposing provider payloads', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn(['intent' => 'list_events']);
+    app()->instance(AgendaIntentParser::class, $parser);
+    $calendar = Mockery::mock(GoogleCalendarService::class);
+    $calendar->shouldReceive('listEvents')->once()->andThrow(new App\Exceptions\GoogleCalendarApiException(403, 'accessNotConfigured'));
+    app()->instance(GoogleCalendarService::class, $calendar);
+
+    $reply = app(AgendaCommandService::class)->handle('mostre minha agenda amanhã', $user, $contact);
+
+    expect($reply)->toContain('API do Google Calendar não está ativada')
+        ->and($reply)->not->toContain('PERMISSION_DENIED');
+});
+
+it('distinguishes an AI provider rate limit from an unrecognized agenda request', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user);
+    $parser = Mockery::mock(AgendaIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andThrow(Laravel\Ai\Exceptions\RateLimitedException::forProvider('groq'));
+    app()->instance(AgendaIntentParser::class, $parser);
+
+    $reply = app(AgendaCommandService::class)->handle('marque consulta amanhã às 10', $user, $contact);
+
+    expect($reply)->toContain('temporariamente ocupado')
+        ->and(str_contains($reply, 'Não consegui entender'))->toBeFalse();
+});
+
+it('clears an abandoned agenda clarification and lets a financial message continue', function (): void {
+    $user = agendaUserWithCalendar();
+    $contact = agendaContact($user, [
+        'mode' => 'awaiting_clarification',
+        'pending_intent' => 'agenda_create_event',
+        'pending_payload' => ['original_message' => 'marque uma consulta'],
+    ]);
+
+    expect(app(AgendaCommandService::class)->handle('gastei 87 na farmácia', $user, $contact))->toBeNull()
+        ->and(data_get($contact->fresh()->conversation_state, 'pending_intent'))->toBeNull();
 });

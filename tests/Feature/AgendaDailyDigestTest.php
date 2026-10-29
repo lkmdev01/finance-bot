@@ -94,3 +94,49 @@ it('sends at most one digest per local calendar day and does not call AI', funct
         ->and($command->handle($summaries, $phoneNumbers, $delivery))->toBe(SendAgendaDailyDigests::SUCCESS)
         ->and($preference->fresh()->last_sent_for->format('Y-m-d'))->toBe('2026-10-28');
 });
+
+it('sorts daily calendar events and flags overlapping timed commitments', function (): void {
+    $user = digestUserWithCalendar();
+    $calendar = Mockery::mock(App\Services\GoogleCalendarService::class);
+    $calendar->shouldReceive('listEvents')->once()->andReturn([
+        ['summary' => 'Reunião B', 'start' => ['dateTime' => '2026-10-28T10:30:00-03:00'], 'end' => ['dateTime' => '2026-10-28T11:30:00-03:00']],
+        ['summary' => 'Dentista', 'start' => ['dateTime' => '2026-10-28T09:00:00-03:00'], 'end' => ['dateTime' => '2026-10-28T10:00:00-03:00']],
+        ['summary' => 'Reunião A', 'start' => ['dateTime' => '2026-10-28T10:00:00-03:00'], 'end' => ['dateTime' => '2026-10-28T11:00:00-03:00']],
+    ]);
+
+    $summary = (new AgendaDailySummaryService($calendar))->summarize(
+        $user,
+        CarbonImmutable::parse('2026-10-28 08:00:00', 'America/Sao_Paulo'),
+    );
+
+    expect(strpos($summary, '09:00 — Dentista'))->toBeLessThan(strpos($summary, '10:00 — Reunião A'))
+        ->and(strpos($summary, '10:00 — Reunião A'))->toBeLessThan(strpos($summary, '10:30 — Reunião B'))
+        ->and(str_contains($summary, 'Reunião A (horário sobreposto)'))->toBeTrue()
+        ->and(str_contains($summary, 'Reunião B (horário sobreposto)'))->toBeTrue();
+});
+
+it('tells the user when a long daily summary has more events than the WhatsApp preview', function (): void {
+    $user = digestUserWithCalendar();
+    $events = [];
+    for ($index = 0; $index < 23; $index++) {
+        $hour = 8 + intdiv($index, 2);
+        $minute = $index % 2 === 0 ? '00' : '30';
+        $events[] = [
+            'summary' => 'Compromisso '.($index + 1),
+            'start' => ['dateTime' => sprintf('2026-10-28T%02d:%s:00-03:00', $hour, $minute)],
+            'end' => ['dateTime' => sprintf('2026-10-28T%02d:%s:00-03:00', $hour, $minute)],
+        ];
+    }
+    $calendar = Mockery::mock(App\Services\GoogleCalendarService::class);
+    $calendar->shouldReceive('listEvents')->once()->andReturn($events);
+
+    $summary = (new AgendaDailySummaryService($calendar))->summarize(
+        $user,
+        CarbonImmutable::parse('2026-10-28 08:00:00', 'America/Sao_Paulo'),
+    );
+
+    expect($summary)->toContain('Compromisso 1')
+        ->and($summary)->toContain('Compromisso 20')
+        ->and($summary)->not->toContain('Compromisso 21')
+        ->and($summary)->toContain('e mais 3 compromisso(s)');
+});

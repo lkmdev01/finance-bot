@@ -8,9 +8,7 @@ use App\Services\Meetings\MeetingCommandService;
 use App\Services\TaskIntentParser;
 use App\Services\WhatsApp\AgendaCommandService;
 use App\Services\WhatsApp\ConversationOrchestrator;
-use App\Services\WhatsApp\ConversationStateService;
 use App\Services\WhatsApp\TaskCommandService;
-use App\Services\WhatsApp\Resolvers\PreflightMessageResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 
@@ -62,6 +60,33 @@ it('routes task requests before the financial agent while keeping financial text
     $contact2 = taskContact($user);
     expect(app(ConversationOrchestrator::class)->beforeAI('gastei 80 no mercado', $user, $contact2))->toBeNull();
 });
+
+it('does not consume a Google Drive search merely because it mentions a project', function (): void {
+    $user = User::factory()->create();
+    $contact = taskContact($user);
+    $parser = Mockery::mock(TaskIntentParser::class);
+    $parser->shouldNotReceive('parse');
+    app()->instance(TaskIntentParser::class, $parser);
+
+    expect(app(TaskCommandService::class)->handle('encontra o áudio sobre o projeto', $user, $contact))->toBeNull();
+});
+
+it('still routes explicit project and task requests to Google Tasks', function (string $message): void {
+    $user = taskUserWithGoogleTasks();
+    $contact = taskContact($user);
+    $parser = Mockery::mock(TaskIntentParser::class);
+    $parser->shouldReceive('parse')->once()->andReturn(['intent' => 'list_projects']);
+    app()->instance(TaskIntentParser::class, $parser);
+
+    $tasks = Mockery::mock(GoogleTasksService::class);
+    $tasks->shouldReceive('listProjectLists')->once()->with($user)->andReturn([]);
+    app()->instance(GoogleTasksService::class, $tasks);
+
+    expect(app(TaskCommandService::class)->handle($message, $user, $contact))->toContain('Você ainda não tem projetos');
+})->with([
+    'liste meus projetos',
+    'quais projetos eu tenho?',
+]);
 
 it('requires confirmation before submitting a Google Task', function (): void {
     $user = taskUserWithGoogleTasks();
@@ -133,6 +158,44 @@ it('preserves pending actions owned by other conversation flows', function (): v
 
     expect($reply)->toContain('outra confirmação')
         ->and(data_get($contact->fresh()->conversation_state, 'pending_intent'))->toBe('confirm_large_transaction');
+});
+
+it('allows a new task request to replace an unanswered agenda clarification', function (): void {
+    $user = taskUserWithGoogleTasks();
+    $contact = taskContact($user, [
+        'mode' => 'awaiting_clarification',
+        'pending_intent' => 'agenda_create_event',
+        'pending_payload' => ['original_message' => 'marque uma consulta'],
+    ]);
+    $parser = Mockery::mock(TaskIntentParser::class);
+    $parser->shouldReceive('parse')->once()->withArgs(fn (string $message): bool => $message === 'liste minhas tarefas pendentes')
+        ->andReturn(['intent' => 'list_tasks', 'project_title' => null]);
+    app()->instance(TaskIntentParser::class, $parser);
+
+    $tasks = Mockery::mock(GoogleTasksService::class);
+    $tasks->shouldReceive('listTasks')->once()->with($user, 20, '@default')->andReturn([
+        ['id' => 'task-water', 'title' => 'Beber água', 'status' => 'needsAction'],
+    ]);
+    app()->instance(GoogleTasksService::class, $tasks);
+
+    $reply = app(TaskCommandService::class)->handle('liste minhas tarefas pendentes', $user, $contact);
+
+    expect($reply)->toContain('Beber água')
+        ->and(data_get($contact->fresh()->conversation_state, 'pending_intent'))->toBeNull();
+});
+
+it('does not discard an agenda action awaiting explicit confirmation', function (): void {
+    $user = taskUserWithGoogleTasks();
+    $contact = taskContact($user, [
+        'mode' => 'awaiting_confirmation',
+        'pending_intent' => 'agenda_create_event',
+        'pending_payload' => ['event' => ['summary' => 'Consulta']],
+    ]);
+
+    $reply = app(TaskCommandService::class)->handle('liste minhas tarefas pendentes', $user, $contact);
+
+    expect($reply)->toContain('outra confirmação')
+        ->and(data_get($contact->fresh()->conversation_state, 'pending_intent'))->toBe('agenda_create_event');
 });
 
 it('updates a matching task only after explicit confirmation', function (): void {
