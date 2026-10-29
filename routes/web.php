@@ -100,6 +100,10 @@ Route::view('dashboard', 'pages.dashboard')
     ->name('dashboard');
 
 Route::middleware(['auth', 'whatsapp.activated'])->group(function () {
+    Route::get('research', [App\Http\Controllers\ResearchQueryController::class, 'index'])
+        ->name('research.index');
+    Route::delete('research/{researchQuery}', [App\Http\Controllers\ResearchQueryController::class, 'destroy'])
+        ->name('research.destroy');
     Route::get('ai-usage', \App\Http\Controllers\AiTokenUsageController::class)
         ->name('ai-usage.index');
 

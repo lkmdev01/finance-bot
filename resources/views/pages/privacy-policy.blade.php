@@ -24,6 +24,7 @@
         <li>Dados financeiros cadastrados pelo usuario, incluindo transacoes, categorias, metas, orcamentos, lembretes, assinaturas, projecoes e observacoes.</li>
         <li>Conteudo enviado pelo WhatsApp, como mensagens, audios, documentos, imagens, comandos, captions e contexto de conversa.</li>
         <li>Dados de integracoes, como tokens de acesso, identificadores de arquivos e metadados do Google Drive, quando a integracao for ativada pelo proprio usuario.</li>
+        <li>Quando a pesquisa web for habilitada e solicitada, o pedido, as fontes e a resposta resultante, mantidos no histórico Pesquisas até a exclusão pelo usuário.</li>
         <li>Dados de cobranca e assinatura, incluindo status do plano, historico de checkout e eventos do gateway de pagamento.</li>
     </ul>
 
@@ -51,6 +52,7 @@
         <li>Plataformas de autenticacao e login social, quando escolhidas pelo usuario.</li>
         <li>Provedores de pagamento e faturamento para processamento de assinaturas.</li>
         <li>Servicos conectados pelo proprio usuario, como Google Drive e WhatsApp.</li>
+        <li>O provedor da busca web e o provedor de IA, somente para processar pesquisas solicitadas pelo usuário. Enviamos uma cópia sanitizada do pedido e não enviamos histórico financeiro, documentos ou contexto da conta; telefone, e-mail, CPF e nome cadastrado são removidos quando reconhecidos pelo sistema.</li>
         <li>Autoridades publicas, quando houver obrigacao legal ou ordem valida.</li>
     </ul>
     <p>

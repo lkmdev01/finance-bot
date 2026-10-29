@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'searxng' => [
+        'enabled' => env('WEB_RESEARCH_ENABLED', false),
+        'base_url' => env('SEARXNG_BASE_URL'),
+    ],
+
 
     /*
     |--------------------------------------------------------------------------

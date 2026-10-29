@@ -95,7 +95,7 @@
                     </div>
                 </div>
 
-                <div x-data="{ open: {{ request()->routeIs('reports.*', 'financial-projections.*', 'ai-usage.*') ? 'true' : 'false' }} }" class="space-y-1">
+                <div x-data="{ open: {{ request()->routeIs('reports.*', 'financial-projections.*', 'ai-usage.*', 'research.*') ? 'true' : 'false' }} }" class="space-y-1">
                     <button type="button" data-sidebar-group-toggle @click="open = ! open" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300">
                         <span>Analise</span>
                         <span class="text-xs transition-transform" :class="open ? 'rotate-90' : ''">&rsaquo;</span>
@@ -109,6 +109,9 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="cpu-chip" :href="route('ai-usage.index')" :current="request()->routeIs('ai-usage.*')" wire:navigate>
                             Uso de IA
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="magnifying-glass" :href="route('research.index')" :current="request()->routeIs('research.*')" wire:navigate>
+                            Pesquisas
                         </flux:sidebar.item>
                     </div>
                 </div>
