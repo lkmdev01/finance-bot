@@ -183,6 +183,7 @@
                     </div>
 
                     <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configuracoes</flux:menu.item>
+                    <flux:menu.item :href="route('assistant.personality.settings')" icon="chat-bubble-left-right" wire:navigate>Tom do assistente</flux:menu.item>
                     <flux:menu.separator />
 
                     <form method="POST" action="{{ route('logout') }}" class="w-full">
@@ -221,6 +222,7 @@
                     </div>
 
                     <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>Configuracoes</flux:menu.item>
+                    <flux:menu.item :href="route('assistant.personality.settings')" icon="chat-bubble-left-right" wire:navigate>Tom do assistente</flux:menu.item>
                     <flux:menu.separator />
 
                     <form method="POST" action="{{ route('logout') }}" class="w-full">

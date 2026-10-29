@@ -19,6 +19,6 @@ class TaskIntentParser
             $message,
         );
 
-        return $this->fallback->prompt($user, app(TaskAgent::class), $prompt, 'tasks');
+        return $this->fallback->prompt($user, app(TaskAgent::class)->forUser($user), $prompt, 'tasks');
     }
 }

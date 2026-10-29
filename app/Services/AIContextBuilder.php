@@ -44,6 +44,7 @@ class AIContextBuilder
         return [
             'user_id' => $user->id,
             'user_name' => $user->name,
+            'assistant_tone_instruction' => app(AssistantToneService::class)->instruction($user),
             'recent_transactions' => $recentTransactions->map(fn ($t) => [
                 'id' => $t->id,
                 'type' => $t->type,

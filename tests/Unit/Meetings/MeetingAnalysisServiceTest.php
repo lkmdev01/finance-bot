@@ -40,6 +40,9 @@ function meetingAnalysisModel(array $dates = []): Meeting
 
 function analyzeMeetingWithResponse(array $data, array $dates, string $transcriptText, ?Closure $assertPrompt = null): string
 {
+    $meeting = meetingAnalysisModel($dates);
+    $meeting->setRelation('user', new User(['id' => 1]));
+
     $budget = Mockery::mock(AiUserTokenBudget::class);
     $budget->shouldReceive('run')
         ->once()
@@ -48,6 +51,7 @@ function analyzeMeetingWithResponse(array $data, array $dates, string $transcrip
     app()->instance(AiUserTokenBudget::class, $budget);
 
     $agent = Mockery::mock(MeetingAgent::class);
+    $agent->shouldReceive('forUser')->once()->with($meeting->user)->andReturnSelf();
     $expectation = $agent->shouldReceive('prompt')->once();
     if ($assertPrompt !== null) {
         $expectation->withArgs(function (string $prompt) use ($assertPrompt): bool {
@@ -66,9 +70,6 @@ function analyzeMeetingWithResponse(array $data, array $dates, string $transcrip
         new Meta,
     ));
     app()->instance(MeetingAgent::class, $agent);
-
-    $meeting = meetingAnalysisModel($dates);
-    $meeting->setRelation('user', new User(['id' => 1]));
 
     return app(MeetingAnalysisService::class)->analyze(
         $meeting,

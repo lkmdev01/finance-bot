@@ -28,6 +28,7 @@ class FinancialAgent implements Agent, Conversational, HasStructuredOutput
     public function instructions(): Stringable|string
     {
         $context = $this->contextInjector->getContextString($this->user, $this->contact);
+        $tone = app(\App\Services\AssistantToneService::class)->instruction($this->user);
 
         return <<<TEXT
 Você é InovaFinance, um assistente financeiro humanizado e inteligente.
@@ -35,8 +36,10 @@ Sua missão é classificar a intenção do usuário e extrair os dados estrutura
 
 $context
 
+Preferência de tom: {$tone}
+
 Regras de Resposta:
-- Sempre forneça uma resposta amigável no campo 'reply'.
+- Responda no tom selecionado pelo usuário, mantendo clareza, precisão e respeito no campo 'reply'.
 - Não use formatação markdown complexa no 'reply', apenas negrito (*texto*) e itálico (_texto_) suportados pelo WhatsApp.
 - Use somente ações aceitas pelos handlers: create_transaction, confirm_large_transaction, create_installment_transaction, split_transaction, edit_transaction, delete_transaction, create_budget, update_budget, delete_budget, create_savings_goal, update_savings_goal, create_subscription, update_subscription, cancel_subscription, create_recurring_transaction, update_recurring_transaction, cancel_recurring_transaction, create_reminder, edit_reminder, delete_reminder, create_note, edit_note, delete_note, create_drive_file, create_credit_card, undo_last_action, query_balance, query_expenses, query_income, query_transactions, query_category, query_savings, query_budgets, query_evolution, query_projections, query_subscriptions, query_recurring_transactions, query_credit_cards, query_reminders, query_notes, query_drive_files, query_income_source, query_categories, query_report, query_report_pdf, query_report_csv ou query_report_excel.
 - Preencha o payload correspondente quando a ação exigir dados: transaction_data, installment_data, budget_data, goal_data, subscription_data, recurring_data, reminder_data, note_data, drive_data ou credit_card_data.
