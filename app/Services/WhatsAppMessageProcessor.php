@@ -5,11 +5,14 @@ namespace App\Services;
 use App\Exceptions\AiUserTokenLimitExceeded;
 use App\Models\User;
 use App\Models\WhatsAppContact;
+use Illuminate\Support\Facades\Log;
+use Laravel\Ai\Exceptions\RateLimitedException;
 
 class WhatsAppMessageProcessor
 {
     public function __construct(
-        private readonly AIService $aiService
+        private readonly AIService $aiService,
+        private readonly ?SpecializedAiFallbackService $fallback = null,
     ) {}
 
     /**
@@ -47,12 +50,24 @@ class WhatsAppMessageProcessor
             'contact' => $contact,
         ]);
 
-        $response = app(AiUserTokenBudget::class)->run($user, fn () => $agent
-            ->forUser($contact)
-            ->prompt($message), 'financial');
+        try {
+            $result = ($this->fallback ?? app(SpecializedAiFallbackService::class))->prompt(
+                $user,
+                $agent->forUser($contact),
+                $message,
+                'financial',
+            );
+        } catch (RateLimitedException $exception) {
+            Log::notice('Modelos principal e de contingência indisponíveis para o assistente financeiro', [
+                'user_id' => $user->id,
+                'exception' => $exception::class,
+            ]);
 
-        /** @var \Laravel\Ai\Responses\StructuredAgentResponse $response */
-        $result = $response->toArray();
+            return [
+                'action' => null,
+                'reply' => 'Poxa, não consegui responder direito agora. Não fiz nenhuma alteração financeira. Pode me dizer de novo o que você precisa? Vou tentar ajudar.',
+            ];
+        }
 
         // Garantir compatibilidade com o formato array retornado anteriormente
         if (! is_array($result)) {

@@ -6,17 +6,15 @@ use App\Ai\FinancialAgent;
 use App\Models\User;
 use App\Models\WhatsAppContact;
 use App\Services\AIService;
-use App\Services\AiUserTokenBudget;
+use App\Services\SpecializedAiFallbackService;
 use App\Services\WhatsAppMessageProcessor;
-use Laravel\Ai\Responses\AgentResponse;
 
 it('processes structured responses through the FinancialAgent when the SDK is enabled', function () {
     config(['ai.use_sdk' => true]);
 
     $user = new User(['id' => 1]);
     $contact = new WhatsAppContact(['id' => 10, 'user_id' => 1]);
-    $response = Mockery::mock(AgentResponse::class);
-    $response->shouldReceive('toArray')->once()->andReturn([
+    $result = [
         'action' => 'create_transaction',
         'reply' => 'Lancamento identificado.',
         'transaction_data' => [
@@ -24,22 +22,18 @@ it('processes structured responses through the FinancialAgent when the SDK is en
             'amount' => 25,
             'description' => 'Uber',
         ],
-    ]);
+    ];
 
     $agent = Mockery::mock(FinancialAgent::class);
     $agent->shouldReceive('forUser')->once()->with($contact)->andReturnSelf();
-    $agent->shouldReceive('prompt')->once()->with('Gastei 25 no Uber')->andReturn($response);
+    $fallback = Mockery::mock(SpecializedAiFallbackService::class);
+    $fallback->shouldReceive('prompt')->once()
+        ->with($user, $agent, 'Gastei 25 no Uber', 'financial')
+        ->andReturn($result);
 
     app()->bind(FinancialAgent::class, fn () => $agent);
 
-    $budget = Mockery::mock(AiUserTokenBudget::class);
-    $budget->shouldReceive('run')
-        ->once()
-        ->with($user, Mockery::type(Closure::class), 'financial')
-        ->andReturnUsing(fn (User $user, Closure $operation, string $agent) => $operation());
-    app()->instance(AiUserTokenBudget::class, $budget);
-
-    $processor = new WhatsAppMessageProcessor(Mockery::mock(AIService::class));
+    $processor = new WhatsAppMessageProcessor(Mockery::mock(AIService::class), $fallback);
     $result = $processor->process('Gastei 25 no Uber', $user, $contact);
 
     expect($result)->toMatchArray([
@@ -47,4 +41,27 @@ it('processes structured responses through the FinancialAgent when the SDK is en
         'reply' => 'Lancamento identificado.',
     ])
         ->and($result['transaction_data']['description'])->toBe('Uber');
+});
+
+it('returns a friendly safe reply when the financial model and its fallback are rate limited', function () {
+    config(['ai.use_sdk' => true]);
+
+    $user = new User(['id' => 7]);
+    $contact = new WhatsAppContact(['id' => 10, 'user_id' => 7]);
+
+    $agent = Mockery::mock(FinancialAgent::class);
+    $agent->shouldReceive('forUser')->once()->with($contact)->andReturnSelf();
+    app()->bind(FinancialAgent::class, fn () => $agent);
+
+    $fallback = Mockery::mock(SpecializedAiFallbackService::class);
+    $fallback->shouldReceive('prompt')->once()
+        ->with($user, $agent, 'Você é ruim', 'financial')
+        ->andThrow(Laravel\Ai\Exceptions\RateLimitedException::forProvider('groq'));
+
+    $processor = new WhatsAppMessageProcessor(Mockery::mock(AIService::class), $fallback);
+    $result = $processor->process('Você é ruim', $user, $contact);
+
+    expect($result['action'])->toBeNull()
+        ->and($result['reply'])->toContain('não consegui responder direito')
+        ->and($result['reply'])->toContain('Não fiz nenhuma alteração financeira');
 });
