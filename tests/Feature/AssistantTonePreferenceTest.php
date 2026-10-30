@@ -76,6 +76,28 @@ it('applies the selected tone to each specialized agent and the legacy prompt', 
     expect($legacyPrompt)->toContain('Use um tom direto e conciso.');
 });
 
+it('applies the saved sarcastic tone to every agent domain', function (): void {
+    $user = new User(['assistant_tone' => 'rude']);
+    $contact = new WhatsAppContact(['id' => 8, 'user_id' => 7]);
+    $toneInstruction = 'sarcástico, rebelde, afiado e sem papas na língua';
+
+    expect((string) app(AgendaAgent::class)->forUser($user)->instructions())->toContain($toneInstruction)
+        ->and((string) app(TaskAgent::class)->forUser($user)->instructions())->toContain($toneInstruction)
+        ->and((string) app(MeetingAgent::class)->forUser($user)->instructions())->toContain($toneInstruction)
+        ->and((string) app(ResearchAnswerAgent::class)->forUser($user)->instructions())->toContain($toneInstruction);
+
+    $contextInjector = Mockery::mock(AgentContextInjector::class);
+    $contextInjector->shouldReceive('getContextString')->once()->with($user, $contact)->andReturn('contexto de teste');
+    $financial = new FinancialAgent($user, $contact, $contextInjector);
+    expect((string) $financial->instructions())->toContain('Preferência de tom: Use um tom '.$toneInstruction);
+
+    $legacyPrompt = app(AIPromptBuilder::class)->build('olá', [
+        'user_name' => 'Pessoa Exemplo',
+        'assistant_tone_instruction' => 'Use um tom '.$toneInstruction.'.',
+    ]);
+    expect($legacyPrompt)->toContain($toneInstruction);
+});
+
 it('uses the friendly instruction when no user preference is set', function (): void {
     expect(app(AssistantToneService::class)->instruction(null))
         ->toBe('Use um tom amigável, natural e prestativo.');
