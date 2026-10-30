@@ -34,7 +34,7 @@ new class extends Component
                         <option value="{{ $value }}">{{ $label }}</option>
                     @endforeach
                 </flux:select>
-                <flux:description>O estilo irreverente usa ironia leve. O assistente não humilha nem ofende e mantém clareza em assuntos delicados e confirmações.</flux:description>
+                <flux:description>O estilo sarcástico é afiado, rebelde e direto. A ironia mira ideias e situações; em assuntos delicados ou ações financeiras, o assistente prioriza clareza e cuidado.</flux:description>
                 <flux:error name="assistant_tone" />
             </flux:field>
             <div class="flex items-center gap-4">
