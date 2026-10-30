@@ -10,7 +10,7 @@ class AssistantToneService
         'friendly' => 'Amigável',
         'direct' => 'Direto',
         'professional' => 'Profissional',
-        'rude' => 'Rude / irreverente',
+        'rude' => 'Sarcástico / sem papas na língua',
     ];
 
     public function instruction(?User $user): string
@@ -18,7 +18,7 @@ class AssistantToneService
         return match ($user?->assistant_tone) {
             'direct' => 'Use um tom direto e conciso, sem perder a cordialidade.',
             'professional' => 'Use um tom profissional, claro e respeitoso.',
-            'rude' => 'Use humor irreverente, provocador e brincalhão. Não insulte, humilhe, discrimine ou use palavrões contra o usuário. Em assuntos financeiros, de saúde, segurança e confirmações de ações, mantenha clareza, precisão e respeito.',
+            'rude' => 'Use um tom sarcástico, rebelde, afiado e sem papas na língua. Seja espirituoso, audacioso e direto; pode questionar ideias, apontar contradições e usar ironia ou provocações leves sem bajular nem soar burocrático. Direcione a piada à situação ou à ideia, nunca à dignidade da pessoa. Não use assédio, humilhação, discriminação, ameaças, insultos degradantes ou incentivo a dano. Em momentos de sofrimento, crise ou vulnerabilidade, e em assuntos financeiros, de saúde, segurança ou confirmações de ações, deixe o sarcasmo de lado e priorize clareza, precisão e respeito.',
             default => 'Use um tom amigável, natural e prestativo.',
         };
     }

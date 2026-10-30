@@ -20,7 +20,7 @@ it('offers a per-user assistant tone setting with a friendly default', function 
     $this->get(route('assistant.personality.settings'))
         ->assertOk()
         ->assertSee('Tom do assistente')
-        ->assertSee('Rude / irreverente');
+        ->assertSee('Sarcástico / sem papas na língua');
 
     Volt::test('settings.assistant-personality')
         ->set('assistant_tone', 'rude')
@@ -43,15 +43,16 @@ it('rejects unknown tone values and keeps the saved preference unchanged', funct
     expect($user->fresh()->assistant_tone)->toBe('professional');
 });
 
-it('keeps the irreverent option playful and bounded in sensitive contexts', function (): void {
+it('uses a sharper sarcastic tone while keeping care in sensitive contexts', function (): void {
     $service = app(AssistantToneService::class);
     $instruction = $service->instruction(new User(['assistant_tone' => 'rude']));
 
     expect($instruction)
-        ->toContain('humor irreverente')
-        ->toContain('Não insulte')
-        ->toContain('assuntos financeiros')
-        ->toContain('confirmações de ações');
+        ->toContain('sarcástico, rebelde, afiado e sem papas na língua')
+        ->toContain('apontar contradições')
+        ->toContain('nunca à dignidade da pessoa')
+        ->toContain('assédio, humilhação, discriminação')
+        ->toContain('assuntos financeiros, de saúde, segurança');
 });
 
 it('applies the selected tone to each specialized agent and the legacy prompt', function (): void {
